@@ -1,0 +1,128 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: integracao-totvs-db
+    restart: unless-stopped
+    ports:
+      - "${DB_PORT:-5433}:5432"
+    environment:
+      POSTGRES_DB: ${DB_NAME:-integracao_totvs}
+      POSTGRES_USER: ${DB_USER:-admin}
+      POSTGRES_PASSWORD: ${DB_PASS:?Defina DB_PASS no arquivo .env}
+    volumes:
+      - integracao_totvs_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-admin} -d ${DB_NAME:-integracao_totvs}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - integracao-totvs-network
+    labels:
+      - "app=integracao-totvs"
+
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: development
+    container_name: integracao-totvs-migrate
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql://${DB_USER:-admin}:${DB_PASS:?Defina DB_PASS no arquivo .env}@postgres:5432/${DB_NAME:-integracao_totvs}
+    command: ["npx", "prisma", "migrate", "deploy", "--schema=prisma/schema.prisma"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+    networks:
+      - integracao-totvs-network
+    labels:
+      - "app=integracao-totvs"
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: ${NODE_ENV:-production}
+    container_name: integracao-totvs-app
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      DATABASE_URL: postgresql://${DB_USER:-admin}:${DB_PASS:?Defina DB_PASS no arquivo .env}@postgres:5432/${DB_NAME:-integracao_totvs}
+      JWT_SECRET: ${JWT_SECRET:?Defina JWT_SECRET no arquivo .env}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?Defina JWT_REFRESH_SECRET no arquivo .env}
+    volumes:
+      - integracao_totvs_app_uploads:/app/public/uploads
+    networks:
+      - integracao-totvs-network
+    labels:
+      - "app=integracao-totvs"
+    develop:
+      watch:
+        - action: sync
+          path: ./app
+          target: /app/app
+        - action: sync
+          path: ./components
+          target: /app/components
+        - action: sync
+          path: ./lib
+          target: /app/lib
+        - action: sync
+          path: ./hooks
+          target: /app/hooks
+        - action: sync
+          path: ./providers
+          target: /app/providers
+        - action: sync
+          path: ./repositories
+          target: /app/repositories
+        - action: sync
+          path: ./schemas
+          target: /app/schemas
+        - action: sync
+          path: ./services
+          target: /app/services
+        - action: sync
+          path: ./store
+          target: /app/store
+        - action: sync
+          path: ./types
+          target: /app/types
+        - action: sync
+          path: ./utils
+          target: /app/utils
+        - action: sync
+          path: ./config
+          target: /app/config
+        - action: sync
+          path: ./actions
+          target: /app/actions
+        - action: rebuild
+          path: ./package.json
+        - action: rebuild
+          path: ./package-lock.json
+        - action: rebuild
+          path: ./prisma/schema.prisma
+
+volumes:
+  integracao_totvs_postgres_data:
+    driver: local
+  integracao_totvs_app_uploads:
+    driver: local
+
+networks:
+  integracao-totvs-network:
+    driver: bridge

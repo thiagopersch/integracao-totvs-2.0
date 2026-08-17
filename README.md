@@ -1,36 +1,176 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Integração TOTVS RM
 
-## Getting Started
+Painel administrativo enterprise para integração com **TOTVS RM** via **SOAP Dataserver**. Construído com **Next.js 16**, **React 19**, **TypeScript**, **Prisma ORM** e **PostgreSQL**.
 
-First, run the development server:
+## Stack
+
+| Categoria | Tecnologia |
+|-----------|-----------|
+| Framework | Next.js 16 (App Router, Cache Components) |
+| Frontend | React 19, TailwindCSS 4, Shadcn/UI |
+| State | Zustand, TanStack Query, TanStack Table |
+| Formulários | React Hook Form + Zod 4 |
+| Backend | Server Actions, Route Handlers, Prisma ORM |
+| Database | PostgreSQL 16 |
+| SOAP | Axios + fast-xml-parser |
+| Editor | CodeMirror 6 |
+| Gráficos | Recharts |
+| Autenticação | JWT + bcrypt + httpOnly cookies |
+| Infra | Docker, Docker Compose |
+
+## Começando
+
+### Pré-requisitos
+
+- Node.js 20+
+- Docker e Docker Compose
+- NPM
+
+### 1. Clone e instale
+
+```bash
+git clone <repo-url>
+cd integracao-totvs
+npm install
+```
+
+### 2. Configure ambiente
+
+```bash
+cp .env.example .env
+# Edite .env conforme necessário
+```
+
+### 3. Suba o banco de dados
+
+```bash
+docker compose up -d postgres
+```
+
+### 4. Execute migrations e seed
+
+```bash
+npm run prisma:migrate
+npm run prisma:seed
+```
+
+### 5. Inicie o servidor
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Acesse [http://localhost:3000](http://localhost:3000)
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### Credenciais padrão
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+| Papel | E-mail | Senha |
+|-------|--------|-------|
+| Admin | admin@totvs.com.br | admin123 |
+| Gerente | gerente@totvs.com.br | admin123 |
+| Usuário | usuario@totvs.com.br | admin123 |
 
-## Learn More
+## Estrutura do Projeto
 
-To learn more about Next.js, take a look at the following resources:
+```
+src/
+├── app/                    # Next.js App Router
+│   ├── (auth)/             # Login, recovery
+│   ├── (dashboard)/        # Admin, SOAP, Dashboard
+│   ├── api/                # Route Handlers
+│   ├── proxy.ts            # Next.js 16 Proxy (auth + security)
+│   ├── layout.tsx          # Root layout
+│   └── globals.css         # Tailwind + Shadcn
+├── actions/                # Server Actions
+├── components/             # React Components
+│   ├── ui/                 # Shadcn components
+│   ├── shared/             # DataTable, Forms, EmptyState
+│   └── soap/               # SOAP-specific components
+├── services/               # Business logic
+├── repositories/           # Data access (Repository Pattern)
+├── lib/                    # Prisma, JWT, Logger, Encryption
+├── schemas/                # Zod schemas
+├── store/                  # Zustand stores
+├── hooks/                  # Custom React hooks
+├── types/                  # TypeScript types
+├── utils/                  # Utilities (cn, format, xml)
+├── config/                 # Config (env, permissions, auth)
+├── constants/              # Constants (roles, modules)
+└── prisma/                 # Schema + Seed
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Funcionalidades
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+### Autenticação
+- Login com JWT + refresh token
+- httpOnly cookies
+- RBAC (Admin, Manager, User)
+- Troca obrigatória de senha
+- Rate limiting
 
-## Deploy on Vercel
+### CRUDs (9 entidades)
+- Users, Dataservers, Process, Clients, TBCs, Filters, Backups, Sentence Categories, Sentences
+- Server-side pagination, search, filter, sort
+- Soft delete + restore
+- Bulk actions
+- Export CSV/XLSX
+- TanStack Table com colunas configuráveis
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+### Integração SOAP
+- Builder visual com CodeMirror 6
+- Suporte: GETSCHEMA, READRECORD, READVIEW, SAVERECORD
+- Editor XML/JSON com conversão automática
+- Console técnico (Request, Response, Headers, Timing)
+- Histórico de chamadas
+- Templates e favoritos
+- Retry automático (3 tentativas, backoff)
+- Timeout configurável
+- Copy/Download XML
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+### Dashboard
+- Métricas em tempo real
+- Gráfico de integrações (7 dias)
+- Últimas execuções SOAP
+- Taxa de sucesso, falhas, tempo médio
+
+### Segurança
+- Senha criptografada (bcrypt)
+- Senha TBC em texto puro (nunca retornada ao front)
+- CSRF via Proxy
+- Rate limiting por IP
+- Sanitização de inputs
+- Helmet headers
+- Auditoria de todas as ações
+- Validação server-side obrigatória (Zod)
+
+## Scripts
+
+```bash
+npm run dev              # Desenvolvimento
+npm run build            # Build produção
+npm run start            # Iniciar produção
+npm run lint             # ESLint
+npm run format           # Prettier
+
+npm run prisma:migrate   # Rodar migrations
+npm run prisma:seed      # Seed banco
+npm run prisma:generate  # Gerar Prisma Client
+npm run prisma:studio    # Prisma Studio
+```
+
+## Docker
+
+```bash
+# Subir tudo
+docker compose up -d
+
+# Apenas banco
+docker compose up -d postgres
+
+# Logs
+docker compose logs -f app
+```
+
+## Licença
+
+MIT

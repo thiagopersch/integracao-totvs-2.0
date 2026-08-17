@@ -1,0 +1,142 @@
+"use server"
+
+import { revalidateTag, cacheTag } from "next/cache";
+import { sentenceCategoryService } from "@/services/sentence-category.service";
+import { auditService } from "@/services/audit.service";
+import { createSentenceCategorySchema, updateSentenceCategorySchema } from "@/schemas/sentence-category.schema";
+import type { ListParams } from "@/types/common";
+
+export async function listAllSentenceCategories() {
+  "use cache";
+  cacheTag("sentenceCategories");
+  return sentenceCategoryService.listAll();
+}
+
+export async function listSentenceCategories(params: ListParams) {
+  "use cache";
+  cacheTag("sentenceCategories");
+  return sentenceCategoryService.list(params);
+}
+
+export async function getSentenceCategoryById(id: string) {
+  "use cache";
+  cacheTag(`sentenceCategory-${id}`);
+  return sentenceCategoryService.getById(id);
+}
+
+export async function createSentenceCategory(formData: FormData) {
+  const data = {
+    code: formData.get("code") as string,
+    name: formData.get("name") as string,
+    status: formData.get("status") === "true",
+  };
+
+  const parsed = createSentenceCategorySchema.safeParse(data);
+  if (!parsed.success) {
+    return { success: false, error: "Dados inválidos", errors: parsed.error.flatten().fieldErrors };
+  }
+
+  try {
+    const entity = await sentenceCategoryService.create(parsed.data);
+    await auditService.log({
+      action: "CREATE",
+      entity: "SentenceCategory",
+      entityId: entity.id,
+      newData: { code: entity.code, name: entity.name },
+    });
+    revalidateTag("sentenceCategories", "max");
+    return { success: true, data: entity };
+  } catch (error) {
+    return { success: false, error: (error as Error).message };
+  }
+}
+
+export async function updateSentenceCategory(id: string, formData: FormData) {
+  const data = {
+    code: formData.get("code") as string,
+    name: formData.get("name") as string,
+    status: formData.get("status") === "true",
+  };
+
+  const parsed = updateSentenceCategorySchema.safeParse(data);
+  if (!parsed.success) {
+    return { success: false, error: "Dados inválidos", errors: parsed.error.flatten().fieldErrors };
+  }
+
+  try {
+    const old = await sentenceCategoryService.getById(id);
+    const entity = await sentenceCategoryService.update(id, parsed.data);
+    await auditService.log({
+      action: "UPDATE",
+      entity: "SentenceCategory",
+      entityId: id,
+      oldData: old ? { code: old.code, name: old.name } : undefined,
+      newData: { code: entity.code, name: entity.name },
+    });
+    revalidateTag("sentenceCategories", "max");
+    revalidateTag(`sentenceCategory-${id}`, "max");
+    return { success: true, data: entity };
+  } catch (error) {
+    return { success: false, error: (error as Error).message };
+  }
+}
+
+export async function deleteSentenceCategory(id: string) {
+  try {
+    const old = await sentenceCategoryService.getById(id);
+    await sentenceCategoryService.softDelete(id);
+    await auditService.log({
+      action: "DELETE",
+      entity: "SentenceCategory",
+      entityId: id,
+      oldData: old ? { code: old.code, name: old.name } : undefined,
+    });
+    revalidateTag("sentenceCategories", "max");
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: (error as Error).message };
+  }
+}
+
+export async function restoreSentenceCategory(id: string) {
+  try {
+    await sentenceCategoryService.restore(id);
+    await auditService.log({ action: "RESTORE", entity: "SentenceCategory", entityId: id });
+    revalidateTag("sentenceCategories", "max");
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: (error as Error).message };
+  }
+}
+
+export async function bulkDeleteSentenceCategories(ids: string[]) {
+  try {
+    const count = await sentenceCategoryService.bulkSoftDelete(ids);
+    await auditService.log({
+      action: "BULK_DELETE",
+      entity: "SentenceCategory",
+      entityId: ids.join(","),
+      newData: { count },
+    });
+    revalidateTag("sentenceCategories", "max");
+    return { success: true, count };
+  } catch (error) {
+    return { success: false, error: (error as Error).message };
+  }
+}
+
+export async function bulkRestoreSentenceCategories(ids: string[]) {
+  try {
+    const count = await sentenceCategoryService.bulkRestore(ids);
+    await auditService.log({
+      action: "BULK_RESTORE",
+      entity: "SentenceCategory",
+      entityId: ids.join(","),
+      newData: { count },
+    });
+    revalidateTag("sentenceCategories", "max");
+    return { success: true, count };
+  } catch (error) {
+    return { success: false, error: (error as Error).message };
+  }
+}

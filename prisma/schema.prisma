@@ -1,0 +1,352 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  MANAGER
+  USER
+}
+
+enum SoapMethod {
+  GETSCHEMA
+  READRECORD
+  READVIEW
+  SAVERECORD
+  DELETERECORD
+  ISVALIDDATASERVER
+  EXECUTEPROCESS
+  EXECUTEWITHXMLPARAMS
+  EXECUTEWITHXMLPARAMSASYNC
+  GETPROCESSSTATUS
+  GETSCHEMA2
+  CHECKSERVICEACTIVITY
+}
+
+model SoapEndpointType {
+  id        String   @id @default(uuid())
+  type      String   @unique
+  label     String
+  suffix    String
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  methods  SoapEndpointMethod[]
+  soapLogs SoapLog[]
+
+  @@map("soap_endpoint_types")
+}
+
+model SoapEndpointMethod {
+  id             String   @id @default(uuid())
+  endpointTypeId String   @map("endpoint_type_id")
+  method         String
+  label          String
+  sortOrder      Int      @default(0) @map("sort_order")
+  active         Boolean  @default(true)
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  endpointType SoapEndpointType @relation(fields: [endpointTypeId], references: [id])
+
+  soapLogs SoapLog[]
+
+  @@map("soap_endpoint_methods")
+}
+
+model User {
+  id              String     @id @default(uuid())
+  name            String
+  email           String     @unique
+  password        String
+  role            Role       @default(USER)
+  status          Boolean    @default(true)
+  changePassword  Boolean    @default(false) @map("change_password")
+  createdAt       DateTime   @default(now()) @map("created_at")
+  updatedAt       DateTime   @updatedAt @map("updated_at")
+  deletedAt       DateTime?  @map("deleted_at")
+
+  auditLogs      AuditLog[]
+  soapLogs       SoapLog[]
+  soapTemplates  SoapTemplate[]
+  soapFavorites  SoapFavorite[]
+
+  @@map("users")
+}
+
+model Dataserver {
+  id              String     @id @default(uuid())
+  code            String     @unique
+  nameAlternative String?    @map("name_alternative")
+  name            String
+  createdAt       DateTime   @default(now()) @map("created_at")
+  updatedAt       DateTime   @updatedAt @map("updated_at")
+  deletedAt       DateTime?  @map("deleted_at")
+
+  @@map("dataservers")
+}
+
+model Process {
+  id              String     @id @default(uuid())
+  code            String     @unique
+  nameAlternative String?    @map("name_alternative")
+  name            String
+  createdAt       DateTime   @default(now()) @map("created_at")
+  updatedAt       DateTime   @updatedAt @map("updated_at")
+  deletedAt       DateTime?  @map("deleted_at")
+
+  @@map("processes")
+}
+
+model Client {
+  id        String     @id @default(uuid())
+  image     String?
+  name      String
+  linkCrm   String     @unique @map("link_crm")
+  site      String?
+  status    Boolean    @default(true)
+  createdAt DateTime   @default(now()) @map("created_at")
+  updatedAt DateTime   @updatedAt @map("updated_at")
+  deletedAt DateTime?  @map("deleted_at")
+
+  tbcs    Tbc[]
+  filters Filter[]
+
+  @@map("clients")
+}
+
+model Tbc {
+  id                 String     @id @default(uuid())
+  clientId           String     @map("client_id")
+  name               String
+  link               String     @unique
+  user               String
+  password           String
+  notRequiredLicense Boolean    @default(false) @map("not_required_license")
+  status             Boolean    @default(true)
+  createdAt          DateTime   @default(now()) @map("created_at")
+  updatedAt          DateTime   @updatedAt @map("updated_at")
+  deletedAt          DateTime?  @map("deleted_at")
+
+  client  Client   @relation(fields: [clientId], references: [id])
+  filters Filter[]
+  backups Backup[]
+
+  @@map("tbcs")
+}
+
+model Filter {
+  id                   String    @id @default(uuid())
+  tbcId                String    @map("tbc_id")
+  clientId             String    @map("client_id")
+  filter               String
+  coligateContext      Int       @map("coligate_context")
+  branchContext        Int       @map("branch_context")
+  levelEducationContext Int      @map("level_education_context")
+  codSystemContext     String    @map("cod_system_context")
+  userContext          String    @map("user_context")
+  status               Boolean   @default(true)
+  createdAt            DateTime  @default(now()) @map("created_at")
+  updatedAt            DateTime  @updatedAt @map("updated_at")
+  deletedAt            DateTime? @map("deleted_at")
+
+  tbc     Tbc      @relation(fields: [tbcId], references: [id])
+  client  Client   @relation(fields: [clientId], references: [id])
+  backups Backup[]
+
+  @@map("filters")
+}
+
+model Backup {
+  id               String    @id @default(uuid())
+  tbcId            String    @map("tbc_id")
+  filterId         String    @map("filter_id")
+  branchSentence   String?   @map("branch_sentence")
+  codSystem        String?   @map("cod_system")
+  codeSentence     String?   @map("code_sentence")
+  nameSentence     String?   @map("name_sentence")
+  contentSentence  String?   @map("content_sentence")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+  deletedAt        DateTime? @map("deleted_at")
+
+  tbc    Tbc     @relation(fields: [tbcId], references: [id])
+  filter Filter  @relation(fields: [filterId], references: [id])
+
+  @@map("backups")
+}
+
+model SentenceCategory {
+  id        String     @id @default(uuid())
+  code      String     @unique
+  name      String
+  status    Boolean    @default(true)
+  createdAt DateTime   @default(now()) @map("created_at")
+  updatedAt DateTime   @updatedAt @map("updated_at")
+  deletedAt DateTime?  @map("deleted_at")
+
+  sentences Sentence[]
+
+  @@map("sentence_categories")
+}
+
+model Sentence {
+  id                 String     @id @default(uuid())
+  sentenceCategoryId String     @map("sentence_categories_id")
+  code               String     @unique
+  codSystem          String?    @map("cod_system")
+  name               String
+  content            String?    @map("content")
+  status             Boolean    @default(true)
+  createdAt          DateTime   @default(now()) @map("created_at")
+  updatedAt          DateTime   @updatedAt @map("updated_at")
+  deletedAt          DateTime?  @map("deleted_at")
+
+  category SentenceCategory @relation(fields: [sentenceCategoryId], references: [id])
+
+  @@map("sentences")
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  action    String
+  entity    String
+  entityId  String   @map("entity_id")
+  userId    String?  @map("user_id")
+  oldData   Json?    @map("old_data")
+  newData   Json?    @map("new_data")
+  ip        String?
+  userAgent String?  @map("user_agent")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User? @relation(fields: [userId], references: [id])
+
+  @@map("audit_logs")
+}
+
+model SoapLog {
+  id             String      @id @default(uuid())
+  userId         String?     @map("user_id")
+  endpointTypeId String?     @map("endpoint_type_id")
+  methodId       String?     @map("method_id")
+  dataserver     String?
+  process        String?
+  method         SoapMethod?
+  xmlRequest     String?     @map("xml_request")
+  xmlResponse    String?     @map("xml_response")
+  jsonResponse   Json?       @map("json_response")
+  status         Int?
+  duration       Int?
+  error          String?
+  context        Json?
+  favorite       Boolean     @default(false)
+  createdAt      DateTime    @default(now()) @map("created_at")
+
+  user         User?              @relation(fields: [userId], references: [id])
+  endpointType SoapEndpointType?  @relation(fields: [endpointTypeId], references: [id])
+  endpointMethod SoapEndpointMethod? @relation(fields: [methodId], references: [id])
+
+  @@map("soap_logs")
+}
+
+model SoapTemplate {
+  id          String      @id @default(uuid())
+  userId      String?     @map("user_id")
+  name        String
+  description String?
+  dataserver  String?
+  process     String?
+  method      SoapMethod?
+  xmlTemplate String?     @map("xml_template")
+  context     Json?
+  createdAt   DateTime    @default(now()) @map("created_at")
+  updatedAt   DateTime    @updatedAt @map("updated_at")
+
+  user User? @relation(fields: [userId], references: [id])
+
+  @@map("soap_templates")
+}
+
+model SoapFavorite {
+  id         String      @id @default(uuid())
+  userId     String      @map("user_id")
+  name       String
+  dataserver String?
+  process    String?
+  method     SoapMethod?
+  xml        String?
+  context    Json?
+  createdAt  DateTime    @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@map("soap_favorites")
+}
+
+model Permission {
+  id          String   @id @default(uuid())
+  code        String   @unique
+  name        String
+  description String?
+  module      String
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  rolePermissions RolePermission[]
+
+  @@map("permissions")
+}
+
+model RolePermission {
+  id           String   @id @default(uuid())
+  role         Role
+  permissionId String   @map("permission_id")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  permission Permission @relation(fields: [permissionId], references: [id])
+
+  @@unique([role, permissionId])
+  @@map("role_permissions")
+}
+
+model FeatureFlag {
+  id        String   @id @default(uuid())
+  code      String   @unique
+  name      String
+  active    Boolean  @default(false)
+  roles     String   @default("[]")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("feature_flags")
+}
+
+model AppConfig {
+  id          String   @id @default(uuid())
+  key         String   @unique
+  value       String
+  type        String   @default("string")
+  description String?
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("app_config")
+}
+
+model UploadedFile {
+  id         String   @id @default(uuid())
+  name       String
+  size       Int
+  type       String
+  path       String
+  entity     String?
+  entityId   String?  @map("entity_id")
+  uploadedAt DateTime @default(now()) @map("uploaded_at")
+
+  @@map("uploaded_files")
+}
