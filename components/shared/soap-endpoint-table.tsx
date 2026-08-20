@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { FieldError } from "@/components/ui/field"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
   DropdownMenu,
@@ -214,24 +215,18 @@ export function SoapEndpointTable({ data, meta }: SoapEndpointTableProps) {
             <form onSubmit={typeForm.handleSubmit(onTypeSubmit)} className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="type">Tipo</Label>
-                <Input id="type" className="w-full" {...typeForm.register("type")} placeholder="Ex: NOTAFISCAL" />
-                {typeForm.formState.errors.type && (
-                  <p className="text-sm text-destructive">{typeForm.formState.errors.type.message as string}</p>
-                )}
+                <Input id="type" className="w-full" {...typeForm.register("type")} placeholder="Ex: NOTAFISCAL" aria-invalid={!!typeForm.formState.errors.type} />
+                <FieldError errors={[typeForm.formState.errors.type]} />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="label">Label</Label>
-                <Input id="label" className="w-full" {...typeForm.register("label")} placeholder="Ex: Nota Fiscal" />
-                {typeForm.formState.errors.label && (
-                  <p className="text-sm text-destructive">{typeForm.formState.errors.label.message as string}</p>
-                )}
+                <Input id="label" className="w-full" {...typeForm.register("label")} placeholder="Ex: Nota Fiscal" aria-invalid={!!typeForm.formState.errors.label} />
+                <FieldError errors={[typeForm.formState.errors.label]} />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="suffix">Suffix</Label>
-                <Input id="suffix" className="w-full" {...typeForm.register("suffix")} placeholder="Ex: nota_fiscal" />
-                {typeForm.formState.errors.suffix && (
-                  <p className="text-sm text-destructive">{typeForm.formState.errors.suffix.message as string}</p>
-                )}
+                <Input id="suffix" className="w-full" {...typeForm.register("suffix")} placeholder="Ex: nota_fiscal" aria-invalid={!!typeForm.formState.errors.suffix} />
+                <FieldError errors={[typeForm.formState.errors.suffix]} />
               </div>
               <div className="flex items-center gap-2">
                 <Checkbox
@@ -241,10 +236,20 @@ export function SoapEndpointTable({ data, meta }: SoapEndpointTableProps) {
                 />
                 <Label htmlFor="active">Tipo ativo</Label>
               </div>
-              <Button type="submit" className="w-full" disabled={loading}>
-                {loading && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-                {typeDialog.endpointType ? "Atualizar" : "Criar"} Tipo
-              </Button>
+              <div className="flex items-center justify-end gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={loading}
+                  onClick={() => { typeForm.reset(); setTypeDialog({ open: false }) }}
+                >
+                  Cancelar
+                </Button>
+                <Button type="submit" disabled={loading}>
+                  {loading && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+                  Salvar
+                </Button>
+              </div>
             </form>
           </DialogContent>
         </Dialog>
@@ -483,17 +488,13 @@ export function SoapEndpointTable({ data, meta }: SoapEndpointTableProps) {
             <input type="hidden" {...methodForm.register("endpointTypeId")} />
             <div className="space-y-2">
               <Label htmlFor="method">Método</Label>
-              <Input id="method" className="w-full" {...methodForm.register("method")} placeholder="Ex: GETSCHEMA" />
-              {methodForm.formState.errors.method && (
-                <p className="text-sm text-destructive">{methodForm.formState.errors.method.message as string}</p>
-              )}
+              <Input id="method" className="w-full" {...methodForm.register("method")} placeholder="Ex: GETSCHEMA" aria-invalid={!!methodForm.formState.errors.method} />
+              <FieldError errors={[methodForm.formState.errors.method]} />
             </div>
             <div className="space-y-2">
               <Label htmlFor="methodLabel">Label</Label>
-              <Input id="methodLabel" className="w-full" {...methodForm.register("label")} placeholder="Ex: Obter Schema" />
-              {methodForm.formState.errors.label && (
-                <p className="text-sm text-destructive">{methodForm.formState.errors.label.message as string}</p>
-              )}
+              <Input id="methodLabel" className="w-full" {...methodForm.register("label")} placeholder="Ex: Obter Schema" aria-invalid={!!methodForm.formState.errors.label} />
+              <FieldError errors={[methodForm.formState.errors.label]} />
             </div>
             <div className="space-y-2">
               <Label htmlFor="sortOrder">Ordem</Label>
@@ -513,10 +514,20 @@ export function SoapEndpointTable({ data, meta }: SoapEndpointTableProps) {
               />
               <Label htmlFor="methodActive">Método ativo</Label>
             </div>
-            <Button type="submit" className="w-full" disabled={loading}>
-              {loading && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-              {methodDialog.method ? "Atualizar" : "Criar"} Método
-            </Button>
+            <div className="flex items-center justify-end gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                disabled={loading}
+                onClick={() => { methodForm.reset(); setMethodDialog({ open: false }) }}
+              >
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={loading}>
+                {loading && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+                Salvar
+              </Button>
+            </div>
           </form>
         </DialogContent>
       </Dialog>

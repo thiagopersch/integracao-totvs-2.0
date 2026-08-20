@@ -4,21 +4,23 @@ import { revalidateTag, cacheTag } from "next/cache";
 import { processService } from "@/services/process.service";
 import { auditService } from "@/services/audit.service";
 import { createProcessSchema, updateProcessSchema } from "@/schemas/process.schema";
+import { requirePermission } from "@/lib/rbac";
 import type { ListParams } from "@/types/common";
 
-export async function listProcesses(params: ListParams) {
+export async function listProcesses(params: ListParams, organizationId: string) {
   "use cache";
   cacheTag("processes");
-  return processService.list(params);
+  return processService.list(params, organizationId);
 }
 
-export async function getProcessById(id: string) {
+export async function getProcessById(id: string, organizationId: string) {
   "use cache";
   cacheTag(`process-${id}`);
-  return processService.getById(id);
+  return processService.getById(id, organizationId);
 }
 
 export async function createProcess(formData: FormData) {
+  const { organizationId } = await requirePermission("processes", "create");
   const data = {
     code: formData.get("code") as string,
     nameAlternative: formData.get("nameAlternative") as string,
@@ -31,7 +33,7 @@ export async function createProcess(formData: FormData) {
   }
 
   try {
-    const entity = await processService.create(parsed.data);
+    const entity = await processService.create(parsed.data, organizationId);
     await auditService.log({
       action: "CREATE",
       entity: "Process",
@@ -46,6 +48,7 @@ export async function createProcess(formData: FormData) {
 }
 
 export async function updateProcess(id: string, formData: FormData) {
+  const { organizationId } = await requirePermission("processes", "update");
   const data = {
     code: formData.get("code") as string,
     nameAlternative: formData.get("nameAlternative") as string,
@@ -58,8 +61,8 @@ export async function updateProcess(id: string, formData: FormData) {
   }
 
   try {
-    const old = await processService.getById(id);
-    const entity = await processService.update(id, parsed.data);
+    const old = await processService.getById(id, organizationId);
+    const entity = await processService.update(id, parsed.data, organizationId);
     await auditService.log({
       action: "UPDATE",
       entity: "Process",
@@ -76,9 +79,10 @@ export async function updateProcess(id: string, formData: FormData) {
 }
 
 export async function deleteProcess(id: string) {
+  const { organizationId } = await requirePermission("processes", "delete");
   try {
-    const old = await processService.getById(id);
-    await processService.softDelete(id);
+    const old = await processService.getById(id, organizationId);
+    await processService.softDelete(id, organizationId);
     await auditService.log({
       action: "DELETE",
       entity: "Process",
@@ -93,8 +97,9 @@ export async function deleteProcess(id: string) {
 }
 
 export async function restoreProcess(id: string) {
+  const { organizationId } = await requirePermission("processes", "update");
   try {
-    await processService.restore(id);
+    await processService.restore(id, organizationId);
     await auditService.log({ action: "RESTORE", entity: "Process", entityId: id });
     revalidateTag("processes", "max");
     return { success: true };
@@ -104,8 +109,9 @@ export async function restoreProcess(id: string) {
 }
 
 export async function bulkDeleteProcesses(ids: string[]) {
+  const { organizationId } = await requirePermission("processes", "delete");
   try {
-    const count = await processService.bulkSoftDelete(ids);
+    const count = await processService.bulkSoftDelete(ids, organizationId);
     await auditService.log({
       action: "BULK_DELETE",
       entity: "Process",
@@ -120,8 +126,9 @@ export async function bulkDeleteProcesses(ids: string[]) {
 }
 
 export async function bulkRestoreProcesses(ids: string[]) {
+  const { organizationId } = await requirePermission("processes", "update");
   try {
-    const count = await processService.bulkRestore(ids);
+    const count = await processService.bulkRestore(ids, organizationId);
     await auditService.log({
       action: "BULK_RESTORE",
       entity: "Process",

@@ -7,7 +7,7 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-enum Role {
+enum UserRoleLevel {
   ADMIN
   MANAGER
   USER
@@ -26,6 +26,71 @@ enum SoapMethod {
   GETPROCESSSTATUS
   GETSCHEMA2
   CHECKSERVICEACTIVITY
+}
+
+enum DemandStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum ContractStatus {
+  ACTIVE
+  SUSPENDED
+  EXPIRED
+  CANCELLED
+}
+
+enum NotificationChannel {
+  IN_APP
+  EMAIL
+  WHATSAPP
+}
+
+model Organization {
+  id        String    @id @default(uuid())
+  name      String
+  slug      String    @unique
+  document  String?
+  plan      String    @default("free")
+  status    Boolean   @default(true)
+  configs   Json?
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  users              User[]
+  roles              Role[]
+  clients            Client[]
+  tbcs               Tbc[]
+  filters            Filter[]
+  backups            Backup[]
+  sentenceCategories SentenceCategory[]
+  sentences          Sentence[]
+  dataservers        Dataserver[]
+  processes          Process[]
+  totvsSystems       TotvsSystem[]
+  soapLogs           SoapLog[]
+  soapTemplates      SoapTemplate[]
+  soapFavorites      SoapFavorite[]
+  auditLogs          AuditLog[]
+  requesters         Requester[]
+  departments        Department[]
+  demandTypes        DemandType[]
+  tags               Tag[]
+  analysts           Analyst[]
+  demands            Demand[]
+  notifications      Notification[]
+
+  @@map("organizations")
 }
 
 model SoapEndpointType {
@@ -61,177 +126,242 @@ model SoapEndpointMethod {
 }
 
 model User {
-  id              String     @id @default(uuid())
-  name            String
-  email           String     @unique
-  password        String
-  role            Role       @default(USER)
-  status          Boolean    @default(true)
-  changePassword  Boolean    @default(false) @map("change_password")
-  createdAt       DateTime   @default(now()) @map("created_at")
-  updatedAt       DateTime   @updatedAt @map("updated_at")
-  deletedAt       DateTime?  @map("deleted_at")
+  id             String    @id @default(uuid())
+  organizationId String    @map("organization_id")
+  name           String
+  email          String    @unique
+  password       String
+  image          String?
+  role           UserRoleLevel @default(USER)
+  status         Boolean   @default(true)
+  changePassword Boolean   @default(false) @map("change_password")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+  deletedAt      DateTime? @map("deleted_at")
 
-  auditLogs      AuditLog[]
-  soapLogs       SoapLog[]
-  soapTemplates  SoapTemplate[]
-  soapFavorites  SoapFavorite[]
+  organization         Organization           @relation(fields: [organizationId], references: [id])
+  auditLogs             AuditLog[]
+  soapLogs              SoapLog[]
+  soapTemplates         SoapTemplate[]
+  soapFavorites         SoapFavorite[]
+  userRoles             UserRole[]
+  analyst               Analyst?
+  comments              Comment[]
+  uploadedAttachments   Attachment[]
+  notifications         Notification[]
+  notificationSettings  NotificationSetting[]
 
   @@map("users")
 }
 
 model Dataserver {
-  id              String     @id @default(uuid())
-  code            String     @unique
-  nameAlternative String?    @map("name_alternative")
+  id              String    @id @default(uuid())
+  organizationId  String    @map("organization_id")
+  code            String
+  nameAlternative String?   @map("name_alternative")
   name            String
-  createdAt       DateTime   @default(now()) @map("created_at")
-  updatedAt       DateTime   @updatedAt @map("updated_at")
-  deletedAt       DateTime?  @map("deleted_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+  deletedAt       DateTime? @map("deleted_at")
 
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@unique([organizationId, code])
   @@map("dataservers")
 }
 
 model Process {
-  id              String     @id @default(uuid())
-  code            String     @unique
-  nameAlternative String?    @map("name_alternative")
+  id              String    @id @default(uuid())
+  organizationId  String    @map("organization_id")
+  code            String
+  nameAlternative String?   @map("name_alternative")
   name            String
-  createdAt       DateTime   @default(now()) @map("created_at")
-  updatedAt       DateTime   @updatedAt @map("updated_at")
-  deletedAt       DateTime?  @map("deleted_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+  deletedAt       DateTime? @map("deleted_at")
 
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@unique([organizationId, code])
   @@map("processes")
 }
 
 model Client {
-  id        String     @id @default(uuid())
-  image     String?
-  name      String
-  linkCrm   String     @unique @map("link_crm")
-  site      String?
-  status    Boolean    @default(true)
-  createdAt DateTime   @default(now()) @map("created_at")
-  updatedAt DateTime   @updatedAt @map("updated_at")
-  deletedAt DateTime?  @map("deleted_at")
+  id             String    @id @default(uuid())
+  organizationId String    @map("organization_id")
+  image          String?
+  name           String
+  legalName      String?   @map("legal_name")
+  document       String?
+  linkCrm        String?   @map("link_crm")
+  site           String?
+  email          String?
+  phone          String?
+  responsible    String?
+  color          String    @default("#22c55e")
+  notes          String?   @db.Text
+  favorite       Boolean   @default(false)
+  status         Boolean   @default(true)
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+  deletedAt      DateTime? @map("deleted_at")
 
-  tbcs    Tbc[]
-  filters Filter[]
+  organization Organization      @relation(fields: [organizationId], references: [id])
+  tbcs         Tbc[]
+  filters      Filter[]
+  contracts    ClientContract[]
+  demands      Demand[]
 
+  @@unique([organizationId, linkCrm])
   @@map("clients")
 }
 
 model Tbc {
-  id                 String     @id @default(uuid())
-  clientId           String     @map("client_id")
+  id                 String    @id @default(uuid())
+  organizationId     String    @map("organization_id")
+  clientId           String    @map("client_id")
   name               String
-  link               String     @unique
+  link               String
   user               String
   password           String
-  notRequiredLicense Boolean    @default(false) @map("not_required_license")
-  status             Boolean    @default(true)
-  createdAt          DateTime   @default(now()) @map("created_at")
-  updatedAt          DateTime   @updatedAt @map("updated_at")
-  deletedAt          DateTime?  @map("deleted_at")
+  notRequiredLicense Boolean   @default(false) @map("not_required_license")
+  status             Boolean   @default(true)
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+  deletedAt          DateTime? @map("deleted_at")
 
-  client  Client   @relation(fields: [clientId], references: [id])
-  filters Filter[]
-  backups Backup[]
+  organization Organization @relation(fields: [organizationId], references: [id])
+  client       Client       @relation(fields: [clientId], references: [id])
+  filters      Filter[]
+  backups      Backup[]
 
+  @@unique([organizationId, link])
   @@map("tbcs")
 }
 
 model Filter {
-  id                   String    @id @default(uuid())
-  tbcId                String    @map("tbc_id")
-  clientId             String    @map("client_id")
-  filter               String
-  coligateContext      Int       @map("coligate_context")
-  branchContext        Int       @map("branch_context")
-  levelEducationContext Int      @map("level_education_context")
-  codSystemContext     String    @map("cod_system_context")
-  userContext          String    @map("user_context")
-  status               Boolean   @default(true)
-  createdAt            DateTime  @default(now()) @map("created_at")
-  updatedAt            DateTime  @updatedAt @map("updated_at")
-  deletedAt            DateTime? @map("deleted_at")
+  id                    String    @id @default(uuid())
+  organizationId        String    @map("organization_id")
+  tbcId                 String    @map("tbc_id")
+  clientId              String    @map("client_id")
+  filter                String
+  coligateContext       Int       @map("coligate_context")
+  branchContext         Int       @map("branch_context")
+  levelEducationContext Int       @map("level_education_context")
+  codSystemContext      String    @map("cod_system_context")
+  userContext           String    @map("user_context")
+  codColigadaSentenca   String?   @map("cod_coligada_sentenca")
+  codSistemaSentenca    String?   @map("cod_sistema_sentenca")
+  status                Boolean   @default(true)
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
+  deletedAt             DateTime? @map("deleted_at")
 
-  tbc     Tbc      @relation(fields: [tbcId], references: [id])
-  client  Client   @relation(fields: [clientId], references: [id])
-  backups Backup[]
+  organization Organization @relation(fields: [organizationId], references: [id])
+  tbc          Tbc          @relation(fields: [tbcId], references: [id])
+  client       Client       @relation(fields: [clientId], references: [id])
+  backups      Backup[]
 
   @@map("filters")
 }
 
 model Backup {
-  id               String    @id @default(uuid())
-  tbcId            String    @map("tbc_id")
-  filterId         String    @map("filter_id")
-  branchSentence   String?   @map("branch_sentence")
-  codSystem        String?   @map("cod_system")
-  codeSentence     String?   @map("code_sentence")
-  nameSentence     String?   @map("name_sentence")
-  contentSentence  String?   @map("content_sentence")
-  createdAt        DateTime  @default(now()) @map("created_at")
-  updatedAt        DateTime  @updatedAt @map("updated_at")
-  deletedAt        DateTime? @map("deleted_at")
+  id              String    @id @default(uuid())
+  organizationId  String    @map("organization_id")
+  tbcId           String    @map("tbc_id")
+  filterId        String    @map("filter_id")
+  branchSentence  String?   @map("branch_sentence")
+  codSystem       String?   @map("cod_system")
+  codeSentence    String?   @map("code_sentence")
+  nameSentence    String?   @map("name_sentence")
+  contentSentence String?   @map("content_sentence")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+  deletedAt       DateTime? @map("deleted_at")
 
-  tbc    Tbc     @relation(fields: [tbcId], references: [id])
-  filter Filter  @relation(fields: [filterId], references: [id])
+  organization Organization @relation(fields: [organizationId], references: [id])
+  tbc          Tbc          @relation(fields: [tbcId], references: [id])
+  filter       Filter       @relation(fields: [filterId], references: [id])
 
   @@map("backups")
 }
 
 model SentenceCategory {
-  id        String     @id @default(uuid())
-  code      String     @unique
-  name      String
-  status    Boolean    @default(true)
-  createdAt DateTime   @default(now()) @map("created_at")
-  updatedAt DateTime   @updatedAt @map("updated_at")
-  deletedAt DateTime?  @map("deleted_at")
+  id             String    @id @default(uuid())
+  organizationId String    @map("organization_id")
+  code           String
+  name           String
+  status         Boolean   @default(true)
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+  deletedAt      DateTime? @map("deleted_at")
 
-  sentences Sentence[]
+  organization Organization @relation(fields: [organizationId], references: [id])
+  sentences    Sentence[]
 
+  @@unique([organizationId, code])
   @@map("sentence_categories")
 }
 
 model Sentence {
-  id                 String     @id @default(uuid())
-  sentenceCategoryId String     @map("sentence_categories_id")
-  code               String     @unique
-  codSystem          String?    @map("cod_system")
+  id                 String    @id @default(uuid())
+  organizationId     String    @map("organization_id")
+  sentenceCategoryId String    @map("sentence_categories_id")
+  code               String
+  codSystem          String?   @map("cod_system")
+  codColigada        String?   @map("cod_coligada")
   name               String
-  content            String?    @map("content")
-  status             Boolean    @default(true)
-  createdAt          DateTime   @default(now()) @map("created_at")
-  updatedAt          DateTime   @updatedAt @map("updated_at")
-  deletedAt          DateTime?  @map("deleted_at")
+  content            String?   @map("content")
+  status             Boolean   @default(true)
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+  deletedAt          DateTime? @map("deleted_at")
 
-  category SentenceCategory @relation(fields: [sentenceCategoryId], references: [id])
+  organization Organization     @relation(fields: [organizationId], references: [id])
+  category     SentenceCategory @relation(fields: [sentenceCategoryId], references: [id])
 
+  @@unique([organizationId, code])
   @@map("sentences")
 }
 
-model AuditLog {
-  id        String   @id @default(uuid())
-  action    String
-  entity    String
-  entityId  String   @map("entity_id")
-  userId    String?  @map("user_id")
-  oldData   Json?    @map("old_data")
-  newData   Json?    @map("new_data")
-  ip        String?
-  userAgent String?  @map("user_agent")
-  createdAt DateTime @default(now()) @map("created_at")
+model TotvsSystem {
+  id             String    @id @default(uuid())
+  organizationId String    @map("organization_id")
+  code           String
+  internalName   String    @map("internal_name")
+  externalName   String    @map("external_name")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+  deletedAt      DateTime? @map("deleted_at")
 
-  user User? @relation(fields: [userId], references: [id])
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@unique([organizationId, code])
+  @@map("totvs_systems")
+}
+
+model AuditLog {
+  id             String   @id @default(uuid())
+  organizationId String?  @map("organization_id")
+  action         String
+  entity         String
+  entityId       String   @map("entity_id")
+  userId         String?  @map("user_id")
+  oldData        Json?    @map("old_data")
+  newData        Json?    @map("new_data")
+  ip             String?
+  userAgent      String?  @map("user_agent")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  organization Organization? @relation(fields: [organizationId], references: [id])
+  user         User?         @relation(fields: [userId], references: [id])
 
   @@map("audit_logs")
 }
 
 model SoapLog {
   id             String      @id @default(uuid())
+  organizationId String      @map("organization_id")
   userId         String?     @map("user_id")
   endpointTypeId String?     @map("endpoint_type_id")
   methodId       String?     @map("method_id")
@@ -248,50 +378,56 @@ model SoapLog {
   favorite       Boolean     @default(false)
   createdAt      DateTime    @default(now()) @map("created_at")
 
-  user         User?              @relation(fields: [userId], references: [id])
-  endpointType SoapEndpointType?  @relation(fields: [endpointTypeId], references: [id])
+  organization   Organization        @relation(fields: [organizationId], references: [id])
+  user           User?               @relation(fields: [userId], references: [id])
+  endpointType   SoapEndpointType?   @relation(fields: [endpointTypeId], references: [id])
   endpointMethod SoapEndpointMethod? @relation(fields: [methodId], references: [id])
 
   @@map("soap_logs")
 }
 
 model SoapTemplate {
-  id          String      @id @default(uuid())
-  userId      String?     @map("user_id")
-  name        String
-  description String?
-  dataserver  String?
-  process     String?
-  method      SoapMethod?
-  xmlTemplate String?     @map("xml_template")
-  context     Json?
-  createdAt   DateTime    @default(now()) @map("created_at")
-  updatedAt   DateTime    @updatedAt @map("updated_at")
+  id             String      @id @default(uuid())
+  organizationId String      @map("organization_id")
+  userId         String?     @map("user_id")
+  name           String
+  description    String?
+  dataserver     String?
+  process        String?
+  method         SoapMethod?
+  xmlTemplate    String?     @map("xml_template")
+  context        Json?
+  createdAt      DateTime    @default(now()) @map("created_at")
+  updatedAt      DateTime    @updatedAt @map("updated_at")
 
-  user User? @relation(fields: [userId], references: [id])
+  organization Organization @relation(fields: [organizationId], references: [id])
+  user         User?        @relation(fields: [userId], references: [id])
 
   @@map("soap_templates")
 }
 
 model SoapFavorite {
-  id         String      @id @default(uuid())
-  userId     String      @map("user_id")
-  name       String
-  dataserver String?
-  process    String?
-  method     SoapMethod?
-  xml        String?
-  context    Json?
-  createdAt  DateTime    @default(now()) @map("created_at")
+  id             String      @id @default(uuid())
+  organizationId String      @map("organization_id")
+  userId         String      @map("user_id")
+  name           String
+  dataserver     String?
+  process        String?
+  method         SoapMethod?
+  xml            String?
+  context        Json?
+  createdAt      DateTime    @default(now()) @map("created_at")
 
-  user User @relation(fields: [userId], references: [id])
+  organization Organization @relation(fields: [organizationId], references: [id])
+  user         User         @relation(fields: [userId], references: [id])
 
   @@map("soap_favorites")
 }
 
 model Permission {
   id          String   @id @default(uuid())
-  code        String   @unique
+  resource    String
+  action      String
   name        String
   description String?
   module      String
@@ -299,19 +435,47 @@ model Permission {
 
   rolePermissions RolePermission[]
 
+  @@unique([resource, action])
   @@map("permissions")
 }
 
+model Role {
+  id             String   @id @default(uuid())
+  organizationId String   @map("organization_id")
+  name           String
+  description    String?
+  isSystem       Boolean  @default(false) @map("is_system")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  organization    Organization     @relation(fields: [organizationId], references: [id])
+  rolePermissions RolePermission[]
+  userRoles       UserRole[]
+
+  @@unique([organizationId, name])
+  @@map("roles")
+}
+
 model RolePermission {
-  id           String   @id @default(uuid())
-  role         Role
-  permissionId String   @map("permission_id")
-  createdAt    DateTime @default(now()) @map("created_at")
+  roleId       String @map("role_id")
+  permissionId String @map("permission_id")
 
-  permission Permission @relation(fields: [permissionId], references: [id])
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
 
-  @@unique([role, permissionId])
+  @@id([roleId, permissionId])
   @@map("role_permissions")
+}
+
+model UserRole {
+  userId String @map("user_id")
+  roleId String @map("role_id")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([userId, roleId])
+  @@map("user_roles")
 }
 
 model FeatureFlag {
@@ -349,4 +513,216 @@ model UploadedFile {
   uploadedAt DateTime @default(now()) @map("uploaded_at")
 
   @@map("uploaded_files")
+}
+
+model Analyst {
+  id             String    @id @default(uuid())
+  organizationId String    @map("organization_id")
+  userId         String?   @unique @map("user_id")
+  name           String
+  email          String?
+  phone          String?
+  role           String?
+  hourlyRate     Float?    @map("hourly_rate")
+  status         Boolean   @default(true)
+  photo          String?
+  team           String?
+  color          String    @default("#6366f1")
+  level          Int       @default(1)
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+  deletedAt      DateTime? @map("deleted_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  user         User?        @relation(fields: [userId], references: [id])
+  demands      Demand[]
+
+  @@map("analysts")
+}
+
+model ClientContract {
+  id              String         @id @default(uuid())
+  clientId        String         @map("client_id")
+  contractedHours Int            @map("contracted_hours")
+  hourlyRate      Float          @map("hourly_rate")
+  startDate       DateTime       @map("start_date")
+  endDate         DateTime?      @map("end_date")
+  status          ContractStatus @default(ACTIVE)
+  notes           String?        @db.Text
+  createdAt       DateTime       @default(now()) @map("created_at")
+  updatedAt       DateTime       @updatedAt @map("updated_at")
+
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@map("client_contracts")
+}
+
+model Requester {
+  id             String    @id @default(uuid())
+  organizationId String    @map("organization_id")
+  name           String
+  email          String?
+  phone          String?
+  status         Boolean   @default(true)
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+  deletedAt      DateTime? @map("deleted_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  demands      Demand[]
+
+  @@map("requesters")
+}
+
+model Department {
+  id             String    @id @default(uuid())
+  organizationId String    @map("organization_id")
+  name           String
+  description    String?   @db.Text
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+  deletedAt      DateTime? @map("deleted_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  demands      Demand[]
+
+  @@map("departments")
+}
+
+model DemandType {
+  id             String    @id @default(uuid())
+  organizationId String    @map("organization_id")
+  name           String
+  description    String?   @db.Text
+  color          String    @default("#a855f7")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+  deletedAt      DateTime? @map("deleted_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  demands      Demand[]
+
+  @@map("demand_types")
+}
+
+model Demand {
+  id              String       @id @default(uuid())
+  organizationId  String       @map("organization_id")
+  name            String
+  description     String       @db.Text
+  date            DateTime
+  startTime       DateTime?    @map("start_time")
+  endTime         DateTime?    @map("end_time")
+  durationMinutes Int          @map("duration_minutes")
+  priority        Priority     @default(MEDIUM)
+  status          DemandStatus @default(PENDING)
+  notes           String?      @db.Text
+  analystId       String       @map("analyst_id")
+  clientId        String       @map("client_id")
+  requesterId     String?      @map("requester_id")
+  departmentId    String?      @map("department_id")
+  demandTypeId    String?      @map("demand_type_id")
+  createdAt       DateTime     @default(now()) @map("created_at")
+  updatedAt       DateTime     @updatedAt @map("updated_at")
+  deletedAt       DateTime?    @map("deleted_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  analyst      Analyst      @relation(fields: [analystId], references: [id])
+  client       Client       @relation(fields: [clientId], references: [id])
+  requester    Requester?   @relation(fields: [requesterId], references: [id])
+  department   Department?  @relation(fields: [departmentId], references: [id])
+  demandType   DemandType?  @relation(fields: [demandTypeId], references: [id])
+  attachments  Attachment[]
+  comments     Comment[]
+  demandTags   DemandTag[]
+
+  @@map("demands")
+}
+
+model Attachment {
+  id           String   @id @default(uuid())
+  demandId     String   @map("demand_id")
+  filename     String
+  originalName String   @map("original_name")
+  mimeType     String   @map("mime_type")
+  size         Int
+  url          String
+  uploadedById String?  @map("uploaded_by_id")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  demand     Demand @relation(fields: [demandId], references: [id], onDelete: Cascade)
+  uploadedBy User?  @relation(fields: [uploadedById], references: [id])
+
+  @@map("attachments")
+}
+
+model Comment {
+  id        String   @id @default(uuid())
+  demandId  String   @map("demand_id")
+  userId    String   @map("user_id")
+  content   String   @db.Text
+  parentId  String?  @map("parent_id")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  demand  Demand    @relation(fields: [demandId], references: [id], onDelete: Cascade)
+  user    User      @relation(fields: [userId], references: [id])
+  parent  Comment?  @relation("CommentReplies", fields: [parentId], references: [id])
+  replies Comment[] @relation("CommentReplies")
+
+  @@map("comments")
+}
+
+model Tag {
+  id             String   @id @default(uuid())
+  organizationId String   @map("organization_id")
+  name           String
+  color          String   @default("#8b5cf6")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  demandTags   DemandTag[]
+
+  @@unique([organizationId, name])
+  @@map("tags")
+}
+
+model DemandTag {
+  demandId String @map("demand_id")
+  tagId    String @map("tag_id")
+
+  demand Demand @relation(fields: [demandId], references: [id], onDelete: Cascade)
+  tag    Tag    @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([demandId, tagId])
+  @@map("demand_tags")
+}
+
+model Notification {
+  id             String    @id @default(uuid())
+  organizationId String    @map("organization_id")
+  userId         String    @map("user_id")
+  type           String
+  title          String
+  body           String    @db.Text
+  data           Json?
+  readAt         DateTime? @map("read_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("notifications")
+}
+
+model NotificationSetting {
+  id      String              @id @default(uuid())
+  userId  String              @map("user_id")
+  channel NotificationChannel
+  enabled Boolean             @default(true)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, channel])
+  @@map("notification_settings")
 }

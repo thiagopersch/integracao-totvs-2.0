@@ -5,25 +5,26 @@ import type { Backup } from "@prisma/client";
 
 class BackupRepository extends BaseRepository<Backup> {
   constructor() {
-    super(prisma.backup, ["codeSentence", "nameSentence", "branchSentence"]);
+    super(prisma.backup, ["codeSentence", "nameSentence", "branchSentence"], "backups");
   }
 }
 
 export const backupRepository = new BackupRepository();
 
 export const backupService = {
-  async list(params: Parameters<typeof backupRepository.findAll>[0]) {
-    return backupRepository.findAll(params);
+  async list(params: Parameters<typeof backupRepository.findAll>[0], organizationId: string) {
+    return backupRepository.findAll(params, organizationId);
   },
 
-  async createFromFilter(filterId: string) {
-    const filter = await prisma.filter.findUnique({
-      where: { id: filterId },
+  async createFromFilter(filterId: string, organizationId: string) {
+    const filter = await prisma.filter.findFirst({
+      where: { id: filterId, organizationId },
       include: { tbc: true },
     });
     if (!filter) throw new Error("Filtro não encontrado");
 
     return backupRepository.create({
+      organizationId,
       tbcId: filter.tbcId,
       filterId: filter.id,
       branchSentence: String(filter.branchContext),
@@ -31,31 +32,31 @@ export const backupService = {
     } as any);
   },
 
-  async getById(id: string) {
-    return backupRepository.findById(id);
+  async getById(id: string, organizationId: string) {
+    return backupRepository.findById(id, organizationId);
   },
 
-  async create(input: CreateBackupInput) {
-    return backupRepository.create(input as any);
+  async create(input: CreateBackupInput, organizationId: string) {
+    return backupRepository.create({ ...input, organizationId } as any);
   },
 
-  async update(id: string, input: UpdateBackupInput) {
-    return backupRepository.update(id, input as any);
+  async update(id: string, input: UpdateBackupInput, organizationId: string) {
+    return backupRepository.update(id, input as any, organizationId);
   },
 
-  async softDelete(id: string) {
-    return backupRepository.softDelete(id);
+  async softDelete(id: string, organizationId: string) {
+    return backupRepository.softDelete(id, organizationId);
   },
 
-  async restore(id: string) {
-    return backupRepository.restore(id);
+  async restore(id: string, organizationId: string) {
+    return backupRepository.restore(id, organizationId);
   },
 
-  async bulkSoftDelete(ids: string[]) {
-    return backupRepository.bulkSoftDelete(ids);
+  async bulkSoftDelete(ids: string[], organizationId: string) {
+    return backupRepository.bulkSoftDelete(ids, organizationId);
   },
 
-  async bulkRestore(ids: string[]) {
-    return backupRepository.bulkRestore(ids);
+  async bulkRestore(ids: string[], organizationId: string) {
+    return backupRepository.bulkRestore(ids, organizationId);
   },
 };

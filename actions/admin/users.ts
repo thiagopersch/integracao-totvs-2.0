@@ -4,21 +4,23 @@ import { revalidateTag, cacheTag } from "next/cache";
 import { userService } from "@/services/user.service";
 import { auditService } from "@/services/audit.service";
 import { createUserSchema, updateUserSchema } from "@/schemas/user.schema";
+import { requirePermission } from "@/lib/rbac";
 import type { ListParams } from "@/types/common";
 
-export async function listUsers(params: ListParams) {
+export async function listUsers(params: ListParams, organizationId: string) {
   "use cache";
   cacheTag("users");
-  return userService.list(params);
+  return userService.list(params, organizationId);
 }
 
-export async function getUserById(id: string) {
+export async function getUserById(id: string, organizationId: string) {
   "use cache";
   cacheTag(`user-${id}`);
-  return userService.getById(id);
+  return userService.getById(id, organizationId);
 }
 
 export async function createUser(formData: FormData) {
+  const { organizationId } = await requirePermission("users", "create");
   const data = {
     name: formData.get("name") as string,
     email: formData.get("email") as string,
@@ -33,7 +35,7 @@ export async function createUser(formData: FormData) {
   }
 
   try {
-    const user = await userService.create(parsed.data);
+    const user = await userService.create(parsed.data, organizationId);
     await auditService.log({
       action: "CREATE",
       entity: "User",
@@ -48,6 +50,7 @@ export async function createUser(formData: FormData) {
 }
 
 export async function updateUser(id: string, formData: FormData) {
+  const { organizationId } = await requirePermission("users", "update");
   const data = {
     name: formData.get("name") as string,
     email: formData.get("email") as string,
@@ -61,8 +64,8 @@ export async function updateUser(id: string, formData: FormData) {
   }
 
   try {
-    const oldUser = await userService.getById(id);
-    const user = await userService.update(id, parsed.data);
+    const oldUser = await userService.getById(id, organizationId);
+    const user = await userService.update(id, parsed.data, organizationId);
     await auditService.log({
       action: "UPDATE",
       entity: "User",
@@ -79,9 +82,10 @@ export async function updateUser(id: string, formData: FormData) {
 }
 
 export async function deleteUser(id: string) {
+  const { organizationId } = await requirePermission("users", "delete");
   try {
-    const oldUser = await userService.getById(id);
-    await userService.softDelete(id);
+    const oldUser = await userService.getById(id, organizationId);
+    await userService.softDelete(id, organizationId);
     await auditService.log({
       action: "DELETE",
       entity: "User",
@@ -96,8 +100,9 @@ export async function deleteUser(id: string) {
 }
 
 export async function restoreUser(id: string) {
+  const { organizationId } = await requirePermission("users", "update");
   try {
-    await userService.restore(id);
+    await userService.restore(id, organizationId);
     await auditService.log({ action: "RESTORE", entity: "User", entityId: id });
     revalidateTag("users", "max");
     return { success: true };
@@ -107,8 +112,9 @@ export async function restoreUser(id: string) {
 }
 
 export async function bulkDeleteUsers(ids: string[]) {
+  const { organizationId } = await requirePermission("users", "delete");
   try {
-    const count = await userService.bulkSoftDelete(ids);
+    const count = await userService.bulkSoftDelete(ids, organizationId);
     await auditService.log({
       action: "BULK_DELETE",
       entity: "User",
@@ -123,8 +129,9 @@ export async function bulkDeleteUsers(ids: string[]) {
 }
 
 export async function bulkRestoreUsers(ids: string[]) {
+  const { organizationId } = await requirePermission("users", "update");
   try {
-    const count = await userService.bulkRestore(ids);
+    const count = await userService.bulkRestore(ids, organizationId);
     await auditService.log({
       action: "BULK_RESTORE",
       entity: "User",

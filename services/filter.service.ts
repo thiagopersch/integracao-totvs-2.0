@@ -5,17 +5,17 @@ import type { Filter } from "@prisma/client";
 
 class FilterRepository extends BaseRepository<Filter> {
   constructor() {
-    super(prisma.filter, ["filter", "codSystemContext", "userContext"]);
+    super(prisma.filter, ["filter", "codSystemContext", "userContext"], "filters");
   }
 }
 
 export const filterRepository = new FilterRepository();
 
 export const filterService = {
-  async list(params: Parameters<typeof filterRepository.findAll>[0]) {
+  async list(params: Parameters<typeof filterRepository.findAll>[0], organizationId: string) {
     const page = params.page || 1;
     const pageSize = params.pageSize || 10;
-    const where = filterRepository.buildWhere(params);
+    const where = await filterRepository.buildWhere(params, organizationId);
     const orderBy = params.sort
       ? { [params.sort.field]: params.sort.direction }
       : { createdAt: "desc" as const };
@@ -34,31 +34,31 @@ export const filterService = {
     return { data, meta: { page, pageSize, total, totalPages: Math.ceil(total / pageSize) } };
   },
 
-  async getById(id: string) {
-    return filterRepository.findById(id);
+  async getById(id: string, organizationId: string) {
+    return filterRepository.findById(id, organizationId);
   },
 
-  async create(input: CreateFilterInput) {
-    return filterRepository.create(input as any);
+  async create(input: CreateFilterInput, organizationId: string) {
+    return filterRepository.create({ ...input, organizationId } as any);
   },
 
-  async update(id: string, input: UpdateFilterInput) {
-    return filterRepository.update(id, input as any);
+  async update(id: string, input: UpdateFilterInput, organizationId: string) {
+    return filterRepository.update(id, input as any, organizationId);
   },
 
-  async softDelete(id: string) {
-    return filterRepository.softDelete(id);
+  async softDelete(id: string, organizationId: string) {
+    return filterRepository.softDelete(id, organizationId);
   },
 
-  async restore(id: string) {
-    return filterRepository.restore(id);
+  async restore(id: string, organizationId: string) {
+    return filterRepository.restore(id, organizationId);
   },
 
-  async bulkSoftDelete(ids: string[]) {
-    return filterRepository.bulkSoftDelete(ids);
+  async bulkSoftDelete(ids: string[], organizationId: string) {
+    return filterRepository.bulkSoftDelete(ids, organizationId);
   },
 
-  async bulkRestore(ids: string[]) {
-    return filterRepository.bulkRestore(ids);
+  async bulkRestore(ids: string[], organizationId: string) {
+    return filterRepository.bulkRestore(ids, organizationId);
   },
 };

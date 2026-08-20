@@ -5,58 +5,58 @@ import type { SentenceCategory } from "@prisma/client";
 
 class SentenceCategoryRepository extends BaseRepository<SentenceCategory> {
   constructor() {
-    super(prisma.sentenceCategory, ["code", "name"]);
+    super(prisma.sentenceCategory, ["code", "name"], "sentence_categories");
   }
 }
 
 export const sentenceCategoryRepository = new SentenceCategoryRepository();
 
 export const sentenceCategoryService = {
-  async list(params: Parameters<typeof sentenceCategoryRepository.findAll>[0]) {
-    return sentenceCategoryRepository.findAll(params);
+  async list(params: Parameters<typeof sentenceCategoryRepository.findAll>[0], organizationId: string) {
+    return sentenceCategoryRepository.findAll(params, organizationId);
   },
 
-  async listAll() {
-    return sentenceCategoryRepository.listAll();
+  async listAll(organizationId: string) {
+    return sentenceCategoryRepository.listAll(organizationId);
   },
 
-  async getById(id: string) {
-    return sentenceCategoryRepository.findById(id);
+  async getById(id: string, organizationId: string) {
+    return sentenceCategoryRepository.findById(id, organizationId);
   },
 
-  async create(input: CreateSentenceCategoryInput) {
-    const existing = await prisma.sentenceCategory.findUnique({ where: { code: input.code } });
+  async create(input: CreateSentenceCategoryInput, organizationId: string) {
+    const existing = await prisma.sentenceCategory.findFirst({ where: { code: input.code, organizationId } });
     if (existing) {
       throw new Error("Código já cadastrado");
     }
-    return sentenceCategoryRepository.create(input as any);
+    return sentenceCategoryRepository.create({ ...input, organizationId } as any);
   },
 
-  async update(id: string, input: UpdateSentenceCategoryInput) {
+  async update(id: string, input: UpdateSentenceCategoryInput, organizationId: string) {
     if (input.code) {
       const existing = await prisma.sentenceCategory.findFirst({
-        where: { code: input.code, id: { not: id } },
+        where: { code: input.code, organizationId, id: { not: id } },
       });
       if (existing) {
         throw new Error("Código já cadastrado");
       }
     }
-    return sentenceCategoryRepository.update(id, input as any);
+    return sentenceCategoryRepository.update(id, input as any, organizationId);
   },
 
-  async softDelete(id: string) {
-    return sentenceCategoryRepository.softDelete(id);
+  async softDelete(id: string, organizationId: string) {
+    return sentenceCategoryRepository.softDelete(id, organizationId);
   },
 
-  async restore(id: string) {
-    return sentenceCategoryRepository.restore(id);
+  async restore(id: string, organizationId: string) {
+    return sentenceCategoryRepository.restore(id, organizationId);
   },
 
-  async bulkSoftDelete(ids: string[]) {
-    return sentenceCategoryRepository.bulkSoftDelete(ids);
+  async bulkSoftDelete(ids: string[], organizationId: string) {
+    return sentenceCategoryRepository.bulkSoftDelete(ids, organizationId);
   },
 
-  async bulkRestore(ids: string[]) {
-    return sentenceCategoryRepository.bulkRestore(ids);
+  async bulkRestore(ids: string[], organizationId: string) {
+    return sentenceCategoryRepository.bulkRestore(ids, organizationId);
   },
 };

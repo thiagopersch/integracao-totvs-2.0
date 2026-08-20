@@ -1,10 +1,12 @@
-import { Role } from "@prisma/client";
+import { UserRoleLevel } from "@prisma/client";
 
 export type AuthUser = {
   id: string;
   name: string;
   email: string;
-  role: Role;
+  image: string | null;
+  role: UserRoleLevel;
+  organizationId: string;
   status: boolean;
   changePassword: boolean;
 };

@@ -4,21 +4,23 @@ import { revalidateTag, cacheTag } from "next/cache";
 import { dataserverService } from "@/services/dataserver.service";
 import { auditService } from "@/services/audit.service";
 import { createDataserverSchema, updateDataserverSchema } from "@/schemas/dataserver.schema";
+import { requirePermission } from "@/lib/rbac";
 import type { ListParams } from "@/types/common";
 
-export async function listDataservers(params: ListParams) {
+export async function listDataservers(params: ListParams, organizationId: string) {
   "use cache";
   cacheTag("dataservers");
-  return dataserverService.list(params);
+  return dataserverService.list(params, organizationId);
 }
 
-export async function getDataserverById(id: string) {
+export async function getDataserverById(id: string, organizationId: string) {
   "use cache";
   cacheTag(`dataserver-${id}`);
-  return dataserverService.getById(id);
+  return dataserverService.getById(id, organizationId);
 }
 
 export async function createDataserver(formData: FormData) {
+  const { organizationId } = await requirePermission("dataservers", "create");
   const data = {
     code: formData.get("code") as string,
     nameAlternative: formData.get("nameAlternative") as string,
@@ -31,7 +33,7 @@ export async function createDataserver(formData: FormData) {
   }
 
   try {
-    const entity = await dataserverService.create(parsed.data);
+    const entity = await dataserverService.create(parsed.data, organizationId);
     await auditService.log({
       action: "CREATE",
       entity: "Dataserver",
@@ -46,6 +48,7 @@ export async function createDataserver(formData: FormData) {
 }
 
 export async function updateDataserver(id: string, formData: FormData) {
+  const { organizationId } = await requirePermission("dataservers", "update");
   const data = {
     code: formData.get("code") as string,
     nameAlternative: formData.get("nameAlternative") as string,
@@ -58,8 +61,8 @@ export async function updateDataserver(id: string, formData: FormData) {
   }
 
   try {
-    const old = await dataserverService.getById(id);
-    const entity = await dataserverService.update(id, parsed.data);
+    const old = await dataserverService.getById(id, organizationId);
+    const entity = await dataserverService.update(id, parsed.data, organizationId);
     await auditService.log({
       action: "UPDATE",
       entity: "Dataserver",
@@ -76,9 +79,10 @@ export async function updateDataserver(id: string, formData: FormData) {
 }
 
 export async function deleteDataserver(id: string) {
+  const { organizationId } = await requirePermission("dataservers", "delete");
   try {
-    const old = await dataserverService.getById(id);
-    await dataserverService.softDelete(id);
+    const old = await dataserverService.getById(id, organizationId);
+    await dataserverService.softDelete(id, organizationId);
     await auditService.log({
       action: "DELETE",
       entity: "Dataserver",
@@ -93,8 +97,9 @@ export async function deleteDataserver(id: string) {
 }
 
 export async function restoreDataserver(id: string) {
+  const { organizationId } = await requirePermission("dataservers", "update");
   try {
-    await dataserverService.restore(id);
+    await dataserverService.restore(id, organizationId);
     await auditService.log({ action: "RESTORE", entity: "Dataserver", entityId: id });
     revalidateTag("dataservers", "max");
     return { success: true };
@@ -104,8 +109,9 @@ export async function restoreDataserver(id: string) {
 }
 
 export async function bulkDeleteDataservers(ids: string[]) {
+  const { organizationId } = await requirePermission("dataservers", "delete");
   try {
-    const count = await dataserverService.bulkSoftDelete(ids);
+    const count = await dataserverService.bulkSoftDelete(ids, organizationId);
     await auditService.log({
       action: "BULK_DELETE",
       entity: "Dataserver",
@@ -120,8 +126,9 @@ export async function bulkDeleteDataservers(ids: string[]) {
 }
 
 export async function bulkRestoreDataservers(ids: string[]) {
+  const { organizationId } = await requirePermission("dataservers", "update");
   try {
-    const count = await dataserverService.bulkRestore(ids);
+    const count = await dataserverService.bulkRestore(ids, organizationId);
     await auditService.log({
       action: "BULK_RESTORE",
       entity: "Dataserver",

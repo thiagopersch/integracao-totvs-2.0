@@ -1,14 +1,46 @@
 import { prisma } from "@/lib/prisma";
+import { Prisma } from "@prisma/client";
 import type { ListParams, PaginationMeta } from "@/types/common";
+
+function toColumnName(field: string): string {
+  return field.replace(/[A-Z]/g, (m) => `_${m.toLowerCase()}`);
+}
 
 export class BaseRepository<T extends { id: string; deletedAt: Date | null }> {
   constructor(
     protected model: any,
-    protected searchFields: string[] = ["name"]
+    protected searchFields: string[] = ["name"],
+    protected tableName?: string
   ) {}
 
-  buildWhere(input: ListParams & { status?: boolean }): Record<string, unknown> {
+  /**
+   * Resolves matching row ids via a raw, accent- and case-insensitive query
+   * (Postgres unaccent + pg_trgm, see prisma/migrations/*_add_organization_and_business_domain).
+   * Falls back to undefined (caller uses a plain `contains` clause) when no
+   * tableName was configured for this repository.
+   */
+  private async resolveSearchIds(search: string, organizationId?: string): Promise<string[] | undefined> {
+    if (!search || !this.tableName) return undefined;
+
+    const columns = this.searchFields.map(toColumnName);
+    const conditions = columns
+      .map(
+        (col) =>
+          Prisma.sql`immutable_unaccent(lower(${Prisma.raw(`"${col}"`)})) ILIKE immutable_unaccent(lower(${"%" + search + "%"}))`
+      )
+      .reduce((acc, cond) => Prisma.sql`${acc} OR ${cond}`);
+
+    const orgClause = organizationId ? Prisma.sql`AND "organization_id" = ${organizationId}` : Prisma.sql``;
+
+    const rows = await prisma.$queryRaw<{ id: string }[]>(
+      Prisma.sql`SELECT id FROM ${Prisma.raw(`"${this.tableName}"`)} WHERE (${conditions}) ${orgClause}`
+    );
+    return rows.map((r) => r.id);
+  }
+
+  async buildWhere(input: ListParams & { status?: boolean }, organizationId?: string): Promise<Record<string, unknown>> {
     const where: Record<string, unknown> = { deletedAt: null };
+    if (organizationId) where.organizationId = organizationId;
 
     if (input.filters) {
       for (const [key, value] of Object.entries(input.filters)) {
@@ -23,18 +55,23 @@ export class BaseRepository<T extends { id: string; deletedAt: Date | null }> {
     }
 
     if (input.search) {
-      where.OR = this.searchFields.map((field) => ({
-        [field]: { contains: input.search, mode: "insensitive" },
-      }));
+      const ids = await this.resolveSearchIds(input.search, organizationId);
+      if (ids) {
+        where.id = { in: ids };
+      } else {
+        where.OR = this.searchFields.map((field) => ({
+          [field]: { contains: input.search, mode: "insensitive" },
+        }));
+      }
     }
 
     return where;
   }
 
-  async findAll(params: ListParams & { status?: boolean }) {
+  async findAll(params: ListParams & { status?: boolean }, organizationId?: string) {
     const page = params.page || 1;
     const pageSize = params.pageSize || 10;
-    const where = this.buildWhere(params);
+    const where = await this.buildWhere(params, organizationId);
     const orderBy = params.sort
       ? { [params.sort.field]: params.sort.direction }
       : { createdAt: "desc" as const };
@@ -60,51 +97,56 @@ export class BaseRepository<T extends { id: string; deletedAt: Date | null }> {
     };
   }
 
-  async findById(id: string): Promise<T | null> {
-    return this.model.findUnique({ where: { id, deletedAt: null } }) as Promise<T | null>;
+  async findById(id: string, organizationId?: string): Promise<T | null> {
+    return this.model.findFirst({
+      where: { id, deletedAt: null, ...(organizationId ? { organizationId } : {}) },
+    }) as Promise<T | null>;
   }
 
   async create(data: Partial<T>): Promise<T> {
     return this.model.create({ data }) as Promise<T>;
   }
 
-  async update(id: string, data: Partial<T>): Promise<T> {
-    return this.model.update({ where: { id }, data }) as Promise<T>;
+  async update(id: string, data: Partial<T>, organizationId?: string): Promise<T> {
+    return this.model.update({
+      where: { id, ...(organizationId ? { organizationId } : {}) },
+      data,
+    }) as Promise<T>;
   }
 
-  async softDelete(id: string): Promise<T> {
+  async softDelete(id: string, organizationId?: string): Promise<T> {
     return this.model.update({
-      where: { id },
+      where: { id, ...(organizationId ? { organizationId } : {}) },
       data: { deletedAt: new Date() },
     }) as Promise<T>;
   }
 
-  async restore(id: string): Promise<T> {
+  async restore(id: string, organizationId?: string): Promise<T> {
     return this.model.update({
-      where: { id },
+      where: { id, ...(organizationId ? { organizationId } : {}) },
       data: { deletedAt: null },
     }) as Promise<T>;
   }
 
-  async bulkSoftDelete(ids: string[]): Promise<number> {
+  async bulkSoftDelete(ids: string[], organizationId?: string): Promise<number> {
     const result = await this.model.updateMany({
-      where: { id: { in: ids } },
+      where: { id: { in: ids }, ...(organizationId ? { organizationId } : {}) },
       data: { deletedAt: new Date() },
     });
     return result.count;
   }
 
-  async bulkRestore(ids: string[]): Promise<number> {
+  async bulkRestore(ids: string[], organizationId?: string): Promise<number> {
     const result = await this.model.updateMany({
-      where: { id: { in: ids } },
+      where: { id: { in: ids }, ...(organizationId ? { organizationId } : {}) },
       data: { deletedAt: null },
     });
     return result.count;
   }
 
-  async listAll(): Promise<T[]> {
+  async listAll(organizationId?: string): Promise<T[]> {
     return this.model.findMany({
-      where: { deletedAt: null },
+      where: { deletedAt: null, ...(organizationId ? { organizationId } : {}) },
       orderBy: { name: "asc" as const },
     }) as Promise<T[]>;
   }

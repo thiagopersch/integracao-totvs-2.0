@@ -10,10 +10,27 @@ function toAuthUser(user: User): AuthUser {
     id: user.id,
     name: user.name,
     email: user.email,
+    image: user.image,
     role: user.role,
+    organizationId: user.organizationId,
     status: user.status,
     changePassword: user.changePassword,
   };
+}
+
+async function loadPermissions(userId: string): Promise<string[]> {
+  const userRoles = await prisma.userRole.findMany({
+    where: { userId },
+    include: { role: { include: { rolePermissions: { include: { permission: true } } } } },
+  });
+
+  const keys = new Set<string>();
+  for (const userRole of userRoles) {
+    for (const rp of userRole.role.rolePermissions) {
+      keys.add(`${rp.permission.resource}:${rp.permission.action}`);
+    }
+  }
+  return Array.from(keys);
 }
 
 export const authService = {
@@ -38,7 +55,8 @@ export const authService = {
       return null;
     }
 
-    const payload = { sub: user.id, email: user.email, role: user.role };
+    const permissions = await loadPermissions(user.id);
+    const payload = { sub: user.id, email: user.email, role: user.role, organizationId: user.organizationId, permissions };
     const accessToken = signAccessToken(payload);
     const refreshToken = signRefreshToken(payload);
 
@@ -58,7 +76,8 @@ export const authService = {
 
       if (!user || user.deletedAt || !user.status) return null;
 
-      const newPayload = { sub: user.id, email: user.email, role: user.role };
+      const permissions = await loadPermissions(user.id);
+      const newPayload = { sub: user.id, email: user.email, role: user.role, organizationId: user.organizationId, permissions };
       return {
         accessToken: signAccessToken(newPayload),
         refreshToken: signRefreshToken(newPayload),

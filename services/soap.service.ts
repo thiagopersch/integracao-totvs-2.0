@@ -97,7 +97,7 @@ function getSoapAction(method: SoapMethod): string {
 }
 
 export const soapService = {
-  async execute(request: SoapRequest): Promise<SoapResponse> {
+  async execute(request: SoapRequest, organizationId: string, userId?: string): Promise<SoapResponse> {
     const startTime = Date.now();
     const timeout = request.timeout || env.SOAP_DEFAULT_TIMEOUT;
     const maxRetries = env.SOAP_MAX_RETRIES;
@@ -131,7 +131,7 @@ export const soapService = {
         const extractedXml = extractSoapResponse(xmlResponse);
         const jsonResponse = xmlParser.parse(extractedXml) as Record<string, unknown>;
 
-        await this.log(request, xmlResponse, jsonResponse, response.status, duration, null);
+        await this.log(request, xmlResponse, jsonResponse, response.status, duration, null, organizationId, userId);
 
         return {
           xmlResponse: extractedXml,
@@ -156,19 +156,22 @@ export const soapService = {
 
     const duration = Date.now() - startTime;
     const errorMsg = lastError?.message || "Unknown error";
-    await this.log(request, null, null, 0, duration, errorMsg);
+    await this.log(request, null, null, 0, duration, errorMsg, organizationId, userId);
 
     throw new Error(`SOAP execution failed after ${maxRetries} attempts: ${errorMsg}`);
   },
 
-  async getSchema(dataserver: string, process: string, context?: SoapRequest["context"]): Promise<SoapResponse> {
-    return this.execute({
-      dataserver,
-      process,
-      method: "GETSCHEMA",
-      xml: "<GetSchema />",
-      context,
-    });
+  async getSchema(dataserver: string, process: string, organizationId: string, context?: SoapRequest["context"]): Promise<SoapResponse> {
+    return this.execute(
+      {
+        dataserver,
+        process,
+        method: "GETSCHEMA",
+        xml: "<GetSchema />",
+        context,
+      },
+      organizationId
+    );
   },
 
   async log(
@@ -177,11 +180,15 @@ export const soapService = {
     jsonResponse: Record<string, unknown> | null | undefined,
     status: number,
     duration: number,
-    error: string | null | undefined
+    error: string | null | undefined,
+    organizationId: string,
+    userId?: string
   ): Promise<void> {
     try {
       await prisma.soapLog.create({
         data: {
+          organizationId,
+          userId,
           dataserver: request.dataserver,
           process: request.process,
           method: request.method,
@@ -199,8 +206,8 @@ export const soapService = {
     }
   },
 
-  async getHistory(page = 1, pageSize = 50, search?: string) {
-    const where: any = {};
+  async getHistory(organizationId: string, page = 1, pageSize = 50, search?: string) {
+    const where: any = { organizationId };
     if (search) {
       where.OR = [
         { dataserver: { contains: search, mode: "insensitive" } },
@@ -234,19 +241,19 @@ export const soapService = {
     method?: SoapMethod;
     xmlTemplate?: string;
     context?: Record<string, unknown>;
-  }) {
-    return prisma.soapTemplate.create({ data: data as any });
+  }, organizationId: string) {
+    return prisma.soapTemplate.create({ data: { ...data, organizationId } as any });
   },
 
-  async getTemplates(userId?: string) {
-    const where = userId ? { userId } : {};
+  async getTemplates(organizationId: string, userId?: string) {
+    const where = userId ? { organizationId, userId } : { organizationId };
     return prisma.soapTemplate.findMany({
       where,
       orderBy: { name: "asc" },
     });
   },
 
-  async toggleFavorite(id: string, userId: string, data: {
+  async toggleFavorite(id: string, userId: string, organizationId: string, data: {
     name: string;
     dataserver?: string;
     process?: string;
@@ -255,7 +262,7 @@ export const soapService = {
     context?: Record<string, unknown>;
   }) {
     const existing = await prisma.soapFavorite.findFirst({
-      where: { userId, dataserver: data.dataserver, process: data.process, method: data.method },
+      where: { userId, organizationId, dataserver: data.dataserver, process: data.process, method: data.method },
     });
 
     if (existing) {
@@ -263,13 +270,13 @@ export const soapService = {
       return false;
     }
 
-    await prisma.soapFavorite.create({ data: { userId, ...data } as any });
+    await prisma.soapFavorite.create({ data: { userId, organizationId, ...data } as any });
     return true;
   },
 
-  async getFavorites(userId: string) {
+  async getFavorites(userId: string, organizationId: string) {
     return prisma.soapFavorite.findMany({
-      where: { userId },
+      where: { userId, organizationId },
       orderBy: { createdAt: "desc" },
     });
   },

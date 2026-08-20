@@ -1,14 +1,22 @@
 "use client"
 
 import { useState } from "react"
-import { useRouter } from "next/navigation"
-import type { ColumnDef, Row } from "@tanstack/react-table"
+import { useRouter, useSearchParams } from "next/navigation"
+import type { ColumnDef } from "@tanstack/react-table"
 import { DataTable } from "@/components/shared/data-table"
+import { DataTableFilterPanel } from "@/components/shared/data-table-filter-panel"
 import { PageHeader } from "@/components/shared/page-header"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
 import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
+import { Label } from "@/components/ui/label"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -23,7 +31,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import { MoreHorizontal, Plus, Trash2, RotateCcw, Pencil } from "lucide-react"
+import { MoreHorizontal, Plus, Trash2, Pencil } from "lucide-react"
 import { deleteUser, restoreUser, bulkDeleteUsers, bulkRestoreUsers } from "@/actions/admin/users"
 import { toast } from "sonner"
 import { UserForm } from "./user-form"
@@ -37,8 +45,19 @@ interface UsersTableProps {
 
 export function UsersTable({ data, meta }: UsersTableProps) {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; id?: string }>({ open: false })
   const [editDialog, setEditDialog] = useState<{ open: boolean; user?: User }>({ open: false })
+  const [roleFilter, setRoleFilter] = useState(searchParams.get("role") || "")
+
+  function pushParams(updates: Record<string, string | number | undefined>) {
+    const params = new URLSearchParams(searchParams.toString())
+    Object.entries(updates).forEach(([k, v]) => {
+      if (v === undefined || v === "") params.delete(k)
+      else params.set(k, String(v))
+    })
+    router.push(`?${params.toString()}`)
+  }
 
   async function handleDelete(id: string) {
     const result = await deleteUser(id)
@@ -134,27 +153,66 @@ export function UsersTable({ data, meta }: UsersTableProps) {
     },
   ]
 
+  const newDialog = (
+    <Dialog open={editDialog.open} onOpenChange={(open) => setEditDialog({ open, user: open ? editDialog.user : undefined })}>
+      <DialogTrigger className="inline-flex items-center justify-center rounded-md bg-primary text-primary-foreground px-4 py-2 text-sm font-medium hover:bg-primary/90 h-9">
+        <Plus className="h-4 w-4 mr-2" /> Novo Usuário
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-[425px]">
+        <DialogHeader>
+          <DialogTitle>{editDialog.user ? "Editar Usuário" : "Novo Usuário"}</DialogTitle>
+        </DialogHeader>
+        <UserForm
+          user={editDialog.user}
+          onSuccess={() => { setEditDialog({ open: false }); router.refresh() }}
+          onCancel={() => setEditDialog({ open: false })}
+        />
+      </DialogContent>
+    </Dialog>
+  )
+
+  const filterPanel = (
+    <DataTableFilterPanel
+      onApply={() => pushParams({ role: roleFilter || undefined, page: 1 })}
+      onClear={() => {
+        setRoleFilter("")
+        pushParams({ role: undefined, page: 1 })
+      }}
+    >
+      <div className="space-y-2">
+        <Label>Perfil</Label>
+        <Select value={roleFilter || "all"} onValueChange={(v) => setRoleFilter(v === "all" || !v ? "" : v)}>
+          <SelectTrigger className="w-full">
+            <SelectValue placeholder="Todos" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos</SelectItem>
+            <SelectItem value="ADMIN">Administrador</SelectItem>
+            <SelectItem value="MANAGER">Gerente</SelectItem>
+            <SelectItem value="USER">Usuário</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+    </DataTableFilterPanel>
+  )
+
   return (
     <>
-      <PageHeader title="Usuários" description="Gerenciar usuários do sistema">
-        <Dialog open={editDialog.open} onOpenChange={(open) => setEditDialog({ open, user: open ? editDialog.user : undefined })}>
-          <DialogTrigger className="inline-flex items-center justify-center rounded-md bg-primary text-primary-foreground px-4 py-2 text-sm font-medium hover:bg-primary/90">
-            <Plus className="h-4 w-4 mr-2" /> Novo Usuário
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-[425px]">
-            <DialogHeader>
-              <DialogTitle>{editDialog.user ? "Editar Usuário" : "Novo Usuário"}</DialogTitle>
-            </DialogHeader>
-            <UserForm user={editDialog.user} onSuccess={() => { setEditDialog({ open: false }); router.refresh() }} />
-          </DialogContent>
-        </Dialog>
-      </PageHeader>
+      <PageHeader title="Usuários" description="Gerenciar usuários do sistema" />
 
       <DataTable
         columns={columns}
         data={data}
+        page={meta.page}
+        pageSize={meta.pageSize}
+        total={meta.total}
         pageCount={meta.totalPages}
+        onPageChange={(p) => pushParams({ page: p })}
+        onPageSizeChange={(ps) => pushParams({ pageSize: ps, page: 1 })}
         searchPlaceholder="Buscar por nome ou e-mail..."
+        onSearch={(v) => pushParams({ search: v || undefined, page: 1 })}
+        toolbarActions={newDialog}
+        filterPanel={filterPanel}
       />
 
       <ConfirmDialog

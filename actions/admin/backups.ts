@@ -4,21 +4,23 @@ import { revalidateTag, cacheTag } from "next/cache";
 import { backupService } from "@/services/backup.service";
 import { auditService } from "@/services/audit.service";
 import { createBackupSchema, updateBackupSchema } from "@/schemas/backup.schema";
+import { requirePermission } from "@/lib/rbac";
 import type { ListParams } from "@/types/common";
 
-export async function listBackups(params: ListParams) {
+export async function listBackups(params: ListParams, organizationId: string) {
   "use cache";
   cacheTag("backups");
-  return backupService.list(params);
+  return backupService.list(params, organizationId);
 }
 
-export async function getBackupById(id: string) {
+export async function getBackupById(id: string, organizationId: string) {
   "use cache";
   cacheTag(`backup-${id}`);
-  return backupService.getById(id);
+  return backupService.getById(id, organizationId);
 }
 
 export async function createBackup(formData: FormData) {
+  const { organizationId } = await requirePermission("backups", "create");
   const data = {
     tbcId: formData.get("tbcId") as string,
     filterId: formData.get("filterId") as string,
@@ -35,7 +37,7 @@ export async function createBackup(formData: FormData) {
   }
 
   try {
-    const entity = await backupService.create(parsed.data);
+    const entity = await backupService.create(parsed.data, organizationId);
     await auditService.log({
       action: "CREATE",
       entity: "Backup",
@@ -50,6 +52,7 @@ export async function createBackup(formData: FormData) {
 }
 
 export async function updateBackup(id: string, formData: FormData) {
+  const { organizationId } = await requirePermission("backups", "update");
   const data = {
     tbcId: formData.get("tbcId") as string,
     filterId: formData.get("filterId") as string,
@@ -66,8 +69,8 @@ export async function updateBackup(id: string, formData: FormData) {
   }
 
   try {
-    const old = await backupService.getById(id);
-    const entity = await backupService.update(id, parsed.data);
+    const old = await backupService.getById(id, organizationId);
+    const entity = await backupService.update(id, parsed.data, organizationId);
     await auditService.log({
       action: "UPDATE",
       entity: "Backup",
@@ -84,9 +87,10 @@ export async function updateBackup(id: string, formData: FormData) {
 }
 
 export async function deleteBackup(id: string) {
+  const { organizationId } = await requirePermission("backups", "delete");
   try {
-    const old = await backupService.getById(id);
-    await backupService.softDelete(id);
+    const old = await backupService.getById(id, organizationId);
+    await backupService.softDelete(id, organizationId);
     await auditService.log({
       action: "DELETE",
       entity: "Backup",
@@ -101,8 +105,9 @@ export async function deleteBackup(id: string) {
 }
 
 export async function restoreBackup(id: string) {
+  const { organizationId } = await requirePermission("backups", "update");
   try {
-    await backupService.restore(id);
+    await backupService.restore(id, organizationId);
     await auditService.log({ action: "RESTORE", entity: "Backup", entityId: id });
     revalidateTag("backups", "max");
     return { success: true };
@@ -112,8 +117,9 @@ export async function restoreBackup(id: string) {
 }
 
 export async function bulkDeleteBackups(ids: string[]) {
+  const { organizationId } = await requirePermission("backups", "delete");
   try {
-    const count = await backupService.bulkSoftDelete(ids);
+    const count = await backupService.bulkSoftDelete(ids, organizationId);
     await auditService.log({
       action: "BULK_DELETE",
       entity: "Backup",
@@ -128,8 +134,9 @@ export async function bulkDeleteBackups(ids: string[]) {
 }
 
 export async function bulkRestoreBackups(ids: string[]) {
+  const { organizationId } = await requirePermission("backups", "update");
   try {
-    const count = await backupService.bulkRestore(ids);
+    const count = await backupService.bulkRestore(ids, organizationId);
     await auditService.log({
       action: "BULK_RESTORE",
       entity: "Backup",

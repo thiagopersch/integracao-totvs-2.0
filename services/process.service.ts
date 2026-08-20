@@ -5,54 +5,54 @@ import type { Process } from "@prisma/client";
 
 class ProcessRepository extends BaseRepository<Process> {
   constructor() {
-    super(prisma.process, ["code", "name"]);
+    super(prisma.process, ["code", "name"], "processes");
   }
 }
 
 export const processRepository = new ProcessRepository();
 
 export const processService = {
-  async list(params: Parameters<typeof processRepository.findAll>[0]) {
-    return processRepository.findAll(params);
+  async list(params: Parameters<typeof processRepository.findAll>[0], organizationId: string) {
+    return processRepository.findAll(params, organizationId);
   },
 
-  async getById(id: string) {
-    return processRepository.findById(id);
+  async getById(id: string, organizationId: string) {
+    return processRepository.findById(id, organizationId);
   },
 
-  async create(input: CreateProcessInput) {
-    const existing = await prisma.process.findUnique({ where: { code: input.code } });
+  async create(input: CreateProcessInput, organizationId: string) {
+    const existing = await prisma.process.findFirst({ where: { code: input.code, organizationId } });
     if (existing) {
       throw new Error("Código já cadastrado");
     }
-    return processRepository.create(input as any);
+    return processRepository.create({ ...input, organizationId } as any);
   },
 
-  async update(id: string, input: UpdateProcessInput) {
+  async update(id: string, input: UpdateProcessInput, organizationId: string) {
     if (input.code) {
       const existing = await prisma.process.findFirst({
-        where: { code: input.code, id: { not: id } },
+        where: { code: input.code, organizationId, id: { not: id } },
       });
       if (existing) {
         throw new Error("Código já cadastrado");
       }
     }
-    return processRepository.update(id, input as any);
+    return processRepository.update(id, input as any, organizationId);
   },
 
-  async softDelete(id: string) {
-    return processRepository.softDelete(id);
+  async softDelete(id: string, organizationId: string) {
+    return processRepository.softDelete(id, organizationId);
   },
 
-  async restore(id: string) {
-    return processRepository.restore(id);
+  async restore(id: string, organizationId: string) {
+    return processRepository.restore(id, organizationId);
   },
 
-  async bulkSoftDelete(ids: string[]) {
-    return processRepository.bulkSoftDelete(ids);
+  async bulkSoftDelete(ids: string[], organizationId: string) {
+    return processRepository.bulkSoftDelete(ids, organizationId);
   },
 
-  async bulkRestore(ids: string[]) {
-    return processRepository.bulkRestore(ids);
+  async bulkRestore(ids: string[], organizationId: string) {
+    return processRepository.bulkRestore(ids, organizationId);
   },
 };

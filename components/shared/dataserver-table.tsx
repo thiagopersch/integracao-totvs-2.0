@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import type { ColumnDef } from "@tanstack/react-table"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -10,7 +10,7 @@ import { PageHeader } from "@/components/shared/page-header"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
+import { Field, FieldLabel, FieldError } from "@/components/ui/field"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
   DropdownMenu,
@@ -26,7 +26,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import { MoreHorizontal, Plus, Trash2, RotateCcw, Pencil, Loader2 } from "lucide-react"
+import { MoreHorizontal, Plus, Trash2, Pencil, Loader2 } from "lucide-react"
 import { deleteDataserver, restoreDataserver, bulkDeleteDataservers, bulkRestoreDataservers, createDataserver, updateDataserver } from "@/actions/admin/dataservers"
 import { createDataserverSchema, updateDataserverSchema } from "@/schemas/dataserver.schema"
 import { toast } from "sonner"
@@ -40,9 +40,19 @@ interface DataserverTableProps {
 
 export function DataserverTable({ data, meta }: DataserverTableProps) {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; id?: string }>({ open: false })
   const [editDialog, setEditDialog] = useState<{ open: boolean; dataserver?: Dataserver }>({ open: false })
   const [loading, setLoading] = useState(false)
+
+  function pushParams(updates: Record<string, string | number | undefined>) {
+    const params = new URLSearchParams(searchParams.toString())
+    Object.entries(updates).forEach(([k, v]) => {
+      if (v === undefined || v === "") params.delete(k)
+      else params.set(k, String(v))
+    })
+    router.push(`?${params.toString()}`)
+  }
 
   const form = useForm<any>({
     resolver: zodResolver(editDialog.dataserver ? updateDataserverSchema : createDataserverSchema),
@@ -64,12 +74,18 @@ export function DataserverTable({ data, meta }: DataserverTableProps) {
 
     if (result.success) {
       toast.success(editDialog.dataserver ? "Dataserver atualizado" : "Dataserver criado")
+      form.reset()
       setEditDialog({ open: false })
       router.refresh()
     } else {
       toast.error(result.error || "Erro ao salvar")
     }
     setLoading(false)
+  }
+
+  function handleCancel() {
+    form.reset()
+    setEditDialog({ open: false })
   }
 
   async function handleDelete(id: string) {
@@ -150,46 +166,58 @@ export function DataserverTable({ data, meta }: DataserverTableProps) {
     },
   ]
 
+  const newDialog = (
+    <Dialog open={editDialog.open} onOpenChange={(open) => { setEditDialog({ open, dataserver: open ? editDialog.dataserver : undefined }); if (!open) form.reset() }}>
+      <DialogTrigger className="inline-flex items-center justify-center rounded-md bg-primary text-primary-foreground px-4 py-2 text-sm font-medium hover:bg-primary/90 h-9">
+        <Plus className="h-4 w-4 mr-2" /> Novo Dataserver
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-[425px]">
+        <DialogHeader>
+          <DialogTitle>{editDialog.dataserver ? "Editar Dataserver" : "Novo Dataserver"}</DialogTitle>
+        </DialogHeader>
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+          <Field>
+            <FieldLabel htmlFor="code">Código</FieldLabel>
+            <Input id="code" {...form.register("code")} placeholder="Código único" aria-invalid={!!form.formState.errors.code} />
+            <FieldError errors={[form.formState.errors.code]} />
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="name">Nome</FieldLabel>
+            <Input id="name" {...form.register("name")} placeholder="Nome do dataserver" aria-invalid={!!form.formState.errors.name} />
+            <FieldError errors={[form.formState.errors.name]} />
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="nameAlternative">Nome Alternativo</FieldLabel>
+            <Input id="nameAlternative" {...form.register("nameAlternative")} placeholder="Nome alternativo (opcional)" />
+          </Field>
+          <div className="flex items-center justify-end gap-2">
+            <Button type="button" variant="outline" onClick={handleCancel} disabled={loading}>Cancelar</Button>
+            <Button type="submit" disabled={loading}>
+              {loading && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+              Salvar
+            </Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
+  )
+
   return (
     <>
-      <PageHeader title="Dataservers" description="Gerenciar dataservers">
-        <Dialog open={editDialog.open} onOpenChange={(open) => { setEditDialog({ open, dataserver: open ? editDialog.dataserver : undefined }); if (!open) form.reset() }}>
-          <DialogTrigger className="inline-flex items-center justify-center rounded-md bg-primary text-primary-foreground px-4 py-2 text-sm font-medium hover:bg-primary/90">
-            <Plus className="h-4 w-4 mr-2" /> Novo Dataserver
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-[425px]">
-            <DialogHeader>
-              <DialogTitle>{editDialog.dataserver ? "Editar Dataserver" : "Novo Dataserver"}</DialogTitle>
-            </DialogHeader>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="code">Código</Label>
-                <Input id="code" {...form.register("code")} placeholder="Código único" />
-                {form.formState.errors.code && <p className="text-sm text-destructive">{form.formState.errors.code.message as string}</p>}
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="name">Nome</Label>
-                <Input id="name" {...form.register("name")} placeholder="Nome do dataserver" />
-                {form.formState.errors.name && <p className="text-sm text-destructive">{form.formState.errors.name.message as string}</p>}
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="nameAlternative">Nome Alternativo</Label>
-                <Input id="nameAlternative" {...form.register("nameAlternative")} placeholder="Nome alternativo (opcional)" />
-              </div>
-              <Button type="submit" className="w-full" disabled={loading}>
-                {loading && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-                {editDialog.dataserver ? "Atualizar" : "Criar"} Dataserver
-              </Button>
-            </form>
-          </DialogContent>
-        </Dialog>
-      </PageHeader>
+      <PageHeader title="Dataservers" description="Gerenciar dataservers" />
 
       <DataTable
         columns={columns}
         data={data}
+        page={meta.page}
+        pageSize={meta.pageSize}
+        total={meta.total}
         pageCount={meta.totalPages}
+        onPageChange={(p) => pushParams({ page: p })}
+        onPageSizeChange={(ps) => pushParams({ pageSize: ps, page: 1 })}
         searchPlaceholder="Buscar por código ou nome..."
+        onSearch={(v) => pushParams({ search: v || undefined, page: 1 })}
+        toolbarActions={newDialog}
       />
 
       <ConfirmDialog

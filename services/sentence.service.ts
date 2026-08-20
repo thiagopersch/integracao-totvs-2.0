@@ -5,17 +5,17 @@ import type { Sentence } from "@prisma/client";
 
 class SentenceRepository extends BaseRepository<Sentence> {
   constructor() {
-    super(prisma.sentence, ["code", "name"]);
+    super(prisma.sentence, ["code", "name"], "sentences");
   }
 }
 
 export const sentenceRepository = new SentenceRepository();
 
 export const sentenceService = {
-  async list(params: Parameters<typeof sentenceRepository.findAll>[0]) {
+  async list(params: Parameters<typeof sentenceRepository.findAll>[0], organizationId: string) {
     const page = params.page || 1;
     const pageSize = params.pageSize || 10;
-    const where = sentenceRepository.buildWhere(params);
+    const where = await sentenceRepository.buildWhere(params, organizationId);
     const orderBy = params.sort
       ? { [params.sort.field]: params.sort.direction }
       : { createdAt: "desc" as const };
@@ -34,43 +34,43 @@ export const sentenceService = {
     return { data, meta: { page, pageSize, total, totalPages: Math.ceil(total / pageSize) } };
   },
 
-  async getById(id: string) {
-    return sentenceRepository.findById(id);
+  async getById(id: string, organizationId: string) {
+    return sentenceRepository.findById(id, organizationId);
   },
 
-  async create(input: CreateSentenceInput) {
-    const existing = await prisma.sentence.findUnique({ where: { code: input.code } });
+  async create(input: CreateSentenceInput, organizationId: string) {
+    const existing = await prisma.sentence.findFirst({ where: { code: input.code, organizationId } });
     if (existing) {
       throw new Error("Código já cadastrado");
     }
-    return sentenceRepository.create(input as any);
+    return sentenceRepository.create({ ...input, organizationId } as any);
   },
 
-  async update(id: string, input: UpdateSentenceInput) {
+  async update(id: string, input: UpdateSentenceInput, organizationId: string) {
     if (input.code) {
       const existing = await prisma.sentence.findFirst({
-        where: { code: input.code, id: { not: id } },
+        where: { code: input.code, organizationId, id: { not: id } },
       });
       if (existing) {
         throw new Error("Código já cadastrado");
       }
     }
-    return sentenceRepository.update(id, input as any);
+    return sentenceRepository.update(id, input as any, organizationId);
   },
 
-  async softDelete(id: string) {
-    return sentenceRepository.softDelete(id);
+  async softDelete(id: string, organizationId: string) {
+    return sentenceRepository.softDelete(id, organizationId);
   },
 
-  async restore(id: string) {
-    return sentenceRepository.restore(id);
+  async restore(id: string, organizationId: string) {
+    return sentenceRepository.restore(id, organizationId);
   },
 
-  async bulkSoftDelete(ids: string[]) {
-    return sentenceRepository.bulkSoftDelete(ids);
+  async bulkSoftDelete(ids: string[], organizationId: string) {
+    return sentenceRepository.bulkSoftDelete(ids, organizationId);
   },
 
-  async bulkRestore(ids: string[]) {
-    return sentenceRepository.bulkRestore(ids);
+  async bulkRestore(ids: string[], organizationId: string) {
+    return sentenceRepository.bulkRestore(ids, organizationId);
   },
 };

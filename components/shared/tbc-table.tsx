@@ -3,15 +3,17 @@
 import { useState, useEffect } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import type { ColumnDef } from "@tanstack/react-table"
-import { useForm } from "react-hook-form"
+import { useForm, Controller } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { DataTable } from "@/components/shared/data-table"
+import { DataTableFilterPanel } from "@/components/shared/data-table-filter-panel"
 import { PageHeader } from "@/components/shared/page-header"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Field, FieldLabel, FieldError } from "@/components/ui/field"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
   Select,
@@ -34,7 +36,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import { MoreHorizontal, Plus, Trash2, RotateCcw, Pencil, Loader2 } from "lucide-react"
+import { MoreHorizontal, Plus, Trash2, Pencil, Loader2 } from "lucide-react"
 import { deleteTbc, restoreTbc, bulkDeleteTbcs, bulkRestoreTbcs, createTbc, updateTbc } from "@/actions/admin/tbcs"
 import { listAllClients } from "@/actions/admin/clients"
 import { createTbcSchema, updateTbcSchema } from "@/schemas/tbc.schema"
@@ -55,10 +57,20 @@ export function TbcTable({ data, meta }: TbcTableProps) {
   const [editDialog, setEditDialog] = useState<{ open: boolean; tbc?: TbcRow }>({ open: false })
   const [loading, setLoading] = useState(false)
   const [clients, setClients] = useState<Client[]>([])
+  const [clientFilter, setClientFilter] = useState(searchParams.get("clientId") || "")
 
   useEffect(() => {
     listAllClients().then(setClients)
   }, [])
+
+  function pushParams(updates: Record<string, string | number | undefined>) {
+    const params = new URLSearchParams(searchParams.toString())
+    Object.entries(updates).forEach(([k, v]) => {
+      if (v === undefined || v === "") params.delete(k)
+      else params.set(k, String(v))
+    })
+    router.push(`?${params.toString()}`)
+  }
 
   const form = useForm<any>({
     resolver: zodResolver(editDialog.tbc ? updateTbcSchema : createTbcSchema),
@@ -80,12 +92,18 @@ export function TbcTable({ data, meta }: TbcTableProps) {
 
     if (result.success) {
       toast.success(editDialog.tbc ? "TBC atualizado" : "TBC criado")
+      form.reset()
       setEditDialog({ open: false })
       router.refresh()
     } else {
       toast.error(result.error || "Erro ao salvar")
     }
     setLoading(false)
+  }
+
+  function handleCancel() {
+    form.reset()
+    setEditDialog({ open: false })
   }
 
   async function handleDelete(id: string) {
@@ -182,77 +200,135 @@ export function TbcTable({ data, meta }: TbcTableProps) {
     },
   ]
 
+  const newDialog = (
+    <Dialog open={editDialog.open} onOpenChange={(open) => { setEditDialog({ open, tbc: open ? editDialog.tbc : undefined }); if (!open) form.reset() }}>
+      <DialogTrigger className="inline-flex items-center justify-center rounded-md bg-primary text-primary-foreground px-4 py-2 text-sm font-medium hover:bg-primary/90 h-9">
+        <Plus className="h-4 w-4 mr-2" /> Novo TBC
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-[425px]">
+        <DialogHeader>
+          <DialogTitle>{editDialog.tbc ? "Editar TBC" : "Novo TBC"}</DialogTitle>
+        </DialogHeader>
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+          <Field>
+            <FieldLabel htmlFor="clientId">Cliente</FieldLabel>
+            <Select
+              items={clients.map((client) => ({ value: client.id, label: client.name }))}
+              value={form.watch("clientId") || null}
+              onValueChange={(v) => form.setValue("clientId", v || "")}
+            >
+              <SelectTrigger className="w-full" aria-invalid={!!form.formState.errors.clientId}>
+                <SelectValue placeholder="Selecione um cliente" />
+              </SelectTrigger>
+              <SelectContent>
+                {clients.map((client) => (
+                  <SelectItem key={client.id} value={client.id}>{client.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <FieldError errors={[form.formState.errors.clientId]} />
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="name">Nome</FieldLabel>
+            <Input id="name" className="w-full" {...form.register("name")} placeholder="Nome do TBC" aria-invalid={!!form.formState.errors.name} />
+            <FieldError errors={[form.formState.errors.name]} />
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="link">Link</FieldLabel>
+            <Input id="link" className="w-full" {...form.register("link")} placeholder="https://tbc.exemplo.com" aria-invalid={!!form.formState.errors.link} />
+            <FieldError errors={[form.formState.errors.link]} />
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="user">Usuário</FieldLabel>
+            <Input id="user" className="w-full" {...form.register("user")} placeholder="Usuário de acesso" aria-invalid={!!form.formState.errors.user} />
+            <FieldError errors={[form.formState.errors.user]} />
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="password">{editDialog.tbc ? "Nova Senha (deixe vazio para manter)" : "Senha"}</FieldLabel>
+            <Input id="password" className="w-full" type="password" {...form.register("password")} placeholder={editDialog.tbc ? "Deixe vazio para manter a atual" : "Senha de acesso"} />
+          </Field>
+          <div className="flex items-center gap-2">
+            <Controller
+              control={form.control}
+              name="notRequiredLicense"
+              render={({ field }) => (
+                <Checkbox
+                  id="notRequiredLicense"
+                  checked={field.value ?? false}
+                  onCheckedChange={(value) => field.onChange(!!value)}
+                />
+              )}
+            />
+            <Label htmlFor="notRequiredLicense">Licença não obrigatória</Label>
+          </div>
+          <div className="flex items-center gap-2">
+            <Controller
+              control={form.control}
+              name="status"
+              render={({ field }) => (
+                <Checkbox
+                  id="status"
+                  checked={field.value ?? true}
+                  onCheckedChange={(value) => field.onChange(!!value)}
+                />
+              )}
+            />
+            <Label htmlFor="status">TBC ativo</Label>
+          </div>
+          <div className="flex items-center justify-end gap-2">
+            <Button type="button" variant="outline" onClick={handleCancel} disabled={loading}>Cancelar</Button>
+            <Button type="submit" disabled={loading}>
+              {loading && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+              Salvar
+            </Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
+  )
+
+  const filterPanel = (
+    <DataTableFilterPanel
+      onApply={() => pushParams({ clientId: clientFilter || undefined, page: 1 })}
+      onClear={() => {
+        setClientFilter("")
+        pushParams({ clientId: undefined, page: 1 })
+      }}
+    >
+      <div className="space-y-2">
+        <Label>Cliente</Label>
+        <Select value={clientFilter || "all"} onValueChange={(v) => setClientFilter(v === "all" || !v ? "" : v)}>
+          <SelectTrigger className="w-full">
+            <SelectValue placeholder="Todos" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos</SelectItem>
+            {clients.map((c) => (
+              <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+    </DataTableFilterPanel>
+  )
+
   return (
     <>
-      <PageHeader title="TBCs" description="Gerenciar TBCs">
-        <Dialog open={editDialog.open} onOpenChange={(open) => { setEditDialog({ open, tbc: open ? editDialog.tbc : undefined }); if (!open) form.reset() }}>
-          <DialogTrigger className="inline-flex items-center justify-center rounded-md bg-primary text-primary-foreground px-4 py-2 text-sm font-medium hover:bg-primary/90">
-            <Plus className="h-4 w-4 mr-2" /> Novo TBC
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-[425px]">
-            <DialogHeader>
-              <DialogTitle>{editDialog.tbc ? "Editar TBC" : "Novo TBC"}</DialogTitle>
-            </DialogHeader>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="clientId">Cliente</Label>
-                <Select
-                  value={form.watch("clientId") || undefined}
-                  onValueChange={(v) => form.setValue("clientId", v || "")}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Selecione um cliente" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {clients.map((client) => (
-                      <SelectItem key={client.id} value={client.id}>{client.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {form.formState.errors.clientId && <p className="text-sm text-destructive">{form.formState.errors.clientId.message as string}</p>}
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="name">Nome</Label>
-                <Input id="name" className="w-full" {...form.register("name")} placeholder="Nome do TBC" />
-                {form.formState.errors.name && <p className="text-sm text-destructive">{form.formState.errors.name.message as string}</p>}
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="link">Link</Label>
-                <Input id="link" className="w-full" {...form.register("link")} placeholder="https://tbc.exemplo.com" />
-                {form.formState.errors.link && <p className="text-sm text-destructive">{form.formState.errors.link.message as string}</p>}
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="user">Usuário</Label>
-                <Input id="user" className="w-full" {...form.register("user")} placeholder="Usuário de acesso" />
-                {form.formState.errors.user && <p className="text-sm text-destructive">{form.formState.errors.user.message as string}</p>}
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="password">{editDialog.tbc ? "Nova Senha (deixe vazio para manter)" : "Senha"}</Label>
-                <Input id="password" className="w-full" type="password" {...form.register("password")} placeholder={editDialog.tbc ? "Deixe vazio para manter a atual" : "Senha de acesso"} />
-              </div>
-              <div className="flex items-center gap-2">
-                <input type="checkbox" id="notRequiredLicense" defaultChecked={editDialog.tbc?.notRequiredLicense ?? false} {...form.register("notRequiredLicense")} className="rounded border-gray-300" />
-                <Label htmlFor="notRequiredLicense">Licença não obrigatória</Label>
-              </div>
-              <div className="flex items-center gap-2">
-                <input type="checkbox" id="status" defaultChecked={editDialog.tbc?.status ?? true} {...form.register("status")} className="rounded border-gray-300" />
-                <Label htmlFor="status">TBC ativo</Label>
-              </div>
-              <Button type="submit" className="w-full" disabled={loading}>
-                {loading && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-                {editDialog.tbc ? "Atualizar" : "Criar"} TBC
-              </Button>
-            </form>
-          </DialogContent>
-        </Dialog>
-      </PageHeader>
+      <PageHeader title="TBCs" description="Gerenciar TBCs" />
 
       <DataTable
         columns={columns}
         data={data}
+        page={meta.page}
+        pageSize={meta.pageSize}
+        total={meta.total}
         pageCount={meta.totalPages}
+        onPageChange={(p) => pushParams({ page: p })}
+        onPageSizeChange={(ps) => pushParams({ pageSize: ps, page: 1 })}
         searchPlaceholder="Buscar por nome ou link..."
-        onSearch={(v) => router.push(`?search=${encodeURIComponent(v)}`)}
+        onSearch={(v) => pushParams({ search: v || undefined, page: 1 })}
+        toolbarActions={newDialog}
+        filterPanel={filterPanel}
       />
 
       <ConfirmDialog

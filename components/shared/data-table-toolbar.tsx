@@ -2,38 +2,33 @@
 
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import { X } from "lucide-react"
-import type { Table } from "@tanstack/react-table"
+import { Filter as FilterIcon } from "lucide-react"
 import { useDebounce } from "@/hooks/use-debounce"
 import { useState, useEffect, useRef } from "react"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
+import { cn } from "@/utils/cn"
 
-interface DataTableToolbarProps<TData> {
-  table: Table<TData>
+interface DataTableToolbarProps {
   searchable?: boolean
   searchPlaceholder?: string
+  searchDefaultValue?: string
   onSearch?: (value: string) => void
   toolbarActions?: React.ReactNode
-  filtersSlot?: React.ReactNode
-  showPageSizeSelect?: boolean
+  hasFilterPanel?: boolean
+  filtersOpen?: boolean
+  onToggleFilters?: () => void
 }
 
-export function DataTableToolbar<TData>({
-  table,
+export function DataTableToolbar({
   searchable = true,
   searchPlaceholder = "Buscar...",
+  searchDefaultValue = "",
   onSearch,
   toolbarActions,
-  filtersSlot,
-  showPageSizeSelect = true,
-}: DataTableToolbarProps<TData>) {
-  const [searchValue, setSearchValue] = useState("")
+  hasFilterPanel = false,
+  filtersOpen = false,
+  onToggleFilters,
+}: DataTableToolbarProps) {
+  const [searchValue, setSearchValue] = useState(searchDefaultValue)
   const debouncedSearch = useDebounce(searchValue, 300)
 
   const onSearchRef = useRef(onSearch)
@@ -50,54 +45,29 @@ export function DataTableToolbar<TData>({
     onSearchRef.current?.(debouncedSearch)
   }, [debouncedSearch])
 
-  const isFiltered = table.getState().columnFilters.length > 0 || searchValue.length > 0
-
   return (
-    <div className="flex items-center justify-between gap-2">
-      <div className="flex flex-1 items-center space-x-2">
-        {searchable && (
-          <Input
-            placeholder={searchPlaceholder}
-            value={searchValue}
-            onChange={(e) => setSearchValue(e.target.value)}
-            className="h-8 w-[150px] lg:w-[250px]"
-          />
-        )}
-        {filtersSlot}
-        {isFiltered && (
-          <Button
-            variant="ghost"
-            onClick={() => {
-              table.resetColumnFilters()
-              setSearchValue("")
-            }}
-            className="h-8 px-2 lg:px-3"
-          >
-            Limpar
-            <X className="ml-2 h-4 w-4" />
-          </Button>
-        )}
-      </div>
-      <div className="flex items-center gap-2">
-        {toolbarActions}
-        {showPageSizeSelect && (
-          <Select
-            value={`${table.getState().pagination.pageSize}`}
-            onValueChange={(value) => table.setPageSize(Number(value))}
-          >
-            <SelectTrigger className="h-8 w-[70px]">
-              <SelectValue placeholder={table.getState().pagination.pageSize} />
-            </SelectTrigger>
-            <SelectContent side="bottom">
-              {[10, 25, 50, 100].map((size) => (
-                <SelectItem key={size} value={`${size}`}>
-                  {size}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        )}
-      </div>
+    <div className="flex items-center gap-2">
+      {searchable && (
+        <Input
+          placeholder={searchPlaceholder}
+          value={searchValue}
+          onChange={(e) => setSearchValue(e.target.value)}
+          className="h-9 w-[180px] lg:w-[280px]"
+        />
+      )}
+      {hasFilterPanel && (
+        <Button
+          type="button"
+          variant={filtersOpen ? "secondary" : "outline"}
+          size="sm"
+          className={cn("h-9", filtersOpen && "border-primary")}
+          onClick={onToggleFilters}
+        >
+          <FilterIcon className="h-4 w-4 mr-2" /> Filtro
+        </Button>
+      )}
+      <div className="flex-1" />
+      {toolbarActions}
     </div>
   )
 }

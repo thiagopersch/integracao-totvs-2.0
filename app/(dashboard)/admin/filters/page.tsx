@@ -2,6 +2,7 @@ import { Suspense } from "react"
 import { listFilters } from "@/actions/admin/filters"
 import { FilterTable } from "@/components/shared/filter-table"
 import { Skeleton } from "@/components/ui/skeleton"
+import { getCurrentOrganizationId } from "@/lib/tenant"
 
 export default function FiltersPage({ searchParams }: { searchParams: Promise<Record<string, string>> }) {
   return (
@@ -15,13 +16,14 @@ export default function FiltersPage({ searchParams }: { searchParams: Promise<Re
 
 async function FiltersContent({ searchParams }: { searchParams: Promise<Record<string, string>> }) {
   const params = await searchParams
+  const organizationId = await getCurrentOrganizationId()
   const { data, meta } = await listFilters({
     page: Number(params.page) || 1,
     pageSize: Number(params.pageSize) || 10,
     search: params.search,
     sort: params.sort ? { field: params.sort.split(":")[0], direction: params.sort.split(":")[1] as "asc" | "desc" } : undefined,
-    filters: params.status ? { status: params.status } : undefined,
-  })
+    filters: params.status || params.clientId ? { status: params.status, clientId: params.clientId } : undefined,
+  }, organizationId)
 
   return <FilterTable data={data} meta={meta} />
 }

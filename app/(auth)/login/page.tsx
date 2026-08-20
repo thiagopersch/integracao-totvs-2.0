@@ -2,10 +2,13 @@
 
 import { useRouter } from "next/navigation"
 import { useState } from "react"
+import { useForm } from "react-hook-form"
+import { zodResolver } from "@hookform/resolvers/zod"
 import { loginAction } from "@/actions/auth/login"
+import { loginSchema, type LoginInput } from "@/schemas/auth.schema"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
+import { Field, FieldLabel, FieldError } from "@/components/ui/field"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { toast } from "sonner"
 import { Loader2, LogIn } from "lucide-react"
@@ -13,21 +16,27 @@ import { Loader2, LogIn } from "lucide-react"
 export default function LoginPage() {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
 
-  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault()
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<LoginInput>({
+    resolver: zodResolver(loginSchema),
+  })
+
+  async function onSubmit(data: LoginInput) {
     setLoading(true)
-    setError(null)
+    const formData = new FormData()
+    formData.append("email", data.email)
+    formData.append("password", data.password)
 
-    const formData = new FormData(event.currentTarget)
     const result = await loginAction(formData)
 
     if (result.success) {
       toast.success("Login realizado com sucesso!")
       router.push("/dashboard")
     } else {
-      setError(result.error ?? "Erro ao fazer login")
       toast.error(result.error ?? "Erro ao fazer login")
     }
     setLoading(false)
@@ -44,32 +53,31 @@ export default function LoginPage() {
           <CardDescription>Faça login para acessar o painel</CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="email">E-mail</Label>
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+            <Field>
+              <FieldLabel htmlFor="email">E-mail</FieldLabel>
               <Input
                 id="email"
-                name="email"
                 type="email"
                 placeholder="seu@email.com"
-                required
                 autoComplete="email"
+                aria-invalid={!!errors.email}
+                {...register("email")}
               />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="password">Senha</Label>
+              <FieldError errors={[errors.email]} />
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="password">Senha</FieldLabel>
               <Input
                 id="password"
-                name="password"
                 type="password"
                 placeholder="••••••••"
-                required
                 autoComplete="current-password"
+                aria-invalid={!!errors.password}
+                {...register("password")}
               />
-            </div>
-            {error && (
-              <p className="text-sm text-destructive font-medium">{error}</p>
-            )}
+              <FieldError errors={[errors.password]} />
+            </Field>
             <Button type="submit" className="w-full" disabled={loading}>
               {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
               Entrar

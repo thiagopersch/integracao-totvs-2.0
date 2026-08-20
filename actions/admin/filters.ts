@@ -5,21 +5,23 @@ import { filterService } from "@/services/filter.service";
 import { backupService } from "@/services/backup.service";
 import { auditService } from "@/services/audit.service";
 import { createFilterSchema, updateFilterSchema } from "@/schemas/filter.schema";
+import { requirePermission } from "@/lib/rbac";
 import type { ListParams } from "@/types/common";
 
-export async function listFilters(params: ListParams) {
+export async function listFilters(params: ListParams, organizationId: string) {
   "use cache";
   cacheTag("filters");
-  return filterService.list(params);
+  return filterService.list(params, organizationId);
 }
 
-export async function getFilterById(id: string) {
+export async function getFilterById(id: string, organizationId: string) {
   "use cache";
   cacheTag(`filter-${id}`);
-  return filterService.getById(id);
+  return filterService.getById(id, organizationId);
 }
 
 export async function createFilter(formData: FormData) {
+  const { organizationId } = await requirePermission("filters", "create");
   const data = {
     tbcId: formData.get("tbcId") as string,
     clientId: formData.get("clientId") as string,
@@ -29,6 +31,8 @@ export async function createFilter(formData: FormData) {
     levelEducationContext: formData.get("levelEducationContext") as string,
     codSystemContext: formData.get("codSystemContext") as string,
     userContext: formData.get("userContext") as string,
+    codColigadaSentenca: (formData.get("codColigadaSentenca") as string) || undefined,
+    codSistemaSentenca: (formData.get("codSistemaSentenca") as string) || undefined,
     status: formData.get("status") === "true",
   };
 
@@ -38,7 +42,7 @@ export async function createFilter(formData: FormData) {
   }
 
   try {
-    const entity = await filterService.create(parsed.data);
+    const entity = await filterService.create(parsed.data, organizationId);
     await auditService.log({
       action: "CREATE",
       entity: "Filter",
@@ -53,6 +57,7 @@ export async function createFilter(formData: FormData) {
 }
 
 export async function updateFilter(id: string, formData: FormData) {
+  const { organizationId } = await requirePermission("filters", "update");
   const data = {
     tbcId: formData.get("tbcId") as string,
     clientId: formData.get("clientId") as string,
@@ -62,6 +67,8 @@ export async function updateFilter(id: string, formData: FormData) {
     levelEducationContext: formData.get("levelEducationContext") as string,
     codSystemContext: formData.get("codSystemContext") as string,
     userContext: formData.get("userContext") as string,
+    codColigadaSentenca: (formData.get("codColigadaSentenca") as string) || undefined,
+    codSistemaSentenca: (formData.get("codSistemaSentenca") as string) || undefined,
     status: formData.get("status") === "true",
   };
 
@@ -71,8 +78,8 @@ export async function updateFilter(id: string, formData: FormData) {
   }
 
   try {
-    const old = await filterService.getById(id);
-    const entity = await filterService.update(id, parsed.data);
+    const old = await filterService.getById(id, organizationId);
+    const entity = await filterService.update(id, parsed.data, organizationId);
     await auditService.log({
       action: "UPDATE",
       entity: "Filter",
@@ -89,9 +96,10 @@ export async function updateFilter(id: string, formData: FormData) {
 }
 
 export async function deleteFilter(id: string) {
+  const { organizationId } = await requirePermission("filters", "delete");
   try {
-    const old = await filterService.getById(id);
-    await filterService.softDelete(id);
+    const old = await filterService.getById(id, organizationId);
+    await filterService.softDelete(id, organizationId);
     await auditService.log({
       action: "DELETE",
       entity: "Filter",
@@ -106,8 +114,9 @@ export async function deleteFilter(id: string) {
 }
 
 export async function restoreFilter(id: string) {
+  const { organizationId } = await requirePermission("filters", "update");
   try {
-    await filterService.restore(id);
+    await filterService.restore(id, organizationId);
     await auditService.log({ action: "RESTORE", entity: "Filter", entityId: id });
     revalidateTag("filters", "max");
     return { success: true };
@@ -117,8 +126,9 @@ export async function restoreFilter(id: string) {
 }
 
 export async function bulkDeleteFilters(ids: string[]) {
+  const { organizationId } = await requirePermission("filters", "delete");
   try {
-    const count = await filterService.bulkSoftDelete(ids);
+    const count = await filterService.bulkSoftDelete(ids, organizationId);
     await auditService.log({
       action: "BULK_DELETE",
       entity: "Filter",
@@ -134,8 +144,9 @@ export async function bulkDeleteFilters(ids: string[]) {
 
 export async function createBackupFromFilter(filterId: string) {
   "use server"
+  const { organizationId } = await requirePermission("backups", "create");
   try {
-    await backupService.createFromFilter(filterId)
+    await backupService.createFromFilter(filterId, organizationId)
     revalidateTag("backups", "max")
     return { success: true }
   } catch (e: any) {
@@ -144,8 +155,9 @@ export async function createBackupFromFilter(filterId: string) {
 }
 
 export async function bulkRestoreFilters(ids: string[]) {
+  const { organizationId } = await requirePermission("filters", "update");
   try {
-    const count = await filterService.bulkRestore(ids);
+    const count = await filterService.bulkRestore(ids, organizationId);
     await auditService.log({
       action: "BULK_RESTORE",
       entity: "Filter",

@@ -22,31 +22,48 @@ import { Skeleton } from "@/components/ui/skeleton"
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[]
   data: TData[]
+  page?: number
+  pageSize?: number
+  total?: number
   pageCount?: number
+  onPageChange?: (page: number) => void
+  onPageSizeChange?: (pageSize: number) => void
   loading?: boolean
   searchable?: boolean
   searchPlaceholder?: string
+  searchDefaultValue?: string
   onSearch?: (value: string) => void
   toolbarActions?: React.ReactNode
+  filterPanel?: React.ReactNode
   emptyMessage?: string
 }
 
 export function DataTable<TData, TValue>({
   columns,
   data,
+  page = 1,
+  pageSize = 10,
+  total,
   pageCount,
+  onPageChange,
+  onPageSizeChange,
   loading = false,
   searchable = true,
   searchPlaceholder = "Buscar...",
+  searchDefaultValue = "",
   onSearch,
   toolbarActions,
+  filterPanel,
   emptyMessage = "Nenhum registro encontrado.",
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = useState<SortingState>([])
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({})
   const [rowSelection, setRowSelection] = useState({})
-  const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: 10 })
+  const [internalPagination, setInternalPagination] = useState<PaginationState>({ pageIndex: 0, pageSize })
+  const [filtersOpen, setFiltersOpen] = useState(false)
+
+  const manual = !!pageCount
 
   const table = useReactTable({
     data,
@@ -56,32 +73,34 @@ export function DataTable<TData, TValue>({
       columnFilters,
       columnVisibility,
       rowSelection,
-      pagination,
+      pagination: manual ? { pageIndex: page - 1, pageSize } : internalPagination,
     },
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
     onColumnVisibilityChange: setColumnVisibility,
     onRowSelectionChange: setRowSelection,
-    onPaginationChange: setPagination,
+    onPaginationChange: manual ? undefined : setInternalPagination,
     getCoreRowModel: getCoreRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
     getSortedRowModel: getSortedRowModel(),
-    manualPagination: !!pageCount,
+    ...(manual ? {} : { getPaginationRowModel: getPaginationRowModel() }),
+    manualPagination: manual,
     pageCount: pageCount ?? -1,
   })
-
-  const selectedRows = table.getFilteredSelectedRowModel().rows
 
   return (
     <div className="space-y-4">
       <DataTableToolbar
-        table={table}
         searchable={searchable}
         searchPlaceholder={searchPlaceholder}
+        searchDefaultValue={searchDefaultValue}
         onSearch={onSearch}
         toolbarActions={toolbarActions}
+        hasFilterPanel={!!filterPanel}
+        filtersOpen={filtersOpen}
+        onToggleFilters={() => setFiltersOpen((v) => !v)}
       />
+      {filterPanel && filtersOpen && <div>{filterPanel}</div>}
       <div className="rounded-md border">
         <Table>
           <TableHeader>
@@ -128,7 +147,25 @@ export function DataTable<TData, TValue>({
           </TableBody>
         </Table>
       </div>
-      <DataTablePagination table={table} />
+      {manual ? (
+        <DataTablePagination
+          page={page}
+          pageSize={pageSize}
+          pageCount={pageCount!}
+          total={total ?? data.length}
+          onPageChange={(p) => onPageChange?.(p)}
+          onPageSizeChange={(ps) => onPageSizeChange?.(ps)}
+        />
+      ) : (
+        <DataTablePagination
+          page={table.getState().pagination.pageIndex + 1}
+          pageSize={table.getState().pagination.pageSize}
+          pageCount={table.getPageCount()}
+          total={data.length}
+          onPageChange={(p) => table.setPageIndex(p - 1)}
+          onPageSizeChange={(ps) => table.setPageSize(ps)}
+        />
+      )}
     </div>
   )
 }

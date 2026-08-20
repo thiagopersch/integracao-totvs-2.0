@@ -2,9 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { soapService } from "@/services/soap.service";
 import { prisma } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
+import { getRequestContext } from "@/lib/tenant";
 
 export async function POST(request: NextRequest) {
   try {
+    const { organizationId, userId } = await getRequestContext();
     const body = await request.json();
     const { endpointTypeId, methodId, tbcId, method, endpointType, suffix, xml, context, timeout } = body;
 
@@ -19,23 +21,27 @@ export async function POST(request: NextRequest) {
     let process = "";
 
     if (tbcId) {
-      const tbc = await prisma.tbc.findUnique({ where: { id: tbcId } });
+      const tbc = await prisma.tbc.findFirst({ where: { id: tbcId, organizationId } });
       if (tbc) {
         dataserver = tbc.link;
         process = tbc.link;
       }
     }
 
-    const result = await soapService.execute({
-      dataserver: dataserver || body.dataserver || "",
-      process: process || body.process || "",
-      method,
-      xml,
-      context,
-      timeout,
-      endpointType,
-      suffix,
-    });
+    const result = await soapService.execute(
+      {
+        dataserver: dataserver || body.dataserver || "",
+        process: process || body.process || "",
+        method,
+        xml,
+        context,
+        timeout,
+        endpointType,
+        suffix,
+      },
+      organizationId,
+      userId
+    );
 
     return NextResponse.json(result);
   } catch (error) {

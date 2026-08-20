@@ -4,27 +4,29 @@ import { revalidateTag, cacheTag } from "next/cache";
 import { tbcService } from "@/services/tbc.service";
 import { auditService } from "@/services/audit.service";
 import { createTbcSchema, updateTbcSchema } from "@/schemas/tbc.schema";
+import { requirePermission } from "@/lib/rbac";
+import { getRequestContext } from "@/lib/tenant";
 import type { ListParams } from "@/types/common";
 
 export async function listAllTbcs() {
-  "use cache";
-  cacheTag("tbcs");
-  return tbcService.listAll();
+  const { organizationId } = await getRequestContext();
+  return tbcService.listAll(organizationId);
 }
 
-export async function listTbcs(params: ListParams) {
+export async function listTbcs(params: ListParams, organizationId: string) {
   "use cache";
   cacheTag("tbcs");
-  return tbcService.list(params);
+  return tbcService.list(params, organizationId);
 }
 
-export async function getTbcById(id: string) {
+export async function getTbcById(id: string, organizationId: string) {
   "use cache";
   cacheTag(`tbc-${id}`);
-  return tbcService.getById(id);
+  return tbcService.getById(id, organizationId);
 }
 
 export async function createTbc(formData: FormData) {
+  const { organizationId } = await requirePermission("tbcs", "create");
   const data = {
     clientId: formData.get("clientId") as string,
     name: formData.get("name") as string,
@@ -41,7 +43,7 @@ export async function createTbc(formData: FormData) {
   }
 
   try {
-    const entity = await tbcService.create(parsed.data);
+    const entity = await tbcService.create(parsed.data, organizationId);
     await auditService.log({
       action: "CREATE",
       entity: "Tbc",
@@ -56,6 +58,7 @@ export async function createTbc(formData: FormData) {
 }
 
 export async function updateTbc(id: string, formData: FormData) {
+  const { organizationId } = await requirePermission("tbcs", "update");
   const data = {
     clientId: formData.get("clientId") as string,
     name: formData.get("name") as string,
@@ -72,8 +75,8 @@ export async function updateTbc(id: string, formData: FormData) {
   }
 
   try {
-    const old = await tbcService.getById(id);
-    const entity = await tbcService.update(id, parsed.data);
+    const old = await tbcService.getById(id, organizationId);
+    const entity = await tbcService.update(id, parsed.data, organizationId);
     await auditService.log({
       action: "UPDATE",
       entity: "Tbc",
@@ -90,9 +93,10 @@ export async function updateTbc(id: string, formData: FormData) {
 }
 
 export async function deleteTbc(id: string) {
+  const { organizationId } = await requirePermission("tbcs", "delete");
   try {
-    const old = await tbcService.getById(id);
-    await tbcService.softDelete(id);
+    const old = await tbcService.getById(id, organizationId);
+    await tbcService.softDelete(id, organizationId);
     await auditService.log({
       action: "DELETE",
       entity: "Tbc",
@@ -107,8 +111,9 @@ export async function deleteTbc(id: string) {
 }
 
 export async function restoreTbc(id: string) {
+  const { organizationId } = await requirePermission("tbcs", "update");
   try {
-    await tbcService.restore(id);
+    await tbcService.restore(id, organizationId);
     await auditService.log({ action: "RESTORE", entity: "Tbc", entityId: id });
     revalidateTag("tbcs", "max");
     return { success: true };
@@ -118,8 +123,9 @@ export async function restoreTbc(id: string) {
 }
 
 export async function bulkDeleteTbcs(ids: string[]) {
+  const { organizationId } = await requirePermission("tbcs", "delete");
   try {
-    const count = await tbcService.bulkSoftDelete(ids);
+    const count = await tbcService.bulkSoftDelete(ids, organizationId);
     await auditService.log({
       action: "BULK_DELETE",
       entity: "Tbc",
@@ -134,8 +140,9 @@ export async function bulkDeleteTbcs(ids: string[]) {
 }
 
 export async function bulkRestoreTbcs(ids: string[]) {
+  const { organizationId } = await requirePermission("tbcs", "update");
   try {
-    const count = await tbcService.bulkRestore(ids);
+    const count = await tbcService.bulkRestore(ids, organizationId);
     await auditService.log({
       action: "BULK_RESTORE",
       entity: "Tbc",

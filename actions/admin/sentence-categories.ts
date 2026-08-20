@@ -4,27 +4,29 @@ import { revalidateTag, cacheTag } from "next/cache";
 import { sentenceCategoryService } from "@/services/sentence-category.service";
 import { auditService } from "@/services/audit.service";
 import { createSentenceCategorySchema, updateSentenceCategorySchema } from "@/schemas/sentence-category.schema";
+import { requirePermission } from "@/lib/rbac";
+import { getRequestContext } from "@/lib/tenant";
 import type { ListParams } from "@/types/common";
 
 export async function listAllSentenceCategories() {
-  "use cache";
-  cacheTag("sentenceCategories");
-  return sentenceCategoryService.listAll();
+  const { organizationId } = await getRequestContext();
+  return sentenceCategoryService.listAll(organizationId);
 }
 
-export async function listSentenceCategories(params: ListParams) {
+export async function listSentenceCategories(params: ListParams, organizationId: string) {
   "use cache";
   cacheTag("sentenceCategories");
-  return sentenceCategoryService.list(params);
+  return sentenceCategoryService.list(params, organizationId);
 }
 
-export async function getSentenceCategoryById(id: string) {
+export async function getSentenceCategoryById(id: string, organizationId: string) {
   "use cache";
   cacheTag(`sentenceCategory-${id}`);
-  return sentenceCategoryService.getById(id);
+  return sentenceCategoryService.getById(id, organizationId);
 }
 
 export async function createSentenceCategory(formData: FormData) {
+  const { organizationId } = await requirePermission("sentence_categories", "create");
   const data = {
     code: formData.get("code") as string,
     name: formData.get("name") as string,
@@ -37,7 +39,7 @@ export async function createSentenceCategory(formData: FormData) {
   }
 
   try {
-    const entity = await sentenceCategoryService.create(parsed.data);
+    const entity = await sentenceCategoryService.create(parsed.data, organizationId);
     await auditService.log({
       action: "CREATE",
       entity: "SentenceCategory",
@@ -52,6 +54,7 @@ export async function createSentenceCategory(formData: FormData) {
 }
 
 export async function updateSentenceCategory(id: string, formData: FormData) {
+  const { organizationId } = await requirePermission("sentence_categories", "update");
   const data = {
     code: formData.get("code") as string,
     name: formData.get("name") as string,
@@ -64,8 +67,8 @@ export async function updateSentenceCategory(id: string, formData: FormData) {
   }
 
   try {
-    const old = await sentenceCategoryService.getById(id);
-    const entity = await sentenceCategoryService.update(id, parsed.data);
+    const old = await sentenceCategoryService.getById(id, organizationId);
+    const entity = await sentenceCategoryService.update(id, parsed.data, organizationId);
     await auditService.log({
       action: "UPDATE",
       entity: "SentenceCategory",
@@ -82,9 +85,10 @@ export async function updateSentenceCategory(id: string, formData: FormData) {
 }
 
 export async function deleteSentenceCategory(id: string) {
+  const { organizationId } = await requirePermission("sentence_categories", "delete");
   try {
-    const old = await sentenceCategoryService.getById(id);
-    await sentenceCategoryService.softDelete(id);
+    const old = await sentenceCategoryService.getById(id, organizationId);
+    await sentenceCategoryService.softDelete(id, organizationId);
     await auditService.log({
       action: "DELETE",
       entity: "SentenceCategory",
@@ -99,8 +103,9 @@ export async function deleteSentenceCategory(id: string) {
 }
 
 export async function restoreSentenceCategory(id: string) {
+  const { organizationId } = await requirePermission("sentence_categories", "update");
   try {
-    await sentenceCategoryService.restore(id);
+    await sentenceCategoryService.restore(id, organizationId);
     await auditService.log({ action: "RESTORE", entity: "SentenceCategory", entityId: id });
     revalidateTag("sentenceCategories", "max");
     return { success: true };
@@ -110,8 +115,9 @@ export async function restoreSentenceCategory(id: string) {
 }
 
 export async function bulkDeleteSentenceCategories(ids: string[]) {
+  const { organizationId } = await requirePermission("sentence_categories", "delete");
   try {
-    const count = await sentenceCategoryService.bulkSoftDelete(ids);
+    const count = await sentenceCategoryService.bulkSoftDelete(ids, organizationId);
     await auditService.log({
       action: "BULK_DELETE",
       entity: "SentenceCategory",
@@ -126,8 +132,9 @@ export async function bulkDeleteSentenceCategories(ids: string[]) {
 }
 
 export async function bulkRestoreSentenceCategories(ids: string[]) {
+  const { organizationId } = await requirePermission("sentence_categories", "update");
   try {
-    const count = await sentenceCategoryService.bulkRestore(ids);
+    const count = await sentenceCategoryService.bulkRestore(ids, organizationId);
     await auditService.log({
       action: "BULK_RESTORE",
       entity: "SentenceCategory",

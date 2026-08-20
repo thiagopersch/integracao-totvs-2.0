@@ -5,58 +5,60 @@ import type { Client } from "@prisma/client";
 
 class ClientRepository extends BaseRepository<Client> {
   constructor() {
-    super(prisma.client, ["name", "linkCrm"]);
+    super(prisma.client, ["name", "legalName", "linkCrm", "document", "email"], "clients");
   }
 }
 
 export const clientRepository = new ClientRepository();
 
 export const clientService = {
-  async list(params: Parameters<typeof clientRepository.findAll>[0]) {
-    return clientRepository.findAll(params);
+  async list(params: Parameters<typeof clientRepository.findAll>[0], organizationId: string) {
+    return clientRepository.findAll(params, organizationId);
   },
 
-  async listAll() {
-    return clientRepository.listAll();
+  async listAll(organizationId: string) {
+    return clientRepository.listAll(organizationId);
   },
 
-  async getById(id: string) {
-    return clientRepository.findById(id);
+  async getById(id: string, organizationId: string) {
+    return clientRepository.findById(id, organizationId);
   },
 
-  async create(input: CreateClientInput) {
-    const existing = await prisma.client.findUnique({ where: { linkCrm: input.linkCrm } });
-    if (existing) {
-      throw new Error("Link CRM já cadastrado");
+  async create(input: CreateClientInput, organizationId: string) {
+    if (input.linkCrm) {
+      const existing = await prisma.client.findFirst({ where: { linkCrm: input.linkCrm, organizationId } });
+      if (existing) {
+        throw new Error("Link CRM já cadastrado");
+      }
     }
-    return clientRepository.create(input as any);
+    return clientRepository.create({ ...input, organizationId } as any);
   },
 
-  async update(id: string, input: UpdateClientInput) {
+  async update(id: string, input: UpdateClientInput, organizationId: string) {
     if (input.linkCrm) {
       const existing = await prisma.client.findFirst({
-        where: { linkCrm: input.linkCrm, id: { not: id } },
+        where: { linkCrm: input.linkCrm, organizationId, id: { not: id } },
       });
       if (existing) {
         throw new Error("Link CRM já cadastrado");
       }
     }
-    return clientRepository.update(id, input as any);
+    return clientRepository.update(id, input as any, organizationId);
   },
 
-  async softDelete(id: string) {
-    return clientRepository.softDelete(id);
+  async softDelete(id: string, organizationId: string) {
+    return clientRepository.softDelete(id, organizationId);
   },
 
-  async restore(id: string) {
-    return clientRepository.restore(id);
+  async restore(id: string, organizationId: string) {
+    return clientRepository.restore(id, organizationId);
   },
 
-  async bulkSoftDelete(ids: string[]) {
-    return clientRepository.bulkSoftDelete(ids);
+  async bulkSoftDelete(ids: string[], organizationId: string) {
+    return clientRepository.bulkSoftDelete(ids, organizationId);
   },
 
-  async bulkRestore(ids: string[]) {
-    return clientRepository.bulkRestore(ids);
+  async bulkRestore(ids: string[], organizationId: string) {
+    return clientRepository.bulkRestore(ids, organizationId);
   },
 };

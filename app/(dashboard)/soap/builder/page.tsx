@@ -352,7 +352,11 @@ export default function SoapBuilderPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="space-y-2">
               <Label>Método</Label>
-              <Select value={selectedMethodId} onValueChange={(v) => setSelectedMethodId(v || "")}>
+              <Select
+                items={methods.map((m) => ({ value: m.id, label: m.label }))}
+                value={selectedMethodId || null}
+                onValueChange={(v) => setSelectedMethodId(v || "")}
+              >
                 <SelectTrigger className="w-full">
                   <SelectValue placeholder="Selecionar método..." />
                 </SelectTrigger>
@@ -365,7 +369,11 @@ export default function SoapBuilderPage() {
             </div>
             <div className="space-y-2">
               <Label>TBC</Label>
-              <Select value={selectedTbcId} onValueChange={(v) => setSelectedTbcId(v || "")}>
+              <Select
+                items={tbcs.map((t) => ({ value: t.id, label: `${t.name}${t.client ? ` (${t.client.name})` : ""}` }))}
+                value={selectedTbcId || null}
+                onValueChange={(v) => setSelectedTbcId(v || "")}
+              >
                 <SelectTrigger className="w-full">
                   <SelectValue placeholder="Selecionar TBC..." />
                 </SelectTrigger>

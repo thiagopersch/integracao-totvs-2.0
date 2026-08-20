@@ -9,6 +9,8 @@ export const createFilterSchema = z.object({
   levelEducationContext: z.coerce.number().int(),
   codSystemContext: z.string().min(1, "Código do sistema é obrigatório"),
   userContext: z.string().min(1, "Usuário é obrigatório"),
+  codColigadaSentenca: z.string().max(5, "Máximo de 5 dígitos").regex(/^\d*$/, "Apenas dígitos").optional(),
+  codSistemaSentenca: z.string().optional(),
   status: z.boolean().default(true),
 });
 
@@ -21,6 +23,8 @@ export const updateFilterSchema = z.object({
   levelEducationContext: z.coerce.number().int().optional(),
   codSystemContext: z.string().min(1, "Código do sistema é obrigatório").optional(),
   userContext: z.string().min(1, "Usuário é obrigatório").optional(),
+  codColigadaSentenca: z.string().max(5, "Máximo de 5 dígitos").regex(/^\d*$/, "Apenas dígitos").optional(),
+  codSistemaSentenca: z.string().optional(),
   status: z.boolean().optional(),
 });
 

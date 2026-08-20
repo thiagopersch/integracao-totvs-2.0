@@ -5,7 +5,11 @@ export type JwtPayload = {
   sub: string;
   email: string;
   role: string;
+  organizationId: string;
+  permissions: string[];
 };
+
+type SignableJwtPayload = Pick<JwtPayload, "sub" | "email" | "role" | "organizationId" | "permissions">;
 
 function parseExpiry(value: string): number {
   const match = value.match(/^(\d+)([smhd])$/);
@@ -20,17 +24,17 @@ function parseExpiry(value: string): number {
   }
 }
 
-export function signAccessToken(payload: Pick<JwtPayload, "sub" | "email" | "role">): string {
+export function signAccessToken(payload: SignableJwtPayload): string {
   return jwt.sign(
-    { sub: payload.sub, email: payload.email, role: payload.role },
+    { sub: payload.sub, email: payload.email, role: payload.role, organizationId: payload.organizationId, permissions: payload.permissions },
     env.JWT_SECRET,
     { expiresIn: parseExpiry(env.JWT_EXPIRES_IN) }
   );
 }
 
-export function signRefreshToken(payload: Pick<JwtPayload, "sub" | "email" | "role">): string {
+export function signRefreshToken(payload: SignableJwtPayload): string {
   return jwt.sign(
-    { sub: payload.sub, email: payload.email, role: payload.role },
+    { sub: payload.sub, email: payload.email, role: payload.role, organizationId: payload.organizationId, permissions: payload.permissions },
     env.JWT_REFRESH_SECRET,
     { expiresIn: parseExpiry(env.JWT_REFRESH_EXPIRES_IN) }
   );

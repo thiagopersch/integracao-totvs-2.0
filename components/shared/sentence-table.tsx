@@ -1,17 +1,23 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import type { ColumnDef } from "@tanstack/react-table"
-import { useForm } from "react-hook-form"
+import { useForm, Controller } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
+import { EditorView, basicSetup } from "codemirror"
+import { EditorState } from "@codemirror/state"
+import { oneDark } from "@codemirror/theme-one-dark"
+import { useTheme } from "next-themes"
 import { DataTable } from "@/components/shared/data-table"
+import { DataTableFilterPanel } from "@/components/shared/data-table-filter-panel"
 import { PageHeader } from "@/components/shared/page-header"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Field, FieldLabel, FieldError } from "@/components/ui/field"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
   Select,
@@ -34,7 +40,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import { MoreHorizontal, Plus, Trash2, RotateCcw, Pencil, Loader2 } from "lucide-react"
+import { MoreHorizontal, Plus, Trash2, Pencil, Loader2 } from "lucide-react"
 import { deleteSentence, restoreSentence, bulkDeleteSentences, bulkRestoreSentences, createSentence, updateSentence } from "@/actions/admin/sentences"
 import { listAllSentenceCategories } from "@/actions/admin/sentence-categories"
 import { createSentenceSchema, updateSentenceSchema } from "@/schemas/sentence.schema"
@@ -55,21 +61,59 @@ interface SentenceTableProps {
 export function SentenceTable({ data, meta }: SentenceTableProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
+  const { theme } = useTheme()
   const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; id?: string }>({ open: false })
   const [editDialog, setEditDialog] = useState<{ open: boolean; sentence?: SentenceRow }>({ open: false })
   const [loading, setLoading] = useState(false)
   const [categories, setCategories] = useState<SentenceCategory[]>([])
+  const [categoryFilter, setCategoryFilter] = useState(searchParams.get("sentenceCategoryId") || "")
+  const contentEditorRef = useRef<HTMLDivElement>(null)
+  const contentViewRef = useRef<EditorView | null>(null)
 
   useEffect(() => {
     listAllSentenceCategories().then(setCategories)
   }, [])
 
+  function pushParams(updates: Record<string, string | number | undefined>) {
+    const params = new URLSearchParams(searchParams.toString())
+    Object.entries(updates).forEach(([k, v]) => {
+      if (v === undefined || v === "") params.delete(k)
+      else params.set(k, String(v))
+    })
+    router.push(`?${params.toString()}`)
+  }
+
   const form = useForm<any>({
     resolver: zodResolver(editDialog.sentence ? updateSentenceSchema : createSentenceSchema),
     values: editDialog.sentence
-      ? { sentenceCategoryId: editDialog.sentence.sentenceCategoryId, code: editDialog.sentence.code, codSystem: editDialog.sentence.codSystem || "", name: editDialog.sentence.name, content: editDialog.sentence.content || "", status: editDialog.sentence.status }
-      : { sentenceCategoryId: "", code: "", codSystem: "", name: "", content: "", status: true },
+      ? { sentenceCategoryId: editDialog.sentence.sentenceCategoryId, code: editDialog.sentence.code, codSystem: editDialog.sentence.codSystem || "", codColigada: editDialog.sentence.codColigada || "", name: editDialog.sentence.name, content: editDialog.sentence.content || "", status: editDialog.sentence.status }
+      : { sentenceCategoryId: "", code: "", codSystem: "", codColigada: "", name: "", content: "", status: true },
   })
+
+  useEffect(() => {
+    if (!editDialog.open || !contentEditorRef.current) return
+    const isDark = theme === "dark"
+    const state = EditorState.create({
+      doc: editDialog.sentence?.content || "",
+      extensions: [
+        basicSetup,
+        isDark ? oneDark : [],
+        EditorView.updateListener.of((update) => {
+          if (update.docChanged) {
+            form.setValue("content", update.state.doc.toString())
+          }
+        }),
+      ],
+    })
+
+    if (contentViewRef.current) contentViewRef.current.destroy()
+    contentViewRef.current = new EditorView({ state, parent: contentEditorRef.current })
+
+    return () => {
+      contentViewRef.current?.destroy()
+      contentViewRef.current = null
+    }
+  }, [editDialog.open, editDialog.sentence, theme])
 
   async function onSubmit(data: any) {
     setLoading(true)
@@ -84,12 +128,18 @@ export function SentenceTable({ data, meta }: SentenceTableProps) {
 
     if (result.success) {
       toast.success(editDialog.sentence ? "Sentença atualizada" : "Sentença criada")
+      form.reset()
       setEditDialog({ open: false })
       router.refresh()
     } else {
       toast.error(result.error || "Erro ao salvar")
     }
     setLoading(false)
+  }
+
+  function handleCancel() {
+    form.reset()
+    setEditDialog({ open: false })
   }
 
   async function handleDelete(id: string) {
@@ -183,77 +233,129 @@ export function SentenceTable({ data, meta }: SentenceTableProps) {
     },
   ]
 
+  const newDialog = (
+    <Dialog open={editDialog.open} onOpenChange={(open) => { setEditDialog({ open, sentence: open ? editDialog.sentence : undefined }); if (!open) form.reset() }}>
+      <DialogTrigger className="inline-flex items-center justify-center rounded-md bg-primary text-primary-foreground px-4 py-2 text-sm font-medium hover:bg-primary/90 h-9">
+        <Plus className="h-4 w-4 mr-2" /> Nova Sentença
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-[425px]">
+        <DialogHeader>
+          <DialogTitle>{editDialog.sentence ? "Editar Sentença" : "Nova Sentença"}</DialogTitle>
+        </DialogHeader>
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+          <Field>
+            <FieldLabel htmlFor="sentenceCategoryId">Categoria</FieldLabel>
+            <Select
+              items={categories.map((cat) => ({ value: cat.id, label: cat.name }))}
+              value={form.watch("sentenceCategoryId") || null}
+              onValueChange={(v) => form.setValue("sentenceCategoryId", v || "")}
+            >
+              <SelectTrigger className="w-full" aria-invalid={!!form.formState.errors.sentenceCategoryId}>
+                <SelectValue placeholder="Selecione uma categoria" />
+              </SelectTrigger>
+              <SelectContent>
+                {categories.map((cat) => (
+                  <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <FieldError errors={[form.formState.errors.sentenceCategoryId]} />
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="code">Código</FieldLabel>
+            <Input id="code" className="w-full" {...form.register("code")} placeholder="Código único" aria-invalid={!!form.formState.errors.code} />
+            <FieldError errors={[form.formState.errors.code]} />
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="name">Nome</FieldLabel>
+            <Input id="name" className="w-full" {...form.register("name")} placeholder="Nome da sentença" aria-invalid={!!form.formState.errors.name} />
+            <FieldError errors={[form.formState.errors.name]} />
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="content">Conteúdo</FieldLabel>
+            <div
+              ref={contentEditorRef}
+              className="w-full min-h-[180px] rounded-lg border border-input overflow-hidden text-sm [&_.cm-editor]:h-full [&_.cm-editor]:min-h-[180px] [&_.cm-editor.cm-focused]:outline-none"
+            />
+          </Field>
+          <div className="grid grid-cols-2 gap-4">
+            <Field>
+              <FieldLabel htmlFor="codSystem">Cód. Sistema</FieldLabel>
+              <Input id="codSystem" className="w-full" {...form.register("codSystem")} placeholder="Código do sistema (opcional)" />
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="codColigada">Cód. Coligada</FieldLabel>
+              <Input id="codColigada" className="w-full" {...form.register("codColigada")} placeholder="Código da coligada (opcional)" />
+            </Field>
+          </div>
+          <div className="flex items-center gap-2">
+            <Controller
+              control={form.control}
+              name="status"
+              render={({ field }) => (
+                <Checkbox
+                  id="status"
+                  checked={field.value ?? true}
+                  onCheckedChange={(value) => field.onChange(!!value)}
+                />
+              )}
+            />
+            <Label htmlFor="status">Sentença ativa</Label>
+          </div>
+          <div className="flex items-center justify-end gap-2">
+            <Button type="button" variant="outline" onClick={handleCancel} disabled={loading}>Cancelar</Button>
+            <Button type="submit" disabled={loading}>
+              {loading && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+              Salvar
+            </Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
+  )
+
+  const filterPanel = (
+    <DataTableFilterPanel
+      onApply={() => pushParams({ sentenceCategoryId: categoryFilter || undefined, page: 1 })}
+      onClear={() => {
+        setCategoryFilter("")
+        pushParams({ sentenceCategoryId: undefined, page: 1 })
+      }}
+    >
+      <div className="space-y-2">
+        <Label>Categoria</Label>
+        <Select value={categoryFilter || "all"} onValueChange={(v) => setCategoryFilter(v === "all" || !v ? "" : v)}>
+          <SelectTrigger className="w-full">
+            <SelectValue placeholder="Todas" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todas</SelectItem>
+            {categories.map((c) => (
+              <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+    </DataTableFilterPanel>
+  )
+
   return (
     <>
-      <PageHeader title="Sentenças" description="Gerenciar sentenças">
-        <Dialog open={editDialog.open} onOpenChange={(open) => { setEditDialog({ open, sentence: open ? editDialog.sentence : undefined }); if (!open) form.reset() }}>
-          <DialogTrigger className="inline-flex items-center justify-center rounded-md bg-primary text-primary-foreground px-4 py-2 text-sm font-medium hover:bg-primary/90">
-            <Plus className="h-4 w-4 mr-2" /> Nova Sentença
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-[425px]">
-            <DialogHeader>
-              <DialogTitle>{editDialog.sentence ? "Editar Sentença" : "Nova Sentença"}</DialogTitle>
-            </DialogHeader>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="sentenceCategoryId">Categoria</Label>
-                <Select
-                  value={form.watch("sentenceCategoryId") || undefined}
-                  onValueChange={(v) => form.setValue("sentenceCategoryId", v || "")}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Selecione uma categoria" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {categories.map((cat) => (
-                      <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {form.formState.errors.sentenceCategoryId && <p className="text-sm text-destructive">{form.formState.errors.sentenceCategoryId.message as string}</p>}
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="code">Código</Label>
-                <Input id="code" className="w-full" {...form.register("code")} placeholder="Código único" />
-                {form.formState.errors.code && <p className="text-sm text-destructive">{form.formState.errors.code.message as string}</p>}
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="name">Nome</Label>
-                <Input id="name" className="w-full" {...form.register("name")} placeholder="Nome da sentença" />
-                {form.formState.errors.name && <p className="text-sm text-destructive">{form.formState.errors.name.message as string}</p>}
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="content">Conteúdo</Label>
-                <textarea
-                  id="content"
-                  className="w-full min-h-[120px] rounded-lg border border-input bg-transparent px-3 py-2 text-sm font-mono transition-colors outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50 placeholder:text-muted-foreground"
-                  {...form.register("content")}
-                  placeholder="Conteúdo da sentença"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="codSystem">Cód. Sistema</Label>
-                <Input id="codSystem" className="w-full" {...form.register("codSystem")} placeholder="Código do sistema (opcional)" />
-              </div>
-              <div className="flex items-center gap-2">
-                <input type="checkbox" id="status" defaultChecked={editDialog.sentence?.status ?? true} {...form.register("status")} className="rounded border-gray-300" />
-                <Label htmlFor="status">Sentença ativa</Label>
-              </div>
-              <Button type="submit" className="w-full" disabled={loading}>
-                {loading && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-                {editDialog.sentence ? "Atualizar" : "Criar"} Sentença
-              </Button>
-            </form>
-          </DialogContent>
-        </Dialog>
-      </PageHeader>
+      <PageHeader title="Sentenças" description="Gerenciar sentenças" />
 
       <DataTable
         columns={columns}
         data={data}
+        page={meta.page}
+        pageSize={meta.pageSize}
+        total={meta.total}
         pageCount={meta.totalPages}
+        onPageChange={(p) => pushParams({ page: p })}
+        onPageSizeChange={(ps) => pushParams({ pageSize: ps, page: 1 })}
         searchPlaceholder="Buscar por código ou nome..."
-        onSearch={(v) => router.push(`?search=${encodeURIComponent(v)}`)}
+        onSearch={(v) => pushParams({ search: v || undefined, page: 1 })}
+        toolbarActions={newDialog}
+        filterPanel={filterPanel}
       />
 
       <ConfirmDialog

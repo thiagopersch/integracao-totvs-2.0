@@ -1,0 +1,76 @@
+"use server"
+
+import { revalidateTag, cacheTag } from "next/cache";
+import { departmentService } from "@/services/department.service";
+import { auditService } from "@/services/audit.service";
+import { createDepartmentSchema, updateDepartmentSchema } from "@/schemas/department.schema";
+import { requirePermission } from "@/lib/rbac";
+import { getRequestContext } from "@/lib/tenant";
+import type { ListParams } from "@/types/common";
+
+export async function listAllDepartments() {
+  const { organizationId } = await getRequestContext();
+  return departmentService.listAll(organizationId);
+}
+
+export async function listDepartments(params: ListParams, organizationId: string) {
+  "use cache";
+  cacheTag("departments");
+  return departmentService.list(params, organizationId);
+}
+
+export async function createDepartment(formData: FormData) {
+  const { organizationId } = await requirePermission("departments", "create");
+  const data = {
+    name: formData.get("name") as string,
+    description: (formData.get("description") as string) || undefined,
+  };
+
+  const parsed = createDepartmentSchema.safeParse(data);
+  if (!parsed.success) {
+    return { success: false, error: "Dados inválidos", errors: parsed.error.flatten().fieldErrors };
+  }
+
+  try {
+    const entity = await departmentService.create(parsed.data, organizationId);
+    await auditService.log({ action: "CREATE", entity: "Department", entityId: entity.id, newData: { name: entity.name } });
+    revalidateTag("departments", "max");
+    return { success: true, data: entity };
+  } catch (error) {
+    return { success: false, error: (error as Error).message };
+  }
+}
+
+export async function updateDepartment(id: string, formData: FormData) {
+  const { organizationId } = await requirePermission("departments", "update");
+  const data = {
+    name: formData.get("name") as string,
+    description: (formData.get("description") as string) || undefined,
+  };
+
+  const parsed = updateDepartmentSchema.safeParse(data);
+  if (!parsed.success) {
+    return { success: false, error: "Dados inválidos", errors: parsed.error.flatten().fieldErrors };
+  }
+
+  try {
+    const entity = await departmentService.update(id, parsed.data, organizationId);
+    await auditService.log({ action: "UPDATE", entity: "Department", entityId: id, newData: { name: entity.name } });
+    revalidateTag("departments", "max");
+    return { success: true, data: entity };
+  } catch (error) {
+    return { success: false, error: (error as Error).message };
+  }
+}
+
+export async function deleteDepartment(id: string) {
+  const { organizationId } = await requirePermission("departments", "delete");
+  try {
+    await departmentService.softDelete(id, organizationId);
+    await auditService.log({ action: "DELETE", entity: "Department", entityId: id });
+    revalidateTag("departments", "max");
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: (error as Error).message };
+  }
+}
