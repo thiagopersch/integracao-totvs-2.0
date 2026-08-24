@@ -1,6 +1,6 @@
 "use server"
 
-import { revalidateTag, cacheTag } from "next/cache";
+import { updateTag as updateCacheTag, cacheTag } from "next/cache";
 import { tagService } from "@/services/tag.service";
 import { auditService } from "@/services/audit.service";
 import { createTagSchema, updateTagSchema } from "@/schemas/tag.schema";
@@ -34,7 +34,7 @@ export async function createTag(formData: FormData) {
   try {
     const entity = await tagService.create(parsed.data, organizationId);
     await auditService.log({ action: "CREATE", entity: "Tag", entityId: entity.id, newData: { name: entity.name } });
-    revalidateTag("tags", "max");
+    updateCacheTag("tags");
     return { success: true, data: entity };
   } catch (error) {
     return { success: false, error: (error as Error).message };
@@ -56,7 +56,7 @@ export async function updateTag(id: string, formData: FormData) {
   try {
     const entity = await tagService.update(id, parsed.data, organizationId);
     await auditService.log({ action: "UPDATE", entity: "Tag", entityId: id, newData: { name: entity.name } });
-    revalidateTag("tags", "max");
+    updateCacheTag("tags");
     return { success: true, data: entity };
   } catch (error) {
     return { success: false, error: (error as Error).message };
@@ -68,7 +68,7 @@ export async function deleteTag(id: string) {
   try {
     await tagService.remove(id, organizationId);
     await auditService.log({ action: "DELETE", entity: "Tag", entityId: id });
-    revalidateTag("tags", "max");
+    updateCacheTag("tags");
     return { success: true };
   } catch (error) {
     return { success: false, error: (error as Error).message };

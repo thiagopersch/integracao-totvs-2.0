@@ -1,6 +1,6 @@
 "use server"
 
-import { revalidateTag, cacheTag } from "next/cache";
+import { updateTag, cacheTag } from "next/cache";
 import { soapEndpointService } from "@/services/soap-endpoint.service";
 import { auditService } from "@/services/audit.service";
 import {
@@ -15,6 +15,12 @@ export async function listSoapEndpointTypes(params: ListParams) {
   "use cache";
   cacheTag("soap-endpoint-types");
   return soapEndpointService.listTypes(params);
+}
+
+export async function listAllSoapEndpointTypes() {
+  "use cache";
+  cacheTag("soap-endpoint-types");
+  return soapEndpointService.listAllTypes();
 }
 
 export async function getSoapEndpointTypeById(id: string) {
@@ -44,7 +50,7 @@ export async function createSoapEndpointType(formData: FormData) {
       entityId: entity.id,
       newData: { type: entity.type, label: entity.label },
     });
-    revalidateTag("soap-endpoint-types", "max");
+    updateTag("soap-endpoint-types");
     return { success: true, data: entity };
   } catch (error) {
     return { success: false, error: (error as Error).message };
@@ -74,8 +80,8 @@ export async function updateSoapEndpointType(id: string, formData: FormData) {
       oldData: old ? { type: old.type, label: old.label } : undefined,
       newData: { type: entity.type, label: entity.label },
     });
-    revalidateTag("soap-endpoint-types", "max");
-    revalidateTag(`soap-endpoint-type-${id}`, "max");
+    updateTag("soap-endpoint-types");
+    updateTag(`soap-endpoint-type-${id}`);
     return { success: true, data: entity };
   } catch (error) {
     return { success: false, error: (error as Error).message };
@@ -92,7 +98,7 @@ export async function deleteSoapEndpointType(id: string) {
       entityId: id,
       oldData: old ? { type: old.type, label: old.label } : undefined,
     });
-    revalidateTag("soap-endpoint-types", "max");
+    updateTag("soap-endpoint-types");
     return { success: true };
   } catch (error) {
     return { success: false, error: (error as Error).message };
@@ -103,7 +109,7 @@ export async function restoreSoapEndpointType(id: string) {
   try {
     await soapEndpointService.restoreType(id);
     await auditService.log({ action: "RESTORE", entity: "SoapEndpointType", entityId: id });
-    revalidateTag("soap-endpoint-types", "max");
+    updateTag("soap-endpoint-types");
     return { success: true };
   } catch (error) {
     return { success: false, error: (error as Error).message };
@@ -119,7 +125,7 @@ export async function bulkDeleteSoapEndpointTypes(ids: string[]) {
       entityId: ids.join(","),
       newData: { count },
     });
-    revalidateTag("soap-endpoint-types", "max");
+    updateTag("soap-endpoint-types");
     return { success: true, count };
   } catch (error) {
     return { success: false, error: (error as Error).message };
@@ -135,7 +141,7 @@ export async function bulkRestoreSoapEndpointTypes(ids: string[]) {
       entityId: ids.join(","),
       newData: { count },
     });
-    revalidateTag("soap-endpoint-types", "max");
+    updateTag("soap-endpoint-types");
     return { success: true, count };
   } catch (error) {
     return { success: false, error: (error as Error).message };
@@ -170,8 +176,8 @@ export async function createSoapEndpointMethod(formData: FormData) {
       entityId: entity.id,
       newData: { method: entity.method, label: entity.label },
     });
-    revalidateTag("soap-endpoint-types", "max");
-    revalidateTag(`soap-endpoint-methods-${data.endpointTypeId}`, "max");
+    updateTag("soap-endpoint-types");
+    updateTag(`soap-endpoint-methods-${data.endpointTypeId}`);
     return { success: true, data: entity };
   } catch (error) {
     return { success: false, error: (error as Error).message };
@@ -202,9 +208,9 @@ export async function updateSoapEndpointMethod(id: string, formData: FormData) {
       oldData: old ? { method: old.method, label: old.label } : undefined,
       newData: { method: entity.method, label: entity.label },
     });
-    revalidateTag("soap-endpoint-types", "max");
+    updateTag("soap-endpoint-types");
     if (old) {
-      revalidateTag(`soap-endpoint-methods-${old.endpointTypeId}`, "max");
+      updateTag(`soap-endpoint-methods-${old.endpointTypeId}`);
     }
     return { success: true, data: entity };
   } catch (error) {
@@ -222,9 +228,9 @@ export async function deleteSoapEndpointMethod(id: string) {
       entityId: id,
       oldData: old ? { method: old.method, label: old.label } : undefined,
     });
-    revalidateTag("soap-endpoint-types", "max");
+    updateTag("soap-endpoint-types");
     if (old) {
-      revalidateTag(`soap-endpoint-methods-${old.endpointTypeId}`, "max");
+      updateTag(`soap-endpoint-methods-${old.endpointTypeId}`);
     }
     return { success: true };
   } catch (error) {
@@ -236,7 +242,7 @@ export async function restoreSoapEndpointMethod(id: string) {
   try {
     await soapEndpointService.restoreMethod(id);
     await auditService.log({ action: "RESTORE", entity: "SoapEndpointMethod", entityId: id });
-    revalidateTag("soap-endpoint-types", "max");
+    updateTag("soap-endpoint-types");
     return { success: true };
   } catch (error) {
     return { success: false, error: (error as Error).message };

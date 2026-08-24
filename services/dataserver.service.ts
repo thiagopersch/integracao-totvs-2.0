@@ -25,7 +25,7 @@ export const dataserverService = {
     if (existing) {
       throw new Error("Código já cadastrado");
     }
-    return dataserverRepository.create({ ...input, organizationId } as any);
+    return dataserverRepository.create({ ...input, organizationId });
   },
 
   async update(id: string, input: UpdateDataserverInput, organizationId: string) {
@@ -37,7 +37,7 @@ export const dataserverService = {
         throw new Error("Código já cadastrado");
       }
     }
-    return dataserverRepository.update(id, input as any, organizationId);
+    return dataserverRepository.update(id, input, organizationId);
   },
 
   async softDelete(id: string, organizationId: string) {

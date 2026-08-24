@@ -1,6 +1,6 @@
 "use server"
 
-import { revalidateTag, cacheTag } from "next/cache";
+import { updateTag, cacheTag } from "next/cache";
 import { sistemaService } from "@/services/sistema.service";
 import { auditService } from "@/services/audit.service";
 import { createSistemaSchema, updateSistemaSchema } from "@/schemas/sistema.schema";
@@ -46,7 +46,7 @@ export async function createSistema(formData: FormData) {
       entityId: entity.id,
       newData: { code: entity.code, internalName: entity.internalName },
     });
-    revalidateTag("sistemas", "max");
+    updateTag("sistemas");
     return { success: true, data: entity };
   } catch (error) {
     return { success: false, error: (error as Error).message };
@@ -76,8 +76,8 @@ export async function updateSistema(id: string, formData: FormData) {
       oldData: old ? { code: old.code, internalName: old.internalName } : undefined,
       newData: { code: entity.code, internalName: entity.internalName },
     });
-    revalidateTag("sistemas", "max");
-    revalidateTag(`sistema-${id}`, "max");
+    updateTag("sistemas");
+    updateTag(`sistema-${id}`);
     return { success: true, data: entity };
   } catch (error) {
     return { success: false, error: (error as Error).message };
@@ -95,7 +95,7 @@ export async function deleteSistema(id: string) {
       entityId: id,
       oldData: old ? { code: old.code, internalName: old.internalName } : undefined,
     });
-    revalidateTag("sistemas", "max");
+    updateTag("sistemas");
     return { success: true };
   } catch (error) {
     return { success: false, error: (error as Error).message };
@@ -107,7 +107,7 @@ export async function restoreSistema(id: string) {
   try {
     await sistemaService.restore(id, organizationId);
     await auditService.log({ action: "RESTORE", entity: "TotvsSystem", entityId: id });
-    revalidateTag("sistemas", "max");
+    updateTag("sistemas");
     return { success: true };
   } catch (error) {
     return { success: false, error: (error as Error).message };
@@ -124,7 +124,7 @@ export async function bulkDeleteSistemas(ids: string[]) {
       entityId: ids.join(","),
       newData: { count },
     });
-    revalidateTag("sistemas", "max");
+    updateTag("sistemas");
     return { success: true, count };
   } catch (error) {
     return { success: false, error: (error as Error).message };
@@ -141,7 +141,7 @@ export async function bulkRestoreSistemas(ids: string[]) {
       entityId: ids.join(","),
       newData: { count },
     });
-    revalidateTag("sistemas", "max");
+    updateTag("sistemas");
     return { success: true, count };
   } catch (error) {
     return { success: false, error: (error as Error).message };

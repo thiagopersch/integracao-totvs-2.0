@@ -17,12 +17,19 @@ export default function FiltersPage({ searchParams }: { searchParams: Promise<Re
 async function FiltersContent({ searchParams }: { searchParams: Promise<Record<string, string>> }) {
   const params = await searchParams
   const organizationId = await getCurrentOrganizationId()
+  const filters: Record<string, string> = {}
+  if (params.status) filters.status = params.status
+  if (params.clientId) filters.clientId = params.clientId
+  if (params.notRequiredLicense) filters.notRequiredLicense = params.notRequiredLicense
+  if (params.codColigadaSentenca) filters.codColigadaSentenca = params.codColigadaSentenca
+  if (params.codSistemaSentenca) filters.codSistemaSentenca = params.codSistemaSentenca
+
   const { data, meta } = await listFilters({
     page: Number(params.page) || 1,
     pageSize: Number(params.pageSize) || 10,
     search: params.search,
     sort: params.sort ? { field: params.sort.split(":")[0], direction: params.sort.split(":")[1] as "asc" | "desc" } : undefined,
-    filters: params.status || params.clientId ? { status: params.status, clientId: params.clientId } : undefined,
+    filters: Object.keys(filters).length ? filters : undefined,
   }, organizationId)
 
   return <FilterTable data={data} meta={meta} />

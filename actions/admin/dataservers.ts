@@ -1,6 +1,6 @@
 "use server"
 
-import { revalidateTag, cacheTag } from "next/cache";
+import { updateTag, cacheTag } from "next/cache";
 import { dataserverService } from "@/services/dataserver.service";
 import { auditService } from "@/services/audit.service";
 import { createDataserverSchema, updateDataserverSchema } from "@/schemas/dataserver.schema";
@@ -40,7 +40,7 @@ export async function createDataserver(formData: FormData) {
       entityId: entity.id,
       newData: { code: entity.code, name: entity.name },
     });
-    revalidateTag("dataservers", "max");
+    updateTag("dataservers");
     return { success: true, data: entity };
   } catch (error) {
     return { success: false, error: (error as Error).message };
@@ -70,8 +70,8 @@ export async function updateDataserver(id: string, formData: FormData) {
       oldData: old ? { code: old.code, name: old.name } : undefined,
       newData: { code: entity.code, name: entity.name },
     });
-    revalidateTag("dataservers", "max");
-    revalidateTag(`dataserver-${id}`, "max");
+    updateTag("dataservers");
+    updateTag(`dataserver-${id}`);
     return { success: true, data: entity };
   } catch (error) {
     return { success: false, error: (error as Error).message };
@@ -89,7 +89,7 @@ export async function deleteDataserver(id: string) {
       entityId: id,
       oldData: old ? { code: old.code, name: old.name } : undefined,
     });
-    revalidateTag("dataservers", "max");
+    updateTag("dataservers");
     return { success: true };
   } catch (error) {
     return { success: false, error: (error as Error).message };
@@ -101,7 +101,7 @@ export async function restoreDataserver(id: string) {
   try {
     await dataserverService.restore(id, organizationId);
     await auditService.log({ action: "RESTORE", entity: "Dataserver", entityId: id });
-    revalidateTag("dataservers", "max");
+    updateTag("dataservers");
     return { success: true };
   } catch (error) {
     return { success: false, error: (error as Error).message };
@@ -118,7 +118,7 @@ export async function bulkDeleteDataservers(ids: string[]) {
       entityId: ids.join(","),
       newData: { count },
     });
-    revalidateTag("dataservers", "max");
+    updateTag("dataservers");
     return { success: true, count };
   } catch (error) {
     return { success: false, error: (error as Error).message };
@@ -135,7 +135,7 @@ export async function bulkRestoreDataservers(ids: string[]) {
       entityId: ids.join(","),
       newData: { count },
     });
-    revalidateTag("dataservers", "max");
+    updateTag("dataservers");
     return { success: true, count };
   } catch (error) {
     return { success: false, error: (error as Error).message };

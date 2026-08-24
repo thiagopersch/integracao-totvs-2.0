@@ -15,7 +15,7 @@ import {
 } from "@tanstack/react-table"
 import { useState } from "react"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { DataTablePagination } from "./data-table-pagination"
+import { DataTablePagination, PageSizeSelect } from "./data-table-pagination"
 import { DataTableToolbar } from "./data-table-toolbar"
 import { Skeleton } from "@/components/ui/skeleton"
 
@@ -65,6 +65,11 @@ export function DataTable<TData, TValue>({
 
   const manual = !!pageCount
 
+  const effectivePageSize = manual ? pageSize : internalPagination.pageSize
+  const effectiveOnPageSizeChange = manual
+    ? (ps: number) => onPageSizeChange?.(ps)
+    : (ps: number) => setInternalPagination((prev) => ({ ...prev, pageSize: ps }))
+
   const table = useReactTable({
     data,
     columns,
@@ -96,6 +101,7 @@ export function DataTable<TData, TValue>({
         searchDefaultValue={searchDefaultValue}
         onSearch={onSearch}
         toolbarActions={toolbarActions}
+        pageSizeSelect={<PageSizeSelect pageSize={effectivePageSize} onPageSizeChange={effectiveOnPageSizeChange} />}
         hasFilterPanel={!!filterPanel}
         filtersOpen={filtersOpen}
         onToggleFilters={() => setFiltersOpen((v) => !v)}
@@ -150,20 +156,16 @@ export function DataTable<TData, TValue>({
       {manual ? (
         <DataTablePagination
           page={page}
-          pageSize={pageSize}
           pageCount={pageCount!}
           total={total ?? data.length}
           onPageChange={(p) => onPageChange?.(p)}
-          onPageSizeChange={(ps) => onPageSizeChange?.(ps)}
         />
       ) : (
         <DataTablePagination
           page={table.getState().pagination.pageIndex + 1}
-          pageSize={table.getState().pagination.pageSize}
           pageCount={table.getPageCount()}
           total={data.length}
           onPageChange={(p) => table.setPageIndex(p - 1)}
-          onPageSizeChange={(ps) => table.setPageSize(ps)}
         />
       )}
     </div>

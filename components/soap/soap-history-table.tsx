@@ -52,8 +52,8 @@ export function SoapHistoryTable({ data, meta }: SoapHistoryTableProps) {
         const err = await res.json()
         toast.error(err.error || "Erro na reexecução")
       }
-    } catch (err: any) {
-      toast.error(err.message)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Erro na reexecução")
     }
     setExecuting(null)
   }

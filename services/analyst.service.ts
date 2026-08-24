@@ -25,11 +25,11 @@ export const analystService = {
   },
 
   async create(input: CreateAnalystInput, organizationId: string) {
-    return analystRepository.create({ ...input, organizationId } as any);
+    return analystRepository.create({ ...input, organizationId });
   },
 
   async update(id: string, input: UpdateAnalystInput, organizationId: string) {
-    return analystRepository.update(id, input as any, organizationId);
+    return analystRepository.update(id, input, organizationId);
   },
 
   async softDelete(id: string, organizationId: string) {

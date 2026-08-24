@@ -25,11 +25,11 @@ export const requesterService = {
   },
 
   async create(input: CreateRequesterInput, organizationId: string) {
-    return requesterRepository.create({ ...input, organizationId } as any);
+    return requesterRepository.create({ ...input, organizationId });
   },
 
   async update(id: string, input: UpdateRequesterInput, organizationId: string) {
-    return requesterRepository.update(id, input as any, organizationId);
+    return requesterRepository.update(id, input, organizationId);
   },
 
   async softDelete(id: string, organizationId: string) {

@@ -1,9 +1,9 @@
 import axios from "axios";
-import { XMLParser, XMLBuilder } from "fast-xml-parser";
+import { XMLParser } from "fast-xml-parser";
 import { logger } from "@/lib/logger";
 import { prisma } from "@/lib/prisma";
 import { env } from "@/config/app.config";
-import type { SoapMethod } from "@prisma/client";
+import { Prisma, type SoapMethod } from "@prisma/client";
 
 export type SoapRequest = {
   dataserver: string;
@@ -36,64 +36,102 @@ const xmlParser = new XMLParser({
   trimValues: true,
 });
 
-const xmlBuilder = new XMLBuilder({
-  ignoreAttributes: false,
-  format: true,
-  indentBy: "  ",
-});
+/**
+ * Every real TOTVS RM webservice (wsDataServer, wsConsultaSQL, wsProcess,
+ * wsFormulaVisual) shares this same SOAP 1.1 shape: the method body lives
+ * directly under the `http://www.totvs.com/` namespace, e.g.
+ *   <ReadRecord xmlns="http://www.totvs.com/">
+ *     <DataServerName>...</DataServerName>
+ *     <PrimaryKey>...</PrimaryKey>
+ *     <Contexto>CodColigada=1;CodSistema=G;CodUsuario=mestre</Contexto>
+ *   </ReadRecord>
+ * confirmed against TOTVS's own SoapUI/DataServer reference doc. `Contexto`
+ * is a flat `Key=Value;Key2=Value2` string, NOT nested XML — this previously
+ * built an entirely fictitious `<Execute><DataServer>/<Process>/<XMLData>`
+ * envelope that doesn't match any real TOTVS RM webservice.
+ */
+function buildContextoString(context?: SoapRequest["context"]): string {
+  if (!context) return "";
+  const parts: string[] = [];
+  if (context.coligate !== undefined) parts.push(`CodColigada=${context.coligate}`);
+  if (context.branch !== undefined) parts.push(`CodFilial=${context.branch}`);
+  if (context.levelEducation !== undefined) parts.push(`CodColigadaAcademica=${context.levelEducation}`);
+  if (context.codSystem) parts.push(`CodSistema=${context.codSystem}`);
+  if (context.user) parts.push(`CodUsuario=${context.user}`);
+  return parts.join(";");
+}
+
+function injectContexto(methodXml: string, contexto: string): string {
+  if (!contexto || /<Contexto>/i.test(methodXml)) return methodXml;
+  return methodXml.replace(
+    /<\/([\w:]+)>\s*$/,
+    (full, tag) => `  <Contexto>${escapeXml(contexto)}</Contexto>\n</${tag}>`
+  );
+}
+
+function escapeXml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&apos;");
+}
 
 function buildSoapEnvelope(xml: string, context?: SoapRequest["context"]): string {
-  const contextXml = context
-    ? `
-    <Context>
-      ${context.coligate ? `<Coligate>${context.coligate}</Coligate>` : ""}
-      ${context.branch ? `<Branch>${context.branch}</Branch>` : ""}
-      ${context.levelEducation ? `<LevelEducation>${context.levelEducation}</LevelEducation>` : ""}
-      ${context.codSystem ? `<CodSystem>${context.codSystem}</CodSystem>` : ""}
-      ${context.user ? `<User>${context.user}</User>` : ""}
-    </Context>`
-    : "";
+  const contexto = buildContextoString(context);
+  const bodyXml = injectContexto(xml.trim(), contexto);
+  const namespaced = bodyXml.replace(/^<([\w:]+)/, `<$1 xmlns="http://www.totvs.com/"`);
 
   return `<?xml version="1.0" encoding="utf-8"?>
-<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/"
-  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-  xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/">
+  <soap:Header/>
   <soap:Body>
-    <Execute xmlns="http://www.totvs.com/rm/dataserver/">
-      <DataServer>${context?.codSystem || ""}</DataServer>
-      <Process>${context?.codSystem || ""}</Process>
-      <XMLData>${xml}</XMLData>
-      ${contextXml}
-    </Execute>
+    ${namespaced}
   </soap:Body>
 </soap:Envelope>`;
 }
 
-function extractSoapResponse(xml: string): string {
-  const match = xml.match(/<ExecuteResult[^>]*>([\s\S]*?)<\/ExecuteResult>/);
+function extractSoapResponse(xml: string, method: string): string {
+  const resultTag = new RegExp(`<${method}Result[^>]*>([\\s\\S]*?)</${method}Result>`, "i");
+  const match = xml.match(resultTag);
   if (match) return match[1].trim();
-  const bodyMatch = xml.match(/<soap:Body[^>]*>([\s\S]*?)<\/soap:Body>/);
+  const bodyMatch = xml.match(/<(?:soap:)?Body[^>]*>([\s\S]*?)<\/(?:soap:)?Body>/i);
   if (bodyMatch) return bodyMatch[1].trim();
   return xml;
 }
 
+/**
+ * SOAPAction values confirmed against TOTVS's SoapUI/DataServer reference doc
+ * (`http://www.totvs.com/{MethodName}`, PascalCase). REALIZARCONSULTASQL(CONTEXTO)
+ * are wsConsultaSQL's real methods for running a saved SQL sentence and getting
+ * its result rows back — available for manual use from the SOAP Builder
+ * ("Consulta SQL"). The filter-backup feature itself always reads this app's
+ * own `sentences` table, not this endpoint. EXECUTEPROCESS is intentionally
+ * not mapped here:
+ * it isn't a confirmed real wsProcess method (the real ones are
+ * ExecuteWithXmlParams/ExecuteWithXmlParamsAsync/GetProcessStatus) and is kept
+ * in the enum only because older seed data for the Fórmulas/Relatórios endpoint
+ * types (out of scope for this pass) still reference it.
+ */
 const SOAP_ACTIONS: Partial<Record<SoapMethod, string>> = {
-  GETSCHEMA: "http://www.totvs.com/rm/dataserver/GetSchema",
-  READRECORD: "http://www.totvs.com/rm/dataserver/ReadRecord",
-  READVIEW: "http://www.totvs.com/rm/dataserver/ReadView",
-  SAVERECORD: "http://www.totvs.com/rm/dataserver/SaveRecord",
-  DELETERECORD: "http://www.totvs.com/rm/dataserver/DeleteRecord",
-  ISVALIDDATASERVER: "http://www.totvs.com/rm/dataserver/IsValidDataServer",
-  EXECUTEPROCESS: "http://www.totvs.com/rm/process/ExecuteProcess",
-  EXECUTEWITHXMLPARAMS: "http://www.totvs.com/rm/process/ExecuteWithXmlParams",
-  EXECUTEWITHXMLPARAMSASYNC: "http://www.totvs.com/rm/process/ExecuteWithXmlParamsAsync",
-  GETPROCESSSTATUS: "http://www.totvs.com/rm/process/GetProcessStatus",
-  GETSCHEMA2: "http://www.totvs.com/rm/process/GetSchema2",
-  CHECKSERVICEACTIVITY: "http://www.totvs.com/rm/common/CheckServiceActivity",
+  GETSCHEMA: "http://www.totvs.com/GetSchema",
+  READRECORD: "http://www.totvs.com/ReadRecord",
+  READVIEW: "http://www.totvs.com/ReadView",
+  SAVERECORD: "http://www.totvs.com/SaveRecord",
+  DELETERECORD: "http://www.totvs.com/DeleteRecord",
+  ISVALIDDATASERVER: "http://www.totvs.com/IsValidDataServer",
+  EXECUTEWITHXMLPARAMS: "http://www.totvs.com/ExecuteWithXmlParams",
+  EXECUTEWITHXMLPARAMSASYNC: "http://www.totvs.com/ExecuteWithXmlParamsAsync",
+  GETPROCESSSTATUS: "http://www.totvs.com/GetProcessStatus",
+  GETSCHEMA2: "http://www.totvs.com/GetSchema2",
+  CHECKSERVICEACTIVITY: "http://www.totvs.com/CheckServiceActivity",
+  REALIZARCONSULTASQL: "http://www.totvs.com/RealizarConsultaSQL",
+  REALIZARCONSULTASQLCONTEXTO: "http://www.totvs.com/RealizarConsultaSQLContexto",
 };
 
 function getSoapAction(method: SoapMethod): string {
-  return SOAP_ACTIONS[method] || `http://www.totvs.com/rm/${method}`;
+  return SOAP_ACTIONS[method] || `http://www.totvs.com/${method}`;
 }
 
 export const soapService = {
@@ -128,7 +166,7 @@ export const soapService = {
 
         const duration = Date.now() - startTime;
         const xmlResponse = response.data as string;
-        const extractedXml = extractSoapResponse(xmlResponse);
+        const extractedXml = extractSoapResponse(xmlResponse, request.method);
         const jsonResponse = xmlParser.parse(extractedXml) as Record<string, unknown>;
 
         await this.log(request, xmlResponse, jsonResponse, response.status, duration, null, organizationId, userId);
@@ -194,11 +232,11 @@ export const soapService = {
           method: request.method,
           xmlRequest: request.xml,
           xmlResponse,
-          jsonResponse: jsonResponse as any,
+          jsonResponse: jsonResponse === null ? Prisma.JsonNull : (jsonResponse as Prisma.InputJsonValue | undefined),
           status,
           duration,
           error,
-          context: request.context as any,
+          context: request.context as Prisma.InputJsonValue | undefined,
         },
       });
     } catch (logError) {
@@ -207,7 +245,7 @@ export const soapService = {
   },
 
   async getHistory(organizationId: string, page = 1, pageSize = 50, search?: string) {
-    const where: any = { organizationId };
+    const where: Prisma.SoapLogWhereInput = { organizationId };
     if (search) {
       where.OR = [
         { dataserver: { contains: search, mode: "insensitive" } },
@@ -242,7 +280,9 @@ export const soapService = {
     xmlTemplate?: string;
     context?: Record<string, unknown>;
   }, organizationId: string) {
-    return prisma.soapTemplate.create({ data: { ...data, organizationId } as any });
+    return prisma.soapTemplate.create({
+      data: { ...data, organizationId, context: data.context as Prisma.InputJsonValue | undefined },
+    });
   },
 
   async getTemplates(organizationId: string, userId?: string) {
@@ -270,7 +310,9 @@ export const soapService = {
       return false;
     }
 
-    await prisma.soapFavorite.create({ data: { userId, organizationId, ...data } as any });
+    await prisma.soapFavorite.create({
+      data: { userId, organizationId, ...data, context: data.context as Prisma.InputJsonValue | undefined },
+    });
     return true;
   },
 
@@ -279,5 +321,13 @@ export const soapService = {
       where: { userId, organizationId },
       orderBy: { createdAt: "desc" },
     });
+  },
+
+  async deleteTemplate(id: string, organizationId: string) {
+    await prisma.soapTemplate.delete({ where: { id, organizationId } });
+  },
+
+  async deleteFavorite(id: string, userId: string, organizationId: string) {
+    await prisma.soapFavorite.delete({ where: { id, userId, organizationId } });
   },
 };

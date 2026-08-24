@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import type { Prisma } from "@prisma/client";
 
 export const notificationService = {
   async list(organizationId: string, userId: string, page = 1, pageSize = 20, unreadOnly = false) {
@@ -22,7 +23,7 @@ export const notificationService = {
   },
 
   async create(data: { organizationId: string; userId: string; type: string; title: string; body: string; data?: Record<string, unknown> }) {
-    return prisma.notification.create({ data: { ...data, data: data.data as any } });
+    return prisma.notification.create({ data: { ...data, data: data.data as Prisma.InputJsonValue } });
   },
 
   async markAsRead(id: string, userId: string) {

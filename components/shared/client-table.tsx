@@ -1,48 +1,32 @@
 "use client"
 
-import { useState } from "react"
-import { useRouter, useSearchParams } from "next/navigation"
-import type { ColumnDef } from "@tanstack/react-table"
-import { useForm, Controller } from "react-hook-form"
-import { zodResolver } from "@hookform/resolvers/zod"
+import { createClient, deleteClient, restoreClient, updateClient } from "@/actions/admin/clients"
+import { ConfirmDialog } from "@/components/shared/confirm-dialog"
 import { DataTable } from "@/components/shared/data-table"
 import { DataTableFilterPanel } from "@/components/shared/data-table-filter-panel"
+import { EntityActionsCell } from "@/components/shared/entity-actions-cell"
 import { PageHeader } from "@/components/shared/page-header"
-import { ConfirmDialog } from "@/components/shared/confirm-dialog"
+import { createSelectColumn } from "@/components/shared/select-column"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Field, FieldError, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
-import { Field, FieldLabel, FieldError } from "@/components/ui/field"
 import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Checkbox } from "@/components/ui/checkbox"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog"
-import { MoreHorizontal, Plus, Trash2, Pencil, Loader2, Star } from "lucide-react"
-import { deleteClient, restoreClient, bulkDeleteClients, bulkRestoreClients, createClient, updateClient } from "@/actions/admin/clients"
-import { createClientSchema, updateClientSchema } from "@/schemas/client.schema"
-import { toast } from "sonner"
-import type { Client } from "@prisma/client"
+import { Textarea } from "@/components/ui/textarea"
+import { formatDocument, formatPhone } from "@/lib/masks"
+import { createClientSchema, updateClientSchema, type CreateClientInput } from "@/schemas/client.schema"
 import type { PaginationMeta } from "@/types/common"
+import { zodResolver } from "@hookform/resolvers/zod"
+import type { Client } from "@prisma/client"
+import type { ColumnDef } from "@tanstack/react-table"
+import { ImagePlus, Loader2, Plus, Star, Upload, X } from "lucide-react"
+import { useEffect, useRef, useState } from "react"
+import { Controller, useForm, type Resolver } from "react-hook-form"
+import { toast } from "sonner"
+import { useCrudTable } from "@/hooks/use-crud-table"
 
 interface ClientTableProps {
   data: Client[]
@@ -50,39 +34,56 @@ interface ClientTableProps {
 }
 
 export function ClientTable({ data, meta }: ClientTableProps) {
-  const router = useRouter()
-  const searchParams = useSearchParams()
-  const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; id?: string }>({ open: false })
-  const [editDialog, setEditDialog] = useState<{ open: boolean; client?: Client }>({ open: false })
+  const {
+    router,
+    searchParams,
+    deleteDialog,
+    setDeleteDialog,
+    editDialog,
+    setEditDialog,
+    pushParams,
+    handleDelete,
+  } = useCrudTable<Client>({
+    deleteAction: deleteClient,
+    restoreAction: restoreClient,
+    deleteSuccessMessage: "Cliente excluído com sucesso",
+    restoreSuccessMessage: "Cliente restaurado com sucesso",
+  })
   const [loading, setLoading] = useState(false)
   const [statusFilter, setStatusFilter] = useState(searchParams.get("status") || "")
+  const [favoriteFilter, setFavoriteFilter] = useState(searchParams.get("favorite") || "")
+  const [hasImageFilter, setHasImageFilter] = useState(searchParams.get("hasImage") || "")
+  const [imageFile, setImageFile] = useState<File | null>(null)
+  const [imageObjectUrl, setImageObjectUrl] = useState<string | null>(null)
+  const [imageRemoved, setImageRemoved] = useState(false)
+  const imageInputRef = useRef<HTMLInputElement>(null)
+  const imagePreview = imageFile ? imageObjectUrl : imageRemoved ? null : editDialog.entity?.image || null
 
-  function pushParams(updates: Record<string, string | number | undefined>) {
-    const params = new URLSearchParams(searchParams.toString())
-    Object.entries(updates).forEach(([k, v]) => {
-      if (v === undefined || v === "") params.delete(k)
-      else params.set(k, String(v))
-    })
-    router.push(`?${params.toString()}`)
-  }
+  useEffect(() => {
+    if (!imageFile) return
+    const url = URL.createObjectURL(imageFile)
+    setImageObjectUrl(url)
+    return () => URL.revokeObjectURL(url)
+  }, [imageFile])
 
-  const form = useForm<any>({
-    resolver: zodResolver(editDialog.client ? updateClientSchema : createClientSchema),
-    values: editDialog.client
+  const form = useForm<CreateClientInput>({
+    mode: "onChange",
+    resolver: zodResolver(editDialog.entity ? updateClientSchema : createClientSchema) as Resolver<CreateClientInput>,
+    values: editDialog.entity
       ? {
-          image: editDialog.client.image || "",
-          name: editDialog.client.name,
-          legalName: editDialog.client.legalName || "",
-          document: editDialog.client.document || "",
-          linkCrm: editDialog.client.linkCrm || "",
-          site: editDialog.client.site || "",
-          email: editDialog.client.email || "",
-          phone: editDialog.client.phone || "",
-          responsible: editDialog.client.responsible || "",
-          color: editDialog.client.color,
-          notes: editDialog.client.notes || "",
-          favorite: editDialog.client.favorite,
-          status: editDialog.client.status,
+          image: editDialog.entity.image || "",
+          name: editDialog.entity.name,
+          legalName: editDialog.entity.legalName || "",
+          document: editDialog.entity.document || "",
+          linkCrm: editDialog.entity.linkCrm || "",
+          site: editDialog.entity.site || "",
+          email: editDialog.entity.email || "",
+          phone: editDialog.entity.phone || "",
+          responsible: editDialog.entity.responsible || "",
+          color: editDialog.entity.color,
+          notes: editDialog.entity.notes || "",
+          favorite: editDialog.entity.favorite,
+          status: editDialog.entity.status,
         }
       : {
           image: "",
@@ -101,20 +102,23 @@ export function ClientTable({ data, meta }: ClientTableProps) {
         },
   })
 
-  async function onSubmit(data: any) {
+  async function onSubmit(data: CreateClientInput) {
     setLoading(true)
     const formData = new FormData()
     Object.entries(data).forEach(([key, value]) => {
+      if (key === "image") return
       if (value !== undefined) formData.append(key, String(value))
     })
+    if (imageFile) formData.append("image", imageFile)
+    else formData.append("image", imageRemoved ? "" : data.image || "")
 
-    const result = editDialog.client
-      ? await updateClient(editDialog.client.id, formData)
-      : await createClient(formData)
+    const result = editDialog.entity ? await updateClient(editDialog.entity.id, formData) : await createClient(formData)
 
     if (result.success) {
-      toast.success(editDialog.client ? "Cliente atualizado" : "Cliente criado")
+      toast.success(editDialog.entity ? "Cliente atualizado" : "Cliente criado")
       form.reset()
+      setImageFile(null)
+      setImageRemoved(false)
       setEditDialog({ open: false })
       router.refresh()
     } else {
@@ -125,50 +129,23 @@ export function ClientTable({ data, meta }: ClientTableProps) {
 
   function handleCancel() {
     form.reset()
+    setImageFile(null)
+    setImageRemoved(false)
     setEditDialog({ open: false })
   }
 
-  async function handleDelete(id: string) {
-    const result = await deleteClient(id)
-    if (result.success) {
-      toast.success("Cliente excluído com sucesso")
-      router.refresh()
-    } else {
-      toast.error(result.error || "Erro ao excluir")
-    }
-    setDeleteDialog({ open: false })
+  function handleRemoveImage() {
+    setImageFile(null)
+    setImageRemoved(true)
+    if (imageInputRef.current) imageInputRef.current.value = ""
   }
 
-  async function handleRestore(id: string) {
-    const result = await restoreClient(id)
-    if (result.success) {
-      toast.success("Cliente restaurado com sucesso")
-      router.refresh()
-    } else {
-      toast.error(result.error || "Erro ao restaurar")
-    }
+  function handleReplaceImage() {
+    imageInputRef.current?.click()
   }
 
   const columns: ColumnDef<Client>[] = [
-    {
-      id: "select",
-      header: ({ table }) => (
-        <Checkbox
-          checked={table.getIsAllPageRowsSelected()}
-          onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
-          aria-label="Selecionar todos"
-        />
-      ),
-      cell: ({ row }) => (
-        <Checkbox
-          checked={row.getIsSelected()}
-          onCheckedChange={(value) => row.toggleSelected(!!value)}
-          aria-label="Selecionar linha"
-        />
-      ),
-      enableSorting: false,
-      enableHiding: false,
-    },
+    createSelectColumn<Client>(),
     {
       accessorKey: "name",
       header: "Nome",
@@ -193,106 +170,61 @@ export function ClientTable({ data, meta }: ClientTableProps) {
     {
       id: "actions",
       cell: ({ row }) => (
-        <DropdownMenu>
-          <DropdownMenuTrigger className="flex items-center justify-center h-8 w-8 p-0 rounded-md hover:bg-accent">
-            <MoreHorizontal className="h-4 w-4" />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={() => setEditDialog({ open: true, client: row.original })}>
-              <Pencil className="h-4 w-4 mr-2" /> Editar
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              className="text-destructive"
-              onClick={() => setDeleteDialog({ open: true, id: row.original.id })}
-            >
-              <Trash2 className="h-4 w-4 mr-2" /> Excluir
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <EntityActionsCell
+          onEdit={() => setEditDialog({ open: true, entity: row.original })}
+          onDelete={() => setDeleteDialog({ open: true, id: row.original.id })}
+        />
       ),
     },
   ]
 
   const newDialog = (
-    <Dialog open={editDialog.open} onOpenChange={(open) => { setEditDialog({ open, client: open ? editDialog.client : undefined }); if (!open) form.reset() }}>
-      <DialogTrigger className="inline-flex items-center justify-center rounded-md bg-primary text-primary-foreground px-4 py-2 text-sm font-medium hover:bg-primary/90 h-9">
-        <Plus className="h-4 w-4 mr-2" /> Novo Cliente
-      </DialogTrigger>
-      <DialogContent className="flex w-[70vw] min-w-[70vw] max-w-[70vw] h-[75vh] min-h-[75vh] max-h-[75vh] flex-col sm:max-w-none">
+    <Dialog
+      open={editDialog.open}
+      onOpenChange={(open) => {
+        setEditDialog({ open, entity: open ? editDialog.entity : undefined })
+        if (!open) {
+          form.reset()
+          setImageFile(null)
+          setImageRemoved(false)
+        }
+      }}
+    >
+      <DialogTrigger
+        render={
+          <Button>
+            <Plus className="h-4 w-4 mr-2" /> Novo Cliente
+          </Button>
+        }
+      />
+      <DialogContent>
         <DialogHeader>
-          <DialogTitle>{editDialog.client ? "Editar Cliente" : "Novo Cliente"}</DialogTitle>
+          <DialogTitle>{editDialog.entity ? "Editar Cliente" : "Novo Cliente"}</DialogTitle>
         </DialogHeader>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="flex-1 space-y-4 overflow-y-auto pr-1">
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <Field>
-              <FieldLabel htmlFor="name">Nome</FieldLabel>
-              <Input id="name" {...form.register("name")} placeholder="Nome do cliente" aria-invalid={!!form.formState.errors.name} />
-              <FieldError errors={[form.formState.errors.name]} />
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="legalName">Razão Social</FieldLabel>
-              <Input id="legalName" {...form.register("legalName")} placeholder="Razão social (opcional)" />
-            </Field>
-          </div>
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <Field>
-              <FieldLabel htmlFor="document">CPF/CNPJ</FieldLabel>
-              <Input id="document" {...form.register("document")} placeholder="Documento (opcional)" aria-invalid={!!form.formState.errors.document} />
-              <FieldError errors={[form.formState.errors.document]} />
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="responsible">Responsável</FieldLabel>
-              <Input id="responsible" {...form.register("responsible")} placeholder="Responsável (opcional)" />
-            </Field>
-          </div>
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <Field>
-              <FieldLabel htmlFor="email">E-mail</FieldLabel>
-              <Input id="email" type="email" {...form.register("email")} placeholder="email@exemplo.com" aria-invalid={!!form.formState.errors.email} />
-              <FieldError errors={[form.formState.errors.email]} />
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="phone">Telefone</FieldLabel>
-              <Input id="phone" {...form.register("phone")} placeholder="(00) 00000-0000" aria-invalid={!!form.formState.errors.phone} />
-              <FieldError errors={[form.formState.errors.phone]} />
-            </Field>
-          </div>
-          <fieldset className="space-y-3 rounded-lg border border-input p-3">
-            <legend className="px-1 text-sm font-medium text-muted-foreground">Integração TOTVS (opcional)</legend>
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <Field>
-                <FieldLabel htmlFor="linkCrm">Link CRM</FieldLabel>
-                <Input id="linkCrm" {...form.register("linkCrm")} placeholder="https://crm.exemplo.com" />
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="site">Site</FieldLabel>
-                <Input id="site" {...form.register("site")} placeholder="https://site.com.br" />
-              </Field>
-            </div>
-            <Field>
-              <FieldLabel htmlFor="image">URL da Imagem</FieldLabel>
-              <Input id="image" {...form.register("image")} placeholder="https://exemplo.com/imagem.jpg" />
-            </Field>
-          </fieldset>
-          <Field>
-            <FieldLabel htmlFor="notes">Observações</FieldLabel>
-            <Textarea id="notes" {...form.register("notes")} placeholder="Observações (opcional)" />
-          </Field>
-          <Field>
-            <FieldLabel htmlFor="color">Cor</FieldLabel>
-            <Input id="color" type="color" className="h-9 w-20 p-1" {...form.register("color")} />
-          </Field>
+        <form onSubmit={form.handleSubmit(onSubmit)} className="flex min-h-0 flex-1 flex-col overflow-hidden">
+        <DialogBody>
           <div className="flex items-center gap-6">
             <div className="flex items-center gap-2">
               <Controller
                 control={form.control}
                 name="favorite"
                 render={({ field }) => (
-                  <Checkbox id="favorite" checked={field.value ?? false} onCheckedChange={(v) => field.onChange(!!v)} />
+                  <button
+                    type="button"
+                    onClick={() => field.onChange(!field.value)}
+                    aria-pressed={!!field.value}
+                    aria-label="Favoritar"
+                    className="flex items-center justify-center cursor-pointer"
+                  >
+                    <Star
+                      className={
+                        field.value ? "h-5 w-5 fill-yellow-400 text-yellow-400" : "h-5 w-5 text-muted-foreground"
+                      }
+                    />
+                  </button>
                 )}
               />
-              <Label htmlFor="favorite">Favorito</Label>
+              <Label>Favorito</Label>
             </div>
             <div className="flex items-center gap-2">
               <Controller
@@ -305,13 +237,178 @@ export function ClientTable({ data, meta }: ClientTableProps) {
               <Label htmlFor="status">Cliente ativo</Label>
             </div>
           </div>
-          <div className="flex items-center justify-end gap-2">
-            <Button type="button" variant="outline" onClick={handleCancel} disabled={loading}>Cancelar</Button>
-            <Button type="submit" disabled={loading}>
-              {loading && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-              Salvar
-            </Button>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <Field>
+              <FieldLabel htmlFor="name">Nome</FieldLabel>
+              <Input
+                id="name"
+                {...form.register("name")}
+                placeholder="Nome do cliente"
+                aria-invalid={!!form.formState.errors.name}
+              />
+              <FieldError errors={[form.formState.errors.name]} />
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="legalName">Razão Social</FieldLabel>
+              <Input id="legalName" {...form.register("legalName")} placeholder="Razão social (opcional)" />
+            </Field>
           </div>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <Field>
+              <FieldLabel htmlFor="document">CPF/CNPJ</FieldLabel>
+              <Controller
+                control={form.control}
+                name="document"
+                render={({ field }) => (
+                  <Input
+                    id="document"
+                    value={field.value ?? ""}
+                    onChange={(e) => field.onChange(formatDocument(e.target.value))}
+                    placeholder="Documento (opcional)"
+                    aria-invalid={!!form.formState.errors.document}
+                  />
+                )}
+              />
+              <FieldError errors={[form.formState.errors.document]} />
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="responsible">Responsável</FieldLabel>
+              <Input id="responsible" {...form.register("responsible")} placeholder="Responsável (opcional)" />
+            </Field>
+          </div>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <Field>
+              <FieldLabel htmlFor="email">E-mail</FieldLabel>
+              <Input
+                id="email"
+                type="email"
+                {...form.register("email")}
+                placeholder="email@exemplo.com"
+                aria-invalid={!!form.formState.errors.email}
+              />
+              <FieldError errors={[form.formState.errors.email]} />
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="phone">Telefone</FieldLabel>
+              <Controller
+                control={form.control}
+                name="phone"
+                render={({ field }) => (
+                  <Input
+                    id="phone"
+                    value={field.value ?? ""}
+                    onChange={(e) => field.onChange(formatPhone(e.target.value))}
+                    placeholder="(00) 00000-0000"
+                    aria-invalid={!!form.formState.errors.phone}
+                  />
+                )}
+              />
+              <FieldError errors={[form.formState.errors.phone]} />
+            </Field>
+          </div>
+          <fieldset className="space-y-3 rounded-lg border border-input p-3">
+            <legend className="px-1 text-sm font-medium text-muted-foreground">Integração TOTVS (opcional)</legend>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <Field>
+                <FieldLabel htmlFor="linkCrm">Link CRM</FieldLabel>
+                <Input
+                  id="linkCrm"
+                  {...form.register("linkCrm")}
+                  placeholder="https://crm.exemplo.com"
+                  aria-invalid={!!form.formState.errors.linkCrm}
+                />
+                <FieldError errors={[form.formState.errors.linkCrm]} />
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="site">Site</FieldLabel>
+                <Input
+                  id="site"
+                  {...form.register("site")}
+                  placeholder="https://site.com.br"
+                  aria-invalid={!!form.formState.errors.site}
+                />
+                <FieldError errors={[form.formState.errors.site]} />
+              </Field>
+            </div>
+            <Field>
+              <FieldLabel htmlFor="image">Imagem</FieldLabel>
+              <input
+                ref={imageInputRef}
+                id="image"
+                type="file"
+                accept="image/png,image/jpeg,image/webp,image/gif"
+                onChange={(e) => {
+                  const file = e.target.files?.[0] ?? null
+                  setImageFile(file)
+                  if (file) setImageRemoved(false)
+                }}
+                className="hidden"
+              />
+              {imagePreview ? (
+                <div className="mt-2 flex items-center gap-4">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={imagePreview}
+                    alt="Pré-visualização"
+                    className="h-20 w-20 rounded-md border border-input object-cover"
+                  />
+                  <div className="flex flex-col gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={handleReplaceImage}
+                      className="cursor-pointer"
+                    >
+                      <Upload className="h-4 w-4 mr-2" /> Substituir
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={handleRemoveImage}
+                      className="cursor-pointer text-destructive hover:text-destructive"
+                    >
+                      <X className="h-4 w-4 mr-2" /> Remover
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleReplaceImage}
+                  className="mt-2 flex h-20 w-20 flex-col items-center justify-center gap-1 rounded-md border border-dashed border-input text-muted-foreground transition-colors hover:border-primary hover:text-primary cursor-pointer"
+                >
+                  <ImagePlus className="h-5 w-5" />
+                  <span className="text-[10px]">Anexar</span>
+                </button>
+              )}
+            </Field>
+          </fieldset>
+          <Field>
+            <FieldLabel htmlFor="notes">Observações</FieldLabel>
+            <Textarea id="notes" {...form.register("notes")} placeholder="Observações (opcional)" />
+          </Field>
+          <Field className="w-[30%]">
+            <FieldLabel htmlFor="color">Cor</FieldLabel>
+            <Input id="color" type="color" className="h-9 w-20 p-1" {...form.register("color")} />
+          </Field>
+        </DialogBody>
+        <DialogFooter>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={handleCancel}
+            disabled={loading}
+            className="w-full sm:w-auto"
+          >
+            Cancelar
+          </Button>
+          <Button type="submit" disabled={loading} className="w-full sm:w-auto">
+            {loading && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+            Salvar
+          </Button>
+        </DialogFooter>
         </form>
       </DialogContent>
     </Dialog>
@@ -319,15 +416,32 @@ export function ClientTable({ data, meta }: ClientTableProps) {
 
   const filterPanel = (
     <DataTableFilterPanel
-      onApply={() => pushParams({ status: statusFilter || undefined, page: 1 })}
+      onApply={() =>
+        pushParams({
+          status: statusFilter || undefined,
+          favorite: favoriteFilter || undefined,
+          hasImage: hasImageFilter || undefined,
+          page: 1,
+        })
+      }
       onClear={() => {
         setStatusFilter("")
-        pushParams({ status: undefined, page: 1 })
+        setFavoriteFilter("")
+        setHasImageFilter("")
+        pushParams({ status: undefined, favorite: undefined, hasImage: undefined, page: 1 })
       }}
     >
       <div className="space-y-2">
         <Label>Status</Label>
-        <Select value={statusFilter || "all"} onValueChange={(v) => setStatusFilter(v === "all" || !v ? "" : v)}>
+        <Select
+          items={[
+            { value: "all", label: "Todos" },
+            { value: "true", label: "Ativo" },
+            { value: "false", label: "Inativo" },
+          ]}
+          value={statusFilter || "all"}
+          onValueChange={(v) => setStatusFilter(v === "all" || !v ? "" : v)}
+        >
           <SelectTrigger className="w-full">
             <SelectValue placeholder="Todos" />
           </SelectTrigger>
@@ -335,6 +449,48 @@ export function ClientTable({ data, meta }: ClientTableProps) {
             <SelectItem value="all">Todos</SelectItem>
             <SelectItem value="true">Ativo</SelectItem>
             <SelectItem value="false">Inativo</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="space-y-2">
+        <Label>Favoritos</Label>
+        <Select
+          items={[
+            { value: "all", label: "Todos" },
+            { value: "true", label: "Sim" },
+            { value: "false", label: "Não" },
+          ]}
+          value={favoriteFilter || "all"}
+          onValueChange={(v) => setFavoriteFilter(v === "all" || !v ? "" : v)}
+        >
+          <SelectTrigger className="w-full">
+            <SelectValue placeholder="Todos" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos</SelectItem>
+            <SelectItem value="true">Sim</SelectItem>
+            <SelectItem value="false">Não</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="space-y-2">
+        <Label>Possui imagem</Label>
+        <Select
+          items={[
+            { value: "all", label: "Todos" },
+            { value: "true", label: "Sim" },
+            { value: "false", label: "Não" },
+          ]}
+          value={hasImageFilter || "all"}
+          onValueChange={(v) => setHasImageFilter(v === "all" || !v ? "" : v)}
+        >
+          <SelectTrigger className="w-full">
+            <SelectValue placeholder="Todos" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos</SelectItem>
+            <SelectItem value="true">Sim</SelectItem>
+            <SelectItem value="false">Não</SelectItem>
           </SelectContent>
         </Select>
       </div>

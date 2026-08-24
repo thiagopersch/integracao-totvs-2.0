@@ -43,7 +43,7 @@ export const sentenceService = {
     if (existing) {
       throw new Error("Código já cadastrado");
     }
-    return sentenceRepository.create({ ...input, organizationId } as any);
+    return sentenceRepository.create({ ...input, organizationId });
   },
 
   async update(id: string, input: UpdateSentenceInput, organizationId: string) {
@@ -55,7 +55,7 @@ export const sentenceService = {
         throw new Error("Código já cadastrado");
       }
     }
-    return sentenceRepository.update(id, input as any, organizationId);
+    return sentenceRepository.update(id, input, organizationId);
   },
 
   async softDelete(id: string, organizationId: string) {

@@ -1,0 +1,56 @@
+import { Suspense } from "react"
+import { notFound } from "next/navigation"
+import { getFilterByIdWithRelations } from "@/actions/admin/filters"
+import { listLatestBackupsForFilter, listBackupRunsForFilter } from "@/actions/admin/backups"
+import { BackupsDetailClient } from "@/components/shared/backups-detail-client"
+import { Skeleton } from "@/components/ui/skeleton"
+import { getCurrentOrganizationId } from "@/lib/tenant"
+
+export default function BackupsPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ filterId: string }>
+  searchParams: Promise<Record<string, string>>
+}) {
+  return (
+    <div className="p-6">
+      <Suspense fallback={<Skeleton className="h-96 w-full" />}>
+        <BackupsContent params={params} searchParams={searchParams} />
+      </Suspense>
+    </div>
+  )
+}
+
+async function BackupsContent({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ filterId: string }>
+  searchParams: Promise<Record<string, string>>
+}) {
+  const { filterId } = await params
+  const search = await searchParams
+  const organizationId = await getCurrentOrganizationId()
+
+  const filter = await getFilterByIdWithRelations(filterId, organizationId)
+  if (!filter) notFound()
+
+  const [sentences, runs] = await Promise.all([
+    listLatestBackupsForFilter(filterId, organizationId),
+    listBackupRunsForFilter(
+      filterId,
+      { page: Number(search.runsPage) || 1, pageSize: Number(search.runsPageSize) || 10 },
+      organizationId
+    ),
+  ])
+
+  return (
+    <BackupsDetailClient
+      filter={filter}
+      sentences={sentences}
+      runs={runs.data}
+      runsMeta={runs.meta}
+    />
+  )
+}

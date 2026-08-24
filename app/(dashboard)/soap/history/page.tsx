@@ -24,5 +24,5 @@ async function SoapHistoryContent({ searchParams }: { searchParams: Promise<Reco
     params.search
   )
 
-  return <SoapHistoryTable data={data as any} meta={meta} />
+  return <SoapHistoryTable data={data} meta={meta} />
 }

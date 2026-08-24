@@ -31,7 +31,7 @@ export const userService = {
       ...input,
       organizationId,
       password: hashedPassword,
-    } as any);
+    });
   },
 
   async update(id: string, input: UpdateUserInput, organizationId: string) {
@@ -43,7 +43,7 @@ export const userService = {
         throw new Error("E-mail já cadastrado");
       }
     }
-    return userRepository.update(id, input as any, organizationId);
+    return userRepository.update(id, input, organizationId);
   },
 
   async softDelete(id: string, organizationId: string) {

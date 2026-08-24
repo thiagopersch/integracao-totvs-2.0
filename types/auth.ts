@@ -16,11 +16,6 @@ export type LoginInput = {
   password: string;
 };
 
-export type LoginResponse = {
-  user: AuthUser;
-  accessToken: string;
-};
-
 export type AuthSession = {
   user: AuthUser;
   permissions: string[];

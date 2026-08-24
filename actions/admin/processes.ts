@@ -1,6 +1,6 @@
 "use server"
 
-import { revalidateTag, cacheTag } from "next/cache";
+import { updateTag, cacheTag } from "next/cache";
 import { processService } from "@/services/process.service";
 import { auditService } from "@/services/audit.service";
 import { createProcessSchema, updateProcessSchema } from "@/schemas/process.schema";
@@ -40,7 +40,7 @@ export async function createProcess(formData: FormData) {
       entityId: entity.id,
       newData: { code: entity.code, name: entity.name },
     });
-    revalidateTag("processes", "max");
+    updateTag("processes");
     return { success: true, data: entity };
   } catch (error) {
     return { success: false, error: (error as Error).message };
@@ -70,8 +70,8 @@ export async function updateProcess(id: string, formData: FormData) {
       oldData: old ? { code: old.code, name: old.name } : undefined,
       newData: { code: entity.code, name: entity.name },
     });
-    revalidateTag("processes", "max");
-    revalidateTag(`process-${id}`, "max");
+    updateTag("processes");
+    updateTag(`process-${id}`);
     return { success: true, data: entity };
   } catch (error) {
     return { success: false, error: (error as Error).message };
@@ -89,7 +89,7 @@ export async function deleteProcess(id: string) {
       entityId: id,
       oldData: old ? { code: old.code, name: old.name } : undefined,
     });
-    revalidateTag("processes", "max");
+    updateTag("processes");
     return { success: true };
   } catch (error) {
     return { success: false, error: (error as Error).message };
@@ -101,7 +101,7 @@ export async function restoreProcess(id: string) {
   try {
     await processService.restore(id, organizationId);
     await auditService.log({ action: "RESTORE", entity: "Process", entityId: id });
-    revalidateTag("processes", "max");
+    updateTag("processes");
     return { success: true };
   } catch (error) {
     return { success: false, error: (error as Error).message };
@@ -118,7 +118,7 @@ export async function bulkDeleteProcesses(ids: string[]) {
       entityId: ids.join(","),
       newData: { count },
     });
-    revalidateTag("processes", "max");
+    updateTag("processes");
     return { success: true, count };
   } catch (error) {
     return { success: false, error: (error as Error).message };
@@ -135,7 +135,7 @@ export async function bulkRestoreProcesses(ids: string[]) {
       entityId: ids.join(","),
       newData: { count },
     });
-    revalidateTag("processes", "max");
+    updateTag("processes");
     return { success: true, count };
   } catch (error) {
     return { success: false, error: (error as Error).message };

@@ -13,6 +13,7 @@ interface DataTableToolbarProps {
   searchDefaultValue?: string
   onSearch?: (value: string) => void
   toolbarActions?: React.ReactNode
+  pageSizeSelect?: React.ReactNode
   hasFilterPanel?: boolean
   filtersOpen?: boolean
   onToggleFilters?: () => void
@@ -24,6 +25,7 @@ export function DataTableToolbar({
   searchDefaultValue = "",
   onSearch,
   toolbarActions,
+  pageSizeSelect,
   hasFilterPanel = false,
   filtersOpen = false,
   onToggleFilters,
@@ -46,13 +48,13 @@ export function DataTableToolbar({
   }, [debouncedSearch])
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex flex-wrap items-center gap-2">
       {searchable && (
         <Input
           placeholder={searchPlaceholder}
           value={searchValue}
           onChange={(e) => setSearchValue(e.target.value)}
-          className="h-9 w-[180px] lg:w-[280px]"
+          className="h-9 w-full sm:w-[180px] lg:w-[280px]"
         />
       )}
       {hasFilterPanel && (
@@ -66,8 +68,9 @@ export function DataTableToolbar({
           <FilterIcon className="h-4 w-4 mr-2" /> Filtro
         </Button>
       )}
-      <div className="flex-1" />
-      {toolbarActions}
+      <div className="hidden flex-1 sm:block" />
+      {pageSizeSelect}
+      <div className="ml-auto flex items-center gap-2 sm:ml-0">{toolbarActions}</div>
     </div>
   )
 }

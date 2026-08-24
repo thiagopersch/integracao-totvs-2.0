@@ -1,14 +1,15 @@
 "use client"
 
 import { useState } from "react"
-import { useRouter, useSearchParams } from "next/navigation"
 import type { ColumnDef } from "@tanstack/react-table"
 import { DataTable } from "@/components/shared/data-table"
 import { DataTableFilterPanel } from "@/components/shared/data-table-filter-panel"
 import { PageHeader } from "@/components/shared/page-header"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
+import { EntityActionsCell } from "@/components/shared/entity-actions-cell"
+import { createSelectColumn } from "@/components/shared/select-column"
 import { Badge } from "@/components/ui/badge"
-import { Checkbox } from "@/components/ui/checkbox"
+import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import {
   Select,
@@ -18,23 +19,16 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import { MoreHorizontal, Plus, Trash2, Pencil } from "lucide-react"
-import { deleteUser, restoreUser, bulkDeleteUsers, bulkRestoreUsers } from "@/actions/admin/users"
-import { toast } from "sonner"
+import { Plus } from "lucide-react"
+import { deleteUser, restoreUser } from "@/actions/admin/users"
 import { UserForm } from "./user-form"
+import { useCrudTable } from "@/hooks/use-crud-table"
 import type { User } from "@prisma/client"
 import type { PaginationMeta } from "@/types/common"
 
@@ -44,62 +38,25 @@ interface UsersTableProps {
 }
 
 export function UsersTable({ data, meta }: UsersTableProps) {
-  const router = useRouter()
-  const searchParams = useSearchParams()
-  const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; id?: string }>({ open: false })
-  const [editDialog, setEditDialog] = useState<{ open: boolean; user?: User }>({ open: false })
+  const {
+    router,
+    searchParams,
+    deleteDialog,
+    setDeleteDialog,
+    editDialog,
+    setEditDialog,
+    pushParams,
+    handleDelete,
+  } = useCrudTable<User>({
+    deleteAction: deleteUser,
+    restoreAction: restoreUser,
+    deleteSuccessMessage: "Usuário excluído com sucesso",
+    restoreSuccessMessage: "Usuário restaurado com sucesso",
+  })
   const [roleFilter, setRoleFilter] = useState(searchParams.get("role") || "")
 
-  function pushParams(updates: Record<string, string | number | undefined>) {
-    const params = new URLSearchParams(searchParams.toString())
-    Object.entries(updates).forEach(([k, v]) => {
-      if (v === undefined || v === "") params.delete(k)
-      else params.set(k, String(v))
-    })
-    router.push(`?${params.toString()}`)
-  }
-
-  async function handleDelete(id: string) {
-    const result = await deleteUser(id)
-    if (result.success) {
-      toast.success("Usuário excluído com sucesso")
-      router.refresh()
-    } else {
-      toast.error(result.error || "Erro ao excluir")
-    }
-    setDeleteDialog({ open: false })
-  }
-
-  async function handleRestore(id: string) {
-    const result = await restoreUser(id)
-    if (result.success) {
-      toast.success("Usuário restaurado com sucesso")
-      router.refresh()
-    } else {
-      toast.error(result.error || "Erro ao restaurar")
-    }
-  }
-
   const columns: ColumnDef<User>[] = [
-    {
-      id: "select",
-      header: ({ table }) => (
-        <Checkbox
-          checked={table.getIsAllPageRowsSelected()}
-          onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
-          aria-label="Selecionar todos"
-        />
-      ),
-      cell: ({ row }) => (
-        <Checkbox
-          checked={row.getIsSelected()}
-          onCheckedChange={(value) => row.toggleSelected(!!value)}
-          aria-label="Selecionar linha"
-        />
-      ),
-      enableSorting: false,
-      enableHiding: false,
-    },
+    createSelectColumn<User>(),
     {
       accessorKey: "name",
       header: "Nome",
@@ -132,38 +89,23 @@ export function UsersTable({ data, meta }: UsersTableProps) {
     {
       id: "actions",
       cell: ({ row }) => (
-        <DropdownMenu>
-          <DropdownMenuTrigger className="flex items-center justify-center h-8 w-8 p-0 rounded-md hover:bg-accent">
-            <MoreHorizontal className="h-4 w-4" />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={() => setEditDialog({ open: true, user: row.original })}>
-              <Pencil className="h-4 w-4 mr-2" /> Editar
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              className="text-destructive"
-              onClick={() => setDeleteDialog({ open: true, id: row.original.id })}
-            >
-              <Trash2 className="h-4 w-4 mr-2" /> Excluir
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <EntityActionsCell
+          onEdit={() => setEditDialog({ open: true, entity: row.original })}
+          onDelete={() => setDeleteDialog({ open: true, id: row.original.id })}
+        />
       ),
     },
   ]
 
   const newDialog = (
-    <Dialog open={editDialog.open} onOpenChange={(open) => setEditDialog({ open, user: open ? editDialog.user : undefined })}>
-      <DialogTrigger className="inline-flex items-center justify-center rounded-md bg-primary text-primary-foreground px-4 py-2 text-sm font-medium hover:bg-primary/90 h-9">
-        <Plus className="h-4 w-4 mr-2" /> Novo Usuário
-      </DialogTrigger>
-      <DialogContent className="sm:max-w-[425px]">
+    <Dialog open={editDialog.open} onOpenChange={(open) => setEditDialog({ open, entity: open ? editDialog.entity : undefined })}>
+      <DialogTrigger render={<Button><Plus className="h-4 w-4 mr-2" /> Novo Usuário</Button>} />
+      <DialogContent>
         <DialogHeader>
-          <DialogTitle>{editDialog.user ? "Editar Usuário" : "Novo Usuário"}</DialogTitle>
+          <DialogTitle>{editDialog.entity ? "Editar Usuário" : "Novo Usuário"}</DialogTitle>
         </DialogHeader>
         <UserForm
-          user={editDialog.user}
+          user={editDialog.entity}
           onSuccess={() => { setEditDialog({ open: false }); router.refresh() }}
           onCancel={() => setEditDialog({ open: false })}
         />
@@ -181,7 +123,16 @@ export function UsersTable({ data, meta }: UsersTableProps) {
     >
       <div className="space-y-2">
         <Label>Perfil</Label>
-        <Select value={roleFilter || "all"} onValueChange={(v) => setRoleFilter(v === "all" || !v ? "" : v)}>
+        <Select
+          items={[
+            { value: "all", label: "Todos" },
+            { value: "ADMIN", label: "Administrador" },
+            { value: "MANAGER", label: "Gerente" },
+            { value: "USER", label: "Usuário" },
+          ]}
+          value={roleFilter || "all"}
+          onValueChange={(v) => setRoleFilter(v === "all" || !v ? "" : v)}
+        >
           <SelectTrigger className="w-full">
             <SelectValue placeholder="Todos" />
           </SelectTrigger>

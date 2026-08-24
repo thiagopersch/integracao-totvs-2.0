@@ -32,11 +32,13 @@ export function ProfileForm({ user }: ProfileFormProps) {
   const [passwordLoading, setPasswordLoading] = useState(false)
 
   const profileForm = useForm<z.infer<typeof profileSchema>>({
+    mode: "onChange",
     resolver: zodResolver(profileSchema),
     defaultValues: { name: user.name, image: "" },
   })
 
   const passwordForm = useForm<z.infer<typeof changePasswordSchema>>({
+    mode: "onChange",
     resolver: zodResolver(changePasswordSchema),
     defaultValues: { currentPassword: "", newPassword: "", confirmPassword: "" },
   })

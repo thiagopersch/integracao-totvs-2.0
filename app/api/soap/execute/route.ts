@@ -8,7 +8,7 @@ export async function POST(request: NextRequest) {
   try {
     const { organizationId, userId } = await getRequestContext();
     const body = await request.json();
-    const { endpointTypeId, methodId, tbcId, method, endpointType, suffix, xml, context, timeout } = body;
+    const { tbcId, method, endpointType, suffix, xml, context, timeout } = body;
 
     if (!method || !xml) {
       return NextResponse.json(

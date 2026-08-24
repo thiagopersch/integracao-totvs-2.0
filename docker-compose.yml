@@ -61,8 +61,7 @@ services:
     environment:
       NODE_ENV: ${NODE_ENV:-production}
       DATABASE_URL: postgresql://${DB_USER:-admin}:${DB_PASS:?Defina DB_PASS no arquivo .env}@postgres:5432/${DB_NAME:-integracao_totvs}
-      JWT_SECRET: ${JWT_SECRET:?Defina JWT_SECRET no arquivo .env}
-      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?Defina JWT_REFRESH_SECRET no arquivo .env}
+      AUTH_SECRET: ${AUTH_SECRET:?Defina AUTH_SECRET no arquivo .env}
     volumes:
       - integracao_totvs_app_uploads:/app/public/uploads
     networks:
@@ -110,12 +109,28 @@ services:
         - action: sync
           path: ./actions
           target: /app/actions
+        - action: sync
+          path: ./constants
+          target: /app/constants
+        - action: sync
+          path: ./public
+          target: /app/public
+        - action: sync
+          path: ./auth.ts
+          target: /app/auth.ts
+        - action: sync
+          path: ./proxy.ts
+          target: /app/proxy.ts
         - action: rebuild
           path: ./package.json
         - action: rebuild
           path: ./package-lock.json
         - action: rebuild
           path: ./prisma/schema.prisma
+        - action: rebuild
+          path: ./next.config.ts
+        - action: rebuild
+          path: ./tsconfig.json
 
 volumes:
   integracao_totvs_postgres_data:

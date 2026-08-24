@@ -1,14 +1,14 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useRouter, useSearchParams } from "next/navigation"
 import type { ColumnDef } from "@tanstack/react-table"
-import { useForm, Controller } from "react-hook-form"
+import { useForm, type Resolver } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { DataTable } from "@/components/shared/data-table"
 import { DataTableFilterPanel } from "@/components/shared/data-table-filter-panel"
 import { PageHeader } from "@/components/shared/page-header"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
+import { EntityActionsCell } from "@/components/shared/entity-actions-cell"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -23,20 +23,15 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import {
   Dialog,
+  DialogBody,
   DialogContent,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import { MoreHorizontal, Plus, Trash2, Pencil, Loader2 } from "lucide-react"
+import { Plus, Loader2 } from "lucide-react"
 import { deleteDemand, createDemand, updateDemand } from "@/actions/demands"
 import { listAllAnalysts } from "@/actions/analysts"
 import { listAllClients } from "@/actions/admin/clients"
@@ -44,8 +39,9 @@ import { listAllRequesters } from "@/actions/requesters"
 import { listAllDepartments } from "@/actions/departments"
 import { listAllDemandTypes } from "@/actions/demand-types"
 import { listAllTags } from "@/actions/tags"
-import { createDemandSchema, updateDemandSchema } from "@/schemas/demand.schema"
+import { createDemandSchema, updateDemandSchema, type CreateDemandInput } from "@/schemas/demand.schema"
 import { toast } from "sonner"
+import { useCrudTable } from "@/hooks/use-crud-table"
 import type { Analyst, Client, Requester, Department, DemandType, Tag } from "@prisma/client"
 import type { PaginationMeta } from "@/types/common"
 
@@ -90,10 +86,19 @@ const PRIORITY_LABELS: Record<string, string> = {
 }
 
 export function DemandTable({ data, meta }: DemandTableProps) {
-  const router = useRouter()
-  const searchParams = useSearchParams()
-  const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; id?: string }>({ open: false })
-  const [editDialog, setEditDialog] = useState<{ open: boolean; demand?: DemandRow }>({ open: false })
+  const {
+    router,
+    searchParams,
+    deleteDialog,
+    setDeleteDialog,
+    editDialog,
+    setEditDialog,
+    pushParams,
+    handleDelete,
+  } = useCrudTable<DemandRow>({
+    deleteAction: deleteDemand,
+    deleteSuccessMessage: "Demanda excluída com sucesso",
+  })
   const [loading, setLoading] = useState(false)
   const [analysts, setAnalysts] = useState<Analyst[]>([])
   const [clients, setClients] = useState<Client[]>([])
@@ -112,38 +117,30 @@ export function DemandTable({ data, meta }: DemandTableProps) {
     listAllTags().then(setTags)
   }, [])
 
-  function pushParams(updates: Record<string, string | number | undefined>) {
-    const params = new URLSearchParams(searchParams.toString())
-    Object.entries(updates).forEach(([k, v]) => {
-      if (v === undefined || v === "") params.delete(k)
-      else params.set(k, String(v))
-    })
-    router.push(`?${params.toString()}`)
-  }
-
   function toDateInputValue(d: string | Date) {
     const date = typeof d === "string" ? new Date(d) : d
     return date.toISOString().slice(0, 10)
   }
 
-  const form = useForm<any>({
-    resolver: zodResolver(editDialog.demand ? updateDemandSchema : createDemandSchema),
-    values: editDialog.demand
+  const form = useForm<CreateDemandInput>({
+    mode: "onChange",
+    resolver: zodResolver(editDialog.entity ? updateDemandSchema : createDemandSchema) as Resolver<CreateDemandInput>,
+    values: editDialog.entity
       ? {
-          name: editDialog.demand.name,
-          description: editDialog.demand.description,
-          date: toDateInputValue(editDialog.demand.date),
-          durationMinutes: editDialog.demand.durationMinutes,
-          priority: editDialog.demand.priority,
-          status: editDialog.demand.status,
+          name: editDialog.entity.name,
+          description: editDialog.entity.description,
+          date: toDateInputValue(editDialog.entity.date),
+          durationMinutes: editDialog.entity.durationMinutes,
+          priority: editDialog.entity.priority,
+          status: editDialog.entity.status,
           notes: "",
-          analystId: editDialog.demand.analyst?.id || "",
-          clientId: editDialog.demand.client?.id || "",
+          analystId: editDialog.entity.analyst?.id || "",
+          clientId: editDialog.entity.client?.id || "",
           requesterId: "",
           departmentId: "",
-          demandTypeId: editDialog.demand.demandType?.id || "",
-          tagIds: editDialog.demand.demandTags.map((dt) => dt.tag.id),
-        }
+          demandTypeId: editDialog.entity.demandType?.id || "",
+          tagIds: editDialog.entity.demandTags.map((dt) => dt.tag.id),
+        } as CreateDemandInput
       : {
           name: "",
           description: "",
@@ -168,7 +165,7 @@ export function DemandTable({ data, meta }: DemandTableProps) {
     form.setValue("tagIds", current.includes(tagId) ? current.filter((t) => t !== tagId) : [...current, tagId])
   }
 
-  async function onSubmit(data: any) {
+  async function onSubmit(data: CreateDemandInput) {
     setLoading(true)
     const formData = new FormData()
     Object.entries(data).forEach(([key, value]) => {
@@ -177,12 +174,12 @@ export function DemandTable({ data, meta }: DemandTableProps) {
     })
     for (const tagId of data.tagIds || []) formData.append("tagIds", tagId)
 
-    const result = editDialog.demand
-      ? await updateDemand(editDialog.demand.id, formData)
+    const result = editDialog.entity
+      ? await updateDemand(editDialog.entity.id, formData)
       : await createDemand(formData)
 
     if (result.success) {
-      toast.success(editDialog.demand ? "Demanda atualizada" : "Demanda criada")
+      toast.success(editDialog.entity ? "Demanda atualizada" : "Demanda criada")
       form.reset()
       setEditDialog({ open: false })
       router.refresh()
@@ -195,17 +192,6 @@ export function DemandTable({ data, meta }: DemandTableProps) {
   function handleCancel() {
     form.reset()
     setEditDialog({ open: false })
-  }
-
-  async function handleDelete(id: string) {
-    const result = await deleteDemand(id)
-    if (result.success) {
-      toast.success("Demanda excluída com sucesso")
-      router.refresh()
-    } else {
-      toast.error(result.error || "Erro ao excluir")
-    }
-    setDeleteDialog({ open: false })
   }
 
   const columns: ColumnDef<DemandRow>[] = [
@@ -233,37 +219,23 @@ export function DemandTable({ data, meta }: DemandTableProps) {
     {
       id: "actions",
       cell: ({ row }) => (
-        <DropdownMenu>
-          <DropdownMenuTrigger className="flex items-center justify-center h-8 w-8 p-0 rounded-md hover:bg-accent">
-            <MoreHorizontal className="h-4 w-4" />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={() => setEditDialog({ open: true, demand: row.original })}>
-              <Pencil className="h-4 w-4 mr-2" /> Editar
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              className="text-destructive"
-              onClick={() => setDeleteDialog({ open: true, id: row.original.id })}
-            >
-              <Trash2 className="h-4 w-4 mr-2" /> Excluir
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <EntityActionsCell
+          onEdit={() => setEditDialog({ open: true, entity: row.original })}
+          onDelete={() => setDeleteDialog({ open: true, id: row.original.id })}
+        />
       ),
     },
   ]
 
   const newDialog = (
-    <Dialog open={editDialog.open} onOpenChange={(open) => { setEditDialog({ open, demand: open ? editDialog.demand : undefined }); if (!open) form.reset() }}>
-      <DialogTrigger className="inline-flex items-center justify-center rounded-md bg-primary text-primary-foreground px-4 py-2 text-sm font-medium hover:bg-primary/90 h-9">
-        <Plus className="h-4 w-4 mr-2" /> Nova Demanda
-      </DialogTrigger>
-      <DialogContent className="flex w-[70vw] min-w-[70vw] max-w-[70vw] h-[80vh] min-h-[80vh] max-h-[80vh] flex-col sm:max-w-none">
+    <Dialog open={editDialog.open} onOpenChange={(open) => { setEditDialog({ open, entity: open ? editDialog.entity : undefined }); if (!open) form.reset() }}>
+      <DialogTrigger render={<Button><Plus className="h-4 w-4 mr-2" /> Nova Demanda</Button>} />
+      <DialogContent>
         <DialogHeader>
-          <DialogTitle>{editDialog.demand ? "Editar Demanda" : "Nova Demanda"}</DialogTitle>
+          <DialogTitle>{editDialog.entity ? "Editar Demanda" : "Nova Demanda"}</DialogTitle>
         </DialogHeader>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="flex-1 space-y-4 overflow-y-auto pr-1">
+        <form onSubmit={form.handleSubmit(onSubmit)} className="flex min-h-0 flex-1 flex-col overflow-hidden">
+        <DialogBody>
           <Field>
             <FieldLabel htmlFor="name">Nome</FieldLabel>
             <Input id="name" {...form.register("name")} placeholder="Nome da demanda" aria-invalid={!!form.formState.errors.name} />
@@ -444,14 +416,14 @@ export function DemandTable({ data, meta }: DemandTableProps) {
             <FieldLabel htmlFor="notes">Notas</FieldLabel>
             <Textarea id="notes" {...form.register("notes")} placeholder="Notas adicionais (opcional)" />
           </Field>
-
-          <div className="flex items-center justify-end gap-2">
-            <Button type="button" variant="outline" onClick={handleCancel} disabled={loading}>Cancelar</Button>
-            <Button type="submit" disabled={loading}>
-              {loading && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-              Salvar
-            </Button>
-          </div>
+        </DialogBody>
+        <DialogFooter>
+          <Button type="button" variant="outline" onClick={handleCancel} disabled={loading}>Cancelar</Button>
+          <Button type="submit" disabled={loading}>
+            {loading && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+            Salvar
+          </Button>
+        </DialogFooter>
         </form>
       </DialogContent>
     </Dialog>
@@ -467,7 +439,11 @@ export function DemandTable({ data, meta }: DemandTableProps) {
     >
       <div className="space-y-2">
         <Label>Status</Label>
-        <Select value={statusFilter || "all"} onValueChange={(v) => setStatusFilter(v === "all" || !v ? "" : v)}>
+        <Select
+          items={[{ value: "all", label: "Todos" }, ...Object.entries(STATUS_LABELS).map(([value, label]) => ({ value, label }))]}
+          value={statusFilter || "all"}
+          onValueChange={(v) => setStatusFilter(v === "all" || !v ? "" : v)}
+        >
           <SelectTrigger className="w-full">
             <SelectValue placeholder="Todos" />
           </SelectTrigger>

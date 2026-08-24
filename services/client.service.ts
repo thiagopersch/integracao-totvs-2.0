@@ -2,10 +2,19 @@ import { prisma } from "@/lib/prisma";
 import { BaseRepository } from "@/repositories/base.repository";
 import type { CreateClientInput, UpdateClientInput } from "@/schemas/client.schema";
 import type { Client } from "@prisma/client";
+import type { ListParams } from "@/types/common";
 
 class ClientRepository extends BaseRepository<Client> {
   constructor() {
     super(prisma.client, ["name", "legalName", "linkCrm", "document", "email"], "clients");
+  }
+
+  async buildWhere(input: ListParams & { status?: boolean }, organizationId?: string) {
+    const { hasImage, ...restFilters } = input.filters ?? {};
+    const where = await super.buildWhere({ ...input, filters: restFilters }, organizationId);
+    if (hasImage === "true") where.image = { not: null };
+    else if (hasImage === "false") where.image = null;
+    return where;
   }
 }
 
@@ -20,6 +29,13 @@ export const clientService = {
     return clientRepository.listAll(organizationId);
   },
 
+  async listActiveWithTbc(organizationId: string) {
+    return prisma.client.findMany({
+      where: { deletedAt: null, status: true, organizationId, tbcs: { some: { deletedAt: null } } },
+      orderBy: { name: "asc" },
+    });
+  },
+
   async getById(id: string, organizationId: string) {
     return clientRepository.findById(id, organizationId);
   },
@@ -31,7 +47,7 @@ export const clientService = {
         throw new Error("Link CRM já cadastrado");
       }
     }
-    return clientRepository.create({ ...input, organizationId } as any);
+    return clientRepository.create({ ...input, organizationId });
   },
 
   async update(id: string, input: UpdateClientInput, organizationId: string) {
@@ -43,7 +59,7 @@ export const clientService = {
         throw new Error("Link CRM já cadastrado");
       }
     }
-    return clientRepository.update(id, input as any, organizationId);
+    return clientRepository.update(id, input, organizationId);
   },
 
   async softDelete(id: string, organizationId: string) {

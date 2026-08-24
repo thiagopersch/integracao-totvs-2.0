@@ -1,40 +1,51 @@
 import { create } from "zustand"
-import type { SoapMethod } from "@prisma/client"
+
+type SoapBuilderResponse = {
+  xmlResponse: string
+  jsonResponse: Record<string, unknown>
+  duration: number
+  status: number
+} | null
+
+interface SoapBuilderContext {
+  coligate: number
+  branch: number
+  levelEducation: number
+  codSystem: string
+  user: string
+}
 
 interface SoapBuilderState {
-  dataserver: string
-  process: string
-  method: SoapMethod
-  xml: string
-  context: {
-    coligate: number
-    branch: number
-    levelEducation: number
-    codSystem: string
-    user: string
-  }
+  selectedTypeId: string
+  selectedMethodId: string
+  selectedTbcId: string
+  xmlContent: string
+  jsonContent: string
+  activeTab: string
+  context: SoapBuilderContext
   timeout: number
-  response: {
-    xml: string
-    json: Record<string, unknown> | null
-    duration: number | null
-    status: number | null
-  } | null
-  setDataserver: (dataserver: string) => void
-  setProcess: (process: string) => void
-  setMethod: (method: SoapMethod) => void
-  setXml: (xml: string) => void
-  setContext: (context: Partial<SoapBuilderState["context"]>) => void
+  response: SoapBuilderResponse
+  error: string | null
+  setSelectedTypeId: (id: string) => void
+  setSelectedMethodId: (id: string) => void
+  setSelectedTbcId: (id: string) => void
+  setXmlContent: (xml: string) => void
+  setJsonContent: (json: string) => void
+  setActiveTab: (tab: string) => void
+  setContext: (context: Partial<SoapBuilderContext>) => void
   setTimeout: (timeout: number) => void
-  setResponse: (response: SoapBuilderState["response"]) => void
+  setResponse: (response: SoapBuilderResponse) => void
+  setError: (error: string | null) => void
   reset: () => void
 }
 
 const initialState = {
-  dataserver: "",
-  process: "",
-  method: "GETSCHEMA" as SoapMethod,
-  xml: "",
+  selectedTypeId: "",
+  selectedMethodId: "",
+  selectedTbcId: "",
+  xmlContent: "<GetSchema />",
+  jsonContent: "{}",
+  activeTab: "xml",
   context: {
     coligate: 1,
     branch: 1,
@@ -44,16 +55,20 @@ const initialState = {
   },
   timeout: 30000,
   response: null,
+  error: null,
 }
 
 export const useSoapStore = create<SoapBuilderState>((set) => ({
   ...initialState,
-  setDataserver: (dataserver) => set({ dataserver }),
-  setProcess: (process) => set({ process }),
-  setMethod: (method) => set({ method }),
-  setXml: (xml) => set({ xml }),
+  setSelectedTypeId: (selectedTypeId) => set({ selectedTypeId }),
+  setSelectedMethodId: (selectedMethodId) => set({ selectedMethodId }),
+  setSelectedTbcId: (selectedTbcId) => set({ selectedTbcId }),
+  setXmlContent: (xmlContent) => set({ xmlContent }),
+  setJsonContent: (jsonContent) => set({ jsonContent }),
+  setActiveTab: (activeTab) => set({ activeTab }),
   setContext: (context) => set((state) => ({ context: { ...state.context, ...context } })),
   setTimeout: (timeout) => set({ timeout }),
   setResponse: (response) => set({ response }),
+  setError: (error) => set({ error }),
   reset: () => set(initialState),
 }))

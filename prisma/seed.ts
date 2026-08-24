@@ -229,6 +229,8 @@ async function main() {
         levelEducationContext: 1,
         codSystemContext: "SISTEMA_PADRAO",
         userContext: "admin",
+        codColigadaSentenca: "1",
+        codSistemaSentenca: "S",
         status: true,
       },
     });
@@ -321,12 +323,14 @@ async function main() {
     ],
     process: [
       { method: "GETSCHEMA2", label: "Get Schema 2", sortOrder: 1 },
-      { method: "EXECUTEPROCESS", label: "Execute Process", sortOrder: 2 },
-      { method: "EXECUTEWITHXMLPARAMS", label: "Execute With XML Params", sortOrder: 3 },
-      { method: "EXECUTEWITHXMLPARAMSASYNC", label: "Execute Async", sortOrder: 4 },
-      { method: "GETPROCESSSTATUS", label: "Get Process Status", sortOrder: 5 },
+      { method: "EXECUTEWITHXMLPARAMS", label: "Execute With XML Params", sortOrder: 2 },
+      { method: "EXECUTEWITHXMLPARAMSASYNC", label: "Execute Async", sortOrder: 3 },
+      { method: "GETPROCESSSTATUS", label: "Get Process Status", sortOrder: 4 },
     ],
-    consulta: [{ method: "READVIEW", label: "Read View (Consulta)", sortOrder: 1 }],
+    consulta: [
+      { method: "REALIZARCONSULTASQL", label: "Realizar Consulta SQL", sortOrder: 1 },
+      { method: "REALIZARCONSULTASQLCONTEXTO", label: "Realizar Consulta SQL (com Contexto)", sortOrder: 2 },
+    ],
     formula: [
       { method: "EXECUTEPROCESS", label: "Execute Formula", sortOrder: 1 },
       { method: "GETSCHEMA", label: "Get Schema", sortOrder: 2 },

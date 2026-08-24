@@ -1,6 +1,6 @@
 "use server"
 
-import { revalidateTag, cacheTag } from "next/cache";
+import { updateTag, cacheTag } from "next/cache";
 import { demandTypeService } from "@/services/demand-type.service";
 import { auditService } from "@/services/audit.service";
 import { createDemandTypeSchema, updateDemandTypeSchema } from "@/schemas/demand-type.schema";
@@ -35,7 +35,7 @@ export async function createDemandType(formData: FormData) {
   try {
     const entity = await demandTypeService.create(parsed.data, organizationId);
     await auditService.log({ action: "CREATE", entity: "DemandType", entityId: entity.id, newData: { name: entity.name } });
-    revalidateTag("demandTypes", "max");
+    updateTag("demandTypes");
     return { success: true, data: entity };
   } catch (error) {
     return { success: false, error: (error as Error).message };
@@ -58,7 +58,7 @@ export async function updateDemandType(id: string, formData: FormData) {
   try {
     const entity = await demandTypeService.update(id, parsed.data, organizationId);
     await auditService.log({ action: "UPDATE", entity: "DemandType", entityId: id, newData: { name: entity.name } });
-    revalidateTag("demandTypes", "max");
+    updateTag("demandTypes");
     return { success: true, data: entity };
   } catch (error) {
     return { success: false, error: (error as Error).message };
@@ -70,7 +70,7 @@ export async function deleteDemandType(id: string) {
   try {
     await demandTypeService.softDelete(id, organizationId);
     await auditService.log({ action: "DELETE", entity: "DemandType", entityId: id });
-    revalidateTag("demandTypes", "max");
+    updateTag("demandTypes");
     return { success: true };
   } catch (error) {
     return { success: false, error: (error as Error).message };

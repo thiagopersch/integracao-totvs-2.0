@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
+import type { Prisma } from "@prisma/client";
 
 export type AuditInput = {
   action: string;
@@ -15,17 +16,17 @@ export type AuditInput = {
 export const auditService = {
   async log(input: AuditInput): Promise<void> {
     try {
-      const data: Record<string, unknown> = {
+      const data: Prisma.AuditLogUncheckedCreateInput = {
         action: input.action,
         entity: input.entity,
         entityId: input.entityId,
       };
       if (input.userId) data.userId = input.userId;
-      if (input.oldData) data.oldData = input.oldData;
-      if (input.newData) data.newData = input.newData;
+      if (input.oldData) data.oldData = input.oldData as Prisma.InputJsonValue;
+      if (input.newData) data.newData = input.newData as Prisma.InputJsonValue;
       if (input.ip) data.ip = input.ip;
       if (input.userAgent) data.userAgent = input.userAgent;
-      await prisma.auditLog.create({ data: data as any });
+      await prisma.auditLog.create({ data });
       logger.info(`Audit: ${input.action} on ${input.entity} #${input.entityId}`, {
         userId: input.userId,
         action: input.action,

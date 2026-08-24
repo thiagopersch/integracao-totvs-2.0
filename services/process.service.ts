@@ -25,7 +25,7 @@ export const processService = {
     if (existing) {
       throw new Error("Código já cadastrado");
     }
-    return processRepository.create({ ...input, organizationId } as any);
+    return processRepository.create({ ...input, organizationId });
   },
 
   async update(id: string, input: UpdateProcessInput, organizationId: string) {
@@ -37,7 +37,7 @@ export const processService = {
         throw new Error("Código já cadastrado");
       }
     }
-    return processRepository.update(id, input as any, organizationId);
+    return processRepository.update(id, input, organizationId);
   },
 
   async softDelete(id: string, organizationId: string) {

@@ -1,6 +1,6 @@
 "use server"
 
-import { revalidateTag, cacheTag } from "next/cache";
+import { updateTag, cacheTag } from "next/cache";
 import { tbcService } from "@/services/tbc.service";
 import { auditService } from "@/services/audit.service";
 import { createTbcSchema, updateTbcSchema } from "@/schemas/tbc.schema";
@@ -50,7 +50,7 @@ export async function createTbc(formData: FormData) {
       entityId: entity.id,
       newData: { name: entity.name, link: entity.link },
     });
-    revalidateTag("tbcs", "max");
+    updateTag("tbcs");
     return { success: true, data: entity };
   } catch (error) {
     return { success: false, error: (error as Error).message };
@@ -84,8 +84,8 @@ export async function updateTbc(id: string, formData: FormData) {
       oldData: old ? { name: old.name, link: old.link } : undefined,
       newData: { name: entity.name, link: entity.link },
     });
-    revalidateTag("tbcs", "max");
-    revalidateTag(`tbc-${id}`, "max");
+    updateTag("tbcs");
+    updateTag(`tbc-${id}`);
     return { success: true, data: entity };
   } catch (error) {
     return { success: false, error: (error as Error).message };
@@ -103,7 +103,7 @@ export async function deleteTbc(id: string) {
       entityId: id,
       oldData: old ? { name: old.name, link: old.link } : undefined,
     });
-    revalidateTag("tbcs", "max");
+    updateTag("tbcs");
     return { success: true };
   } catch (error) {
     return { success: false, error: (error as Error).message };
@@ -115,7 +115,7 @@ export async function restoreTbc(id: string) {
   try {
     await tbcService.restore(id, organizationId);
     await auditService.log({ action: "RESTORE", entity: "Tbc", entityId: id });
-    revalidateTag("tbcs", "max");
+    updateTag("tbcs");
     return { success: true };
   } catch (error) {
     return { success: false, error: (error as Error).message };
@@ -132,7 +132,7 @@ export async function bulkDeleteTbcs(ids: string[]) {
       entityId: ids.join(","),
       newData: { count },
     });
-    revalidateTag("tbcs", "max");
+    updateTag("tbcs");
     return { success: true, count };
   } catch (error) {
     return { success: false, error: (error as Error).message };
@@ -149,7 +149,7 @@ export async function bulkRestoreTbcs(ids: string[]) {
       entityId: ids.join(","),
       newData: { count },
     });
-    revalidateTag("tbcs", "max");
+    updateTag("tbcs");
     return { success: true, count };
   } catch (error) {
     return { success: false, error: (error as Error).message };

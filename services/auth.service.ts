@@ -1,6 +1,5 @@
 import { prisma } from "@/lib/prisma";
 import { hashPassword, comparePassword } from "@/lib/encryption";
-import { signAccessToken, signRefreshToken, verifyRefreshToken } from "@/lib/jwt";
 import { logger } from "@/lib/logger";
 import type { AuthUser, LoginInput } from "@/types/auth";
 import type { User } from "@prisma/client";
@@ -34,7 +33,7 @@ async function loadPermissions(userId: string): Promise<string[]> {
 }
 
 export const authService = {
-  async login(input: LoginInput, ip?: string, userAgent?: string) {
+  async login(input: LoginInput, ip?: string) {
     const user = await prisma.user.findUnique({
       where: { email: input.email },
     });
@@ -56,36 +55,13 @@ export const authService = {
     }
 
     const permissions = await loadPermissions(user.id);
-    const payload = { sub: user.id, email: user.email, role: user.role, organizationId: user.organizationId, permissions };
-    const accessToken = signAccessToken(payload);
-    const refreshToken = signRefreshToken(payload);
 
     logger.info("Login success", { email: input.email, ip });
 
     return {
       user: toAuthUser(user),
-      accessToken,
-      refreshToken,
+      permissions,
     };
-  },
-
-  async refresh(token: string) {
-    try {
-      const payload = verifyRefreshToken(token);
-      const user = await prisma.user.findUnique({ where: { id: payload.sub } });
-
-      if (!user || user.deletedAt || !user.status) return null;
-
-      const permissions = await loadPermissions(user.id);
-      const newPayload = { sub: user.id, email: user.email, role: user.role, organizationId: user.organizationId, permissions };
-      return {
-        accessToken: signAccessToken(newPayload),
-        refreshToken: signRefreshToken(newPayload),
-        user: toAuthUser(user),
-      };
-    } catch {
-      return null;
-    }
   },
 
   async changePassword(userId: string, currentPassword: string, newPassword: string) {
@@ -102,6 +78,12 @@ export const authService = {
     });
 
     return { success: true };
+  },
+
+  async verifyPassword(userId: string, password: string): Promise<boolean> {
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) return false;
+    return comparePassword(password, user.password);
   },
 
   async getUserById(id: string): Promise<AuthUser | null> {

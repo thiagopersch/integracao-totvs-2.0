@@ -27,5 +27,5 @@ async function DemandsContent({ searchParams }: { searchParams: Promise<Record<s
     filters: params.status ? { status: params.status } : undefined,
   }, ctx.organizationId, analystScope)
 
-  return <DemandTable data={data as any} meta={meta} />
+  return <DemandTable data={data} meta={meta} />
 }

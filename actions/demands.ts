@@ -1,11 +1,10 @@
 "use server"
 
-import { revalidateTag, cacheTag } from "next/cache";
+import { updateTag, cacheTag } from "next/cache";
 import { demandService } from "@/services/demand.service";
 import { auditService } from "@/services/audit.service";
 import { createDemandSchema, updateDemandSchema } from "@/schemas/demand.schema";
 import { requirePermission } from "@/lib/rbac";
-import { getRequestContext } from "@/lib/tenant";
 import { getDemandAnalystScope } from "@/lib/demand-scope";
 import type { ListParams } from "@/types/common";
 
@@ -48,7 +47,7 @@ export async function createDemand(formData: FormData) {
   try {
     const entity = await demandService.create(parsed.data, ctx.organizationId);
     await auditService.log({ action: "CREATE", entity: "Demand", entityId: entity.id, newData: { name: entity.name } });
-    revalidateTag("demands", "max");
+    updateTag("demands");
     return { success: true, data: entity };
   } catch (error) {
     return { success: false, error: (error as Error).message };
@@ -65,7 +64,7 @@ export async function updateDemand(id: string, formData: FormData) {
   try {
     const entity = await demandService.update(id, parsed.data, ctx.organizationId);
     await auditService.log({ action: "UPDATE", entity: "Demand", entityId: id, newData: { name: entity.name } });
-    revalidateTag("demands", "max");
+    updateTag("demands");
     return { success: true, data: entity };
   } catch (error) {
     return { success: false, error: (error as Error).message };
@@ -77,7 +76,7 @@ export async function deleteDemand(id: string) {
   try {
     await demandService.softDelete(id, organizationId);
     await auditService.log({ action: "DELETE", entity: "Demand", entityId: id });
-    revalidateTag("demands", "max");
+    updateTag("demands");
     return { success: true };
   } catch (error) {
     return { success: false, error: (error as Error).message };

@@ -1,49 +1,41 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { useRouter, useSearchParams } from "next/navigation"
-import type { ColumnDef } from "@tanstack/react-table"
-import { useForm, Controller } from "react-hook-form"
-import { zodResolver } from "@hookform/resolvers/zod"
+import { listActiveClientsWithTbc, listAllClients } from "@/actions/admin/clients"
+import { createTbc, deleteTbc, restoreTbc, updateTbc } from "@/actions/admin/tbcs"
+import { ConfirmDialog } from "@/components/shared/confirm-dialog"
 import { DataTable } from "@/components/shared/data-table"
 import { DataTableFilterPanel } from "@/components/shared/data-table-filter-panel"
+import { EntityActionsCell } from "@/components/shared/entity-actions-cell"
 import { PageHeader } from "@/components/shared/page-header"
-import { ConfirmDialog } from "@/components/shared/confirm-dialog"
+import { createSelectColumn } from "@/components/shared/select-column"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Field, FieldLabel, FieldError } from "@/components/ui/field"
 import { Checkbox } from "@/components/ui/checkbox"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
+import { Combobox } from "@/components/ui/combobox"
 import {
   Dialog,
+  DialogBody,
   DialogContent,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import { MoreHorizontal, Plus, Trash2, Pencil, Loader2 } from "lucide-react"
-import { deleteTbc, restoreTbc, bulkDeleteTbcs, bulkRestoreTbcs, createTbc, updateTbc } from "@/actions/admin/tbcs"
-import { listAllClients } from "@/actions/admin/clients"
-import { createTbcSchema, updateTbcSchema } from "@/schemas/tbc.schema"
-import { toast } from "sonner"
-import type { PaginationMeta } from "@/types/common"
+import { Field, FieldError, FieldLabel } from "@/components/ui/field"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { useCrudTable } from "@/hooks/use-crud-table"
+import { createTbcSchema, updateTbcSchema, type CreateTbcInput } from "@/schemas/tbc.schema"
 import type { TbcRow } from "@/services/tbc.service"
+import type { PaginationMeta } from "@/types/common"
+import { zodResolver } from "@hookform/resolvers/zod"
 import type { Client } from "@prisma/client"
+import type { ColumnDef } from "@tanstack/react-table"
+import { Loader2, Plus } from "lucide-react"
+import { useEffect, useState } from "react"
+import { Controller, useForm, type Resolver } from "react-hook-form"
+import { toast } from "sonner"
 
 interface TbcTableProps {
   data: TbcRow[]
@@ -51,47 +43,57 @@ interface TbcTableProps {
 }
 
 export function TbcTable({ data, meta }: TbcTableProps) {
-  const router = useRouter()
-  const searchParams = useSearchParams()
-  const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; id?: string }>({ open: false })
-  const [editDialog, setEditDialog] = useState<{ open: boolean; tbc?: TbcRow }>({ open: false })
+  const { router, searchParams, deleteDialog, setDeleteDialog, editDialog, setEditDialog, pushParams, handleDelete } =
+    useCrudTable<TbcRow>({
+      deleteAction: deleteTbc,
+      restoreAction: restoreTbc,
+      deleteSuccessMessage: "TBC excluído com sucesso",
+      restoreSuccessMessage: "TBC restaurado com sucesso",
+    })
   const [loading, setLoading] = useState(false)
   const [clients, setClients] = useState<Client[]>([])
+  const [filterClients, setFilterClients] = useState<Client[]>([])
   const [clientFilter, setClientFilter] = useState(searchParams.get("clientId") || "")
+  const [statusFilter, setStatusFilter] = useState(searchParams.get("status") || "")
+  const [noLicenseFilter, setNoLicenseFilter] = useState(searchParams.get("notRequiredLicense") || "")
+  const [changePassword, setChangePassword] = useState(false)
 
   useEffect(() => {
     listAllClients().then(setClients)
+    listActiveClientsWithTbc().then(setFilterClients)
   }, [])
 
-  function pushParams(updates: Record<string, string | number | undefined>) {
-    const params = new URLSearchParams(searchParams.toString())
-    Object.entries(updates).forEach(([k, v]) => {
-      if (v === undefined || v === "") params.delete(k)
-      else params.set(k, String(v))
-    })
-    router.push(`?${params.toString()}`)
-  }
-
-  const form = useForm<any>({
-    resolver: zodResolver(editDialog.tbc ? updateTbcSchema : createTbcSchema),
-    values: editDialog.tbc
-      ? { clientId: editDialog.tbc.clientId, name: editDialog.tbc.name, link: editDialog.tbc.link, user: editDialog.tbc.user, password: "", notRequiredLicense: editDialog.tbc.notRequiredLicense, status: editDialog.tbc.status }
+  const form = useForm<CreateTbcInput>({
+    mode: "onChange",
+    resolver: zodResolver(editDialog.entity ? updateTbcSchema : createTbcSchema) as Resolver<CreateTbcInput>,
+    values: editDialog.entity
+      ? {
+          clientId: editDialog.entity.clientId,
+          name: editDialog.entity.name,
+          link: editDialog.entity.link,
+          user: editDialog.entity.user,
+          password: "",
+          notRequiredLicense: editDialog.entity.notRequiredLicense,
+          status: editDialog.entity.status,
+        }
       : { clientId: "", name: "", link: "", user: "", password: "", notRequiredLicense: false, status: true },
   })
 
-  async function onSubmit(data: any) {
+  async function onSubmit(data: CreateTbcInput) {
+    if (editDialog.entity && changePassword && !data.password) {
+      form.setError("password", { message: "Senha é obrigatória" })
+      return
+    }
     setLoading(true)
     const formData = new FormData()
     Object.entries(data).forEach(([key, value]) => {
       if (value !== undefined) formData.append(key, String(value))
     })
 
-    const result = editDialog.tbc
-      ? await updateTbc(editDialog.tbc.id, formData)
-      : await createTbc(formData)
+    const result = editDialog.entity ? await updateTbc(editDialog.entity.id, formData) : await createTbc(formData)
 
     if (result.success) {
-      toast.success(editDialog.tbc ? "TBC atualizado" : "TBC criado")
+      toast.success(editDialog.entity ? "TBC atualizado" : "TBC criado")
       form.reset()
       setEditDialog({ open: false })
       router.refresh()
@@ -103,50 +105,12 @@ export function TbcTable({ data, meta }: TbcTableProps) {
 
   function handleCancel() {
     form.reset()
+    setChangePassword(false)
     setEditDialog({ open: false })
   }
 
-  async function handleDelete(id: string) {
-    const result = await deleteTbc(id)
-    if (result.success) {
-      toast.success("TBC excluído com sucesso")
-      router.refresh()
-    } else {
-      toast.error(result.error || "Erro ao excluir")
-    }
-    setDeleteDialog({ open: false })
-  }
-
-  async function handleRestore(id: string) {
-    const result = await restoreTbc(id)
-    if (result.success) {
-      toast.success("TBC restaurado com sucesso")
-      router.refresh()
-    } else {
-      toast.error(result.error || "Erro ao restaurar")
-    }
-  }
-
   const columns: ColumnDef<TbcRow>[] = [
-    {
-      id: "select",
-      header: ({ table }) => (
-        <Checkbox
-          checked={table.getIsAllPageRowsSelected()}
-          onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
-          aria-label="Selecionar todos"
-        />
-      ),
-      cell: ({ row }) => (
-        <Checkbox
-          checked={row.getIsSelected()}
-          onCheckedChange={(value) => row.toggleSelected(!!value)}
-          aria-label="Selecionar linha"
-        />
-      ),
-      enableSorting: false,
-      enableHiding: false,
-    },
+    createSelectColumn<TbcRow>(),
     {
       id: "clientName",
       header: "Cliente",
@@ -179,109 +143,149 @@ export function TbcTable({ data, meta }: TbcTableProps) {
     {
       id: "actions",
       cell: ({ row }) => (
-        <DropdownMenu>
-          <DropdownMenuTrigger className="flex items-center justify-center h-8 w-8 p-0 rounded-md hover:bg-accent">
-            <MoreHorizontal className="h-4 w-4" />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={() => setEditDialog({ open: true, tbc: row.original })}>
-              <Pencil className="h-4 w-4 mr-2" /> Editar
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              className="text-destructive"
-              onClick={() => setDeleteDialog({ open: true, id: row.original.id })}
-            >
-              <Trash2 className="h-4 w-4 mr-2" /> Excluir
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <EntityActionsCell
+          onEdit={() => setEditDialog({ open: true, entity: row.original })}
+          onDelete={() => setDeleteDialog({ open: true, id: row.original.id })}
+        />
       ),
     },
   ]
 
   const newDialog = (
-    <Dialog open={editDialog.open} onOpenChange={(open) => { setEditDialog({ open, tbc: open ? editDialog.tbc : undefined }); if (!open) form.reset() }}>
-      <DialogTrigger className="inline-flex items-center justify-center rounded-md bg-primary text-primary-foreground px-4 py-2 text-sm font-medium hover:bg-primary/90 h-9">
-        <Plus className="h-4 w-4 mr-2" /> Novo TBC
-      </DialogTrigger>
-      <DialogContent className="sm:max-w-[425px]">
+    <Dialog
+      open={editDialog.open}
+      onOpenChange={(open) => {
+        setEditDialog({ open, entity: open ? editDialog.entity : undefined })
+        if (!open) {
+          form.reset()
+          setChangePassword(false)
+        }
+      }}
+    >
+      <DialogTrigger
+        render={
+          <Button>
+            <Plus className="h-4 w-4 mr-2" /> Novo TBC
+          </Button>
+        }
+      />
+      <DialogContent>
         <DialogHeader>
-          <DialogTitle>{editDialog.tbc ? "Editar TBC" : "Novo TBC"}</DialogTitle>
+          <DialogTitle>{editDialog.entity ? "Editar TBC" : "Novo TBC"}</DialogTitle>
         </DialogHeader>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-          <Field>
-            <FieldLabel htmlFor="clientId">Cliente</FieldLabel>
-            <Select
-              items={clients.map((client) => ({ value: client.id, label: client.name }))}
-              value={form.watch("clientId") || null}
-              onValueChange={(v) => form.setValue("clientId", v || "")}
-            >
-              <SelectTrigger className="w-full" aria-invalid={!!form.formState.errors.clientId}>
-                <SelectValue placeholder="Selecione um cliente" />
-              </SelectTrigger>
-              <SelectContent>
-                {clients.map((client) => (
-                  <SelectItem key={client.id} value={client.id}>{client.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <FieldError errors={[form.formState.errors.clientId]} />
-          </Field>
-          <Field>
-            <FieldLabel htmlFor="name">Nome</FieldLabel>
-            <Input id="name" className="w-full" {...form.register("name")} placeholder="Nome do TBC" aria-invalid={!!form.formState.errors.name} />
-            <FieldError errors={[form.formState.errors.name]} />
-          </Field>
-          <Field>
-            <FieldLabel htmlFor="link">Link</FieldLabel>
-            <Input id="link" className="w-full" {...form.register("link")} placeholder="https://tbc.exemplo.com" aria-invalid={!!form.formState.errors.link} />
-            <FieldError errors={[form.formState.errors.link]} />
-          </Field>
-          <Field>
-            <FieldLabel htmlFor="user">Usuário</FieldLabel>
-            <Input id="user" className="w-full" {...form.register("user")} placeholder="Usuário de acesso" aria-invalid={!!form.formState.errors.user} />
-            <FieldError errors={[form.formState.errors.user]} />
-          </Field>
-          <Field>
-            <FieldLabel htmlFor="password">{editDialog.tbc ? "Nova Senha (deixe vazio para manter)" : "Senha"}</FieldLabel>
-            <Input id="password" className="w-full" type="password" {...form.register("password")} placeholder={editDialog.tbc ? "Deixe vazio para manter a atual" : "Senha de acesso"} />
-          </Field>
-          <div className="flex items-center gap-2">
-            <Controller
-              control={form.control}
-              name="notRequiredLicense"
-              render={({ field }) => (
-                <Checkbox
-                  id="notRequiredLicense"
-                  checked={field.value ?? false}
-                  onCheckedChange={(value) => field.onChange(!!value)}
+        <form onSubmit={form.handleSubmit(onSubmit)} className="flex min-h-0 flex-1 flex-col overflow-hidden">
+          <DialogBody>
+            <div className="flex items-center gap-6">
+              <div className="flex items-center gap-2">
+                <Controller
+                  control={form.control}
+                  name="notRequiredLicense"
+                  render={({ field }) => (
+                    <>
+                      <Checkbox
+                        id="notRequiredLicense"
+                        checked={field.value ?? false}
+                        onCheckedChange={(value) => field.onChange(!!value)}
+                      />
+                      <Label htmlFor="notRequiredLicense">Não consumir licença</Label>
+                    </>
+                  )}
                 />
-              )}
-            />
-            <Label htmlFor="notRequiredLicense">Licença não obrigatória</Label>
-          </div>
-          <div className="flex items-center gap-2">
-            <Controller
-              control={form.control}
-              name="status"
-              render={({ field }) => (
-                <Checkbox
-                  id="status"
-                  checked={field.value ?? true}
-                  onCheckedChange={(value) => field.onChange(!!value)}
+              </div>
+              <div className="flex items-center gap-2">
+                <Controller
+                  control={form.control}
+                  name="status"
+                  render={({ field }) => (
+                    <>
+                      <Checkbox
+                        id="status"
+                        checked={field.value ?? true}
+                        onCheckedChange={(value) => field.onChange(!!value)}
+                      />
+                      <Label htmlFor="status">{field.value ? "Ativado" : "Desativado"}</Label>
+                    </>
+                  )}
                 />
-              )}
-            />
-            <Label htmlFor="status">TBC ativo</Label>
-          </div>
-          <div className="flex items-center justify-end gap-2">
-            <Button type="button" variant="outline" onClick={handleCancel} disabled={loading}>Cancelar</Button>
+              </div>
+            </div>
+            <Field>
+              <FieldLabel htmlFor="clientId">Cliente</FieldLabel>
+              <Combobox
+                items={clients.map((client) => ({ value: client.id, label: client.name }))}
+                value={form.watch("clientId")}
+                onValueChange={(v) => form.setValue("clientId", v, { shouldValidate: true })}
+                placeholder="Selecione um cliente"
+                searchPlaceholder="Buscar cliente..."
+                emptyText="Nenhum cliente encontrado."
+                aria-invalid={!!form.formState.errors.clientId}
+              />
+              <FieldError errors={[form.formState.errors.clientId]} />
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="name">TBC</FieldLabel>
+              <Input
+                id="name"
+                className="w-full"
+                {...form.register("name")}
+                placeholder="Nome do TBC"
+                aria-invalid={!!form.formState.errors.name}
+              />
+              <FieldError errors={[form.formState.errors.name]} />
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="link">Link</FieldLabel>
+              <Input
+                id="link"
+                className="w-full"
+                {...form.register("link")}
+                placeholder="https://tbc.exemplo.com"
+                aria-invalid={!!form.formState.errors.link}
+              />
+              <FieldError errors={[form.formState.errors.link]} />
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="user">Usuário</FieldLabel>
+              <Input
+                id="user"
+                className="w-full"
+                {...form.register("user")}
+                placeholder="Usuário de acesso"
+                aria-invalid={!!form.formState.errors.user}
+              />
+              <FieldError errors={[form.formState.errors.user]} />
+            </Field>
+            {editDialog.entity && !changePassword ? (
+              <Field>
+                <FieldLabel>Senha</FieldLabel>
+                <Button type="button" variant="outline" className="w-fit" onClick={() => setChangePassword(true)}>
+                  Alterar senha
+                </Button>
+              </Field>
+            ) : (
+              <Field>
+                <FieldLabel htmlFor="password">{editDialog.entity ? "Nova Senha" : "Senha"}</FieldLabel>
+                <Input
+                  id="password"
+                  className="w-full"
+                  type="password"
+                  {...form.register("password")}
+                  placeholder={editDialog.entity ? "Digite a nova senha" : "Senha de acesso"}
+                  aria-invalid={!!form.formState.errors.password}
+                />
+                <FieldError errors={[form.formState.errors.password]} />
+              </Field>
+            )}
+          </DialogBody>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={handleCancel} disabled={loading}>
+              Cancelar
+            </Button>
             <Button type="submit" disabled={loading}>
               {loading && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
               Salvar
             </Button>
-          </div>
+          </DialogFooter>
         </form>
       </DialogContent>
     </Dialog>
@@ -289,23 +293,80 @@ export function TbcTable({ data, meta }: TbcTableProps) {
 
   const filterPanel = (
     <DataTableFilterPanel
-      onApply={() => pushParams({ clientId: clientFilter || undefined, page: 1 })}
+      onApply={() =>
+        pushParams({
+          clientId: clientFilter || undefined,
+          status: statusFilter || undefined,
+          notRequiredLicense: noLicenseFilter || undefined,
+          page: 1,
+        })
+      }
       onClear={() => {
         setClientFilter("")
-        pushParams({ clientId: undefined, page: 1 })
+        setStatusFilter("")
+        setNoLicenseFilter("")
+        pushParams({ clientId: undefined, status: undefined, notRequiredLicense: undefined, page: 1 })
       }}
     >
       <div className="space-y-2">
-        <Label>Cliente</Label>
-        <Select value={clientFilter || "all"} onValueChange={(v) => setClientFilter(v === "all" || !v ? "" : v)}>
+        <Label>Clientes</Label>
+        <Select
+          items={[{ value: "all", label: "Todos" }, ...filterClients.map((c) => ({ value: c.id, label: c.name }))]}
+          value={clientFilter || "all"}
+          onValueChange={(v) => setClientFilter(v === "all" || !v ? "" : v)}
+        >
           <SelectTrigger className="w-full">
             <SelectValue placeholder="Todos" />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todos</SelectItem>
-            {clients.map((c) => (
-              <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+            {filterClients.map((c) => (
+              <SelectItem key={c.id} value={c.id}>
+                {c.name}
+              </SelectItem>
             ))}
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="space-y-2">
+        <Label>Ativo</Label>
+        <Select
+          items={[
+            { value: "all", label: "Todos" },
+            { value: "true", label: "Sim" },
+            { value: "false", label: "Não" },
+          ]}
+          value={statusFilter || "all"}
+          onValueChange={(v) => setStatusFilter(v === "all" || !v ? "" : v)}
+        >
+          <SelectTrigger className="w-full">
+            <SelectValue placeholder="Todos" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos</SelectItem>
+            <SelectItem value="true">Sim</SelectItem>
+            <SelectItem value="false">Não</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="space-y-2">
+        <Label>Utiliza métodos sem licenças</Label>
+        <Select
+          items={[
+            { value: "all", label: "Todos" },
+            { value: "true", label: "Sim" },
+            { value: "false", label: "Não" },
+          ]}
+          value={noLicenseFilter || "all"}
+          onValueChange={(v) => setNoLicenseFilter(v === "all" || !v ? "" : v)}
+        >
+          <SelectTrigger className="w-full">
+            <SelectValue placeholder="Todos" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos</SelectItem>
+            <SelectItem value="true">Sim</SelectItem>
+            <SelectItem value="false">Não</SelectItem>
           </SelectContent>
         </Select>
       </div>

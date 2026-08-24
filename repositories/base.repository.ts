@@ -6,9 +6,24 @@ function toColumnName(field: string): string {
   return field.replace(/[A-Z]/g, (m) => `_${m.toLowerCase()}`);
 }
 
+/**
+ * Minimal shape of a Prisma model delegate (e.g. `prisma.client`) that
+ * BaseRepository relies on. Kept loose on the `where`/`data` payloads
+ * (each Prisma model has its own generated WhereInput/CreateInput/etc.)
+ * since BaseRepository builds those generically across every entity.
+ */
+export interface CrudDelegate<T> {
+  findMany(args: { where: Record<string, unknown>; orderBy: Record<string, unknown>; skip?: number; take?: number }): Promise<T[]>;
+  count(args: { where: Record<string, unknown> }): Promise<number>;
+  findFirst(args: { where: Record<string, unknown> }): Promise<T | null>;
+  create(args: { data: Record<string, unknown> }): Promise<T>;
+  update(args: { where: Record<string, unknown>; data: Record<string, unknown> }): Promise<T>;
+  updateMany(args: { where: Record<string, unknown>; data: Record<string, unknown> }): Promise<{ count: number }>;
+}
+
 export class BaseRepository<T extends { id: string; deletedAt: Date | null }> {
   constructor(
-    protected model: any,
+    protected model: CrudDelegate<T>,
     protected searchFields: string[] = ["name"],
     protected tableName?: string
   ) {}
@@ -45,8 +60,8 @@ export class BaseRepository<T extends { id: string; deletedAt: Date | null }> {
     if (input.filters) {
       for (const [key, value] of Object.entries(input.filters)) {
         if (value !== undefined && value !== "") {
-          if (key === "status") {
-            where[key] = value === "true" || value === true;
+          if (value === "true" || value === "false") {
+            where[key] = value === "true";
           } else {
             where[key] = value;
           }

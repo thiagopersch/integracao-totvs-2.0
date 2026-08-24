@@ -1,20 +1,20 @@
 "use client"
 
 import { useState } from "react"
-import { useRouter, useSearchParams } from "next/navigation"
 import type { ColumnDef } from "@tanstack/react-table"
-import { useForm } from "react-hook-form"
+import { useForm, type Resolver } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { DataTable } from "@/components/shared/data-table"
 import { DataTableFilterPanel } from "@/components/shared/data-table-filter-panel"
 import { PageHeader } from "@/components/shared/page-header"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
+import { EntityActionsCell } from "@/components/shared/entity-actions-cell"
+import { createSelectColumn } from "@/components/shared/select-column"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Field, FieldLabel, FieldError } from "@/components/ui/field"
 import { Label } from "@/components/ui/label"
-import { Checkbox } from "@/components/ui/checkbox"
 import {
   Select,
   SelectContent,
@@ -23,23 +23,19 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import {
   Dialog,
+  DialogBody,
   DialogContent,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import { MoreHorizontal, Plus, Trash2, Pencil, Loader2 } from "lucide-react"
-import { deleteSentenceCategory, restoreSentenceCategory, bulkDeleteSentenceCategories, bulkRestoreSentenceCategories, createSentenceCategory, updateSentenceCategory } from "@/actions/admin/sentence-categories"
-import { createSentenceCategorySchema, updateSentenceCategorySchema } from "@/schemas/sentence-category.schema"
+import { Plus, Loader2 } from "lucide-react"
+import { deleteSentenceCategory, restoreSentenceCategory, createSentenceCategory, updateSentenceCategory } from "@/actions/admin/sentence-categories"
+import { createSentenceCategorySchema, updateSentenceCategorySchema, type CreateSentenceCategoryInput } from "@/schemas/sentence-category.schema"
 import { toast } from "sonner"
+import { useCrudTable } from "@/hooks/use-crud-table"
 import type { SentenceCategory } from "@prisma/client"
 import type { PaginationMeta } from "@/types/common"
 
@@ -49,42 +45,45 @@ interface SentenceCategoryTableProps {
 }
 
 export function SentenceCategoryTable({ data, meta }: SentenceCategoryTableProps) {
-  const router = useRouter()
-  const searchParams = useSearchParams()
-  const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; id?: string }>({ open: false })
-  const [editDialog, setEditDialog] = useState<{ open: boolean; category?: SentenceCategory }>({ open: false })
+  const {
+    router,
+    searchParams,
+    deleteDialog,
+    setDeleteDialog,
+    editDialog,
+    setEditDialog,
+    pushParams,
+    handleDelete,
+  } = useCrudTable<SentenceCategory>({
+    deleteAction: deleteSentenceCategory,
+    restoreAction: restoreSentenceCategory,
+    deleteSuccessMessage: "Categoria excluída com sucesso",
+    restoreSuccessMessage: "Categoria restaurada com sucesso",
+  })
   const [loading, setLoading] = useState(false)
   const [statusFilter, setStatusFilter] = useState(searchParams.get("status") || "")
 
-  function pushParams(updates: Record<string, string | number | undefined>) {
-    const params = new URLSearchParams(searchParams.toString())
-    Object.entries(updates).forEach(([k, v]) => {
-      if (v === undefined || v === "") params.delete(k)
-      else params.set(k, String(v))
-    })
-    router.push(`?${params.toString()}`)
-  }
-
-  const form = useForm<any>({
-    resolver: zodResolver(editDialog.category ? updateSentenceCategorySchema : createSentenceCategorySchema),
-    values: editDialog.category
-      ? { code: editDialog.category.code, name: editDialog.category.name, status: editDialog.category.status }
+  const form = useForm<CreateSentenceCategoryInput>({
+    mode: "onChange",
+    resolver: zodResolver(editDialog.entity ? updateSentenceCategorySchema : createSentenceCategorySchema) as Resolver<CreateSentenceCategoryInput>,
+    values: editDialog.entity
+      ? { code: editDialog.entity.code, name: editDialog.entity.name, status: editDialog.entity.status }
       : { code: "", name: "", status: true },
   })
 
-  async function onSubmit(data: any) {
+  async function onSubmit(data: CreateSentenceCategoryInput) {
     setLoading(true)
     const formData = new FormData()
     Object.entries(data).forEach(([key, value]) => {
       if (value !== undefined) formData.append(key, String(value))
     })
 
-    const result = editDialog.category
-      ? await updateSentenceCategory(editDialog.category.id, formData)
+    const result = editDialog.entity
+      ? await updateSentenceCategory(editDialog.entity.id, formData)
       : await createSentenceCategory(formData)
 
     if (result.success) {
-      toast.success(editDialog.category ? "Categoria atualizada" : "Categoria criada")
+      toast.success(editDialog.entity ? "Categoria atualizada" : "Categoria criada")
       form.reset()
       setEditDialog({ open: false })
       router.refresh()
@@ -99,47 +98,8 @@ export function SentenceCategoryTable({ data, meta }: SentenceCategoryTableProps
     setEditDialog({ open: false })
   }
 
-  async function handleDelete(id: string) {
-    const result = await deleteSentenceCategory(id)
-    if (result.success) {
-      toast.success("Categoria excluída com sucesso")
-      router.refresh()
-    } else {
-      toast.error(result.error || "Erro ao excluir")
-    }
-    setDeleteDialog({ open: false })
-  }
-
-  async function handleRestore(id: string) {
-    const result = await restoreSentenceCategory(id)
-    if (result.success) {
-      toast.success("Categoria restaurada com sucesso")
-      router.refresh()
-    } else {
-      toast.error(result.error || "Erro ao restaurar")
-    }
-  }
-
   const columns: ColumnDef<SentenceCategory>[] = [
-    {
-      id: "select",
-      header: ({ table }) => (
-        <Checkbox
-          checked={table.getIsAllPageRowsSelected()}
-          onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
-          aria-label="Selecionar todos"
-        />
-      ),
-      cell: ({ row }) => (
-        <Checkbox
-          checked={row.getIsSelected()}
-          onCheckedChange={(value) => row.toggleSelected(!!value)}
-          aria-label="Selecionar linha"
-        />
-      ),
-      enableSorting: false,
-      enableHiding: false,
-    },
+    createSelectColumn<SentenceCategory>(),
     {
       accessorKey: "code",
       header: "Código",
@@ -159,37 +119,23 @@ export function SentenceCategoryTable({ data, meta }: SentenceCategoryTableProps
     {
       id: "actions",
       cell: ({ row }) => (
-        <DropdownMenu>
-          <DropdownMenuTrigger className="flex items-center justify-center h-8 w-8 p-0 rounded-md hover:bg-accent">
-            <MoreHorizontal className="h-4 w-4" />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={() => setEditDialog({ open: true, category: row.original })}>
-              <Pencil className="h-4 w-4 mr-2" /> Editar
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              className="text-destructive"
-              onClick={() => setDeleteDialog({ open: true, id: row.original.id })}
-            >
-              <Trash2 className="h-4 w-4 mr-2" /> Excluir
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <EntityActionsCell
+          onEdit={() => setEditDialog({ open: true, entity: row.original })}
+          onDelete={() => setDeleteDialog({ open: true, id: row.original.id })}
+        />
       ),
     },
   ]
 
   const newDialog = (
-    <Dialog open={editDialog.open} onOpenChange={(open) => { setEditDialog({ open, category: open ? editDialog.category : undefined }); if (!open) form.reset() }}>
-      <DialogTrigger className="inline-flex items-center justify-center rounded-md bg-primary text-primary-foreground px-4 py-2 text-sm font-medium hover:bg-primary/90 h-9">
-        <Plus className="h-4 w-4 mr-2" /> Nova Categoria
-      </DialogTrigger>
-      <DialogContent className="sm:max-w-[425px]">
+    <Dialog open={editDialog.open} onOpenChange={(open) => { setEditDialog({ open, entity: open ? editDialog.entity : undefined }); if (!open) form.reset() }}>
+      <DialogTrigger render={<Button><Plus className="h-4 w-4 mr-2" /> Nova Categoria</Button>} />
+      <DialogContent>
         <DialogHeader>
-          <DialogTitle>{editDialog.category ? "Editar Categoria" : "Nova Categoria"}</DialogTitle>
+          <DialogTitle>{editDialog.entity ? "Editar Categoria" : "Nova Categoria"}</DialogTitle>
         </DialogHeader>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+        <form onSubmit={form.handleSubmit(onSubmit)} className="flex min-h-0 flex-1 flex-col overflow-hidden">
+        <DialogBody>
           <Field>
             <FieldLabel htmlFor="code">Código</FieldLabel>
             <Input id="code" {...form.register("code")} placeholder="Código único" aria-invalid={!!form.formState.errors.code} />
@@ -201,16 +147,17 @@ export function SentenceCategoryTable({ data, meta }: SentenceCategoryTableProps
             <FieldError errors={[form.formState.errors.name]} />
           </Field>
           <div className="flex items-center gap-2">
-            <input type="checkbox" id="status" defaultChecked={editDialog.category?.status ?? true} {...form.register("status")} className="rounded border-gray-300" />
+            <input type="checkbox" id="status" defaultChecked={editDialog.entity?.status ?? true} {...form.register("status")} className="rounded border-gray-300" />
             <Label htmlFor="status">Categoria ativa</Label>
           </div>
-          <div className="flex items-center justify-end gap-2">
-            <Button type="button" variant="outline" onClick={handleCancel} disabled={loading}>Cancelar</Button>
-            <Button type="submit" disabled={loading}>
-              {loading && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-              Salvar
-            </Button>
-          </div>
+        </DialogBody>
+        <DialogFooter>
+          <Button type="button" variant="outline" onClick={handleCancel} disabled={loading}>Cancelar</Button>
+          <Button type="submit" disabled={loading}>
+            {loading && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+            Salvar
+          </Button>
+        </DialogFooter>
         </form>
       </DialogContent>
     </Dialog>
@@ -226,7 +173,15 @@ export function SentenceCategoryTable({ data, meta }: SentenceCategoryTableProps
     >
       <div className="space-y-2">
         <Label>Status</Label>
-        <Select value={statusFilter || "all"} onValueChange={(v) => setStatusFilter(v === "all" || !v ? "" : v)}>
+        <Select
+          items={[
+            { value: "all", label: "Todos" },
+            { value: "true", label: "Ativo" },
+            { value: "false", label: "Inativo" },
+          ]}
+          value={statusFilter || "all"}
+          onValueChange={(v) => setStatusFilter(v === "all" || !v ? "" : v)}
+        >
           <SelectTrigger className="w-full">
             <SelectValue placeholder="Todos" />
           </SelectTrigger>

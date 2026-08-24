@@ -1,6 +1,6 @@
 "use server"
 
-import { revalidateTag, cacheTag } from "next/cache";
+import { updateTag, cacheTag } from "next/cache";
 import { requesterService } from "@/services/requester.service";
 import { auditService } from "@/services/audit.service";
 import { createRequesterSchema, updateRequesterSchema } from "@/schemas/requester.schema";
@@ -36,7 +36,7 @@ export async function createRequester(formData: FormData) {
   try {
     const entity = await requesterService.create(parsed.data, organizationId);
     await auditService.log({ action: "CREATE", entity: "Requester", entityId: entity.id, newData: { name: entity.name } });
-    revalidateTag("requesters", "max");
+    updateTag("requesters");
     return { success: true, data: entity };
   } catch (error) {
     return { success: false, error: (error as Error).message };
@@ -60,7 +60,7 @@ export async function updateRequester(id: string, formData: FormData) {
   try {
     const entity = await requesterService.update(id, parsed.data, organizationId);
     await auditService.log({ action: "UPDATE", entity: "Requester", entityId: id, newData: { name: entity.name } });
-    revalidateTag("requesters", "max");
+    updateTag("requesters");
     return { success: true, data: entity };
   } catch (error) {
     return { success: false, error: (error as Error).message };
@@ -72,7 +72,7 @@ export async function deleteRequester(id: string) {
   try {
     await requesterService.softDelete(id, organizationId);
     await auditService.log({ action: "DELETE", entity: "Requester", entityId: id });
-    revalidateTag("requesters", "max");
+    updateTag("requesters");
     return { success: true };
   } catch (error) {
     return { success: false, error: (error as Error).message };

@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
-import { Inter, Poppins } from "next/font/google";
+import { Inter, Poppins, JetBrains_Mono } from "next/font/google";
 import { Suspense } from "react";
 import "./globals.css";
 import { ThemeProvider } from "@/providers/theme-provider";
 import { QueryProvider } from "@/providers/query-provider";
+import { SessionProvider } from "@/providers/session-provider";
 import { Toaster } from "@/components/ui/sonner";
 
 const inter = Inter({
@@ -15,6 +16,11 @@ const poppins = Poppins({
   variable: "--font-poppins",
   subsets: ["latin"],
   weight: ["400", "500", "600", "700", "800"],
+});
+
+const jetbrainsMono = JetBrains_Mono({
+  variable: "--font-jetbrains-mono",
+  subsets: ["latin"],
 });
 
 export const metadata: Metadata = {
@@ -30,15 +36,17 @@ export default function RootLayout({
   return (
     <html
       lang="pt-BR"
-      className={`${inter.variable} ${poppins.variable} h-full antialiased`}
+      className={`${inter.variable} ${poppins.variable} ${jetbrainsMono.variable} h-full antialiased`}
       suppressHydrationWarning
     >
       <body className="min-h-full flex flex-col">
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
-          <QueryProvider>
-            <Suspense fallback={null}>{children}</Suspense>
-            <Toaster />
-          </QueryProvider>
+          <SessionProvider>
+            <QueryProvider>
+              <Suspense fallback={null}>{children}</Suspense>
+              <Toaster />
+            </QueryProvider>
+          </SessionProvider>
         </ThemeProvider>
       </body>
     </html>

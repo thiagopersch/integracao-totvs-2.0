@@ -1,6 +1,6 @@
 "use server"
 
-import { revalidateTag, cacheTag } from "next/cache";
+import { updateTag, cacheTag } from "next/cache";
 import { sentenceCategoryService } from "@/services/sentence-category.service";
 import { auditService } from "@/services/audit.service";
 import { createSentenceCategorySchema, updateSentenceCategorySchema } from "@/schemas/sentence-category.schema";
@@ -46,7 +46,7 @@ export async function createSentenceCategory(formData: FormData) {
       entityId: entity.id,
       newData: { code: entity.code, name: entity.name },
     });
-    revalidateTag("sentenceCategories", "max");
+    updateTag("sentenceCategories");
     return { success: true, data: entity };
   } catch (error) {
     return { success: false, error: (error as Error).message };
@@ -76,8 +76,8 @@ export async function updateSentenceCategory(id: string, formData: FormData) {
       oldData: old ? { code: old.code, name: old.name } : undefined,
       newData: { code: entity.code, name: entity.name },
     });
-    revalidateTag("sentenceCategories", "max");
-    revalidateTag(`sentenceCategory-${id}`, "max");
+    updateTag("sentenceCategories");
+    updateTag(`sentenceCategory-${id}`);
     return { success: true, data: entity };
   } catch (error) {
     return { success: false, error: (error as Error).message };
@@ -95,7 +95,7 @@ export async function deleteSentenceCategory(id: string) {
       entityId: id,
       oldData: old ? { code: old.code, name: old.name } : undefined,
     });
-    revalidateTag("sentenceCategories", "max");
+    updateTag("sentenceCategories");
     return { success: true };
   } catch (error) {
     return { success: false, error: (error as Error).message };
@@ -107,7 +107,7 @@ export async function restoreSentenceCategory(id: string) {
   try {
     await sentenceCategoryService.restore(id, organizationId);
     await auditService.log({ action: "RESTORE", entity: "SentenceCategory", entityId: id });
-    revalidateTag("sentenceCategories", "max");
+    updateTag("sentenceCategories");
     return { success: true };
   } catch (error) {
     return { success: false, error: (error as Error).message };
@@ -124,7 +124,7 @@ export async function bulkDeleteSentenceCategories(ids: string[]) {
       entityId: ids.join(","),
       newData: { count },
     });
-    revalidateTag("sentenceCategories", "max");
+    updateTag("sentenceCategories");
     return { success: true, count };
   } catch (error) {
     return { success: false, error: (error as Error).message };
@@ -141,7 +141,7 @@ export async function bulkRestoreSentenceCategories(ids: string[]) {
       entityId: ids.join(","),
       newData: { count },
     });
-    revalidateTag("sentenceCategories", "max");
+    updateTag("sentenceCategories");
     return { success: true, count };
   } catch (error) {
     return { success: false, error: (error as Error).message };

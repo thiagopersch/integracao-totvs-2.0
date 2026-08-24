@@ -1,20 +1,22 @@
 import { prisma } from "@/lib/prisma";
 import { BaseRepository } from "@/repositories/base.repository";
 import type { CreateTbcInput, UpdateTbcInput } from "@/schemas/tbc.schema";
+import type { PaginationMeta } from "@/types/common";
 import type { Tbc } from "@prisma/client";
 
 export type TbcRow = Omit<Tbc, "password"> & { hasPassword: boolean; client?: { id: string; name: string } | null };
+type TbcWithMaybeClient = Tbc & { client?: { id: string; name: string } | null };
 
-function stripPassword(tbc: any | null): TbcRow | null {
+function stripPassword<TIn extends TbcWithMaybeClient | null>(tbc: TIn): TbcRow | null {
   if (!tbc) return null;
   const { password, ...rest } = tbc;
-  return { ...rest, hasPassword: !!password } as TbcRow;
+  return { ...rest, hasPassword: !!password };
 }
 
-function stripPasswordList(tbcs: any[]): TbcRow[] {
-  return tbcs.map((tbc: any) => {
+function stripPasswordList(tbcs: TbcWithMaybeClient[]): TbcRow[] {
+  return tbcs.map((tbc) => {
     const { password, ...rest } = tbc;
-    return { ...rest, hasPassword: !!password } as TbcRow;
+    return { ...rest, hasPassword: !!password };
   });
 }
 
@@ -48,8 +50,8 @@ export const tbcService = {
 
     return {
       data: stripPasswordList(tbcs),
-      meta: { page, pageSize, total, totalPages: Math.ceil(total / pageSize) },
-    } as any;
+      meta: { page, pageSize, total, totalPages: Math.ceil(total / pageSize) } satisfies PaginationMeta,
+    };
   },
 
   async listAll(organizationId: string) {
@@ -71,7 +73,7 @@ export const tbcService = {
     if (existing) {
       throw new Error("Link já cadastrado");
     }
-    const tbc = await tbcRepository.create({ ...input, organizationId } as any);
+    const tbc = await tbcRepository.create({ ...input, organizationId });
     return stripPassword(tbc)!;
   },
 
@@ -88,7 +90,7 @@ export const tbcService = {
     if (!updateData.password) {
       delete updateData.password;
     }
-    const tbc = await tbcRepository.update(id, updateData as any, organizationId);
+    const tbc = await tbcRepository.update(id, updateData, organizationId);
     return stripPassword(tbc)!;
   },
 

@@ -2,10 +2,11 @@
 
 import { Fragment, useState } from "react"
 import { useRouter } from "next/navigation"
-import { useForm } from "react-hook-form"
+import { useForm, type Resolver } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { PageHeader } from "@/components/shared/page-header"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
+import { EntityActionsCell } from "@/components/shared/entity-actions-cell"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -13,25 +14,17 @@ import { Label } from "@/components/ui/label"
 import { FieldError } from "@/components/ui/field"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import {
   Dialog,
+  DialogBody,
   DialogContent,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import {
-  MoreHorizontal,
   Plus,
-  Trash2,
-  Pencil,
   Loader2,
   ChevronDown,
   ChevronRight,
@@ -41,17 +34,17 @@ import {
   createSoapEndpointType,
   updateSoapEndpointType,
   deleteSoapEndpointType,
-  restoreSoapEndpointType,
   createSoapEndpointMethod,
   updateSoapEndpointMethod,
   deleteSoapEndpointMethod,
-  restoreSoapEndpointMethod,
 } from "@/actions/admin/soap-endpoints"
 import {
   createSoapEndpointTypeSchema,
   updateSoapEndpointTypeSchema,
   createSoapEndpointMethodSchema,
   updateSoapEndpointMethodSchema,
+  type CreateSoapEndpointTypeInput,
+  type CreateSoapEndpointMethodInput,
 } from "@/schemas/soap-endpoint.schema"
 import { toast } from "sonner"
 import type { SoapEndpointType, SoapEndpointMethod } from "@prisma/client"
@@ -82,8 +75,9 @@ export function SoapEndpointTable({ data, meta }: SoapEndpointTableProps) {
   }>({ open: false })
   const [loading, setLoading] = useState(false)
 
-  const typeForm = useForm<any>({
-    resolver: zodResolver(typeDialog.endpointType ? updateSoapEndpointTypeSchema : createSoapEndpointTypeSchema),
+  const typeForm = useForm<CreateSoapEndpointTypeInput>({
+    mode: "onChange",
+    resolver: zodResolver(typeDialog.endpointType ? updateSoapEndpointTypeSchema : createSoapEndpointTypeSchema) as Resolver<CreateSoapEndpointTypeInput>,
     values: typeDialog.endpointType
       ? {
           type: typeDialog.endpointType.type,
@@ -94,8 +88,9 @@ export function SoapEndpointTable({ data, meta }: SoapEndpointTableProps) {
       : { type: "", label: "", suffix: "", active: true },
   })
 
-  const methodForm = useForm<any>({
-    resolver: zodResolver(methodDialog.method ? updateSoapEndpointMethodSchema : createSoapEndpointMethodSchema),
+  const methodForm = useForm<CreateSoapEndpointMethodInput>({
+    mode: "onChange",
+    resolver: zodResolver(methodDialog.method ? updateSoapEndpointMethodSchema : createSoapEndpointMethodSchema) as Resolver<CreateSoapEndpointMethodInput>,
     values: methodDialog.method
       ? {
           endpointTypeId: methodDialog.method.endpointTypeId,
@@ -107,7 +102,7 @@ export function SoapEndpointTable({ data, meta }: SoapEndpointTableProps) {
       : { endpointTypeId: methodDialog.endpointTypeId || "", method: "", label: "", sortOrder: 0, active: true },
   })
 
-  async function onTypeSubmit(data: any) {
+  async function onTypeSubmit(data: CreateSoapEndpointTypeInput) {
     setLoading(true)
     const formData = new FormData()
     Object.entries(data).forEach(([key, value]) => {
@@ -128,7 +123,7 @@ export function SoapEndpointTable({ data, meta }: SoapEndpointTableProps) {
     setLoading(false)
   }
 
-  async function onMethodSubmit(data: any) {
+  async function onMethodSubmit(data: CreateSoapEndpointMethodInput) {
     setLoading(true)
     const formData = new FormData()
     Object.entries(data).forEach(([key, value]) => {
@@ -160,16 +155,6 @@ export function SoapEndpointTable({ data, meta }: SoapEndpointTableProps) {
       toast.error(result.error || "Erro ao excluir")
     }
     setDeleteDialog({ open: false, type: "type" })
-  }
-
-  async function handleRestore(id: string, type: "type" | "method") {
-    const result =
-      type === "type" ? await restoreSoapEndpointType(id) : await restoreSoapEndpointMethod(id)
-
-    if (result.success) {
-      toast.success(result.success ? "Restaurado com sucesso" : "Erro ao restaurar")
-      router.refresh()
-    }
   }
 
   function handleSearch(value: string) {
@@ -205,14 +190,13 @@ export function SoapEndpointTable({ data, meta }: SoapEndpointTableProps) {
             if (!open) typeForm.reset()
           }}
         >
-          <DialogTrigger className="inline-flex items-center justify-center rounded-md bg-primary text-primary-foreground px-4 py-2 text-sm font-medium hover:bg-primary/90">
-            <Plus className="h-4 w-4 mr-2" /> Novo Tipo
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-[425px]">
+          <DialogTrigger render={<Button><Plus className="h-4 w-4 mr-2" /> Novo Tipo</Button>} />
+          <DialogContent>
             <DialogHeader>
               <DialogTitle>{typeDialog.endpointType ? "Editar Tipo de Endpoint" : "Novo Tipo de Endpoint"}</DialogTitle>
             </DialogHeader>
-            <form onSubmit={typeForm.handleSubmit(onTypeSubmit)} className="space-y-4">
+            <form onSubmit={typeForm.handleSubmit(onTypeSubmit)} className="flex min-h-0 flex-1 flex-col overflow-hidden">
+            <DialogBody>
               <div className="space-y-2">
                 <Label htmlFor="type">Tipo</Label>
                 <Input id="type" className="w-full" {...typeForm.register("type")} placeholder="Ex: NOTAFISCAL" aria-invalid={!!typeForm.formState.errors.type} />
@@ -236,20 +220,21 @@ export function SoapEndpointTable({ data, meta }: SoapEndpointTableProps) {
                 />
                 <Label htmlFor="active">Tipo ativo</Label>
               </div>
-              <div className="flex items-center justify-end gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  disabled={loading}
-                  onClick={() => { typeForm.reset(); setTypeDialog({ open: false }) }}
-                >
-                  Cancelar
-                </Button>
-                <Button type="submit" disabled={loading}>
-                  {loading && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-                  Salvar
-                </Button>
-              </div>
+            </DialogBody>
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={loading}
+                onClick={() => { typeForm.reset(); setTypeDialog({ open: false }) }}
+              >
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={loading}>
+                {loading && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+                Salvar
+              </Button>
+            </DialogFooter>
             </form>
           </DialogContent>
         </Dialog>
@@ -312,41 +297,19 @@ export function SoapEndpointTable({ data, meta }: SoapEndpointTableProps) {
                         {endpointType.active ? "Ativo" : "Inativo"}
                       </Badge>
                     </TableCell>
-                    <TableCell>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger
-                          className="flex items-center justify-center h-8 w-8 p-0 rounded-md hover:bg-accent"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <MoreHorizontal className="h-4 w-4" />
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              typeForm.reset({
-                                type: endpointType.type,
-                                label: endpointType.label,
-                                suffix: endpointType.suffix,
-                                active: endpointType.active,
-                              })
-                              setTypeDialog({ open: true, endpointType })
-                            }}
-                          >
-                            <Pencil className="h-4 w-4 mr-2" /> Editar
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem
-                            className="text-destructive"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              setDeleteDialog({ open: true, id: endpointType.id, type: "type" })
-                            }}
-                          >
-                            <Trash2 className="h-4 w-4 mr-2" /> Excluir
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                    <TableCell onClick={(e) => e.stopPropagation()}>
+                      <EntityActionsCell
+                        onEdit={() => {
+                          typeForm.reset({
+                            type: endpointType.type,
+                            label: endpointType.label,
+                            suffix: endpointType.suffix,
+                            active: endpointType.active,
+                          })
+                          setTypeDialog({ open: true, endpointType })
+                        }}
+                        onDelete={() => setDeleteDialog({ open: true, id: endpointType.id, type: "type" })}
+                      />
                     </TableCell>
                   </TableRow>
                   {expandedTypeId === endpointType.id && (
@@ -393,31 +356,10 @@ export function SoapEndpointTable({ data, meta }: SoapEndpointTableProps) {
                                           </Badge>
                                         </TableCell>
                                         <TableCell>
-                                          <DropdownMenu>
-                                            <DropdownMenuTrigger className="flex items-center justify-center h-8 w-8 p-0 rounded-md hover:bg-accent">
-                                              <MoreHorizontal className="h-4 w-4" />
-                                            </DropdownMenuTrigger>
-                                            <DropdownMenuContent align="end">
-                                              <DropdownMenuItem
-                                                onClick={() => openMethodDialog(endpointType.id, method)}
-                                              >
-                                                <Pencil className="h-4 w-4 mr-2" /> Editar
-                                              </DropdownMenuItem>
-                                              <DropdownMenuSeparator />
-                                              <DropdownMenuItem
-                                                className="text-destructive"
-                                                onClick={() =>
-                                                  setDeleteDialog({
-                                                    open: true,
-                                                    id: method.id,
-                                                    type: "method",
-                                                  })
-                                                }
-                                              >
-                                                <Trash2 className="h-4 w-4 mr-2" /> Excluir
-                                              </DropdownMenuItem>
-                                            </DropdownMenuContent>
-                                          </DropdownMenu>
+                                          <EntityActionsCell
+                                            onEdit={() => openMethodDialog(endpointType.id, method)}
+                                            onDelete={() => setDeleteDialog({ open: true, id: method.id, type: "method" })}
+                                          />
                                         </TableCell>
                                       </TableRow>
                                     ))}
@@ -478,13 +420,14 @@ export function SoapEndpointTable({ data, meta }: SoapEndpointTableProps) {
           if (!open) methodForm.reset()
         }}
       >
-        <DialogContent className="sm:max-w-[425px]">
+        <DialogContent>
           <DialogHeader>
             <DialogTitle>
               {methodDialog.method ? "Editar Método" : "Novo Método"}
             </DialogTitle>
           </DialogHeader>
-          <form onSubmit={methodForm.handleSubmit(onMethodSubmit)} className="space-y-4">
+          <form onSubmit={methodForm.handleSubmit(onMethodSubmit)} className="flex min-h-0 flex-1 flex-col overflow-hidden">
+          <DialogBody>
             <input type="hidden" {...methodForm.register("endpointTypeId")} />
             <div className="space-y-2">
               <Label htmlFor="method">Método</Label>
@@ -514,20 +457,21 @@ export function SoapEndpointTable({ data, meta }: SoapEndpointTableProps) {
               />
               <Label htmlFor="methodActive">Método ativo</Label>
             </div>
-            <div className="flex items-center justify-end gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                disabled={loading}
-                onClick={() => { methodForm.reset(); setMethodDialog({ open: false }) }}
-              >
-                Cancelar
-              </Button>
-              <Button type="submit" disabled={loading}>
-                {loading && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-                Salvar
-              </Button>
-            </div>
+          </DialogBody>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={loading}
+              onClick={() => { methodForm.reset(); setMethodDialog({ open: false }) }}
+            >
+              Cancelar
+            </Button>
+            <Button type="submit" disabled={loading}>
+              {loading && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+              Salvar
+            </Button>
+          </DialogFooter>
           </form>
         </DialogContent>
       </Dialog>

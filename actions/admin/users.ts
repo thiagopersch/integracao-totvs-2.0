@@ -1,6 +1,6 @@
 "use server"
 
-import { revalidateTag, cacheTag } from "next/cache";
+import { updateTag, cacheTag } from "next/cache";
 import { userService } from "@/services/user.service";
 import { auditService } from "@/services/audit.service";
 import { createUserSchema, updateUserSchema } from "@/schemas/user.schema";
@@ -42,7 +42,7 @@ export async function createUser(formData: FormData) {
       entityId: user.id,
       newData: { name: user.name, email: user.email, role: user.role },
     });
-    revalidateTag("users", "max");
+    updateTag("users");
     return { success: true, data: user };
   } catch (error) {
     return { success: false, error: (error as Error).message };
@@ -73,8 +73,8 @@ export async function updateUser(id: string, formData: FormData) {
       oldData: oldUser ? { name: oldUser.name, email: oldUser.email, role: oldUser.role } : undefined,
       newData: { name: user.name, email: user.email, role: user.role },
     });
-    revalidateTag("users", "max");
-    revalidateTag(`user-${id}`, "max");
+    updateTag("users");
+    updateTag(`user-${id}`);
     return { success: true, data: user };
   } catch (error) {
     return { success: false, error: (error as Error).message };
@@ -92,7 +92,7 @@ export async function deleteUser(id: string) {
       entityId: id,
       oldData: oldUser ? { name: oldUser.name, email: oldUser.email } : undefined,
     });
-    revalidateTag("users", "max");
+    updateTag("users");
     return { success: true };
   } catch (error) {
     return { success: false, error: (error as Error).message };
@@ -104,7 +104,7 @@ export async function restoreUser(id: string) {
   try {
     await userService.restore(id, organizationId);
     await auditService.log({ action: "RESTORE", entity: "User", entityId: id });
-    revalidateTag("users", "max");
+    updateTag("users");
     return { success: true };
   } catch (error) {
     return { success: false, error: (error as Error).message };
@@ -121,7 +121,7 @@ export async function bulkDeleteUsers(ids: string[]) {
       entityId: ids.join(","),
       newData: { count },
     });
-    revalidateTag("users", "max");
+    updateTag("users");
     return { success: true, count };
   } catch (error) {
     return { success: false, error: (error as Error).message };
@@ -138,7 +138,7 @@ export async function bulkRestoreUsers(ids: string[]) {
       entityId: ids.join(","),
       newData: { count },
     });
-    revalidateTag("users", "max");
+    updateTag("users");
     return { success: true, count };
   } catch (error) {
     return { success: false, error: (error as Error).message };

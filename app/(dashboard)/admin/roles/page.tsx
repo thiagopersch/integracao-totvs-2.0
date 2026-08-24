@@ -18,5 +18,5 @@ async function RolesContent() {
   const organizationId = await getCurrentOrganizationId()
   const [roles, permissions] = await Promise.all([listRoles(organizationId), listAllPermissions()])
 
-  return <RoleTable data={roles as any} permissions={permissions as any} />
+  return <RoleTable data={roles} permissions={permissions} />
 }

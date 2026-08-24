@@ -1,6 +1,6 @@
 "use server"
 
-import { revalidateTag, cacheTag } from "next/cache";
+import { updateTag, cacheTag } from "next/cache";
 import { sentenceService } from "@/services/sentence.service";
 import { auditService } from "@/services/audit.service";
 import { createSentenceSchema, updateSentenceSchema } from "@/schemas/sentence.schema";
@@ -44,7 +44,7 @@ export async function createSentence(formData: FormData) {
       entityId: entity.id,
       newData: { code: entity.code, name: entity.name },
     });
-    revalidateTag("sentences", "max");
+    updateTag("sentences");
     return { success: true, data: entity };
   } catch (error) {
     return { success: false, error: (error as Error).message };
@@ -78,8 +78,8 @@ export async function updateSentence(id: string, formData: FormData) {
       oldData: old ? { code: old.code, name: old.name } : undefined,
       newData: { code: entity.code, name: entity.name },
     });
-    revalidateTag("sentences", "max");
-    revalidateTag(`sentence-${id}`, "max");
+    updateTag("sentences");
+    updateTag(`sentence-${id}`);
     return { success: true, data: entity };
   } catch (error) {
     return { success: false, error: (error as Error).message };
@@ -97,7 +97,7 @@ export async function deleteSentence(id: string) {
       entityId: id,
       oldData: old ? { code: old.code, name: old.name } : undefined,
     });
-    revalidateTag("sentences", "max");
+    updateTag("sentences");
     return { success: true };
   } catch (error) {
     return { success: false, error: (error as Error).message };
@@ -109,7 +109,7 @@ export async function restoreSentence(id: string) {
   try {
     await sentenceService.restore(id, organizationId);
     await auditService.log({ action: "RESTORE", entity: "Sentence", entityId: id });
-    revalidateTag("sentences", "max");
+    updateTag("sentences");
     return { success: true };
   } catch (error) {
     return { success: false, error: (error as Error).message };
@@ -126,7 +126,7 @@ export async function bulkDeleteSentences(ids: string[]) {
       entityId: ids.join(","),
       newData: { count },
     });
-    revalidateTag("sentences", "max");
+    updateTag("sentences");
     return { success: true, count };
   } catch (error) {
     return { success: false, error: (error as Error).message };
@@ -143,7 +143,7 @@ export async function bulkRestoreSentences(ids: string[]) {
       entityId: ids.join(","),
       newData: { count },
     });
-    revalidateTag("sentences", "max");
+    updateTag("sentences");
     return { success: true, count };
   } catch (error) {
     return { success: false, error: (error as Error).message };

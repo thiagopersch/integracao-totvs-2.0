@@ -1,20 +1,22 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useRouter, useSearchParams } from "next/navigation"
 import type { ColumnDef } from "@tanstack/react-table"
-import { useForm, Controller } from "react-hook-form"
+import { useForm, Controller, type Resolver } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { DataTable } from "@/components/shared/data-table"
 import { DataTableFilterPanel } from "@/components/shared/data-table-filter-panel"
 import { PageHeader } from "@/components/shared/page-header"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
+import { EntityActionsCell } from "@/components/shared/entity-actions-cell"
+import { createSelectColumn } from "@/components/shared/select-column"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Field, FieldLabel, FieldError } from "@/components/ui/field"
 import { Checkbox } from "@/components/ui/checkbox"
+import { Combobox } from "@/components/ui/combobox"
 import {
   Select,
   SelectContent,
@@ -22,37 +24,44 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
+import { DropdownMenuItem } from "@/components/ui/dropdown-menu"
 import {
   Dialog,
+  DialogBody,
   DialogContent,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import { MoreHorizontal, Plus, Trash2, RotateCcw, Pencil, Loader2 } from "lucide-react"
-import { deleteFilter, restoreFilter, bulkDeleteFilters, bulkRestoreFilters, createFilter, updateFilter, createBackupFromFilter } from "@/actions/admin/filters"
-import { listAllClients } from "@/actions/admin/clients"
+import { Plus, RotateCcw, History, Loader2 } from "lucide-react"
+import { RestoreBackupDialog, type RestoreScope } from "@/components/shared/restore-backup-dialog"
+import { RestorePasswordConfirmDialog } from "@/components/shared/restore-password-confirm-dialog"
+import { deleteFilter, restoreFilter, createFilter, updateFilter, createBackupFromFilter, listDistinctSentenceCodes } from "@/actions/admin/filters"
+import { listAllClients, listActiveClientsWithTbc } from "@/actions/admin/clients"
 import { listAllTbcs } from "@/actions/admin/tbcs"
 import { listAllSistemas } from "@/actions/admin/sistemas"
-import { createFilterSchema, updateFilterSchema } from "@/schemas/filter.schema"
+import { listAllSentenceCategories } from "@/actions/admin/sentence-categories"
+import { createFilterSchema, updateFilterSchema, type CreateFilterInput } from "@/schemas/filter.schema"
 import { toast } from "sonner"
-import type { Filter, TotvsSystem } from "@prisma/client"
+import { useCrudTable } from "@/hooks/use-crud-table"
+import type { Filter, TotvsSystem, SentenceCategory } from "@prisma/client"
 import type { Client } from "@prisma/client"
 import type { TbcRow } from "@/services/tbc.service"
 import type { PaginationMeta } from "@/types/common"
 
 const DEFAULT_FILTER_VALUE = "CODSENTENCA LIKE 'RB%'"
 
+const BACKUP_STATUS_LABELS: Record<string, string> = {
+  RUNNING: "Em andamento",
+  ERROR: "Erro",
+  DONE: "Concluído",
+}
+
 interface FilterRow extends Filter {
   tbc: { id: string; name: string } | null
   client: { id: string; name: string } | null
+  lastBackupBy: { id: string; name: string } | null
 }
 
 interface FilterTableProps {
@@ -61,55 +70,86 @@ interface FilterTableProps {
 }
 
 export function FilterTable({ data, meta }: FilterTableProps) {
-  const router = useRouter()
-  const searchParams = useSearchParams()
-  const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; id?: string }>({ open: false })
-  const [editDialog, setEditDialog] = useState<{ open: boolean; filter?: FilterRow }>({ open: false })
+  const {
+    router,
+    searchParams,
+    deleteDialog,
+    setDeleteDialog,
+    editDialog,
+    setEditDialog,
+    pushParams,
+    handleDelete,
+  } = useCrudTable<FilterRow>({
+    deleteAction: deleteFilter,
+    restoreAction: restoreFilter,
+    deleteSuccessMessage: "Filtro excluído com sucesso",
+    restoreSuccessMessage: "Filtro restaurado com sucesso",
+  })
   const [loading, setLoading] = useState(false)
   const [clients, setClients] = useState<Client[]>([])
   const [tbcs, setTbcs] = useState<TbcRow[]>([])
   const [sistemas, setSistemas] = useState<TotvsSystem[]>([])
+  const [categories, setCategories] = useState<SentenceCategory[]>([])
+  const [filterClients, setFilterClients] = useState<Client[]>([])
+  const [sentenceCodes, setSentenceCodes] = useState<{ codigosColigada: string[]; codigosSistema: string[] }>({
+    codigosColigada: [],
+    codigosSistema: [],
+  })
   const [clientFilter, setClientFilter] = useState(searchParams.get("clientId") || "")
+  const [statusFilter, setStatusFilter] = useState(searchParams.get("status") || "")
+  const [noLicenseFilter, setNoLicenseFilter] = useState(searchParams.get("notRequiredLicense") || "")
+  const [coligadaSentencaFilter, setColigadaSentencaFilter] = useState(searchParams.get("codColigadaSentenca") || "")
+  const [sistemaSentencaFilter, setSistemaSentencaFilter] = useState(searchParams.get("codSistemaSentenca") || "")
+  const [backupDialog, setBackupDialog] = useState<{ open: boolean; filterId?: string }>({ open: false })
+  const [restoreDialog, setRestoreDialog] = useState<{
+    open: boolean
+    scope: RestoreScope | null
+    clientName: string
+    tbcName: string
+    filterValue: string
+    ownTbcId: string
+  }>({ open: false, scope: null, clientName: "", tbcName: "", filterValue: "", ownTbcId: "" })
+  const [passwordDialog, setPasswordDialog] = useState<{
+    open: boolean
+    scope: RestoreScope | null
+    targetTbcId: string | null
+  }>({ open: false, scope: null, targetTbcId: null })
+  const [backupCategoryId, setBackupCategoryId] = useState("")
 
   useEffect(() => {
     listAllClients().then(setClients)
     listAllTbcs().then(setTbcs)
     listAllSistemas().then(setSistemas)
+    listAllSentenceCategories().then(setCategories)
+    listActiveClientsWithTbc().then(setFilterClients)
+    listDistinctSentenceCodes().then(setSentenceCodes)
   }, [])
 
-  function pushParams(updates: Record<string, string | number | undefined>) {
-    const params = new URLSearchParams(searchParams.toString())
-    Object.entries(updates).forEach(([k, v]) => {
-      if (v === undefined || v === "") params.delete(k)
-      else params.set(k, String(v))
-    })
-    router.push(`?${params.toString()}`)
-  }
-
-  const form = useForm<any>({
-    resolver: zodResolver(editDialog.filter ? updateFilterSchema : createFilterSchema),
-    values: editDialog.filter
+  const form = useForm<CreateFilterInput>({
+    mode: "onChange",
+    resolver: zodResolver(editDialog.entity ? updateFilterSchema : createFilterSchema) as Resolver<CreateFilterInput>,
+    values: editDialog.entity
       ? {
-          clientId: editDialog.filter.clientId,
-          tbcId: editDialog.filter.tbcId,
-          filter: editDialog.filter.filter,
-          coligateContext: editDialog.filter.coligateContext,
-          branchContext: editDialog.filter.branchContext,
-          levelEducationContext: editDialog.filter.levelEducationContext,
-          codSystemContext: editDialog.filter.codSystemContext,
-          userContext: editDialog.filter.userContext,
-          codColigadaSentenca: editDialog.filter.codColigadaSentenca || "",
-          codSistemaSentenca: editDialog.filter.codSistemaSentenca || "",
-          status: editDialog.filter.status,
-        }
+          clientId: editDialog.entity.clientId,
+          tbcId: editDialog.entity.tbcId,
+          filter: editDialog.entity.filter,
+          coligateContext: editDialog.entity.coligateContext,
+          branchContext: editDialog.entity.branchContext,
+          levelEducationContext: editDialog.entity.levelEducationContext,
+          codSystemContext: editDialog.entity.codSystemContext,
+          userContext: editDialog.entity.userContext,
+          codColigadaSentenca: editDialog.entity.codColigadaSentenca || "",
+          codSistemaSentenca: editDialog.entity.codSistemaSentenca || "",
+          status: editDialog.entity.status,
+        } as CreateFilterInput
       : {
           clientId: "",
           tbcId: "",
           filter: DEFAULT_FILTER_VALUE,
-          coligateContext: 0,
-          branchContext: 0,
-          levelEducationContext: 0,
-          codSystemContext: "",
+          coligateContext: 1,
+          branchContext: 1,
+          levelEducationContext: 1,
+          codSystemContext: "S",
           userContext: "",
           codColigadaSentenca: "",
           codSistemaSentenca: "",
@@ -120,19 +160,19 @@ export function FilterTable({ data, meta }: FilterTableProps) {
   const selectedClientId = form.watch("clientId")
   const availableTbcs = tbcs.filter((t) => t.clientId === selectedClientId)
 
-  async function onSubmit(data: any) {
+  async function onSubmit(data: CreateFilterInput) {
     setLoading(true)
     const formData = new FormData()
     Object.entries(data).forEach(([key, value]) => {
       if (value !== undefined) formData.append(key, String(value))
     })
 
-    const result = editDialog.filter
-      ? await updateFilter(editDialog.filter.id, formData)
+    const result = editDialog.entity
+      ? await updateFilter(editDialog.entity.id, formData)
       : await createFilter(formData)
 
     if (result.success) {
-      toast.success(editDialog.filter ? "Filtro atualizado" : "Filtro criado")
+      toast.success(editDialog.entity ? "Filtro atualizado" : "Filtro criado")
       form.reset()
       setEditDialog({ open: false })
       router.refresh()
@@ -147,79 +187,20 @@ export function FilterTable({ data, meta }: FilterTableProps) {
     setEditDialog({ open: false })
   }
 
-  async function handleDelete(id: string) {
-    const result = await deleteFilter(id)
-    if (result.success) {
-      toast.success("Filtro excluído com sucesso")
-      router.refresh()
-    } else {
-      toast.error(result.error || "Erro ao excluir")
-    }
-    setDeleteDialog({ open: false })
-  }
-
-  async function handleRestore(id: string) {
-    const result = await restoreFilter(id)
-    if (result.success) {
-      toast.success("Filtro restaurado com sucesso")
-      router.refresh()
-    } else {
-      toast.error(result.error || "Erro ao restaurar")
-    }
-  }
-
-  async function handleBackup(filterId: string) {
-    const result = await createBackupFromFilter(filterId)
+  async function handleBackup(filterId: string, sentenceCategoryId?: string) {
+    const result = await createBackupFromFilter(filterId, sentenceCategoryId)
     if (result.success) {
       toast.success("Backup realizado com sucesso")
       router.refresh()
     } else {
       toast.error(result.error || "Erro ao realizar backup")
     }
+    setBackupDialog({ open: false })
+    setBackupCategoryId("")
   }
 
   const columns: ColumnDef<FilterRow>[] = [
-    {
-      id: "select",
-      header: ({ table }) => (
-        <Checkbox
-          checked={table.getIsAllPageRowsSelected()}
-          onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
-          aria-label="Selecionar todos"
-        />
-      ),
-      cell: ({ row }) => (
-        <Checkbox
-          checked={row.getIsSelected()}
-          onCheckedChange={(value) => row.toggleSelected(!!value)}
-          aria-label="Selecionar linha"
-        />
-      ),
-      enableSorting: false,
-      enableHiding: false,
-    },
-    {
-      id: "clientName",
-      header: "Cliente",
-      cell: ({ row }) => row.original.client?.name || "-",
-    },
-    {
-      id: "tbcName",
-      header: "TBC",
-      cell: ({ row }) => row.original.tbc?.name || "-",
-    },
-    {
-      accessorKey: "filter",
-      header: "Filtro",
-    },
-    {
-      accessorKey: "codSystemContext",
-      header: "Cód. Sistema",
-    },
-    {
-      accessorKey: "userContext",
-      header: "Usuário Contexto",
-    },
+    createSelectColumn<FilterRow>(),
     {
       accessorKey: "status",
       header: "Status",
@@ -229,117 +210,155 @@ export function FilterTable({ data, meta }: FilterTableProps) {
       },
     },
     {
+      id: "clientName",
+      header: "Nome do Cliente",
+      cell: ({ row }) => row.original.client?.name || "-",
+    },
+    {
+      id: "tbcName",
+      header: "Nome do TBC",
+      cell: ({ row }) => row.original.tbc?.name || "-",
+    },
+    {
+      accessorKey: "filter",
+      header: "Filtro",
+      cell: ({ row }) => <span className="font-jetbrains font-bold">{row.getValue("filter")}</span>,
+    },
+    {
+      id: "coligadaSistemaSentenca",
+      header: "Coligada;Sistema",
+      cell: ({ row }) => (
+        <span className="font-jetbrains">
+          [{row.original.codColigadaSentenca};{row.original.codSistemaSentenca}]
+        </span>
+      ),
+    },
+    {
+      id: "backupStatus",
+      header: "Status do Backup",
+      cell: ({ row }) => {
+        const status = row.original.lastBackupStatus
+        if (!status) return <Badge variant="outline">Nunca executado</Badge>
+        const variant = status === "DONE" ? "default" : status === "ERROR" ? "destructive" : "secondary"
+        return <Badge variant={variant}>{BACKUP_STATUS_LABELS[status] || status}</Badge>
+      },
+    },
+    {
+      id: "lastUpdate",
+      header: "Última Atualização",
+      cell: ({ row }) => {
+        const at = row.original.lastBackupAt
+        if (!at) return "-"
+        return (
+          <div className="flex flex-col text-xs">
+            <span>{new Date(at).toLocaleString("pt-BR")}</span>
+            {row.original.lastBackupBy && (
+              <span className="text-muted-foreground">{row.original.lastBackupBy.name}</span>
+            )}
+          </div>
+        )
+      },
+    },
+    {
       id: "actions",
       cell: ({ row }) => (
-        <DropdownMenu>
-          <DropdownMenuTrigger className="flex items-center justify-center h-8 w-8 p-0 rounded-md hover:bg-accent">
-            <MoreHorizontal className="h-4 w-4" />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={() => setEditDialog({ open: true, filter: row.original })}>
-              <Pencil className="h-4 w-4 mr-2" /> Editar
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => handleBackup(row.original.id)}>
-              <RotateCcw className="h-4 w-4 mr-2" /> Realizar Backup
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              className="text-destructive"
-              onClick={() => setDeleteDialog({ open: true, id: row.original.id })}
-            >
-              <Trash2 className="h-4 w-4 mr-2" /> Excluir
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <EntityActionsCell
+          onEdit={() => setEditDialog({ open: true, entity: row.original })}
+          onDelete={() => setDeleteDialog({ open: true, id: row.original.id })}
+          extraItems={
+            <>
+              <DropdownMenuItem onClick={() => setBackupDialog({ open: true, filterId: row.original.id })}>
+                <RotateCcw className="h-4 w-4 mr-2" /> Realizar Backup
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => router.push(`/admin/backups/${row.original.id}`)}>
+                <History className="h-4 w-4 mr-2" /> Backups
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() =>
+                  setRestoreDialog({
+                    open: true,
+                    scope: { type: "filter-latest", filterId: row.original.id },
+                    clientName: row.original.client?.name || "",
+                    tbcName: row.original.tbc?.name || "",
+                    filterValue: row.original.filter,
+                    ownTbcId: row.original.tbcId,
+                  })
+                }
+              >
+                <RotateCcw className="h-4 w-4 mr-2" /> Restaurar Backup
+              </DropdownMenuItem>
+            </>
+          }
+        />
       ),
     },
   ]
 
   const newDialog = (
-    <Dialog open={editDialog.open} onOpenChange={(open) => { setEditDialog({ open, filter: open ? editDialog.filter : undefined }); if (!open) form.reset() }}>
-      <DialogTrigger className="inline-flex items-center justify-center rounded-md bg-primary text-primary-foreground px-4 py-2 text-sm font-medium hover:bg-primary/90 h-9">
-        <Plus className="h-4 w-4 mr-2" /> Novo Filtro
-      </DialogTrigger>
-      <DialogContent className="flex w-[70vw] min-w-[70vw] max-w-[70vw] h-[70vh] min-h-[70vh] max-h-[70vh] flex-col sm:max-w-none">
+    <Dialog open={editDialog.open} onOpenChange={(open) => { setEditDialog({ open, entity: open ? editDialog.entity : undefined }); if (!open) form.reset() }}>
+      <DialogTrigger render={<Button><Plus className="h-4 w-4 mr-2" /> Novo Filtro</Button>} />
+      <DialogContent>
         <DialogHeader>
-          <DialogTitle>{editDialog.filter ? "Editar Filtro" : "Novo Filtro"}</DialogTitle>
+          <DialogTitle>{editDialog.entity ? "Editar Filtro" : "Novo Filtro"}</DialogTitle>
         </DialogHeader>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="flex-1 space-y-4 overflow-y-auto pr-1">
-          <Field>
-            <FieldLabel htmlFor="clientId">Cliente</FieldLabel>
-            <Select
-              items={clients.map((client) => ({ value: client.id, label: client.name }))}
-              value={form.watch("clientId") || null}
-              onValueChange={(v) => {
-                form.setValue("clientId", v || "")
-                const currentTbcId = form.getValues("tbcId")
-                const stillValid = tbcs.find((t) => t.id === currentTbcId && t.clientId === v)
-                if (!stillValid) form.setValue("tbcId", "")
-              }}
-            >
-              <SelectTrigger className="w-full" aria-invalid={!!form.formState.errors.clientId}>
-                <SelectValue placeholder="Selecione um cliente" />
-              </SelectTrigger>
-              <SelectContent>
-                {clients.map((client) => (
-                  <SelectItem key={client.id} value={client.id}>{client.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <FieldError errors={[form.formState.errors.clientId]} />
-          </Field>
-          <Field>
-            <FieldLabel htmlFor="tbcId">TBC</FieldLabel>
-            <Select
-              items={availableTbcs.map((tbc) => ({ value: tbc.id, label: `${tbc.client?.name ?? ""} | ${tbc.link} | ${tbc.user}` }))}
-              value={form.watch("tbcId") || null}
-              onValueChange={(v) => form.setValue("tbcId", v || "")}
-              disabled={!selectedClientId}
-            >
-              <SelectTrigger className="w-full" aria-invalid={!!form.formState.errors.tbcId}>
-                <SelectValue placeholder={selectedClientId ? "Selecione um TBC" : "Selecione um cliente primeiro"} />
-              </SelectTrigger>
-              <SelectContent>
-                {availableTbcs.map((tbc) => (
-                  <SelectItem key={tbc.id} value={tbc.id}>{tbc.client?.name ?? ""} | {tbc.link} | {tbc.user}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <FieldError errors={[form.formState.errors.tbcId]} />
-          </Field>
+        <form onSubmit={form.handleSubmit(onSubmit)} className="flex min-h-0 flex-1 flex-col overflow-hidden">
+        <DialogBody>
+          <div className="flex items-center gap-2">
+            <Controller
+              control={form.control}
+              name="status"
+              render={({ field }) => (
+                <Checkbox
+                  id="status"
+                  checked={field.value ?? true}
+                  onCheckedChange={(value) => field.onChange(!!value)}
+                />
+              )}
+            />
+            <Label htmlFor="status">Filtro ativo</Label>
+          </div>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <Field>
+              <FieldLabel htmlFor="clientId">Cliente</FieldLabel>
+              <Combobox
+                items={clients.map((client) => ({ value: client.id, label: client.name }))}
+                value={form.watch("clientId")}
+                onValueChange={(v) => {
+                  form.setValue("clientId", v, { shouldValidate: true })
+                  const currentTbcId = form.getValues("tbcId")
+                  const stillValid = tbcs.find((t) => t.id === currentTbcId && t.clientId === v)
+                  if (!stillValid) form.setValue("tbcId", "")
+                }}
+                placeholder="Selecione um cliente"
+                searchPlaceholder="Buscar cliente..."
+                emptyText="Nenhum cliente encontrado."
+                aria-invalid={!!form.formState.errors.clientId}
+              />
+              <FieldError errors={[form.formState.errors.clientId]} />
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="tbcId">TBC</FieldLabel>
+              <Combobox
+                items={availableTbcs.map((tbc) => ({ value: tbc.id, label: `${tbc.client?.name ?? ""} | ${tbc.link} | ${tbc.user}` }))}
+                value={form.watch("tbcId")}
+                onValueChange={(v) => form.setValue("tbcId", v, { shouldValidate: true })}
+                disabled={!selectedClientId}
+                placeholder={selectedClientId ? "Selecione um TBC" : "Selecione um cliente primeiro"}
+                searchPlaceholder="Buscar TBC..."
+                emptyText="Nenhum TBC encontrado."
+                aria-invalid={!!form.formState.errors.tbcId}
+              />
+              <FieldError errors={[form.formState.errors.tbcId]} />
+              {selectedClientId && availableTbcs.length === 0 && (
+                <p className="text-sm text-muted-foreground">Este cliente não possui um TBC cadastrado.</p>
+              )}
+            </Field>
+          </div>
           <Field>
             <FieldLabel htmlFor="filter">Filtro</FieldLabel>
-            <Input id="filter" className="w-full" {...form.register("filter")} placeholder="Nome do filtro" aria-invalid={!!form.formState.errors.filter} />
+            <Input id="filter" className="w-full font-jetbrains" {...form.register("filter")} placeholder="Nome do filtro" aria-invalid={!!form.formState.errors.filter} />
             <FieldError errors={[form.formState.errors.filter]} />
           </Field>
-
-          <fieldset className="space-y-3 rounded-lg border border-input p-3">
-            <legend className="px-1 text-sm font-medium text-muted-foreground">Contexto</legend>
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-5">
-              <Field>
-                <FieldLabel htmlFor="coligateContext">CODCOLIGADA</FieldLabel>
-                <Input id="coligateContext" className="w-full" type="number" {...form.register("coligateContext", { valueAsNumber: true })} placeholder="0" />
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="branchContext">CODFILIAL</FieldLabel>
-                <Input id="branchContext" className="w-full" type="number" {...form.register("branchContext", { valueAsNumber: true })} placeholder="0" />
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="levelEducationContext">CODTIPOCURSO</FieldLabel>
-                <Input id="levelEducationContext" className="w-full" type="number" {...form.register("levelEducationContext", { valueAsNumber: true })} placeholder="0" />
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="codSystemContext">CODSISTEMA</FieldLabel>
-                <Input id="codSystemContext" className="w-full" {...form.register("codSystemContext")} placeholder="Código do sistema" aria-invalid={!!form.formState.errors.codSystemContext} />
-                <FieldError errors={[form.formState.errors.codSystemContext]} />
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="userContext">CODUSUARIO</FieldLabel>
-                <Input id="userContext" className="w-full" {...form.register("userContext")} placeholder="Usuário de contexto" aria-invalid={!!form.formState.errors.userContext} />
-                <FieldError errors={[form.formState.errors.userContext]} />
-              </Field>
-            </div>
-          </fieldset>
 
           <div className="grid grid-cols-2 gap-4">
             <Field>
@@ -374,27 +393,41 @@ export function FilterTable({ data, meta }: FilterTableProps) {
             </Field>
           </div>
 
-          <div className="flex items-center gap-2">
-            <Controller
-              control={form.control}
-              name="status"
-              render={({ field }) => (
-                <Checkbox
-                  id="status"
-                  checked={field.value ?? true}
-                  onCheckedChange={(value) => field.onChange(!!value)}
-                />
-              )}
-            />
-            <Label htmlFor="status">Filtro ativo</Label>
-          </div>
-          <div className="flex items-center justify-end gap-2">
-            <Button type="button" variant="outline" onClick={handleCancel} disabled={loading}>Cancelar</Button>
-            <Button type="submit" disabled={loading}>
-              {loading && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-              Salvar
-            </Button>
-          </div>
+          <fieldset className="space-y-3 rounded-lg border border-input p-3">
+            <legend className="px-1 text-sm font-medium text-muted-foreground">Contexto</legend>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-5">
+              <Field>
+                <FieldLabel htmlFor="coligateContext">Código da coligada</FieldLabel>
+                <Input id="coligateContext" className="w-full" type="number" {...form.register("coligateContext", { valueAsNumber: true })} placeholder="0" />
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="branchContext">Código da Filial</FieldLabel>
+                <Input id="branchContext" className="w-full" type="number" {...form.register("branchContext", { valueAsNumber: true })} placeholder="0" />
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="levelEducationContext">Nível de ensino</FieldLabel>
+                <Input id="levelEducationContext" className="w-full" type="number" {...form.register("levelEducationContext", { valueAsNumber: true })} placeholder="0" />
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="codSystemContext">Código do sistema</FieldLabel>
+                <Input id="codSystemContext" className="w-full" {...form.register("codSystemContext")} placeholder="Código do sistema" aria-invalid={!!form.formState.errors.codSystemContext} />
+                <FieldError errors={[form.formState.errors.codSystemContext]} />
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="userContext">Código do usuário</FieldLabel>
+                <Input id="userContext" className="w-full" {...form.register("userContext")} placeholder="Usuário de contexto" aria-invalid={!!form.formState.errors.userContext} />
+                <FieldError errors={[form.formState.errors.userContext]} />
+              </Field>
+            </div>
+          </fieldset>
+        </DialogBody>
+        <DialogFooter>
+          <Button type="button" variant="outline" onClick={handleCancel} disabled={loading} className="w-full sm:w-auto">Cancelar</Button>
+          <Button type="submit" disabled={loading} className="w-full sm:w-auto">
+            {loading && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+            Salvar
+          </Button>
+        </DialogFooter>
         </form>
       </DialogContent>
     </Dialog>
@@ -402,22 +435,124 @@ export function FilterTable({ data, meta }: FilterTableProps) {
 
   const filterPanel = (
     <DataTableFilterPanel
-      onApply={() => pushParams({ clientId: clientFilter || undefined, page: 1 })}
+      onApply={() =>
+        pushParams({
+          clientId: clientFilter || undefined,
+          status: statusFilter || undefined,
+          notRequiredLicense: noLicenseFilter || undefined,
+          codColigadaSentenca: coligadaSentencaFilter || undefined,
+          codSistemaSentenca: sistemaSentencaFilter || undefined,
+          page: 1,
+        })
+      }
       onClear={() => {
         setClientFilter("")
-        pushParams({ clientId: undefined, page: 1 })
+        setStatusFilter("")
+        setNoLicenseFilter("")
+        setColigadaSentencaFilter("")
+        setSistemaSentencaFilter("")
+        pushParams({
+          clientId: undefined,
+          status: undefined,
+          notRequiredLicense: undefined,
+          codColigadaSentenca: undefined,
+          codSistemaSentenca: undefined,
+          page: 1,
+        })
       }}
     >
       <div className="space-y-2">
-        <Label>Cliente</Label>
-        <Select value={clientFilter || "all"} onValueChange={(v) => setClientFilter(v === "all" || !v ? "" : v)}>
+        <Label>Clientes</Label>
+        <Select
+          items={[{ value: "all", label: "Todos" }, ...filterClients.map((c) => ({ value: c.id, label: c.name }))]}
+          value={clientFilter || "all"}
+          onValueChange={(v) => setClientFilter(v === "all" || !v ? "" : v)}
+        >
           <SelectTrigger className="w-full">
             <SelectValue placeholder="Todos" />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todos</SelectItem>
-            {clients.map((c) => (
+            {filterClients.map((c) => (
               <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="space-y-2">
+        <Label>Ativo</Label>
+        <Select
+          items={[
+            { value: "all", label: "Todos" },
+            { value: "true", label: "Sim" },
+            { value: "false", label: "Não" },
+          ]}
+          value={statusFilter || "all"}
+          onValueChange={(v) => setStatusFilter(v === "all" || !v ? "" : v)}
+        >
+          <SelectTrigger className="w-full">
+            <SelectValue placeholder="Todos" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos</SelectItem>
+            <SelectItem value="true">Sim</SelectItem>
+            <SelectItem value="false">Não</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="space-y-2">
+        <Label>Utiliza métodos sem licenças</Label>
+        <Select
+          items={[
+            { value: "all", label: "Todos" },
+            { value: "true", label: "Sim" },
+            { value: "false", label: "Não" },
+          ]}
+          value={noLicenseFilter || "all"}
+          onValueChange={(v) => setNoLicenseFilter(v === "all" || !v ? "" : v)}
+        >
+          <SelectTrigger className="w-full">
+            <SelectValue placeholder="Todos" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos</SelectItem>
+            <SelectItem value="true">Sim</SelectItem>
+            <SelectItem value="false">Não</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="space-y-2">
+        <Label>Código da coligada Sentença</Label>
+        <Select
+          items={[{ value: "all", label: "Todos" }, ...sentenceCodes.codigosColigada.map((c) => ({ value: c, label: c }))]}
+          value={coligadaSentencaFilter || "all"}
+          onValueChange={(v) => setColigadaSentencaFilter(v === "all" || !v ? "" : v)}
+        >
+          <SelectTrigger className="w-full">
+            <SelectValue placeholder="Todos" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos</SelectItem>
+            {sentenceCodes.codigosColigada.map((c) => (
+              <SelectItem key={c} value={c}>{c}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="space-y-2">
+        <Label>Código do sistema Sentença</Label>
+        <Select
+          items={[{ value: "all", label: "Todos" }, ...sentenceCodes.codigosSistema.map((c) => ({ value: c, label: c }))]}
+          value={sistemaSentencaFilter || "all"}
+          onValueChange={(v) => setSistemaSentencaFilter(v === "all" || !v ? "" : v)}
+        >
+          <SelectTrigger className="w-full">
+            <SelectValue placeholder="Todos" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos</SelectItem>
+            {sentenceCodes.codigosSistema.map((c) => (
+              <SelectItem key={c} value={c}>{c}</SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -452,6 +587,56 @@ export function FilterTable({ data, meta }: FilterTableProps) {
         confirmLabel="Excluir"
         variant="destructive"
         onConfirm={() => deleteDialog.id && handleDelete(deleteDialog.id)}
+      />
+
+      <ConfirmDialog
+        open={backupDialog.open}
+        onOpenChange={(open) => { setBackupDialog({ open, filterId: backupDialog.filterId }); if (!open) setBackupCategoryId("") }}
+        title="Realizar Backup"
+        description="Selecione a categoria que será vinculada às sentenças deste backup."
+        confirmLabel="Realizar Backup"
+        onConfirm={() => backupDialog.filterId && handleBackup(backupDialog.filterId, backupCategoryId || undefined)}
+      >
+        <div className="space-y-2">
+          <Label>Categoria</Label>
+          <Select
+            items={categories.map((c) => ({ value: c.id, label: c.name }))}
+            value={backupCategoryId || null}
+            onValueChange={(v) => setBackupCategoryId(v || "")}
+          >
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder="Selecione uma categoria" />
+            </SelectTrigger>
+            <SelectContent>
+              {categories.map((c) => (
+                <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </ConfirmDialog>
+
+      <RestoreBackupDialog
+        open={restoreDialog.open}
+        onOpenChange={(open) => setRestoreDialog((prev) => ({ ...prev, open, scope: open ? prev.scope : null }))}
+        scope={restoreDialog.scope}
+        clientName={restoreDialog.clientName}
+        tbcName={restoreDialog.tbcName}
+        filterValue={restoreDialog.filterValue}
+        ownTbcId={restoreDialog.ownTbcId}
+        onProceed={(targetTbcId) => {
+          setPasswordDialog({ open: true, scope: restoreDialog.scope, targetTbcId })
+          setRestoreDialog((prev) => ({ ...prev, open: false, scope: null }))
+        }}
+      />
+      <RestorePasswordConfirmDialog
+        open={passwordDialog.open}
+        onOpenChange={(open) =>
+          setPasswordDialog({ open, scope: open ? passwordDialog.scope : null, targetTbcId: open ? passwordDialog.targetTbcId : null })
+        }
+        scope={passwordDialog.scope}
+        targetTbcId={passwordDialog.targetTbcId}
+        onSuccess={() => router.refresh()}
       />
     </>
   )

@@ -12,39 +12,49 @@ import {
 
 const PAGE_SIZE_OPTIONS = [10, 25, 50, 100]
 
+interface PageSizeSelectProps {
+  pageSize: number
+  onPageSizeChange: (pageSize: number) => void
+}
+
+export function PageSizeSelect({ pageSize, onPageSizeChange }: PageSizeSelectProps) {
+  return (
+    <Select
+      items={PAGE_SIZE_OPTIONS.map((size) => ({ value: `${size}`, label: `${size} itens por página` }))}
+      value={`${pageSize}`}
+      onValueChange={(value) => onPageSizeChange(Number(value))}
+    >
+      <SelectTrigger className="h-9 w-[150px]">
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent side="bottom">
+        {PAGE_SIZE_OPTIONS.map((size) => (
+          <SelectItem key={size} value={`${size}`}>
+            {size} itens por página
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  )
+}
+
 interface DataTablePaginationProps {
   page: number
-  pageSize: number
   pageCount: number
   total: number
   onPageChange: (page: number) => void
-  onPageSizeChange: (pageSize: number) => void
 }
 
 export function DataTablePagination({
   page,
-  pageSize,
   pageCount,
   total,
   onPageChange,
-  onPageSizeChange,
 }: DataTablePaginationProps) {
   return (
     <div className="flex flex-col-reverse items-center justify-between gap-4 px-2 sm:flex-row">
       <div className="text-sm text-muted-foreground">{total} registro(s) no total</div>
-      <div className="flex flex-col-reverse items-center gap-4 sm:flex-row sm:gap-6 lg:gap-8">
-        <Select value={`${pageSize}`} onValueChange={(value) => onPageSizeChange(Number(value))}>
-          <SelectTrigger className="h-8 w-[150px]">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent side="top">
-            {PAGE_SIZE_OPTIONS.map((size) => (
-              <SelectItem key={size} value={`${size}`}>
-                {size} itens por página
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+      <div className="flex items-center gap-4">
         <div className="flex w-[110px] items-center justify-center text-sm text-muted-foreground">
           Página {page} de {Math.max(pageCount, 1)}
         </div>

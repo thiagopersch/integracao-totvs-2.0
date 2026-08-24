@@ -36,7 +36,7 @@ export const sistemaService = {
     if (existing) {
       throw new Error("Código já cadastrado");
     }
-    return sistemaRepository.create({ ...input, organizationId } as any);
+    return sistemaRepository.create({ ...input, organizationId });
   },
 
   async update(id: string, input: UpdateSistemaInput, organizationId: string) {
@@ -48,7 +48,7 @@ export const sistemaService = {
         throw new Error("Código já cadastrado");
       }
     }
-    return sistemaRepository.update(id, input as any, organizationId);
+    return sistemaRepository.update(id, input, organizationId);
   },
 
   async softDelete(id: string, organizationId: string) {

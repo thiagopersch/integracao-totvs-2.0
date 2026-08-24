@@ -25,11 +25,11 @@ export const departmentService = {
   },
 
   async create(input: CreateDepartmentInput, organizationId: string) {
-    return departmentRepository.create({ ...input, organizationId } as any);
+    return departmentRepository.create({ ...input, organizationId });
   },
 
   async update(id: string, input: UpdateDepartmentInput, organizationId: string) {
-    return departmentRepository.update(id, input as any, organizationId);
+    return departmentRepository.update(id, input, organizationId);
   },
 
   async softDelete(id: string, organizationId: string) {

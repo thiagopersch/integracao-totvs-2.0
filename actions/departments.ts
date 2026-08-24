@@ -1,6 +1,6 @@
 "use server"
 
-import { revalidateTag, cacheTag } from "next/cache";
+import { updateTag, cacheTag } from "next/cache";
 import { departmentService } from "@/services/department.service";
 import { auditService } from "@/services/audit.service";
 import { createDepartmentSchema, updateDepartmentSchema } from "@/schemas/department.schema";
@@ -34,7 +34,7 @@ export async function createDepartment(formData: FormData) {
   try {
     const entity = await departmentService.create(parsed.data, organizationId);
     await auditService.log({ action: "CREATE", entity: "Department", entityId: entity.id, newData: { name: entity.name } });
-    revalidateTag("departments", "max");
+    updateTag("departments");
     return { success: true, data: entity };
   } catch (error) {
     return { success: false, error: (error as Error).message };
@@ -56,7 +56,7 @@ export async function updateDepartment(id: string, formData: FormData) {
   try {
     const entity = await departmentService.update(id, parsed.data, organizationId);
     await auditService.log({ action: "UPDATE", entity: "Department", entityId: id, newData: { name: entity.name } });
-    revalidateTag("departments", "max");
+    updateTag("departments");
     return { success: true, data: entity };
   } catch (error) {
     return { success: false, error: (error as Error).message };
@@ -68,7 +68,7 @@ export async function deleteDepartment(id: string) {
   try {
     await departmentService.softDelete(id, organizationId);
     await auditService.log({ action: "DELETE", entity: "Department", entityId: id });
-    revalidateTag("departments", "max");
+    updateTag("departments");
     return { success: true };
   } catch (error) {
     return { success: false, error: (error as Error).message };

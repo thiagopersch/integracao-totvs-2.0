@@ -25,11 +25,11 @@ export const demandTypeService = {
   },
 
   async create(input: CreateDemandTypeInput, organizationId: string) {
-    return demandTypeRepository.create({ ...input, organizationId } as any);
+    return demandTypeRepository.create({ ...input, organizationId });
   },
 
   async update(id: string, input: UpdateDemandTypeInput, organizationId: string) {
-    return demandTypeRepository.update(id, input as any, organizationId);
+    return demandTypeRepository.update(id, input, organizationId);
   },
 
   async softDelete(id: string, organizationId: string) {

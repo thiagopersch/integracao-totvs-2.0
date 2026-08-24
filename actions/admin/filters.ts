@@ -1,11 +1,12 @@
 "use server"
 
-import { revalidateTag, cacheTag } from "next/cache";
+import { updateTag, cacheTag } from "next/cache";
 import { filterService } from "@/services/filter.service";
 import { backupService } from "@/services/backup.service";
 import { auditService } from "@/services/audit.service";
 import { createFilterSchema, updateFilterSchema } from "@/schemas/filter.schema";
 import { requirePermission } from "@/lib/rbac";
+import { getRequestContext } from "@/lib/tenant";
 import type { ListParams } from "@/types/common";
 
 export async function listFilters(params: ListParams, organizationId: string) {
@@ -14,10 +15,21 @@ export async function listFilters(params: ListParams, organizationId: string) {
   return filterService.list(params, organizationId);
 }
 
+export async function listDistinctSentenceCodes() {
+  const { organizationId } = await getRequestContext();
+  return filterService.listDistinctSentenceCodes(organizationId);
+}
+
 export async function getFilterById(id: string, organizationId: string) {
   "use cache";
   cacheTag(`filter-${id}`);
   return filterService.getById(id, organizationId);
+}
+
+export async function getFilterByIdWithRelations(id: string, organizationId: string) {
+  "use cache";
+  cacheTag(`filter-${id}`);
+  return filterService.getByIdWithRelations(id, organizationId);
 }
 
 export async function createFilter(formData: FormData) {
@@ -31,8 +43,8 @@ export async function createFilter(formData: FormData) {
     levelEducationContext: formData.get("levelEducationContext") as string,
     codSystemContext: formData.get("codSystemContext") as string,
     userContext: formData.get("userContext") as string,
-    codColigadaSentenca: (formData.get("codColigadaSentenca") as string) || undefined,
-    codSistemaSentenca: (formData.get("codSistemaSentenca") as string) || undefined,
+    codColigadaSentenca: (formData.get("codColigadaSentenca") as string) || "",
+    codSistemaSentenca: (formData.get("codSistemaSentenca") as string) || "",
     status: formData.get("status") === "true",
   };
 
@@ -49,7 +61,7 @@ export async function createFilter(formData: FormData) {
       entityId: entity.id,
       newData: { filter: entity.filter, clientId: entity.clientId },
     });
-    revalidateTag("filters", "max");
+    updateTag("filters");
     return { success: true, data: entity };
   } catch (error) {
     return { success: false, error: (error as Error).message };
@@ -67,8 +79,8 @@ export async function updateFilter(id: string, formData: FormData) {
     levelEducationContext: formData.get("levelEducationContext") as string,
     codSystemContext: formData.get("codSystemContext") as string,
     userContext: formData.get("userContext") as string,
-    codColigadaSentenca: (formData.get("codColigadaSentenca") as string) || undefined,
-    codSistemaSentenca: (formData.get("codSistemaSentenca") as string) || undefined,
+    codColigadaSentenca: (formData.get("codColigadaSentenca") as string) || "",
+    codSistemaSentenca: (formData.get("codSistemaSentenca") as string) || "",
     status: formData.get("status") === "true",
   };
 
@@ -87,8 +99,8 @@ export async function updateFilter(id: string, formData: FormData) {
       oldData: old ? { filter: old.filter, clientId: old.clientId } : undefined,
       newData: { filter: entity.filter, clientId: entity.clientId },
     });
-    revalidateTag("filters", "max");
-    revalidateTag(`filter-${id}`, "max");
+    updateTag("filters");
+    updateTag(`filter-${id}`);
     return { success: true, data: entity };
   } catch (error) {
     return { success: false, error: (error as Error).message };
@@ -106,7 +118,7 @@ export async function deleteFilter(id: string) {
       entityId: id,
       oldData: old ? { filter: old.filter, clientId: old.clientId } : undefined,
     });
-    revalidateTag("filters", "max");
+    updateTag("filters");
     return { success: true };
   } catch (error) {
     return { success: false, error: (error as Error).message };
@@ -118,7 +130,7 @@ export async function restoreFilter(id: string) {
   try {
     await filterService.restore(id, organizationId);
     await auditService.log({ action: "RESTORE", entity: "Filter", entityId: id });
-    revalidateTag("filters", "max");
+    updateTag("filters");
     return { success: true };
   } catch (error) {
     return { success: false, error: (error as Error).message };
@@ -135,22 +147,26 @@ export async function bulkDeleteFilters(ids: string[]) {
       entityId: ids.join(","),
       newData: { count },
     });
-    revalidateTag("filters", "max");
+    updateTag("filters");
     return { success: true, count };
   } catch (error) {
     return { success: false, error: (error as Error).message };
   }
 }
 
-export async function createBackupFromFilter(filterId: string) {
+export async function createBackupFromFilter(filterId: string, sentenceCategoryId?: string) {
   "use server"
-  const { organizationId } = await requirePermission("backups", "create");
+  const { organizationId, userId } = await requirePermission("backups", "create");
   try {
-    await backupService.createFromFilter(filterId, organizationId)
-    revalidateTag("backups", "max")
+    await backupService.createFromFilter(filterId, organizationId, sentenceCategoryId, userId)
+    updateTag("backups")
+    updateTag("filters")
+    updateTag(`filter-${filterId}`)
+    updateTag(`filter-backups-${filterId}`)
+    updateTag(`filter-backup-runs-${filterId}`)
     return { success: true }
-  } catch (e: any) {
-    return { success: false, error: e.message }
+  } catch (e) {
+    return { success: false, error: (e as Error).message }
   }
 }
 
@@ -164,7 +180,7 @@ export async function bulkRestoreFilters(ids: string[]) {
       entityId: ids.join(","),
       newData: { count },
     });
-    revalidateTag("filters", "max");
+    updateTag("filters");
     return { success: true, count };
   } catch (error) {
     return { success: false, error: (error as Error).message };

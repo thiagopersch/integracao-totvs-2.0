@@ -2,15 +2,14 @@ import { z } from "zod";
 
 const envSchema = z.object({
   DATABASE_URL: z.string().url(),
-  JWT_SECRET: z.string().min(16),
-  JWT_REFRESH_SECRET: z.string().min(16),
-  JWT_EXPIRES_IN: z.string().default("15m"),
-  JWT_REFRESH_EXPIRES_IN: z.string().default("7d"),
+  AUTH_SECRET: z.string().min(16),
   NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
   NEXT_PUBLIC_APP_URL: z.string().url().default("http://localhost:3000"),
   SOAP_DEFAULT_TIMEOUT: z.coerce.number().default(30000),
   SOAP_MAX_RETRIES: z.coerce.number().default(3),
   SOAP_RETRY_DELAY: z.coerce.number().default(1000),
+  RM_SENTENCE_SERVICE_MODE: z.enum(["mock", "live"]).default("mock"),
+  RM_GCONSSQL_DATASERVER_NAME: z.string().optional(),
 });
 
 function parseEnv() {

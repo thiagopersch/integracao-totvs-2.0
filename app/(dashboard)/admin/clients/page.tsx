@@ -17,12 +17,17 @@ export default function ClientsPage({ searchParams }: { searchParams: Promise<Re
 async function ClientsContent({ searchParams }: { searchParams: Promise<Record<string, string>> }) {
   const params = await searchParams
   const organizationId = await getCurrentOrganizationId()
+  const filters: Record<string, string> = {}
+  if (params.status) filters.status = params.status
+  if (params.favorite) filters.favorite = params.favorite
+  if (params.hasImage) filters.hasImage = params.hasImage
+
   const { data, meta } = await listClients({
     page: Number(params.page) || 1,
     pageSize: Number(params.pageSize) || 10,
     search: params.search,
     sort: params.sort ? { field: params.sort.split(":")[0], direction: params.sort.split(":")[1] as "asc" | "desc" } : undefined,
-    filters: params.status ? { status: params.status } : undefined,
+    filters: Object.keys(filters).length ? filters : undefined,
   }, organizationId)
 
   return <ClientTable data={data} meta={meta} />

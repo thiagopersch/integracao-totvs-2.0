@@ -26,6 +26,8 @@ enum SoapMethod {
   GETPROCESSSTATUS
   GETSCHEMA2
   CHECKSERVICEACTIVITY
+  REALIZARCONSULTASQL
+  REALIZARCONSULTASQLCONTEXTO
 }
 
 enum DemandStatus {
@@ -55,6 +57,18 @@ enum NotificationChannel {
   WHATSAPP
 }
 
+enum BackupRunStatus {
+  RUNNING
+  ERROR
+  DONE
+}
+
+enum BackupRestoreStatus {
+  NOT_RESTORED
+  RESTORED
+  ERROR
+}
+
 model Organization {
   id        String    @id @default(uuid())
   name      String
@@ -73,6 +87,7 @@ model Organization {
   tbcs               Tbc[]
   filters            Filter[]
   backups            Backup[]
+  backupRuns         BackupRun[]
   sentenceCategories SentenceCategory[]
   sentences          Sentence[]
   dataservers        Dataserver[]
@@ -150,6 +165,9 @@ model User {
   uploadedAttachments   Attachment[]
   notifications         Notification[]
   notificationSettings  NotificationSetting[]
+  backupRuns            BackupRun[]
+  filtersLastBackedUp   Filter[]
+  backupsRestored       Backup[]
 
   @@map("users")
 }
@@ -230,10 +248,11 @@ model Tbc {
   updatedAt          DateTime  @updatedAt @map("updated_at")
   deletedAt          DateTime? @map("deleted_at")
 
-  organization Organization @relation(fields: [organizationId], references: [id])
-  client       Client       @relation(fields: [clientId], references: [id])
-  filters      Filter[]
-  backups      Backup[]
+  organization    Organization @relation(fields: [organizationId], references: [id])
+  client          Client       @relation(fields: [clientId], references: [id])
+  filters         Filter[]
+  backups         Backup[]     @relation("BackupTbc")
+  restoredBackups Backup[]     @relation("BackupRestoredToTbc")
 
   @@unique([organizationId, link])
   @@map("tbcs")
@@ -250,38 +269,76 @@ model Filter {
   levelEducationContext Int       @map("level_education_context")
   codSystemContext      String    @map("cod_system_context")
   userContext           String    @map("user_context")
-  codColigadaSentenca   String?   @map("cod_coligada_sentenca")
-  codSistemaSentenca    String?   @map("cod_sistema_sentenca")
+  codColigadaSentenca   String    @map("cod_coligada_sentenca")
+  codSistemaSentenca    String    @map("cod_sistema_sentenca")
   status                Boolean   @default(true)
+  lastBackupStatus      BackupRunStatus? @map("last_backup_status")
+  lastBackupAt          DateTime? @map("last_backup_at")
+  lastBackupByUserId    String?   @map("last_backup_by_user_id")
   createdAt             DateTime  @default(now()) @map("created_at")
   updatedAt             DateTime  @updatedAt @map("updated_at")
   deletedAt             DateTime? @map("deleted_at")
 
-  organization Organization @relation(fields: [organizationId], references: [id])
-  tbc          Tbc          @relation(fields: [tbcId], references: [id])
-  client       Client       @relation(fields: [clientId], references: [id])
-  backups      Backup[]
+  organization  Organization @relation(fields: [organizationId], references: [id])
+  tbc           Tbc          @relation(fields: [tbcId], references: [id])
+  client        Client       @relation(fields: [clientId], references: [id])
+  lastBackupBy  User?        @relation(fields: [lastBackupByUserId], references: [id])
+  backups       Backup[]
+  backupRuns    BackupRun[]
 
   @@map("filters")
 }
 
-model Backup {
-  id              String    @id @default(uuid())
-  organizationId  String    @map("organization_id")
-  tbcId           String    @map("tbc_id")
-  filterId        String    @map("filter_id")
-  branchSentence  String?   @map("branch_sentence")
-  codSystem       String?   @map("cod_system")
-  codeSentence    String?   @map("code_sentence")
-  nameSentence    String?   @map("name_sentence")
-  contentSentence String?   @map("content_sentence")
-  createdAt       DateTime  @default(now()) @map("created_at")
-  updatedAt       DateTime  @updatedAt @map("updated_at")
-  deletedAt       DateTime? @map("deleted_at")
+model BackupRun {
+  id               String          @id @default(uuid())
+  organizationId   String          @map("organization_id")
+  filterId         String          @map("filter_id")
+  status           BackupRunStatus @default(RUNNING)
+  errorMessage     String?         @map("error_message")
+  executedByUserId String?         @map("executed_by_user_id")
+  startedAt        DateTime        @default(now()) @map("started_at")
+  finishedAt       DateTime?       @map("finished_at")
 
   organization Organization @relation(fields: [organizationId], references: [id])
-  tbc          Tbc          @relation(fields: [tbcId], references: [id])
   filter       Filter       @relation(fields: [filterId], references: [id])
+  executedBy   User?        @relation(fields: [executedByUserId], references: [id])
+  backups      Backup[]
+
+  @@map("backup_runs")
+}
+
+model Backup {
+  id                 String    @id @default(uuid())
+  organizationId     String    @map("organization_id")
+  tbcId              String    @map("tbc_id")
+  filterId           String    @map("filter_id")
+  backupRunId        String?   @map("backup_run_id")
+  sentenceCategoryId String?   @map("sentence_category_id")
+  branchSentence     String?   @map("branch_sentence")
+  codColigada        String?   @map("cod_coligada")
+  codSystem          String?   @map("cod_system")
+  codeSentence       String?   @map("code_sentence")
+  nameSentence       String?   @map("name_sentence")
+  contentSentence    String?   @map("content_sentence")
+  hash               String?
+  isLatest           Boolean   @default(true) @map("is_latest")
+  totvsUpdatedAt      DateTime?           @map("totvs_updated_at")
+  totvsUpdatedBy      String?             @map("totvs_updated_by")
+  restoreStatus       BackupRestoreStatus @default(NOT_RESTORED) @map("restore_status")
+  restoredAt          DateTime?           @map("restored_at")
+  restoredByUserId    String?             @map("restored_by_user_id")
+  restoredToTbcId     String?             @map("restored_to_tbc_id")
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+  deletedAt          DateTime? @map("deleted_at")
+
+  organization     Organization      @relation(fields: [organizationId], references: [id])
+  tbc              Tbc               @relation("BackupTbc", fields: [tbcId], references: [id])
+  filter           Filter            @relation(fields: [filterId], references: [id])
+  backupRun        BackupRun?        @relation(fields: [backupRunId], references: [id])
+  sentenceCategory SentenceCategory? @relation(fields: [sentenceCategoryId], references: [id])
+  restoredBy       User?             @relation(fields: [restoredByUserId], references: [id])
+  restoredToTbc    Tbc?              @relation("BackupRestoredToTbc", fields: [restoredToTbcId], references: [id])
 
   @@map("backups")
 }
@@ -298,6 +355,7 @@ model SentenceCategory {
 
   organization Organization @relation(fields: [organizationId], references: [id])
   sentences    Sentence[]
+  backups      Backup[]
 
   @@unique([organizationId, code])
   @@map("sentence_categories")
