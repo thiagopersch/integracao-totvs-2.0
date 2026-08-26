@@ -3,9 +3,18 @@
 import { updateTag, cacheTag } from "next/cache";
 import { dataserverService } from "@/services/dataserver.service";
 import { auditService } from "@/services/audit.service";
+import { soapService, type WsName } from "@/services/soap.service";
+import { soapEndpointService } from "@/services/soap-endpoint.service";
+import { tbcService } from "@/services/tbc.service";
 import { createDataserverSchema, updateDataserverSchema } from "@/schemas/dataserver.schema";
 import { requirePermission } from "@/lib/rbac";
+import { formatBlockingReferences } from "@/lib/entity-relations";
 import type { ListParams } from "@/types/common";
+import type { SoapMethod } from "@prisma/client";
+
+function escapeXml(value: string): string {
+  return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
 
 export async function listDataservers(params: ListParams, organizationId: string) {
   "use cache";
@@ -109,19 +118,64 @@ export async function restoreDataserver(id: string) {
 }
 
 export async function bulkDeleteDataservers(ids: string[]) {
-  const { organizationId } = await requirePermission("dataservers", "delete");
+  const { organizationId, userId } = await requirePermission("dataservers", "delete");
   try {
-    const count = await dataserverService.bulkSoftDelete(ids, organizationId);
-    await auditService.log({
-      action: "BULK_DELETE",
-      entity: "Dataserver",
-      entityId: ids.join(","),
-      newData: { count },
-    });
+    const result = await dataserverService.bulkSoftDelete(ids, organizationId);
+    if (result.deletedIds.length) {
+      await auditService.log({
+        action: "BULK_DELETE",
+        entity: "Dataserver",
+        entityId: result.deletedIds.join(","),
+        organizationId,
+        userId,
+        newData: { count: result.deletedCount },
+      });
+    }
+    if (result.blocked.length) {
+      await auditService.logBulkDeleteBlocked("Dataserver", result.blocked, organizationId, userId);
+    }
     updateTag("dataservers");
-    return { success: true, count };
+    return {
+      success: true,
+      deletedCount: result.deletedCount,
+      blocked: result.blocked.map((b) => ({ id: b.id, reasons: formatBlockingReferences(b.reasons) })),
+    };
   } catch (error) {
     return { success: false, error: (error as Error).message };
+  }
+}
+
+/**
+ * Runs IsValidDataServer(code) against a real TBC before letting the CRUD form save a code —
+ * goes through soapService.execute, which itself always does AutenticaAcesso + CheckServiceActivity
+ * first, so this single call already carries the full required handshake.
+ */
+export async function validateDataserverCode(tbcId: string, code: string) {
+  const { organizationId } = await requirePermission("dataservers", "create");
+
+  if (!tbcId) return { success: false, valid: false, error: "Selecione um TBC para validar" };
+  if (!code?.trim()) return { success: false, valid: false, error: "Informe o código do dataserver" };
+
+  try {
+    const tbc = await tbcService.getCredentialsForRequest(tbcId, organizationId);
+    const endpointType = await soapEndpointService.getActiveTypeByKey("dataserver");
+    const endpointMethod = await soapEndpointService.getActiveMethodByKey(endpointType.id, "ISVALIDDATASERVER");
+
+    const result = await soapService.execute(
+      {
+        tbc,
+        wsName: endpointType.suffix as WsName,
+        method: endpointMethod.method as SoapMethod,
+        xml: `<IsValidDataServer><DataServerName>${escapeXml(code.trim())}</DataServerName></IsValidDataServer>`,
+      },
+      organizationId
+    );
+
+    const raw = result.xmlResponse.trim().toLowerCase();
+    const valid = raw === "true" || raw === "1";
+    return { success: true, valid };
+  } catch (error) {
+    return { success: false, valid: false, error: (error as Error).message };
   }
 }
 

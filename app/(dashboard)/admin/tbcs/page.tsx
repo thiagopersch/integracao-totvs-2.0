@@ -1,5 +1,6 @@
 import { Suspense } from "react"
 import { listTbcs } from "@/actions/admin/tbcs"
+import { listAllClients, listActiveClientsWithTbc } from "@/actions/admin/clients"
 import { TbcTable } from "@/components/shared/tbc-table"
 import { Skeleton } from "@/components/ui/skeleton"
 import { getCurrentOrganizationId } from "@/lib/tenant"
@@ -22,13 +23,17 @@ async function TbcsContent({ searchParams }: { searchParams: Promise<Record<stri
   if (params.clientId) filters.clientId = params.clientId
   if (params.notRequiredLicense) filters.notRequiredLicense = params.notRequiredLicense
 
-  const { data, meta } = await listTbcs({
-    page: Number(params.page) || 1,
-    pageSize: Number(params.pageSize) || 10,
-    search: params.search,
-    sort: params.sort ? { field: params.sort.split(":")[0], direction: params.sort.split(":")[1] as "asc" | "desc" } : undefined,
-    filters: Object.keys(filters).length ? filters : undefined,
-  }, organizationId)
+  const [{ data, meta }, clients, filterClients] = await Promise.all([
+    listTbcs({
+      page: Number(params.page) || 1,
+      pageSize: Number(params.pageSize) || 10,
+      search: params.search,
+      sort: params.sort ? { field: params.sort.split(":")[0], direction: params.sort.split(":")[1] as "asc" | "desc" } : undefined,
+      filters: Object.keys(filters).length ? filters : undefined,
+    }, organizationId),
+    listAllClients(),
+    listActiveClientsWithTbc(),
+  ])
 
-  return <TbcTable data={data} meta={meta} />
+  return <TbcTable data={data} meta={meta} clients={clients} filterClients={filterClients} />
 }

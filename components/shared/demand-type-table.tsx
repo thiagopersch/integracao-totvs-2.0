@@ -8,6 +8,7 @@ import { DataTable } from "@/components/shared/data-table"
 import { PageHeader } from "@/components/shared/page-header"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
 import { EntityActionsCell } from "@/components/shared/entity-actions-cell"
+import { createSelectColumn } from "@/components/shared/select-column"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -22,7 +23,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { Plus, Loader2 } from "lucide-react"
-import { deleteDemandType, createDemandType, updateDemandType } from "@/actions/demand-types"
+import { deleteDemandType, createDemandType, updateDemandType, bulkDeleteDemandTypes } from "@/actions/demand-types"
 import { createDemandTypeSchema, updateDemandTypeSchema, type CreateDemandTypeInput } from "@/schemas/demand-type.schema"
 import { toast } from "sonner"
 import { useCrudTable } from "@/hooks/use-crud-table"
@@ -85,6 +86,7 @@ export function DemandTypeTable({ data, meta }: DemandTypeTableProps) {
   }
 
   const columns: ColumnDef<DemandType>[] = [
+    createSelectColumn<DemandType>(),
     {
       accessorKey: "name",
       header: "Nome",
@@ -159,6 +161,12 @@ export function DemandTypeTable({ data, meta }: DemandTypeTableProps) {
         searchPlaceholder="Buscar por nome..."
         onSearch={(v) => pushParams({ search: v || undefined, page: 1 })}
         toolbarActions={newDialog}
+        bulkDelete={{
+          getId: (row) => row.id,
+          getRowLabel: (row) => row.name,
+          action: bulkDeleteDemandTypes,
+          onSuccess: () => router.refresh(),
+        }}
       />
 
       <ConfirmDialog

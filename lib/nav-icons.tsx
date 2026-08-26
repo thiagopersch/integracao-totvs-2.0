@@ -22,6 +22,8 @@ import {
   Building,
   Tags,
   Tag,
+  AlertTriangle,
+  FileSignature,
   type LucideIcon,
 } from "lucide-react";
 
@@ -49,4 +51,6 @@ export const NAV_ICONS: Record<string, LucideIcon> = {
   Building,
   Tags,
   Tag,
+  AlertTriangle,
+  FileSignature,
 };

@@ -5,9 +5,20 @@ import { prisma } from "@/lib/prisma";
 import { env } from "@/config/app.config";
 import { Prisma, type SoapMethod } from "@prisma/client";
 
+/** The 5 real TOTVS RM webservice "folders" confirmed live against a TBC (wsConsultaSQL/wsDataServer/wsProcess/wsFormulaVisual/wsReport MEX WSDLs). */
+export type WsName = "wsDataServer" | "wsConsultaSQL" | "wsProcess" | "wsFormulaVisual" | "wsReport";
+
+export type TbcCredentials = {
+  id?: string;
+  link: string;
+  user: string;
+  password: string;
+  notRequiredLicense: boolean;
+};
+
 export type SoapRequest = {
-  dataserver: string;
-  process: string;
+  tbc: TbcCredentials;
+  wsName: WsName;
   method: SoapMethod;
   xml: string;
   context?: {
@@ -19,7 +30,6 @@ export type SoapRequest = {
   };
   timeout?: number;
   endpointType?: string;
-  suffix?: string;
 };
 
 export type SoapResponse = {
@@ -37,27 +47,61 @@ const xmlParser = new XMLParser({
 });
 
 /**
- * Every real TOTVS RM webservice (wsDataServer, wsConsultaSQL, wsProcess,
- * wsFormulaVisual) shares this same SOAP 1.1 shape: the method body lives
- * directly under the `http://www.totvs.com/` namespace, e.g.
- *   <ReadRecord xmlns="http://www.totvs.com/">
- *     <DataServerName>...</DataServerName>
- *     <PrimaryKey>...</PrimaryKey>
- *     <Contexto>CodColigada=1;CodSistema=G;CodUsuario=mestre</Contexto>
- *   </ReadRecord>
- * confirmed against TOTVS's own SoapUI/DataServer reference doc. `Contexto`
- * is a flat `Key=Value;Key2=Value2` string, NOT nested XML — this previously
- * built an entirely fictitious `<Execute><DataServer>/<Process>/<XMLData>`
- * envelope that doesn't match any real TOTVS RM webservice.
+ * Every real TOTVS RM webservice exposes the same 3 "ports" at
+ * {baseUrl}/{EduLicense?}{wsName}/{PortInterface} (confirmed live via each
+ * service's MEX WSDL): CheckServiceActivity always lives on IRMSServer,
+ * AutenticaAcesso always lives on IwsBase, and every business method lives
+ * on the service-specific port `Iws{PascalCase(wsName without "ws")}`
+ * (e.g. wsDataServer -> IwsDataServer, wsConsultaSQL -> IwsConsultaSQL).
+ * SOAPAction is always `http://www.totvs.com/{PortInterface}/{Operation}` —
+ * NOT the flat `http://www.totvs.com/{Operation}` this file used before.
+ */
+const METHOD_OPERATION: Record<SoapMethod, string> = {
+  AUTENTICAACESSO: "AutenticaAcesso",
+  CHECKSERVICEACTIVITY: "CheckServiceActivity",
+  GETSCHEMA: "GetSchema",
+  GETSCHEMA2: "GetSchema2",
+  READRECORD: "ReadRecord",
+  READVIEW: "ReadView",
+  SAVERECORD: "SaveRecord",
+  DELETERECORD: "DeleteRecord",
+  DELETERECORDBYKEY: "DeleteRecordByKey",
+  ISVALIDDATASERVER: "IsValidDataServer",
+  EXECUTEPROCESS: "ExecuteProcess",
+  EXECUTEWITHXMLPARAMS: "ExecuteWithXmlParams",
+  EXECUTEWITHXMLPARAMSASYNC: "ExecuteWithXmlParamsAsync",
+  GETPROCESSSTATUS: "GetProcessStatus",
+  REALIZARCONSULTASQL: "RealizarConsultaSQL",
+  REALIZARCONSULTASQLCONTEXTO: "RealizarConsultaSQLContexto",
+};
+
+/** AutenticaAcesso/CheckServiceActivity are shared across every ws and don't live on the service-specific port. */
+const SHARED_PORT: Partial<Record<SoapMethod, "IwsBase" | "IRMSServer">> = {
+  AUTENTICAACESSO: "IwsBase",
+  CHECKSERVICEACTIVITY: "IRMSServer",
+};
+
+function servicePortInterface(wsName: WsName, method: SoapMethod): string {
+  return SHARED_PORT[method] ?? `Iws${wsName.slice(2)}`;
+}
+
+/** Wraps XML that is itself passed as the *content* of a SOAP parameter (e.g. SaveRecord's XML field), per TOTVS's requirement. */
+export function cdata(xml: string): string {
+  return `<![CDATA[${xml}]]>`;
+}
+
+/**
+ * Contexto field names/casing must match TOTVS RM's own standard exactly — every method relies on
+ * this to execute correctly: CODCOLIGADA, CODFILIAL, CODTIPOCURSO, CODSISTEMA, CODUSUARIO.
  */
 function buildContextoString(context?: SoapRequest["context"]): string {
   if (!context) return "";
   const parts: string[] = [];
-  if (context.coligate !== undefined) parts.push(`CodColigada=${context.coligate}`);
-  if (context.branch !== undefined) parts.push(`CodFilial=${context.branch}`);
-  if (context.levelEducation !== undefined) parts.push(`CodColigadaAcademica=${context.levelEducation}`);
-  if (context.codSystem) parts.push(`CodSistema=${context.codSystem}`);
-  if (context.user) parts.push(`CodUsuario=${context.user}`);
+  if (context.coligate !== undefined) parts.push(`CODCOLIGADA=${context.coligate}`);
+  if (context.branch !== undefined) parts.push(`CODFILIAL=${context.branch}`);
+  if (context.levelEducation !== undefined) parts.push(`CODTIPOCURSO=${context.levelEducation}`);
+  if (context.codSystem) parts.push(`CODSISTEMA=${context.codSystem}`);
+  if (context.user) parts.push(`CODUSUARIO=${context.user}`);
   return parts.join(";");
 }
 
@@ -81,7 +125,7 @@ function escapeXml(value: string): string {
 function buildSoapEnvelope(xml: string, context?: SoapRequest["context"]): string {
   const contexto = buildContextoString(context);
   const bodyXml = injectContexto(xml.trim(), contexto);
-  const namespaced = bodyXml.replace(/^<([\w:]+)/, `<$1 xmlns="http://www.totvs.com/"`);
+  const namespaced = bodyXml.replace(/^<([\w:]+)(\s*\/?)/, `<$1 xmlns="http://www.totvs.com/"$2`);
 
   return `<?xml version="1.0" encoding="utf-8"?>
 <soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/">
@@ -92,84 +136,137 @@ function buildSoapEnvelope(xml: string, context?: SoapRequest["context"]): strin
 </soap:Envelope>`;
 }
 
-function extractSoapResponse(xml: string, method: string): string {
-  const resultTag = new RegExp(`<${method}Result[^>]*>([\\s\\S]*?)</${method}Result>`, "i");
+/** `{baseLink}/{EduLicense prefix when notRequiredLicense}{wsName}/{PortInterface}` — verified live against a real TBC. */
+function resolveUrl(tbc: TbcCredentials, wsName: WsName, method: SoapMethod): string {
+  const base = tbc.link.replace(/\/+$/, "");
+  const prefix = tbc.notRequiredLicense ? "EduLicense" : "";
+  const port = servicePortInterface(wsName, method);
+  return `${base}/${prefix}${wsName}/${port}`;
+}
+
+function resolveSoapAction(wsName: WsName, method: SoapMethod): string {
+  const port = servicePortInterface(wsName, method);
+  const operation = METHOD_OPERATION[method] ?? method;
+  return `http://www.totvs.com/${port}/${operation}`;
+}
+
+/**
+ * Every `xs:string`-typed *Result (GetSchema/ReadView/ReadRecord/SaveRecord/RealizarConsultaSQL…)
+ * carries a SECOND, nested XML document as an entity-escaped string (confirmed against a real
+ * ReadView response: `&lt;NewDataSet&gt;&amp;#xD;&lt;GConsSql&gt;...`). It must be decoded before
+ * being handed to the XML parser, or the parser sees literal "&lt;" text (not a tag) and silently
+ * returns {} — which is why rows/results looked like they came back empty.
+ */
+function decodeXmlEntities(value: string): string {
+  return value
+    .replace(/&#x([0-9A-Fa-f]+);/g, (_, hex: string) => String.fromCharCode(parseInt(hex, 16)))
+    .replace(/&#(\d+);/g, (_, dec: string) => String.fromCharCode(parseInt(dec, 10)))
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, "\"")
+    .replace(/&apos;/g, "'")
+    .replace(/&amp;/g, "&"); // must be last so "&amp;lt;" round-trips to literal "&lt;" text, not "<"
+}
+
+function extractSoapResponse(xml: string, method: SoapMethod): string {
+  const operation = METHOD_OPERATION[method] ?? method;
+  const resultTag = new RegExp(`<${operation}Result[^>]*>([\\s\\S]*?)</${operation}Result>`, "i");
   const match = xml.match(resultTag);
-  if (match) return match[1].trim();
+  if (match) return decodeXmlEntities(match[1].trim());
+  // Fallback: the whole <Body> is already real, single-layer XML — fast-xml-parser decodes its
+  // entities itself during normal parsing, so it must NOT be pre-decoded here too (that would
+  // turn a legitimately-escaped "&lt;" in element text into a bare "<" and break parsing).
   const bodyMatch = xml.match(/<(?:soap:)?Body[^>]*>([\s\S]*?)<\/(?:soap:)?Body>/i);
   if (bodyMatch) return bodyMatch[1].trim();
   return xml;
 }
 
-/**
- * SOAPAction values confirmed against TOTVS's SoapUI/DataServer reference doc
- * (`http://www.totvs.com/{MethodName}`, PascalCase). REALIZARCONSULTASQL(CONTEXTO)
- * are wsConsultaSQL's real methods for running a saved SQL sentence and getting
- * its result rows back — available for manual use from the SOAP Builder
- * ("Consulta SQL"). The filter-backup feature itself always reads this app's
- * own `sentences` table, not this endpoint. EXECUTEPROCESS is intentionally
- * not mapped here:
- * it isn't a confirmed real wsProcess method (the real ones are
- * ExecuteWithXmlParams/ExecuteWithXmlParamsAsync/GetProcessStatus) and is kept
- * in the enum only because older seed data for the Fórmulas/Relatórios endpoint
- * types (out of scope for this pass) still reference it.
- */
-const SOAP_ACTIONS: Partial<Record<SoapMethod, string>> = {
-  GETSCHEMA: "http://www.totvs.com/GetSchema",
-  READRECORD: "http://www.totvs.com/ReadRecord",
-  READVIEW: "http://www.totvs.com/ReadView",
-  SAVERECORD: "http://www.totvs.com/SaveRecord",
-  DELETERECORD: "http://www.totvs.com/DeleteRecord",
-  ISVALIDDATASERVER: "http://www.totvs.com/IsValidDataServer",
-  EXECUTEWITHXMLPARAMS: "http://www.totvs.com/ExecuteWithXmlParams",
-  EXECUTEWITHXMLPARAMSASYNC: "http://www.totvs.com/ExecuteWithXmlParamsAsync",
-  GETPROCESSSTATUS: "http://www.totvs.com/GetProcessStatus",
-  GETSCHEMA2: "http://www.totvs.com/GetSchema2",
-  CHECKSERVICEACTIVITY: "http://www.totvs.com/CheckServiceActivity",
-  REALIZARCONSULTASQL: "http://www.totvs.com/RealizarConsultaSQL",
-  REALIZARCONSULTASQLCONTEXTO: "http://www.totvs.com/RealizarConsultaSQLContexto",
-};
+class SoapFaultError extends Error {}
 
-function getSoapAction(method: SoapMethod): string {
-  return SOAP_ACTIONS[method] || `http://www.totvs.com/${method}`;
+/** Detects a SOAP 1.1 <Fault> in the response body — a 200 status does NOT mean success, TOTVS returns business errors this way. */
+function extractFaultMessage(xml: string): string | null {
+  const faultMatch = xml.match(/<(?:[\w]+:)?Fault[^>]*>([\s\S]*?)<\/(?:[\w]+:)?Fault>/i);
+  if (!faultMatch) return null;
+  const body = faultMatch[1];
+  const stringMatch = body.match(/<faultstring[^>]*>([\s\S]*?)<\/faultstring>/i);
+  if (stringMatch) return stringMatch[1].trim();
+  const messageMatch = body.match(/<Message>([\s\S]*?)<\/Message>/i);
+  return messageMatch ? messageMatch[1].trim() : "TOTVS retornou um erro SOAP (Fault) sem detalhes.";
 }
 
 export const soapService = {
+  /**
+   * Runs the request. Unless the method IS the auth handshake itself, this
+   * always performs 1º AutenticaAcesso -> 2º CheckServiceActivity first, per
+   * the required TOTVS call order, before dispatching the real operation.
+   */
   async execute(request: SoapRequest, organizationId: string, userId?: string): Promise<SoapResponse> {
+    if (request.method !== "AUTENTICAACESSO" && request.method !== "CHECKSERVICEACTIVITY") {
+      await this.authenticate(request.tbc, request.wsName, organizationId, userId);
+    }
+    return this.dispatch(request, organizationId, userId);
+  },
+
+  /** 1º AutenticaAcesso, 2º CheckServiceActivity — required before any other TOTVS call. */
+  async authenticate(tbc: TbcCredentials, wsName: WsName, organizationId: string, userId?: string): Promise<void> {
+    const authRes = await this.dispatch(
+      { tbc, wsName, method: "AUTENTICAACESSO", xml: "<AutenticaAcesso />" },
+      organizationId,
+      userId
+    );
+    // AutenticaAcessoResult / CheckServiceActivityResult are plain scalars (not XML-in-string
+    // like GetSchema/ReadRecord's *Result), so read the extracted text directly rather than jsonResponse.
+    const authResult = authRes.xmlResponse.trim();
+    if (!authResult || authResult === "0") {
+      throw new Error(`Falha na autenticação no TBC (${wsName}): verifique usuário e senha cadastrados.`);
+    }
+
+    const activityRes = await this.dispatch(
+      { tbc, wsName, method: "CHECKSERVICEACTIVITY", xml: "<CheckServiceActivity />" },
+      organizationId,
+      userId
+    );
+    const active = activityRes.xmlResponse.trim().toLowerCase();
+    if (active !== "true" && active !== "1") {
+      throw new Error(`Serviço TOTVS (${wsName}) inativo ou indisponível para o TBC informado.`);
+    }
+  },
+
+  /** Low-level HTTP dispatch — no auth handshake. Only call directly for AUTENTICAACESSO/CHECKSERVICEACTIVITY. */
+  async dispatch(request: SoapRequest, organizationId: string, userId?: string): Promise<SoapResponse> {
     const startTime = Date.now();
     const timeout = request.timeout || env.SOAP_DEFAULT_TIMEOUT;
     const maxRetries = env.SOAP_MAX_RETRIES;
     const retryDelay = env.SOAP_RETRY_DELAY;
 
     const envelope = buildSoapEnvelope(request.xml, request.context);
-    const soapAction = getSoapAction(request.method);
+    const soapAction = resolveSoapAction(request.wsName, request.method);
+    const url = resolveUrl(request.tbc, request.wsName, request.method);
+    const authHeader = "Basic " + Buffer.from(`${request.tbc.user}:${request.tbc.password}`).toString("base64");
     let lastError: Error | null = null;
-
-    const url = request.suffix
-      ? `${request.dataserver.replace(/\/+$/, "")}${request.suffix.startsWith("/") ? request.suffix : `/${request.suffix}`}`
-      : `${request.dataserver}/${request.process}`;
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
-        const response = await axios.post(
-          url,
-          envelope,
-          {
-            headers: {
-              "Content-Type": "text/xml; charset=utf-8",
-              SOAPAction: soapAction,
-            },
-            timeout,
-            responseType: "text",
-          }
-        );
+        const response = await axios.post(url, envelope, {
+          headers: {
+            "Content-Type": "text/xml; charset=utf-8",
+            SOAPAction: soapAction,
+            Authorization: authHeader,
+          },
+          timeout,
+          responseType: "text",
+        });
 
         const duration = Date.now() - startTime;
         const xmlResponse = response.data as string;
+
+        const faultMessage = extractFaultMessage(xmlResponse);
+        if (faultMessage) throw new SoapFaultError(faultMessage);
+
         const extractedXml = extractSoapResponse(xmlResponse, request.method);
         const jsonResponse = xmlParser.parse(extractedXml) as Record<string, unknown>;
 
-        await this.log(request, xmlResponse, jsonResponse, response.status, duration, null, organizationId, userId);
+        await this.log(request, envelope, xmlResponse, jsonResponse, response.status, duration, null, organizationId, userId);
 
         return {
           xmlResponse: extractedXml,
@@ -179,9 +276,32 @@ export const soapService = {
         };
       } catch (error) {
         lastError = error as Error;
+
+        if (error instanceof SoapFaultError) {
+          logger.warn("SOAP fault (business error, not retried)", {
+            wsName: request.wsName,
+            method: request.method,
+            error: error.message,
+          });
+          break;
+        }
+
+        if (axios.isAxiosError(error) && error.response && error.response.status >= 400 && error.response.status < 500) {
+          lastError = new Error(
+            error.response.status === 401
+              ? `Autenticação HTTP rejeitada pelo TOTVS (usuário/senha do TBC inválidos) [${request.wsName}]`
+              : `TOTVS retornou HTTP ${error.response.status} (não retentado): ${error.message}`
+          );
+          logger.warn("SOAP request rejected by TOTVS (client error, not retried)", {
+            wsName: request.wsName,
+            method: request.method,
+            status: error.response.status,
+          });
+          break;
+        }
+
         logger.warn(`SOAP attempt ${attempt}/${maxRetries} failed`, {
-          dataserver: request.dataserver,
-          process: request.process,
+          wsName: request.wsName,
           method: request.method,
           error: (error as Error).message,
         });
@@ -194,16 +314,16 @@ export const soapService = {
 
     const duration = Date.now() - startTime;
     const errorMsg = lastError?.message || "Unknown error";
-    await this.log(request, null, null, 0, duration, errorMsg, organizationId, userId);
+    await this.log(request, envelope, null, null, 0, duration, errorMsg, organizationId, userId);
 
-    throw new Error(`SOAP execution failed after ${maxRetries} attempts: ${errorMsg}`);
+    throw new Error(errorMsg);
   },
 
-  async getSchema(dataserver: string, process: string, organizationId: string, context?: SoapRequest["context"]): Promise<SoapResponse> {
+  async getSchema(tbc: TbcCredentials, wsName: WsName, organizationId: string, context?: SoapRequest["context"]): Promise<SoapResponse> {
     return this.execute(
       {
-        dataserver,
-        process,
+        tbc,
+        wsName,
         method: "GETSCHEMA",
         xml: "<GetSchema />",
         context,
@@ -214,6 +334,7 @@ export const soapService = {
 
   async log(
     request: SoapRequest,
+    requestXml: string,
     xmlResponse: string | null | undefined,
     jsonResponse: Record<string, unknown> | null | undefined,
     status: number,
@@ -227,10 +348,13 @@ export const soapService = {
         data: {
           organizationId,
           userId,
-          dataserver: request.dataserver,
-          process: request.process,
+          dataserver: request.tbc.link,
+          process: request.wsName,
           method: request.method,
-          xmlRequest: request.xml,
+          // The full enveloped request actually sent over the wire (including the injected
+          // <Contexto> and SOAP wrapper) — NOT request.xml, which is only the bare method body
+          // the caller built before Contexto injection.
+          xmlRequest: requestXml,
           xmlResponse,
           jsonResponse: jsonResponse === null ? Prisma.JsonNull : (jsonResponse as Prisma.InputJsonValue | undefined),
           status,

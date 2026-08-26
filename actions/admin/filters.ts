@@ -7,6 +7,7 @@ import { auditService } from "@/services/audit.service";
 import { createFilterSchema, updateFilterSchema } from "@/schemas/filter.schema";
 import { requirePermission } from "@/lib/rbac";
 import { getRequestContext } from "@/lib/tenant";
+import { formatBlockingReferences } from "@/lib/entity-relations";
 import type { ListParams } from "@/types/common";
 
 export async function listFilters(params: ListParams, organizationId: string) {
@@ -138,17 +139,28 @@ export async function restoreFilter(id: string) {
 }
 
 export async function bulkDeleteFilters(ids: string[]) {
-  const { organizationId } = await requirePermission("filters", "delete");
+  const { organizationId, userId } = await requirePermission("filters", "delete");
   try {
-    const count = await filterService.bulkSoftDelete(ids, organizationId);
-    await auditService.log({
-      action: "BULK_DELETE",
-      entity: "Filter",
-      entityId: ids.join(","),
-      newData: { count },
-    });
+    const result = await filterService.bulkSoftDelete(ids, organizationId);
+    if (result.deletedIds.length) {
+      await auditService.log({
+        action: "BULK_DELETE",
+        entity: "Filter",
+        entityId: result.deletedIds.join(","),
+        organizationId,
+        userId,
+        newData: { count: result.deletedCount },
+      });
+    }
+    if (result.blocked.length) {
+      await auditService.logBulkDeleteBlocked("Filter", result.blocked, organizationId, userId);
+    }
     updateTag("filters");
-    return { success: true, count };
+    return {
+      success: true,
+      deletedCount: result.deletedCount,
+      blocked: result.blocked.map((b) => ({ id: b.id, reasons: formatBlockingReferences(b.reasons) })),
+    };
   } catch (error) {
     return { success: false, error: (error as Error).message };
   }

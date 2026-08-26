@@ -5,7 +5,7 @@ import type { Sentence } from "@prisma/client";
 
 class SentenceRepository extends BaseRepository<Sentence> {
   constructor() {
-    super(prisma.sentence, ["code", "name"], "sentences");
+    super(prisma.sentence, ["code", "name"], "sentences", "Sentence");
   }
 }
 

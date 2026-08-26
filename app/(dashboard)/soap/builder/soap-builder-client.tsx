@@ -43,6 +43,7 @@ type TbcOption = {
   id: string
   name: string
   link: string
+  notRequiredLicense: boolean
   client: { id: string; name: string } | null
 }
 
@@ -88,7 +89,16 @@ export function SoapBuilderClient({ initialEndpointTypes, initialTbcs }: SoapBui
   const methods = selectedType?.methods ?? []
   const selectedTbc = tbcs.find((t) => t.id === selectedTbcId)
   const selectedMethodObj = methods.find((m) => m.id === selectedMethodId)
-  const fullUrl = selectedTbc ? `${selectedTbc.link}${selectedType?.suffix || ""}` : ""
+  const selectedMethod = selectedMethodObj?.method
+  const fullUrl = (() => {
+    if (!selectedTbc || !selectedType) return ""
+    const base = selectedTbc.link.replace(/\/+$/, "")
+    const prefix = selectedTbc.notRequiredLicense ? "EduLicense" : ""
+    const wsFolder = selectedType.suffix
+    const isSharedAuthMethod = selectedMethod === "AUTENTICAACESSO"
+    const port = isSharedAuthMethod ? "IwsBase" : `Iws${wsFolder.slice(2)}`
+    return `${base}/${prefix}${wsFolder}/${port}`
+  })()
 
   const filteredTbcs = tbcs.filter(
     (t) =>
@@ -190,9 +200,6 @@ export function SoapBuilderClient({ initialEndpointTypes, initialTbcs }: SoapBui
         endpointTypeId: selectedTypeId,
         methodId: selectedMethodId,
         tbcId: selectedTbcId,
-        method: selectedMethodObj?.method || "GETSCHEMA",
-        endpointType: selectedType?.type || "dataserver",
-        suffix: selectedType?.suffix || "",
         xml,
         context,
         timeout,
@@ -210,8 +217,13 @@ export function SoapBuilderClient({ initialEndpointTypes, initialTbcs }: SoapBui
   }
 
   async function handleGetSchema() {
-    if (!selectedTypeId || !selectedMethodId || !selectedTbcId) {
+    if (!selectedTypeId || !selectedTbcId) {
       toast.error("Preencha todos os campos obrigatórios")
+      return
+    }
+    const schemaMethod = methods.find((m) => m.method === "GETSCHEMA" || m.method === "GETSCHEMA2")
+    if (!schemaMethod) {
+      toast.error("Este tipo de endpoint não tem um método Get Schema cadastrado em /admin/soap-endpoints")
       return
     }
 
@@ -219,11 +231,8 @@ export function SoapBuilderClient({ initialEndpointTypes, initialTbcs }: SoapBui
     try {
       const res = await axios.post("/api/soap/execute", {
         endpointTypeId: selectedTypeId,
-        methodId: selectedMethodId,
+        methodId: schemaMethod.id,
         tbcId: selectedTbcId,
-        method: "GETSCHEMA",
-        endpointType: selectedType?.type || "dataserver",
-        suffix: selectedType?.suffix || "",
         xml: "<GetSchema />",
         context,
         timeout,
@@ -257,13 +266,14 @@ export function SoapBuilderClient({ initialEndpointTypes, initialTbcs }: SoapBui
     URL.revokeObjectURL(url)
   }
 
-  const renderTable = useCallback((jsonData: Record<string, unknown> | null) => {
-    if (!jsonData || typeof jsonData !== "object") return <p className="text-muted-foreground text-sm p-4">Sem dados tabulares</p>
+  const renderTable = useCallback((jsonData: Record<string, unknown> | null, emptyMessage: string) => {
+    if (!jsonData || typeof jsonData !== "object") return <p className="text-muted-foreground text-sm p-4">{emptyMessage}</p>
     const entries = Object.entries(jsonData)
-    if (entries.length === 0) return <p className="text-muted-foreground text-sm p-4">Sem dados tabulares</p>
+    if (entries.length === 0) return <p className="text-muted-foreground text-sm p-4">{emptyMessage}</p>
 
     const firstValue = entries[0][1]
     if (Array.isArray(firstValue)) {
+      if (firstValue.length === 0) return <p className="text-muted-foreground text-sm p-4">{emptyMessage}</p>
       const columns = Object.keys(firstValue[0] || {})
       return (
         <Table>
@@ -508,7 +518,14 @@ export function SoapBuilderClient({ initialEndpointTypes, initialTbcs }: SoapBui
               <TabsContent value="table" className="m-0">
                 <ScrollArea className="h-[400px]">
                   {response ? (
-                    <div className="p-4">{renderTable(response.jsonResponse)}</div>
+                    <div className="p-4">
+                      {renderTable(
+                        response.jsonResponse,
+                        selectedMethod === "REALIZARCONSULTASQL" || selectedMethod === "REALIZARCONSULTASQLCONTEXTO"
+                          ? "Nenhuma informação retornada da consulta"
+                          : "Sem dados tabulares"
+                      )}
+                    </div>
                   ) : (
                     <p className="text-muted-foreground text-sm p-4">Execute uma chamada para ver os dados em tabela</p>
                   )}

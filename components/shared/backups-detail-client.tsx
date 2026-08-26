@@ -16,11 +16,12 @@ import type { PaginationMeta } from "@/types/common"
 interface BackupsDetailClientProps {
   filter: Filter & { client: Client; tbc: Tbc }
   sentences: Backup[]
+  sentencesMeta: PaginationMeta
   runs: BackupRun[]
   runsMeta: PaginationMeta
 }
 
-export function BackupsDetailClient({ filter, sentences, runs, runsMeta }: BackupsDetailClientProps) {
+export function BackupsDetailClient({ filter, sentences, sentencesMeta, runs, runsMeta }: BackupsDetailClientProps) {
   const router = useRouter()
   const [restoreDialog, setRestoreDialog] = useState<{ open: boolean; scope: RestoreScope | null }>({
     open: false,
@@ -64,6 +65,7 @@ export function BackupsDetailClient({ filter, sentences, runs, runsMeta }: Backu
           <BackupsSentencesTable
             filterId={filter.id}
             data={sentences}
+            meta={sentencesMeta}
             onRestoreSingle={(backupId) => openRestore({ type: "single", backupId, filterId: filter.id })}
           />
         </TabsContent>

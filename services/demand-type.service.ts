@@ -5,7 +5,7 @@ import type { DemandType } from "@prisma/client";
 
 class DemandTypeRepository extends BaseRepository<DemandType> {
   constructor() {
-    super(prisma.demandType, ["name", "description"], "demand_types");
+    super(prisma.demandType, ["name", "description"], "demand_types", "DemandType");
   }
 }
 
@@ -38,5 +38,13 @@ export const demandTypeService = {
 
   async restore(id: string, organizationId: string) {
     return demandTypeRepository.restore(id, organizationId);
+  },
+
+  async bulkSoftDelete(ids: string[], organizationId: string) {
+    return demandTypeRepository.bulkSoftDelete(ids, organizationId);
+  },
+
+  async bulkRestore(ids: string[], organizationId: string) {
+    return demandTypeRepository.bulkRestore(ids, organizationId);
   },
 };

@@ -56,6 +56,8 @@ interface CodeEditorProps {
   toolbar?: boolean
   className?: string
   minHeight?: string
+  /** "auto" (default) follows the app's light/dark toggle; "dark" always renders One Dark Pro regardless of it. */
+  theme?: "auto" | "dark"
 }
 
 export function CodeEditor({
@@ -69,14 +71,15 @@ export function CodeEditor({
   toolbar = true,
   className,
   minHeight = "180px",
+  theme = "auto",
 }: CodeEditorProps) {
-  const { theme } = useTheme()
+  const { theme: appTheme } = useTheme()
   const [editorEl, setEditorEl] = useState<HTMLDivElement | null>(null)
   const viewRef = useRef<EditorView | null>(null)
 
   useEffect(() => {
     if (!editorEl) return
-    const isDark = theme === "dark"
+    const isDark = theme === "dark" || appTheme === "dark"
 
     const extensions: Extension[] = [basicSetup, languageExtension(language), isDark ? oneDark : []]
     if (readOnly) {
@@ -99,7 +102,7 @@ export function CodeEditor({
       viewRef.current = null
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [editorEl, resetKey, language, readOnly, theme])
+  }, [editorEl, resetKey, language, readOnly, theme, appTheme])
 
   useEffect(() => {
     requestAnimationFrame(() => viewRef.current?.requestMeasure())

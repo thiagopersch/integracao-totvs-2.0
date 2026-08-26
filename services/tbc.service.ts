@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { BaseRepository } from "@/repositories/base.repository";
 import type { CreateTbcInput, UpdateTbcInput } from "@/schemas/tbc.schema";
 import type { PaginationMeta } from "@/types/common";
+import type { TbcCredentials } from "@/services/soap.service";
 import type { Tbc } from "@prisma/client";
 
 export type TbcRow = Omit<Tbc, "password"> & { hasPassword: boolean; client?: { id: string; name: string } | null };
@@ -22,7 +23,7 @@ function stripPasswordList(tbcs: TbcWithMaybeClient[]): TbcRow[] {
 
 class TbcRepository extends BaseRepository<Tbc> {
   constructor() {
-    super(prisma.tbc, ["name", "link"], "tbcs");
+    super(prisma.tbc, ["name", "link"], "tbcs", "Tbc");
   }
 }
 
@@ -110,5 +111,27 @@ export const tbcService = {
 
   async bulkRestore(ids: string[], organizationId: string) {
     return tbcRepository.bulkRestore(ids, organizationId);
+  },
+
+  /**
+   * Every TOTVS request (Report/Fórmula Visual/Dataserver/Processo/Consulta SQL) must be
+   * anchored to an active TBC and read its "não consumir licença" flag before dispatching —
+   * this is the single place that enforces that and hands back live SOAP credentials.
+   */
+  async getCredentialsForRequest(id: string, organizationId: string): Promise<TbcCredentials> {
+    const tbc = await prisma.tbc.findFirst({ where: { id, organizationId, deletedAt: null } });
+    if (!tbc) {
+      throw new Error("TBC não encontrado. Cadastre e selecione um TBC válido antes de executar a requisição.");
+    }
+    if (!tbc.status) {
+      throw new Error(`TBC "${tbc.name}" está inativo. Ative o TBC antes de executar requisições no TOTVS.`);
+    }
+    return {
+      id: tbc.id,
+      link: tbc.link,
+      user: tbc.user,
+      password: tbc.password,
+      notRequiredLicense: tbc.notRequiredLicense,
+    };
   },
 };

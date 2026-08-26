@@ -1,5 +1,11 @@
 import { Suspense } from "react"
 import { listDemands } from "@/actions/demands"
+import { listAllAnalysts } from "@/actions/analysts"
+import { listAllClients } from "@/actions/admin/clients"
+import { listAllRequesters } from "@/actions/requesters"
+import { listAllDepartments } from "@/actions/departments"
+import { listAllDemandTypes } from "@/actions/demand-types"
+import { listAllTags } from "@/actions/tags"
 import { DemandTable } from "@/components/shared/demand-table"
 import { Skeleton } from "@/components/ui/skeleton"
 import { getRequestContext } from "@/lib/tenant"
@@ -19,13 +25,32 @@ async function DemandsContent({ searchParams }: { searchParams: Promise<Record<s
   const params = await searchParams
   const ctx = await getRequestContext()
   const analystScope = await getDemandAnalystScope(ctx)
-  const { data, meta } = await listDemands({
-    page: Number(params.page) || 1,
-    pageSize: Number(params.pageSize) || 10,
-    search: params.search,
-    sort: params.sort ? { field: params.sort.split(":")[0], direction: params.sort.split(":")[1] as "asc" | "desc" } : undefined,
-    filters: params.status ? { status: params.status } : undefined,
-  }, ctx.organizationId, analystScope)
+  const [{ data, meta }, analysts, clients, requesters, departments, demandTypes, tags] = await Promise.all([
+    listDemands({
+      page: Number(params.page) || 1,
+      pageSize: Number(params.pageSize) || 10,
+      search: params.search,
+      sort: params.sort ? { field: params.sort.split(":")[0], direction: params.sort.split(":")[1] as "asc" | "desc" } : undefined,
+      filters: params.status ? { status: params.status } : undefined,
+    }, ctx.organizationId, analystScope),
+    listAllAnalysts(),
+    listAllClients(),
+    listAllRequesters(),
+    listAllDepartments(),
+    listAllDemandTypes(),
+    listAllTags(),
+  ])
 
-  return <DemandTable data={data} meta={meta} />
+  return (
+    <DemandTable
+      data={data}
+      meta={meta}
+      analysts={analysts}
+      clients={clients}
+      requesters={requesters}
+      departments={departments}
+      demandTypes={demandTypes}
+      tags={tags}
+    />
+  )
 }

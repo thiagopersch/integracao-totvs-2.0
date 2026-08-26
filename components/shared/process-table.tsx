@@ -22,7 +22,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { Plus, Loader2 } from "lucide-react"
-import { deleteProcess, restoreProcess, createProcess, updateProcess } from "@/actions/admin/processes"
+import { deleteProcess, restoreProcess, createProcess, updateProcess, bulkDeleteProcesses } from "@/actions/admin/processes"
 import { createProcessSchema, updateProcessSchema, type CreateProcessInput } from "@/schemas/process.schema"
 import { toast } from "sonner"
 import { useCrudTable } from "@/hooks/use-crud-table"
@@ -164,6 +164,12 @@ export function ProcessTable({ data, meta }: ProcessTableProps) {
         searchPlaceholder="Buscar por código ou nome..."
         onSearch={(v) => pushParams({ search: v || undefined, page: 1 })}
         toolbarActions={newDialog}
+        bulkDelete={{
+          getId: (row) => row.id,
+          getRowLabel: (row) => row.code,
+          action: bulkDeleteProcesses,
+          onSuccess: () => router.refresh(),
+        }}
       />
 
       <ConfirmDialog

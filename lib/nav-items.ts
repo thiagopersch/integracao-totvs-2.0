@@ -48,6 +48,7 @@ export const navGroups: NavGroup[] = [
     items: [
       { href: "/demands", label: "Demandas", icon: "ListChecks", resource: "demands" },
       { href: "/analysts", label: "Analistas", icon: "UserCog", resource: "analysts" },
+      { href: "/contracts", label: "Contratos", icon: "FileSignature", resource: "contracts" },
       { href: "/requesters", label: "Solicitantes", icon: "UserPlus", resource: "requesters" },
       { href: "/departments", label: "Departamentos", icon: "Building", resource: "departments" },
       { href: "/demand-types", label: "Tipos de Demanda", icon: "Tags", resource: "demand_types" },
@@ -60,6 +61,7 @@ export const navGroups: NavGroup[] = [
     items: [
       { href: "/admin/users", label: "Usuários", icon: "Users", resource: "users" },
       { href: "/admin/roles", label: "Papéis e Permissões", icon: "ShieldCheck", resource: "roles" },
+      { href: "/admin/deletion-logs", label: "Logs de Exclusão", icon: "AlertTriangle", resource: "deletion_logs" },
     ],
   },
   {

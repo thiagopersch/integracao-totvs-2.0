@@ -5,15 +5,18 @@ import type { ColumnDef } from "@tanstack/react-table"
 import { useForm, Controller, type Resolver } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { DataTable } from "@/components/shared/data-table"
+import { DataTableFilterPanel } from "@/components/shared/data-table-filter-panel"
 import { PageHeader } from "@/components/shared/page-header"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
 import { EntityActionsCell } from "@/components/shared/entity-actions-cell"
+import { createSelectColumn } from "@/components/shared/select-column"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Field, FieldLabel, FieldError } from "@/components/ui/field"
 import { Checkbox } from "@/components/ui/checkbox"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
   Dialog,
   DialogBody,
@@ -24,7 +27,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { Plus, Loader2 } from "lucide-react"
-import { deleteRequester, createRequester, updateRequester } from "@/actions/requesters"
+import { deleteRequester, createRequester, updateRequester, bulkDeleteRequesters } from "@/actions/requesters"
 import { createRequesterSchema, updateRequesterSchema, type CreateRequesterInput } from "@/schemas/requester.schema"
 import { toast } from "sonner"
 import { useCrudTable } from "@/hooks/use-crud-table"
@@ -39,6 +42,7 @@ interface RequesterTableProps {
 export function RequesterTable({ data, meta }: RequesterTableProps) {
   const {
     router,
+    searchParams,
     deleteDialog,
     setDeleteDialog,
     editDialog,
@@ -50,6 +54,7 @@ export function RequesterTable({ data, meta }: RequesterTableProps) {
     deleteSuccessMessage: "Solicitante excluído com sucesso",
   })
   const [loading, setLoading] = useState(false)
+  const [statusFilter, setStatusFilter] = useState(searchParams.get("status") || "")
 
   const form = useForm<CreateRequesterInput>({
     mode: "onChange",
@@ -87,6 +92,7 @@ export function RequesterTable({ data, meta }: RequesterTableProps) {
   }
 
   const columns: ColumnDef<Requester>[] = [
+    createSelectColumn<Requester>(),
     { accessorKey: "name", header: "Nome" },
     { accessorKey: "email", header: "E-mail", cell: ({ row }) => row.getValue("email") || "-" },
     { accessorKey: "phone", header: "Telefone", cell: ({ row }) => row.getValue("phone") || "-" },
@@ -156,6 +162,38 @@ export function RequesterTable({ data, meta }: RequesterTableProps) {
     </Dialog>
   )
 
+  const filterPanel = (
+    <DataTableFilterPanel
+      onApply={() => pushParams({ status: statusFilter || undefined, page: 1 })}
+      onClear={() => {
+        setStatusFilter("")
+        pushParams({ status: undefined, page: 1 })
+      }}
+    >
+      <div className="space-y-2">
+        <Label>Status</Label>
+        <Select
+          items={[
+            { value: "all", label: "Todos" },
+            { value: "true", label: "Ativo" },
+            { value: "false", label: "Inativo" },
+          ]}
+          value={statusFilter || "all"}
+          onValueChange={(v) => setStatusFilter(v === "all" || !v ? "" : v)}
+        >
+          <SelectTrigger className="w-full">
+            <SelectValue placeholder="Todos" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos</SelectItem>
+            <SelectItem value="true">Ativo</SelectItem>
+            <SelectItem value="false">Inativo</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+    </DataTableFilterPanel>
+  )
+
   return (
     <>
       <PageHeader title="Solicitantes" description="Gerenciar solicitantes de demandas" />
@@ -172,6 +210,13 @@ export function RequesterTable({ data, meta }: RequesterTableProps) {
         searchPlaceholder="Buscar por nome ou e-mail..."
         onSearch={(v) => pushParams({ search: v || undefined, page: 1 })}
         toolbarActions={newDialog}
+        filterPanel={filterPanel}
+        bulkDelete={{
+          getId: (row) => row.id,
+          getRowLabel: (row) => row.name,
+          action: bulkDeleteRequesters,
+          onSuccess: () => router.refresh(),
+        }}
       />
 
       <ConfirmDialog

@@ -5,7 +5,7 @@ import type { TotvsSystem } from "@prisma/client";
 
 class SistemaRepository extends BaseRepository<TotvsSystem> {
   constructor() {
-    super(prisma.totvsSystem, ["code", "internalName", "externalName"], "totvs_systems");
+    super(prisma.totvsSystem, ["code", "internalName", "externalName"], "totvs_systems", "TotvsSystem");
   }
 
   async listAll(organizationId: string): Promise<TotvsSystem[]> {

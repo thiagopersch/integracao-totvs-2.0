@@ -39,6 +39,13 @@ export const PERMISSIONS: PermissionDef[] = [
   { resource: "settings", action: "manage", name: "Gerenciar Configurações", description: "Gerenciar configurações do sistema", module: "settings" },
   { resource: "notifications", action: "read", name: "Ver Notificações", description: "Visualizar próprias notificações", module: "notifications" },
   { resource: "reports", action: "read", name: "Ver Relatórios", description: "Visualizar e exportar relatórios", module: "demands" },
+  {
+    resource: "deletion_logs",
+    action: "read",
+    name: "Ver Logs de Exclusão",
+    description: "Visualizar registros que não puderam ser excluídos por estarem vinculados a outros cadastros",
+    module: "settings",
+  },
 ];
 
 function toKey(p: Pick<PermissionDef, "resource" | "action">): string {
@@ -52,7 +59,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<"ADMIN" | "MANAGER" | "USER", stri
       ? p.action !== "delete"
       : ["dataservers", "processes"].includes(p.resource)
         ? p.action === "read"
-        : ["soap", "dashboard", "notifications", "reports"].includes(p.resource)
+        : ["soap", "dashboard", "notifications", "reports", "deletion_logs"].includes(p.resource)
           ? true
           : ["analysts", "contracts", "requesters", "departments", "demand_types", "tags", "demands"].includes(p.resource)
             ? p.action !== "delete"

@@ -22,7 +22,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { Plus, Loader2 } from "lucide-react"
-import { deleteSistema, restoreSistema, createSistema, updateSistema } from "@/actions/admin/sistemas"
+import { deleteSistema, restoreSistema, createSistema, updateSistema, bulkDeleteSistemas } from "@/actions/admin/sistemas"
 import { createSistemaSchema, updateSistemaSchema, type CreateSistemaInput } from "@/schemas/sistema.schema"
 import { toast } from "sonner"
 import { useCrudTable } from "@/hooks/use-crud-table"
@@ -164,6 +164,12 @@ export function SistemaTable({ data, meta }: SistemaTableProps) {
         searchPlaceholder="Buscar por código ou nome..."
         onSearch={(v) => pushParams({ search: v || undefined, page: 1 })}
         toolbarActions={newDialog}
+        bulkDelete={{
+          getId: (row) => row.id,
+          getRowLabel: (row) => row.code,
+          action: bulkDeleteSistemas,
+          onSuccess: () => router.refresh(),
+        }}
       />
 
       <ConfirmDialog

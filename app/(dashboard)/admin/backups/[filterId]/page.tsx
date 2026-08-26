@@ -37,7 +37,17 @@ async function BackupsContent({
   if (!filter) notFound()
 
   const [sentences, runs] = await Promise.all([
-    listLatestBackupsForFilter(filterId, organizationId),
+    listLatestBackupsForFilter(
+      filterId,
+      {
+        page: Number(search.page) || 1,
+        pageSize: Number(search.pageSize) || 10,
+        sort: search.sort
+          ? { field: search.sort.split(":")[0], direction: search.sort.split(":")[1] as "asc" | "desc" }
+          : undefined,
+      },
+      organizationId
+    ),
     listBackupRunsForFilter(
       filterId,
       { page: Number(search.runsPage) || 1, pageSize: Number(search.runsPageSize) || 10 },
@@ -48,7 +58,8 @@ async function BackupsContent({
   return (
     <BackupsDetailClient
       filter={filter}
-      sentences={sentences}
+      sentences={sentences.data}
+      sentencesMeta={sentences.meta}
       runs={runs.data}
       runsMeta={runs.meta}
     />

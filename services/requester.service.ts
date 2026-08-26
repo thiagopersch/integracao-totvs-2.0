@@ -5,7 +5,7 @@ import type { Requester } from "@prisma/client";
 
 class RequesterRepository extends BaseRepository<Requester> {
   constructor() {
-    super(prisma.requester, ["name", "email"], "requesters");
+    super(prisma.requester, ["name", "email"], "requesters", "Requester");
   }
 }
 
@@ -38,5 +38,13 @@ export const requesterService = {
 
   async restore(id: string, organizationId: string) {
     return requesterRepository.restore(id, organizationId);
+  },
+
+  async bulkSoftDelete(ids: string[], organizationId: string) {
+    return requesterRepository.bulkSoftDelete(ids, organizationId);
+  },
+
+  async bulkRestore(ids: string[], organizationId: string) {
+    return requesterRepository.bulkRestore(ids, organizationId);
   },
 };

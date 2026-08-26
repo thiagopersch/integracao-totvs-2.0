@@ -32,7 +32,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { Plus, Loader2 } from "lucide-react"
-import { deleteSentenceCategory, restoreSentenceCategory, createSentenceCategory, updateSentenceCategory } from "@/actions/admin/sentence-categories"
+import { deleteSentenceCategory, restoreSentenceCategory, createSentenceCategory, updateSentenceCategory, bulkDeleteSentenceCategories } from "@/actions/admin/sentence-categories"
 import { createSentenceCategorySchema, updateSentenceCategorySchema, type CreateSentenceCategoryInput } from "@/schemas/sentence-category.schema"
 import { toast } from "sonner"
 import { useCrudTable } from "@/hooks/use-crud-table"
@@ -212,6 +212,12 @@ export function SentenceCategoryTable({ data, meta }: SentenceCategoryTableProps
         onSearch={(v) => pushParams({ search: v || undefined, page: 1 })}
         toolbarActions={newDialog}
         filterPanel={filterPanel}
+        bulkDelete={{
+          getId: (row) => row.id,
+          getRowLabel: (row) => row.code,
+          action: bulkDeleteSentenceCategories,
+          onSuccess: () => router.refresh(),
+        }}
       />
 
       <ConfirmDialog

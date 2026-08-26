@@ -6,6 +6,7 @@ import { auditService } from "@/services/audit.service";
 import { createDemandSchema, updateDemandSchema } from "@/schemas/demand.schema";
 import { requirePermission } from "@/lib/rbac";
 import { getDemandAnalystScope } from "@/lib/demand-scope";
+import { formatBlockingReferences } from "@/lib/entity-relations";
 import type { ListParams } from "@/types/common";
 
 export async function listDemands(params: ListParams, organizationId: string, analystScope?: string) {
@@ -78,6 +79,34 @@ export async function deleteDemand(id: string) {
     await auditService.log({ action: "DELETE", entity: "Demand", entityId: id });
     updateTag("demands");
     return { success: true };
+  } catch (error) {
+    return { success: false, error: (error as Error).message };
+  }
+}
+
+export async function bulkDeleteDemands(ids: string[]) {
+  const { organizationId, userId } = await requirePermission("demands", "delete");
+  try {
+    const result = await demandService.bulkSoftDelete(ids, organizationId);
+    if (result.deletedIds.length) {
+      await auditService.log({
+        action: "BULK_DELETE",
+        entity: "Demand",
+        entityId: result.deletedIds.join(","),
+        organizationId,
+        userId,
+        newData: { count: result.deletedCount },
+      });
+    }
+    if (result.blocked.length) {
+      await auditService.logBulkDeleteBlocked("Demand", result.blocked, organizationId, userId);
+    }
+    updateTag("demands");
+    return {
+      success: true,
+      deletedCount: result.deletedCount,
+      blocked: result.blocked.map((b) => ({ id: b.id, reasons: formatBlockingReferences(b.reasons) })),
+    };
   } catch (error) {
     return { success: false, error: (error as Error).message };
   }

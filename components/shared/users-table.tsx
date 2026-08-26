@@ -26,7 +26,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { Plus } from "lucide-react"
-import { deleteUser, restoreUser } from "@/actions/admin/users"
+import { deleteUser, restoreUser, bulkDeleteUsers } from "@/actions/admin/users"
 import { UserForm } from "./user-form"
 import { useCrudTable } from "@/hooks/use-crud-table"
 import type { User } from "@prisma/client"
@@ -164,6 +164,12 @@ export function UsersTable({ data, meta }: UsersTableProps) {
         onSearch={(v) => pushParams({ search: v || undefined, page: 1 })}
         toolbarActions={newDialog}
         filterPanel={filterPanel}
+        bulkDelete={{
+          getId: (row) => row.id,
+          getRowLabel: (row) => row.name,
+          action: bulkDeleteUsers,
+          onSuccess: () => router.refresh(),
+        }}
       />
 
       <ConfirmDialog

@@ -2,13 +2,15 @@ import { createHash } from "node:crypto";
 import { prisma } from "@/lib/prisma";
 import { BaseRepository } from "@/repositories/base.repository";
 import { fetchSentencesForFilter, restoreSentenceToTbc } from "@/services/rm-sentence.service";
+import { soapService, type WsName } from "@/services/soap.service";
+import { soapEndpointService } from "@/services/soap-endpoint.service";
 import type { CreateBackupInput, UpdateBackupInput } from "@/schemas/backup.schema";
 import type { ListParams } from "@/types/common";
 import type { Backup } from "@prisma/client";
 
 class BackupRepository extends BaseRepository<Backup> {
   constructor() {
-    super(prisma.backup, ["codeSentence", "nameSentence", "branchSentence"], "backups");
+    super(prisma.backup, ["codeSentence", "nameSentence", "branchSentence"], "backups", "Backup");
   }
 }
 
@@ -89,8 +91,30 @@ export const backupService = {
     });
 
     try {
-      const sentences = await fetchSentencesForFilter(filter, organizationId);
+      // Captura o TBC do filtro e autentica (AutenticaAcesso + CheckServiceActivity) antes de
+      // qualquer backup — se o TBC estiver inválido/inativo ou o serviço TOTVS indisponível,
+      // aborta aqui com uma mensagem clara em vez de gravar um backup potencialmente órfão.
+      // O ws folder vem do tipo "dataserver" cadastrado em /admin/soap-endpoints, não hardcoded.
+      const dataserverType = await soapEndpointService.getActiveTypeByKey("dataserver");
+      await soapService.authenticate(
+        {
+          id: filter.tbc.id,
+          link: filter.tbc.link,
+          user: filter.tbc.user,
+          password: filter.tbc.password,
+          notRequiredLicense: filter.tbc.notRequiredLicense,
+        },
+        dataserverType.suffix as WsName,
+        organizationId,
+        executedByUserId
+      );
 
+      const sentences = await fetchSentencesForFilter(filter, filter.tbc, organizationId);
+
+      // First backup: no prior row exists for any code, so everything is saved as the current
+      // version. Subsequent backups: equal hash means unchanged — skip, no new version created;
+      // different hash means the new content becomes latest and the previous row is demoted (kept,
+      // for that sentence's version history) rather than deleted.
       for (const sentence of sentences) {
         const hash = hashContent(sentence.contentSentence);
         const current = await prisma.backup.findFirst({
@@ -147,17 +171,39 @@ export const backupService = {
     }
   },
 
-  async listLatestByFilter(filterId: string, organizationId: string) {
-    return prisma.backup.findMany({
-      where: { filterId, organizationId, isLatest: true, deletedAt: null },
-      orderBy: { createdAt: "desc" },
-    });
+  async listLatestByFilter(filterId: string, params: ListParams, organizationId: string) {
+    const page = params.page || 1;
+    const pageSize = params.pageSize || 10;
+    const where = { filterId, organizationId, isLatest: true, deletedAt: null };
+    const orderBy = params.sort
+      ? { [params.sort.field]: params.sort.direction }
+      : { codeSentence: "asc" as const };
+
+    const [data, total] = await Promise.all([
+      prisma.backup.findMany({
+        where,
+        orderBy,
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+      prisma.backup.count({ where }),
+    ]);
+
+    return { data, meta: { page, pageSize, total, totalPages: Math.ceil(total / pageSize) } };
   },
 
   async listHistoryByCode(filterId: string, codeSentence: string, organizationId: string) {
     return prisma.backup.findMany({
       where: { filterId, organizationId, codeSentence, deletedAt: null },
       orderBy: { createdAt: "desc" },
+    });
+  },
+
+  /** Always re-reads from the app DB at click time — "Visualizar" must never trust an in-memory
+   *  row that may have gone stale if a newer backup ran since the page loaded. */
+  async getLatestByCode(filterId: string, codeSentence: string, organizationId: string) {
+    return prisma.backup.findFirst({
+      where: { filterId, organizationId, codeSentence, isLatest: true, deletedAt: null },
     });
   },
 

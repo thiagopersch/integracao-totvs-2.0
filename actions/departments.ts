@@ -6,6 +6,7 @@ import { auditService } from "@/services/audit.service";
 import { createDepartmentSchema, updateDepartmentSchema } from "@/schemas/department.schema";
 import { requirePermission } from "@/lib/rbac";
 import { getRequestContext } from "@/lib/tenant";
+import { formatBlockingReferences } from "@/lib/entity-relations";
 import type { ListParams } from "@/types/common";
 
 export async function listAllDepartments() {
@@ -70,6 +71,34 @@ export async function deleteDepartment(id: string) {
     await auditService.log({ action: "DELETE", entity: "Department", entityId: id });
     updateTag("departments");
     return { success: true };
+  } catch (error) {
+    return { success: false, error: (error as Error).message };
+  }
+}
+
+export async function bulkDeleteDepartments(ids: string[]) {
+  const { organizationId, userId } = await requirePermission("departments", "delete");
+  try {
+    const result = await departmentService.bulkSoftDelete(ids, organizationId);
+    if (result.deletedIds.length) {
+      await auditService.log({
+        action: "BULK_DELETE",
+        entity: "Department",
+        entityId: result.deletedIds.join(","),
+        organizationId,
+        userId,
+        newData: { count: result.deletedCount },
+      });
+    }
+    if (result.blocked.length) {
+      await auditService.logBulkDeleteBlocked("Department", result.blocked, organizationId, userId);
+    }
+    updateTag("departments");
+    return {
+      success: true,
+      deletedCount: result.deletedCount,
+      blocked: result.blocked.map((b) => ({ id: b.id, reasons: formatBlockingReferences(b.reasons) })),
+    };
   } catch (error) {
     return { success: false, error: (error as Error).message };
   }

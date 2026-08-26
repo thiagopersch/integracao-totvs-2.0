@@ -5,6 +5,7 @@ import { processService } from "@/services/process.service";
 import { auditService } from "@/services/audit.service";
 import { createProcessSchema, updateProcessSchema } from "@/schemas/process.schema";
 import { requirePermission } from "@/lib/rbac";
+import { formatBlockingReferences } from "@/lib/entity-relations";
 import type { ListParams } from "@/types/common";
 
 export async function listProcesses(params: ListParams, organizationId: string) {
@@ -109,17 +110,28 @@ export async function restoreProcess(id: string) {
 }
 
 export async function bulkDeleteProcesses(ids: string[]) {
-  const { organizationId } = await requirePermission("processes", "delete");
+  const { organizationId, userId } = await requirePermission("processes", "delete");
   try {
-    const count = await processService.bulkSoftDelete(ids, organizationId);
-    await auditService.log({
-      action: "BULK_DELETE",
-      entity: "Process",
-      entityId: ids.join(","),
-      newData: { count },
-    });
+    const result = await processService.bulkSoftDelete(ids, organizationId);
+    if (result.deletedIds.length) {
+      await auditService.log({
+        action: "BULK_DELETE",
+        entity: "Process",
+        entityId: result.deletedIds.join(","),
+        organizationId,
+        userId,
+        newData: { count: result.deletedCount },
+      });
+    }
+    if (result.blocked.length) {
+      await auditService.logBulkDeleteBlocked("Process", result.blocked, organizationId, userId);
+    }
     updateTag("processes");
-    return { success: true, count };
+    return {
+      success: true,
+      deletedCount: result.deletedCount,
+      blocked: result.blocked.map((b) => ({ id: b.id, reasons: formatBlockingReferences(b.reasons) })),
+    };
   } catch (error) {
     return { success: false, error: (error as Error).message };
   }

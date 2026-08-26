@@ -1,6 +1,18 @@
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
+import { findBlockingReferences, type BlockingReference } from "@/lib/entity-relations";
 import type { ListParams, PaginationMeta } from "@/types/common";
+
+export interface BulkDeleteBlocked {
+  id: string;
+  reasons: BlockingReference[];
+}
+
+export interface BulkDeleteResult {
+  deletedCount: number;
+  deletedIds: string[];
+  blocked: BulkDeleteBlocked[];
+}
 
 function toColumnName(field: string): string {
   return field.replace(/[A-Z]/g, (m) => `_${m.toLowerCase()}`);
@@ -25,7 +37,9 @@ export class BaseRepository<T extends { id: string; deletedAt: Date | null }> {
   constructor(
     protected model: CrudDelegate<T>,
     protected searchFields: string[] = ["name"],
-    protected tableName?: string
+    protected tableName?: string,
+    /** Prisma model name (e.g. "Tbc"), used to look up other registries that still reference a row before deleting it. */
+    protected modelName?: string
   ) {}
 
   /**
@@ -143,12 +157,32 @@ export class BaseRepository<T extends { id: string; deletedAt: Date | null }> {
     }) as Promise<T>;
   }
 
-  async bulkSoftDelete(ids: string[], organizationId?: string): Promise<number> {
-    const result = await this.model.updateMany({
-      where: { id: { in: ids }, ...(organizationId ? { organizationId } : {}) },
-      data: { deletedAt: new Date() },
-    });
-    return result.count;
+  async bulkSoftDelete(ids: string[], organizationId?: string): Promise<BulkDeleteResult> {
+    if (!this.modelName) {
+      const result = await this.model.updateMany({
+        where: { id: { in: ids }, ...(organizationId ? { organizationId } : {}) },
+        data: { deletedAt: new Date() },
+      });
+      return { deletedCount: result.count, deletedIds: ids, blocked: [] };
+    }
+
+    const blocked: BulkDeleteBlocked[] = [];
+    const deletableIds: string[] = [];
+
+    for (const id of ids) {
+      const reasons = await findBlockingReferences(this.modelName, id);
+      if (reasons.length > 0) blocked.push({ id, reasons });
+      else deletableIds.push(id);
+    }
+
+    if (deletableIds.length > 0) {
+      await this.model.updateMany({
+        where: { id: { in: deletableIds }, ...(organizationId ? { organizationId } : {}) },
+        data: { deletedAt: new Date() },
+      });
+    }
+
+    return { deletedCount: deletableIds.length, deletedIds: deletableIds, blocked };
   }
 
   async bulkRestore(ids: string[], organizationId?: string): Promise<number> {

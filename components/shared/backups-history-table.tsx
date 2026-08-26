@@ -45,7 +45,7 @@ export function BackupsHistoryTable({ data, meta, onRestoreRun, onRestoreSingle 
     {
       accessorKey: "startedAt",
       header: "Data do backup",
-      cell: ({ row }) => new Date(row.getValue("startedAt")).toLocaleString("pt-BR"),
+      cell: ({ row }) => new Date(row.getValue("startedAt")).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" }),
     },
     {
       id: "actions",

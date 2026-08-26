@@ -6,6 +6,7 @@ import { auditService } from "@/services/audit.service";
 import { createAnalystSchema, updateAnalystSchema } from "@/schemas/analyst.schema";
 import { requirePermission } from "@/lib/rbac";
 import { getRequestContext } from "@/lib/tenant";
+import { formatBlockingReferences } from "@/lib/entity-relations";
 import type { ListParams } from "@/types/common";
 
 export async function listAllAnalysts() {
@@ -74,6 +75,34 @@ export async function deleteAnalyst(id: string) {
     await auditService.log({ action: "DELETE", entity: "Analyst", entityId: id });
     updateTag("analysts");
     return { success: true };
+  } catch (error) {
+    return { success: false, error: (error as Error).message };
+  }
+}
+
+export async function bulkDeleteAnalysts(ids: string[]) {
+  const { organizationId, userId } = await requirePermission("analysts", "delete");
+  try {
+    const result = await analystService.bulkSoftDelete(ids, organizationId);
+    if (result.deletedIds.length) {
+      await auditService.log({
+        action: "BULK_DELETE",
+        entity: "Analyst",
+        entityId: result.deletedIds.join(","),
+        organizationId,
+        userId,
+        newData: { count: result.deletedCount },
+      });
+    }
+    if (result.blocked.length) {
+      await auditService.logBulkDeleteBlocked("Analyst", result.blocked, organizationId, userId);
+    }
+    updateTag("analysts");
+    return {
+      success: true,
+      deletedCount: result.deletedCount,
+      blocked: result.blocked.map((b) => ({ id: b.id, reasons: formatBlockingReferences(b.reasons) })),
+    };
   } catch (error) {
     return { success: false, error: (error as Error).message };
   }

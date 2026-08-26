@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import type { ColumnDef } from "@tanstack/react-table"
 import { useForm, type Resolver } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -9,6 +9,7 @@ import { DataTableFilterPanel } from "@/components/shared/data-table-filter-pane
 import { PageHeader } from "@/components/shared/page-header"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
 import { EntityActionsCell } from "@/components/shared/entity-actions-cell"
+import { createSelectColumn } from "@/components/shared/select-column"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -32,13 +33,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { Plus, Loader2 } from "lucide-react"
-import { deleteDemand, createDemand, updateDemand } from "@/actions/demands"
-import { listAllAnalysts } from "@/actions/analysts"
-import { listAllClients } from "@/actions/admin/clients"
-import { listAllRequesters } from "@/actions/requesters"
-import { listAllDepartments } from "@/actions/departments"
-import { listAllDemandTypes } from "@/actions/demand-types"
-import { listAllTags } from "@/actions/tags"
+import { deleteDemand, createDemand, updateDemand, bulkDeleteDemands } from "@/actions/demands"
 import { createDemandSchema, updateDemandSchema, type CreateDemandInput } from "@/schemas/demand.schema"
 import { toast } from "sonner"
 import { useCrudTable } from "@/hooks/use-crud-table"
@@ -62,6 +57,12 @@ type DemandRow = {
 interface DemandTableProps {
   data: DemandRow[]
   meta: PaginationMeta
+  analysts: Analyst[]
+  clients: Client[]
+  requesters: Requester[]
+  departments: Department[]
+  demandTypes: DemandType[]
+  tags: Tag[]
 }
 
 const STATUS_LABELS: Record<string, string> = {
@@ -85,7 +86,7 @@ const PRIORITY_LABELS: Record<string, string> = {
   URGENT: "Urgente",
 }
 
-export function DemandTable({ data, meta }: DemandTableProps) {
+export function DemandTable({ data, meta, analysts, clients, requesters, departments, demandTypes, tags }: DemandTableProps) {
   const {
     router,
     searchParams,
@@ -100,22 +101,7 @@ export function DemandTable({ data, meta }: DemandTableProps) {
     deleteSuccessMessage: "Demanda excluída com sucesso",
   })
   const [loading, setLoading] = useState(false)
-  const [analysts, setAnalysts] = useState<Analyst[]>([])
-  const [clients, setClients] = useState<Client[]>([])
-  const [requesters, setRequesters] = useState<Requester[]>([])
-  const [departments, setDepartments] = useState<Department[]>([])
-  const [demandTypes, setDemandTypes] = useState<DemandType[]>([])
-  const [tags, setTags] = useState<Tag[]>([])
   const [statusFilter, setStatusFilter] = useState(searchParams.get("status") || "")
-
-  useEffect(() => {
-    listAllAnalysts().then(setAnalysts)
-    listAllClients().then(setClients)
-    listAllRequesters().then(setRequesters)
-    listAllDepartments().then(setDepartments)
-    listAllDemandTypes().then(setDemandTypes)
-    listAllTags().then(setTags)
-  }, [])
 
   function toDateInputValue(d: string | Date) {
     const date = typeof d === "string" ? new Date(d) : d
@@ -195,13 +181,14 @@ export function DemandTable({ data, meta }: DemandTableProps) {
   }
 
   const columns: ColumnDef<DemandRow>[] = [
+    createSelectColumn<DemandRow>(),
     { accessorKey: "name", header: "Nome" },
     { id: "analyst", header: "Analista", cell: ({ row }) => row.original.analyst?.name || "-" },
     { id: "client", header: "Cliente", cell: ({ row }) => row.original.client?.name || "-" },
     {
       accessorKey: "date",
       header: "Data",
-      cell: ({ row }) => new Date(row.getValue("date") as string).toLocaleDateString("pt-BR"),
+      cell: ({ row }) => new Date(row.getValue("date") as string).toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" }),
     },
     {
       accessorKey: "priority",
@@ -475,6 +462,12 @@ export function DemandTable({ data, meta }: DemandTableProps) {
         onSearch={(v) => pushParams({ search: v || undefined, page: 1 })}
         toolbarActions={newDialog}
         filterPanel={filterPanel}
+        bulkDelete={{
+          getId: (row) => row.id,
+          getRowLabel: (row) => row.name,
+          action: bulkDeleteDemands,
+          onSuccess: () => router.refresh(),
+        }}
       />
 
       <ConfirmDialog

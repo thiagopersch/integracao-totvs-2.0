@@ -6,6 +6,7 @@ import { auditService } from "@/services/audit.service";
 import { createSentenceCategorySchema, updateSentenceCategorySchema } from "@/schemas/sentence-category.schema";
 import { requirePermission } from "@/lib/rbac";
 import { getRequestContext } from "@/lib/tenant";
+import { formatBlockingReferences } from "@/lib/entity-relations";
 import type { ListParams } from "@/types/common";
 
 export async function listAllSentenceCategories() {
@@ -115,17 +116,28 @@ export async function restoreSentenceCategory(id: string) {
 }
 
 export async function bulkDeleteSentenceCategories(ids: string[]) {
-  const { organizationId } = await requirePermission("sentence_categories", "delete");
+  const { organizationId, userId } = await requirePermission("sentence_categories", "delete");
   try {
-    const count = await sentenceCategoryService.bulkSoftDelete(ids, organizationId);
-    await auditService.log({
-      action: "BULK_DELETE",
-      entity: "SentenceCategory",
-      entityId: ids.join(","),
-      newData: { count },
-    });
+    const result = await sentenceCategoryService.bulkSoftDelete(ids, organizationId);
+    if (result.deletedIds.length) {
+      await auditService.log({
+        action: "BULK_DELETE",
+        entity: "SentenceCategory",
+        entityId: result.deletedIds.join(","),
+        organizationId,
+        userId,
+        newData: { count: result.deletedCount },
+      });
+    }
+    if (result.blocked.length) {
+      await auditService.logBulkDeleteBlocked("SentenceCategory", result.blocked, organizationId, userId);
+    }
     updateTag("sentenceCategories");
-    return { success: true, count };
+    return {
+      success: true,
+      deletedCount: result.deletedCount,
+      blocked: result.blocked.map((b) => ({ id: b.id, reasons: formatBlockingReferences(b.reasons) })),
+    };
   } catch (error) {
     return { success: false, error: (error as Error).message };
   }

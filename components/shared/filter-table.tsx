@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import type { ColumnDef } from "@tanstack/react-table"
 import { useForm, Controller, type Resolver } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -37,11 +37,7 @@ import {
 import { Plus, RotateCcw, History, Loader2 } from "lucide-react"
 import { RestoreBackupDialog, type RestoreScope } from "@/components/shared/restore-backup-dialog"
 import { RestorePasswordConfirmDialog } from "@/components/shared/restore-password-confirm-dialog"
-import { deleteFilter, restoreFilter, createFilter, updateFilter, createBackupFromFilter, listDistinctSentenceCodes } from "@/actions/admin/filters"
-import { listAllClients, listActiveClientsWithTbc } from "@/actions/admin/clients"
-import { listAllTbcs } from "@/actions/admin/tbcs"
-import { listAllSistemas } from "@/actions/admin/sistemas"
-import { listAllSentenceCategories } from "@/actions/admin/sentence-categories"
+import { deleteFilter, restoreFilter, createFilter, updateFilter, createBackupFromFilter, bulkDeleteFilters } from "@/actions/admin/filters"
 import { createFilterSchema, updateFilterSchema, type CreateFilterInput } from "@/schemas/filter.schema"
 import { toast } from "sonner"
 import { useCrudTable } from "@/hooks/use-crud-table"
@@ -67,9 +63,15 @@ interface FilterRow extends Filter {
 interface FilterTableProps {
   data: FilterRow[]
   meta: PaginationMeta
+  clients: Client[]
+  tbcs: TbcRow[]
+  sistemas: TotvsSystem[]
+  categories: SentenceCategory[]
+  filterClients: Client[]
+  sentenceCodes: { codigosColigada: string[]; codigosSistema: string[] }
 }
 
-export function FilterTable({ data, meta }: FilterTableProps) {
+export function FilterTable({ data, meta, clients, tbcs, sistemas, categories, filterClients, sentenceCodes }: FilterTableProps) {
   const {
     router,
     searchParams,
@@ -86,15 +88,6 @@ export function FilterTable({ data, meta }: FilterTableProps) {
     restoreSuccessMessage: "Filtro restaurado com sucesso",
   })
   const [loading, setLoading] = useState(false)
-  const [clients, setClients] = useState<Client[]>([])
-  const [tbcs, setTbcs] = useState<TbcRow[]>([])
-  const [sistemas, setSistemas] = useState<TotvsSystem[]>([])
-  const [categories, setCategories] = useState<SentenceCategory[]>([])
-  const [filterClients, setFilterClients] = useState<Client[]>([])
-  const [sentenceCodes, setSentenceCodes] = useState<{ codigosColigada: string[]; codigosSistema: string[] }>({
-    codigosColigada: [],
-    codigosSistema: [],
-  })
   const [clientFilter, setClientFilter] = useState(searchParams.get("clientId") || "")
   const [statusFilter, setStatusFilter] = useState(searchParams.get("status") || "")
   const [noLicenseFilter, setNoLicenseFilter] = useState(searchParams.get("notRequiredLicense") || "")
@@ -115,15 +108,6 @@ export function FilterTable({ data, meta }: FilterTableProps) {
     targetTbcId: string | null
   }>({ open: false, scope: null, targetTbcId: null })
   const [backupCategoryId, setBackupCategoryId] = useState("")
-
-  useEffect(() => {
-    listAllClients().then(setClients)
-    listAllTbcs().then(setTbcs)
-    listAllSistemas().then(setSistemas)
-    listAllSentenceCategories().then(setCategories)
-    listActiveClientsWithTbc().then(setFilterClients)
-    listDistinctSentenceCodes().then(setSentenceCodes)
-  }, [])
 
   const form = useForm<CreateFilterInput>({
     mode: "onChange",
@@ -251,7 +235,7 @@ export function FilterTable({ data, meta }: FilterTableProps) {
         if (!at) return "-"
         return (
           <div className="flex flex-col text-xs">
-            <span>{new Date(at).toLocaleString("pt-BR")}</span>
+            <span>{new Date(at).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}</span>
             {row.original.lastBackupBy && (
               <span className="text-muted-foreground">{row.original.lastBackupBy.name}</span>
             )}
@@ -577,6 +561,12 @@ export function FilterTable({ data, meta }: FilterTableProps) {
         onSearch={(v) => pushParams({ search: v || undefined, page: 1 })}
         toolbarActions={newDialog}
         filterPanel={filterPanel}
+        bulkDelete={{
+          getId: (row) => row.id,
+          getRowLabel: (row) => row.filter,
+          action: bulkDeleteFilters,
+          onSuccess: () => router.refresh(),
+        }}
       />
 
       <ConfirmDialog

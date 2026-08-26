@@ -5,7 +5,7 @@ import type { Analyst } from "@prisma/client";
 
 class AnalystRepository extends BaseRepository<Analyst> {
   constructor() {
-    super(prisma.analyst, ["name", "email", "team"], "analysts");
+    super(prisma.analyst, ["name", "email", "team"], "analysts", "Analyst");
   }
 }
 
@@ -38,5 +38,13 @@ export const analystService = {
 
   async restore(id: string, organizationId: string) {
     return analystRepository.restore(id, organizationId);
+  },
+
+  async bulkSoftDelete(ids: string[], organizationId: string) {
+    return analystRepository.bulkSoftDelete(ids, organizationId);
+  },
+
+  async bulkRestore(ids: string[], organizationId: string) {
+    return analystRepository.bulkRestore(ids, organizationId);
   },
 };

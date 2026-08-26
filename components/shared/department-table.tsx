@@ -8,6 +8,7 @@ import { DataTable } from "@/components/shared/data-table"
 import { PageHeader } from "@/components/shared/page-header"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
 import { EntityActionsCell } from "@/components/shared/entity-actions-cell"
+import { createSelectColumn } from "@/components/shared/select-column"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -22,7 +23,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { Plus, Loader2 } from "lucide-react"
-import { deleteDepartment, createDepartment, updateDepartment } from "@/actions/departments"
+import { deleteDepartment, createDepartment, updateDepartment, bulkDeleteDepartments } from "@/actions/departments"
 import { createDepartmentSchema, updateDepartmentSchema, type CreateDepartmentInput } from "@/schemas/department.schema"
 import { toast } from "sonner"
 import { useCrudTable } from "@/hooks/use-crud-table"
@@ -85,6 +86,7 @@ export function DepartmentTable({ data, meta }: DepartmentTableProps) {
   }
 
   const columns: ColumnDef<Department>[] = [
+    createSelectColumn<Department>(),
     { accessorKey: "name", header: "Nome" },
     { accessorKey: "description", header: "Descrição", cell: ({ row }) => row.getValue("description") || "-" },
     {
@@ -145,6 +147,12 @@ export function DepartmentTable({ data, meta }: DepartmentTableProps) {
         searchPlaceholder="Buscar por nome..."
         onSearch={(v) => pushParams({ search: v || undefined, page: 1 })}
         toolbarActions={newDialog}
+        bulkDelete={{
+          getId: (row) => row.id,
+          getRowLabel: (row) => row.name,
+          action: bulkDeleteDepartments,
+          onSuccess: () => router.refresh(),
+        }}
       />
 
       <ConfirmDialog

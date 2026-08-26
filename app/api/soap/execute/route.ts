@@ -1,43 +1,55 @@
 import { NextRequest, NextResponse } from "next/server";
-import { soapService } from "@/services/soap.service";
-import { prisma } from "@/lib/prisma";
+import { soapService, type WsName } from "@/services/soap.service";
+import { tbcService } from "@/services/tbc.service";
+import { soapEndpointService } from "@/services/soap-endpoint.service";
 import { logger } from "@/lib/logger";
 import { getRequestContext } from "@/lib/tenant";
+import type { SoapMethod } from "@prisma/client";
 
 export async function POST(request: NextRequest) {
   try {
     const { organizationId, userId } = await getRequestContext();
     const body = await request.json();
-    const { tbcId, method, endpointType, suffix, xml, context, timeout } = body;
+    const { tbcId, endpointTypeId, methodId, xml, context, timeout } = body;
 
-    if (!method || !xml) {
+    if (!xml) {
+      return NextResponse.json({ error: "xml é obrigatório" }, { status: 400 });
+    }
+    if (!tbcId) {
       return NextResponse.json(
-        { error: "method e xml são obrigatórios" },
+        { error: "Selecione um TBC — toda requisição ao TOTVS precisa estar vinculada a um TBC cadastrado" },
+        { status: 400 }
+      );
+    }
+    if (!endpointTypeId || !methodId) {
+      return NextResponse.json(
+        { error: "Selecione o tipo de endpoint e o método — ambos cadastrados em /admin/soap-endpoints" },
         { status: 400 }
       );
     }
 
-    let dataserver = "";
-    let process = "";
-
-    if (tbcId) {
-      const tbc = await prisma.tbc.findFirst({ where: { id: tbcId, organizationId } });
-      if (tbc) {
-        dataserver = tbc.link;
-        process = tbc.link;
-      }
+    // Never trust a client-supplied method/wsName string: always resolve them from what's
+    // actually registered (and active) in /admin/soap-endpoints for the given ids.
+    const endpointType = await soapEndpointService.getActiveTypeById(endpointTypeId);
+    const endpointMethod = await soapEndpointService.getActiveMethodById(methodId);
+    if (endpointMethod.endpointTypeId !== endpointType.id) {
+      return NextResponse.json(
+        { error: "O método selecionado não pertence ao tipo de endpoint selecionado" },
+        { status: 400 }
+      );
     }
+
+    const tbc = await tbcService.getCredentialsForRequest(tbcId, organizationId);
 
     const result = await soapService.execute(
       {
-        dataserver: dataserver || body.dataserver || "",
-        process: process || body.process || "",
-        method,
+        tbc,
+        wsName: endpointType.suffix as WsName,
+        method: endpointMethod.method as SoapMethod,
         xml,
         context,
         timeout,
-        endpointType,
-        suffix,
+        endpointType: endpointType.type,
       },
       organizationId,
       userId

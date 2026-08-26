@@ -7,6 +7,7 @@ import { createClientSchema, updateClientSchema } from "@/schemas/client.schema"
 import { requirePermission } from "@/lib/rbac";
 import { getRequestContext } from "@/lib/tenant";
 import { saveImageUpload } from "@/lib/upload";
+import { formatBlockingReferences } from "@/lib/entity-relations";
 import type { ListParams } from "@/types/common";
 
 export async function listAllClients() {
@@ -133,17 +134,28 @@ export async function restoreClient(id: string) {
 }
 
 export async function bulkDeleteClients(ids: string[]) {
-  const { organizationId } = await requirePermission("clients", "delete");
+  const { organizationId, userId } = await requirePermission("clients", "delete");
   try {
-    const count = await clientService.bulkSoftDelete(ids, organizationId);
-    await auditService.log({
-      action: "BULK_DELETE",
-      entity: "Client",
-      entityId: ids.join(","),
-      newData: { count },
-    });
+    const result = await clientService.bulkSoftDelete(ids, organizationId);
+    if (result.deletedIds.length) {
+      await auditService.log({
+        action: "BULK_DELETE",
+        entity: "Client",
+        entityId: result.deletedIds.join(","),
+        organizationId,
+        userId,
+        newData: { count: result.deletedCount },
+      });
+    }
+    if (result.blocked.length) {
+      await auditService.logBulkDeleteBlocked("Client", result.blocked, organizationId, userId);
+    }
     updateTag("clients");
-    return { success: true, count };
+    return {
+      success: true,
+      deletedCount: result.deletedCount,
+      blocked: result.blocked.map((b) => ({ id: b.id, reasons: formatBlockingReferences(b.reasons) })),
+    };
   } catch (error) {
     return { success: false, error: (error as Error).message };
   }

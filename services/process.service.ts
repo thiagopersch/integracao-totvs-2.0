@@ -5,7 +5,7 @@ import type { Process } from "@prisma/client";
 
 class ProcessRepository extends BaseRepository<Process> {
   constructor() {
-    super(prisma.process, ["code", "name"], "processes");
+    super(prisma.process, ["code", "name"], "processes", "Process");
   }
 }
 

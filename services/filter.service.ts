@@ -6,7 +6,7 @@ import type { Filter } from "@prisma/client";
 
 class FilterRepository extends BaseRepository<Filter> {
   constructor() {
-    super(prisma.filter, ["filter", "codSystemContext", "userContext"], "filters");
+    super(prisma.filter, ["filter", "codSystemContext", "userContext"], "filters", "Filter");
   }
 
   async buildWhere(input: ListParams & { status?: boolean }, organizationId?: string) {

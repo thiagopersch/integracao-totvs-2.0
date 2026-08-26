@@ -14,15 +14,22 @@ export function formatDuration(ms: number): string {
   return `${minutes}m ${seconds}s`;
 }
 
+// Pinned explicitly: without a fixed timeZone, Intl/toLocale* resolve to the host machine's
+// local zone, which differs between the server (container, usually UTC) and the client's browser
+// (user's local zone) — same Date, different rendered string, causing a hydration mismatch.
+export const APP_TIME_ZONE = "America/Sao_Paulo";
+
 export function formatDate(date: Date | string): string {
   return new Intl.DateTimeFormat("pt-BR", {
     dateStyle: "medium",
     timeStyle: "short",
+    timeZone: APP_TIME_ZONE,
   }).format(new Date(date));
 }
 
 export function formatDateShort(date: Date | string): string {
   return new Intl.DateTimeFormat("pt-BR", {
     dateStyle: "short",
+    timeZone: APP_TIME_ZONE,
   }).format(new Date(date));
 }

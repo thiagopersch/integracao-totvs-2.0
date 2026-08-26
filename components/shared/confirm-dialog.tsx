@@ -1,5 +1,6 @@
 "use client"
 
+import { Loader2 } from "lucide-react"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -21,6 +22,9 @@ interface ConfirmDialogProps {
   onConfirm: () => void
   variant?: "default" | "destructive"
   children?: React.ReactNode
+  /** Disables both buttons, shows a spinner on the confirm action, and blocks closing (outside click / escape) while true. */
+  loading?: boolean
+  loadingLabel?: string
 }
 
 export function ConfirmDialog({
@@ -33,9 +37,11 @@ export function ConfirmDialog({
   onConfirm,
   variant = "default",
   children,
+  loading = false,
+  loadingLabel = "Processando...",
 }: ConfirmDialogProps) {
   return (
-    <AlertDialog open={open} onOpenChange={onOpenChange}>
+    <AlertDialog open={open} onOpenChange={(next) => !loading && onOpenChange(next)}>
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>{title}</AlertDialogTitle>
@@ -43,12 +49,19 @@ export function ConfirmDialog({
         </AlertDialogHeader>
         {children}
         <AlertDialogFooter>
-          <AlertDialogCancel>{cancelLabel}</AlertDialogCancel>
+          <AlertDialogCancel disabled={loading}>{cancelLabel}</AlertDialogCancel>
           <AlertDialogAction
             onClick={onConfirm}
+            disabled={loading}
             className={variant === "destructive" ? "bg-destructive hover:bg-destructive/90" : undefined}
           >
-            {confirmLabel}
+            {loading ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" /> {loadingLabel}
+              </>
+            ) : (
+              confirmLabel
+            )}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

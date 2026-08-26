@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import Link from "next/link"
 import { Bell } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -32,8 +32,16 @@ export function NotificationBell() {
     }
   }
 
+  const hasLoadedOnce = useRef(false)
+
   useEffect(() => {
-    load()
+    // Strict Mode's dev-only double-invoke would otherwise fire this initial load() twice on
+    // every mount; the ref survives that replay, so it still runs exactly once, while the
+    // interval itself is always (re)created so polling keeps working correctly either way.
+    if (!hasLoadedOnce.current) {
+      hasLoadedOnce.current = true
+      load()
+    }
     const interval = setInterval(load, 60000)
     return () => clearInterval(interval)
   }, [])

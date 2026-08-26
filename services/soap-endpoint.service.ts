@@ -208,4 +208,56 @@ export const soapEndpointService = {
       data: { active: true },
     }) as Promise<SoapEndpointMethod>;
   },
+
+  /**
+   * Every place that actually talks to TOTVS (SOAP Builder, filter-driven backup/restore, …)
+   * must resolve its ws folder + method from what's registered in /admin/soap-endpoints instead
+   * of hardcoding them — this and the 3 lookups below are the single source of truth for that.
+   */
+  async getActiveTypeById(id: string): Promise<SoapEndpointType> {
+    const record = await prisma.soapEndpointType.findFirst({ where: { id, active: true } });
+    if (!record) {
+      throw new Error("Tipo de endpoint não encontrado ou inativo em /admin/soap-endpoints.");
+    }
+    return record;
+  },
+
+  async getActiveTypeByKey(type: string): Promise<SoapEndpointType> {
+    const record = await prisma.soapEndpointType.findFirst({ where: { type, active: true } });
+    if (!record) {
+      throw new Error(`Tipo de endpoint "${type}" não está cadastrado/ativo em /admin/soap-endpoints.`);
+    }
+    return record;
+  },
+
+  /** `suffix` is the real ws folder name (e.g. "wsDataServer") — SoapLog.process stores exactly
+   *  that, so this is how a re-execution recovers which endpoint type produced a given log entry. */
+  async getActiveTypeBySuffix(suffix: string): Promise<SoapEndpointType> {
+    const record = await prisma.soapEndpointType.findFirst({ where: { suffix, active: true } });
+    if (!record) {
+      throw new Error(`Nenhum tipo de endpoint ativo em /admin/soap-endpoints usa o serviço "${suffix}".`);
+    }
+    return record;
+  },
+
+  async getActiveMethodById(id: string): Promise<SoapEndpointMethod> {
+    const record = await prisma.soapEndpointMethod.findFirst({ where: { id, active: true } });
+    if (!record) {
+      throw new Error("Método não encontrado ou inativo em /admin/soap-endpoints.");
+    }
+    // `method` is a free-text field admins edit in the CRUD (e.g. "ReadView", "AutenticaAcesso") —
+    // normalize to the SoapMethod enum's uppercase form so every consumer gets a canonical value
+    // regardless of how it was typed there.
+    return { ...record, method: record.method.toUpperCase() };
+  },
+
+  async getActiveMethodByKey(endpointTypeId: string, method: string): Promise<SoapEndpointMethod> {
+    const record = await prisma.soapEndpointMethod.findFirst({
+      where: { endpointTypeId, active: true, method: { equals: method, mode: "insensitive" } },
+    });
+    if (!record) {
+      throw new Error(`Método "${method}" não está cadastrado/ativo em /admin/soap-endpoints para este tipo de endpoint.`);
+    }
+    return { ...record, method: record.method.toUpperCase() };
+  },
 };

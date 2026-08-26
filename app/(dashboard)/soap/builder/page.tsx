@@ -18,7 +18,13 @@ async function SoapBuilderContent() {
   return (
     <SoapBuilderClient
       initialEndpointTypes={endpointTypes}
-      initialTbcs={tbcs.map((tbc) => ({ id: tbc.id, name: tbc.name, link: tbc.link, client: tbc.client ?? null }))}
+      initialTbcs={tbcs.map((tbc) => ({
+        id: tbc.id,
+        name: tbc.name,
+        link: tbc.link,
+        notRequiredLicense: tbc.notRequiredLicense,
+        client: tbc.client ?? null,
+      }))}
     />
   )
 }

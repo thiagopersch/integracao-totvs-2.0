@@ -5,7 +5,7 @@ import type { Department } from "@prisma/client";
 
 class DepartmentRepository extends BaseRepository<Department> {
   constructor() {
-    super(prisma.department, ["name", "description"], "departments");
+    super(prisma.department, ["name", "description"], "departments", "Department");
   }
 }
 

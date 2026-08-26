@@ -1,7 +1,12 @@
 "use server"
 
-import { soapService } from "@/services/soap.service";
+import { soapService, type WsName } from "@/services/soap.service";
+import { soapEndpointService } from "@/services/soap-endpoint.service";
+import { tbcService } from "@/services/tbc.service";
+import { prisma } from "@/lib/prisma";
 import { getRequestContext } from "@/lib/tenant";
+import type { SoapContext } from "@/types/soap";
+import type { SoapMethod } from "@prisma/client";
 
 export async function listSoapFavorites() {
   const { organizationId, userId } = await getRequestContext();
@@ -28,6 +33,45 @@ export async function deleteSoapTemplate(id: string) {
   try {
     await soapService.deleteTemplate(id, organizationId);
     return { success: true };
+  } catch (error) {
+    return { success: false, error: (error as Error).message };
+  }
+}
+
+/**
+ * Reruns a SOAP History entry exactly as it was sent. A log only stores the TBC's link/wsName —
+ * not their ids — so this recovers the TBC by link and the endpoint type by its ws folder
+ * (SoapLog.process), then resolves the method from /admin/soap-endpoints like every other call.
+ */
+export async function reexecuteSoapLog(logId: string) {
+  const { organizationId, userId } = await getRequestContext();
+  try {
+    const log = await prisma.soapLog.findFirst({ where: { id: logId, organizationId } });
+    if (!log) return { success: false, error: "Registro de histórico não encontrado" };
+    if (!log.dataserver || !log.process || !log.method || !log.xmlRequest) {
+      return { success: false, error: "Este registro não tem dados suficientes para ser reexecutado" };
+    }
+
+    const tbcRow = await prisma.tbc.findFirst({ where: { link: log.dataserver, organizationId, deletedAt: null } });
+    if (!tbcRow) return { success: false, error: `Nenhum TBC cadastrado com o link "${log.dataserver}"` };
+
+    const tbc = await tbcService.getCredentialsForRequest(tbcRow.id, organizationId);
+    const endpointType = await soapEndpointService.getActiveTypeBySuffix(log.process);
+    const endpointMethod = await soapEndpointService.getActiveMethodByKey(endpointType.id, log.method);
+
+    const result = await soapService.execute(
+      {
+        tbc,
+        wsName: endpointType.suffix as WsName,
+        method: endpointMethod.method as SoapMethod,
+        xml: log.xmlRequest,
+        context: (log.context as SoapContext | null) ?? undefined,
+      },
+      organizationId,
+      userId
+    );
+
+    return { success: true, data: result };
   } catch (error) {
     return { success: false, error: (error as Error).message };
   }

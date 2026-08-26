@@ -5,7 +5,7 @@ import type { SentenceCategory } from "@prisma/client";
 
 class SentenceCategoryRepository extends BaseRepository<SentenceCategory> {
   constructor() {
-    super(prisma.sentenceCategory, ["code", "name"], "sentence_categories");
+    super(prisma.sentenceCategory, ["code", "name"], "sentence_categories", "SentenceCategory");
   }
 }
 

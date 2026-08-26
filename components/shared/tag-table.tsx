@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useState } from "react"
 import type { ColumnDef } from "@tanstack/react-table"
 import { useForm, type Resolver } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -8,6 +8,7 @@ import { DataTable } from "@/components/shared/data-table"
 import { PageHeader } from "@/components/shared/page-header"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
 import { EntityActionsCell } from "@/components/shared/entity-actions-cell"
+import { createSelectColumn } from "@/components/shared/select-column"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Field, FieldLabel, FieldError } from "@/components/ui/field"
@@ -22,36 +23,32 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { Plus, Loader2 } from "lucide-react"
-import { deleteTag, createTag, updateTag } from "@/actions/tags"
+import { deleteTag, createTag, updateTag, bulkDeleteTags } from "@/actions/tags"
 import { createTagSchema, updateTagSchema, type CreateTagInput } from "@/schemas/tag.schema"
 import { toast } from "sonner"
 import { useCrudTable } from "@/hooks/use-crud-table"
 import type { Tag } from "@prisma/client"
+import type { PaginationMeta } from "@/types/common"
 
 interface TagTableProps {
   data: Tag[]
+  meta: PaginationMeta
 }
 
-export function TagTable({ data }: TagTableProps) {
+export function TagTable({ data, meta }: TagTableProps) {
   const {
     router,
     deleteDialog,
     setDeleteDialog,
     editDialog,
     setEditDialog,
+    pushParams,
     handleDelete,
   } = useCrudTable<Tag>({
     deleteAction: deleteTag,
     deleteSuccessMessage: "Tag excluída com sucesso",
   })
   const [loading, setLoading] = useState(false)
-  const [search, setSearch] = useState("")
-
-  const filteredData = useMemo(() => {
-    const term = search.trim().toLowerCase()
-    if (!term) return data
-    return data.filter((tag) => tag.name.toLowerCase().includes(term))
-  }, [data, search])
 
   const form = useForm<CreateTagInput>({
     mode: "onChange",
@@ -85,6 +82,7 @@ export function TagTable({ data }: TagTableProps) {
   }
 
   const columns: ColumnDef<Tag>[] = [
+    createSelectColumn<Tag>(),
     {
       accessorKey: "name",
       header: "Nome",
@@ -144,16 +142,25 @@ export function TagTable({ data }: TagTableProps) {
     <>
       <PageHeader title="Tags" description="Gerenciar tags de demandas" />
 
-      <div className="px-6 pb-6">
-        <DataTable
-          columns={columns}
-          data={filteredData}
-          searchPlaceholder="Buscar por nome..."
-          searchDefaultValue={search}
-          onSearch={setSearch}
-          toolbarActions={newDialog}
-        />
-      </div>
+      <DataTable
+        columns={columns}
+        data={data}
+        page={meta.page}
+        pageSize={meta.pageSize}
+        total={meta.total}
+        pageCount={meta.totalPages}
+        onPageChange={(p) => pushParams({ page: p })}
+        onPageSizeChange={(ps) => pushParams({ pageSize: ps, page: 1 })}
+        searchPlaceholder="Buscar por nome..."
+        onSearch={(v) => pushParams({ search: v || undefined, page: 1 })}
+        toolbarActions={newDialog}
+        bulkDelete={{
+          getId: (row) => row.id,
+          getRowLabel: (row) => row.name,
+          action: bulkDeleteTags,
+          onSuccess: () => router.refresh(),
+        }}
+      />
 
       <ConfirmDialog
         open={deleteDialog.open}

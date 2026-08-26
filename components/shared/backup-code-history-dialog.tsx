@@ -49,7 +49,7 @@ export function BackupCodeHistoryDialog({
     {
       accessorKey: "createdAt",
       header: "Data da versão",
-      cell: ({ row }) => new Date(row.getValue("createdAt")).toLocaleString("pt-BR"),
+      cell: ({ row }) => new Date(row.getValue("createdAt")).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" }),
     },
     {
       id: "actions",

@@ -6,7 +6,7 @@ import type { ListParams } from "@/types/common";
 
 class ClientRepository extends BaseRepository<Client> {
   constructor() {
-    super(prisma.client, ["name", "legalName", "linkCrm", "document", "email"], "clients");
+    super(prisma.client, ["name", "legalName", "linkCrm", "document", "email"], "clients", "Client");
   }
 
   async buildWhere(input: ListParams & { status?: boolean }, organizationId?: string) {

@@ -1,7 +1,7 @@
-import { prisma } from "@/lib/prisma";
 import { env } from "@/config/app.config";
-import { soapService } from "@/services/soap.service";
-import type { Prisma, Filter, Tbc } from "@prisma/client";
+import { soapService, cdata, type WsName } from "@/services/soap.service";
+import { soapEndpointService } from "@/services/soap-endpoint.service";
+import type { Filter, Tbc, SoapMethod } from "@prisma/client";
 
 export type RmSentenceRecord = {
   codeSentence: string;
@@ -25,64 +25,169 @@ type FilterForFetch = Pick<
   | "userContext"
 >;
 
-type TbcForRm = Pick<Tbc, "id" | "link" | "user" | "password">;
+type TbcForRm = Pick<Tbc, "id" | "link" | "user" | "password" | "notRequiredLicense">;
+
+/**
+ * GConsSql's DataServerName — confirmed by the user against TOTVS's own published reference
+ * (https://apitotvslegado.z15.web.core.windows.net/GlbConsSqlData.html?Objeto=GlbConsSqlData).
+ * Primary key is CODCOLIGADA + APLICACAO + CODSENTENCA — APLICACAO is what this app calls
+ * `codSystem` everywhere else (same convention already used by restoreSentenceToTbc below).
+ */
+const GLB_CONS_SQL_DATA = "GlbConsSqlData";
+
+/**
+ * The physical table GlbConsSqlData exposes — confirmed by the user: every field referenced in a
+ * ReadView Filtro must be qualified with this table name (e.g. `GCONSSQL.CODSENTENCA`), or TOTVS
+ * rejects the call. This is distinct from the DataServerName above (ws-level vs. table-level).
+ */
+const GCONSSQL_TABLE = "GCONSSQL";
+const GCONSSQL_COLUMNS = [
+  "CODCOLIGADA", "APLICACAO", "CODSENTENCA", "TITULO", "SENTENCA", "TAMANHO", "DISPONIVEL",
+  "IDGRUPO", "NIVEL", "DTULTALTERACAO", "USRULTALTERACAO", "DISPONIVELFILTRO",
+  "DISPONIVELRELATORIO", "DISPONIVELVISAO", "NOMEFANTASIA", "IDDBCONNECTION",
+  "PODEALTERAR", "PODEEXCLUIR", "DISPONIVELMENU", "SEMSEGCOLUNAS", "SEMSEGESTENDIDA",
+  "GUID", "VERSAO", "CONTROLE", "NOMESISTEMA",
+];
 
 function escapeXml(value: string): string {
   return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
-function extractLikePattern(filterExpr: string): string | null {
-  const match = filterExpr.match(/LIKE\s+'([^']*)'/i);
-  return match ? match[1] : null;
+function escapeFilterLiteral(value: string): string {
+  return value.replace(/'/g, "''");
 }
 
-function likePatternToPrismaFilter(pattern: string): Prisma.StringFilter {
-  const startsWithPct = pattern.startsWith("%");
-  const endsWithPct = pattern.endsWith("%");
-  const core = pattern.replace(/^%+/, "").replace(/%+$/, "");
-
-  if (startsWithPct && endsWithPct) return { contains: core };
-  if (endsWithPct) return { startsWith: core };
-  if (startsWithPct) return { endsWith: core };
-  return { equals: pattern };
+/** Prefixes every bare GConsSql column reference in a filter expression with `GCONSSQL.` — skips
+ *  references already qualified, so this is safe to run on the whole assembled Filtro at once. */
+function qualifyGConsSqlColumns(expression: string): string {
+  return GCONSSQL_COLUMNS.reduce(
+    (expr, column) => expr.replace(new RegExp(`(?<![\\w.])${column}\\b`, "gi"), `${GCONSSQL_TABLE}.${column}`),
+    expression
+  );
 }
 
-async function fetchSentencesFromDb(filter: FilterForFetch, organizationId: string): Promise<RmSentenceRecord[]> {
-  const likePattern = extractLikePattern(filter.filter);
-  const where: Prisma.SentenceWhereInput = {
-    organizationId,
-    deletedAt: null,
-    status: true,
-    ...(likePattern ? { code: likePatternToPrismaFilter(likePattern) } : {}),
-    ...(filter.codColigadaSentenca ? { codColigada: filter.codColigadaSentenca } : {}),
-    ...(filter.codSistemaSentenca ? { codSystem: filter.codSistemaSentenca } : {}),
-  };
-
-  const sentences = await prisma.sentence.findMany({ where, orderBy: { code: "asc" } });
-
-  return sentences.map((sentence) => ({
-    codeSentence: sentence.code,
-    codColigada: sentence.codColigada || filter.codColigadaSentenca,
-    codSystem: sentence.codSystem || filter.codSistemaSentenca,
-    nameSentence: sentence.name,
-    contentSentence: sentence.content || "",
-    totvsUpdatedAt: sentence.updatedAt,
-    totvsUpdatedBy: null,
-  }));
+/** filter.filter is already a native RM filter expression (e.g. `CODSENTENCA LIKE 'ABC%'`) — it's
+ *  sent to TOTVS as-is, just ANDed with the Filtro's own coligada/sistema scoping, and every column
+ *  reference is qualified with the GCONSSQL table name TOTVS requires for ReadView. */
+function buildViewFiltro(filter: FilterForFetch): string {
+  const parts = [`(${filter.filter})`];
+  if (filter.codColigadaSentenca) parts.push(`CODCOLIGADA=${filter.codColigadaSentenca}`);
+  if (filter.codSistemaSentenca) parts.push(`APLICACAO='${escapeFilterLiteral(filter.codSistemaSentenca)}'`);
+  return qualifyGConsSqlColumns(parts.join(" AND "));
 }
 
-/** Backups sourced from a Filtro always read this app's own `sentences` table. */
-export async function fetchSentencesForFilter(
-  filter: FilterForFetch,
-  organizationId: string
-): Promise<RmSentenceRecord[]> {
-  return fetchSentencesFromDb(filter, organizationId);
+function looksLikeConsSqlRow(node: unknown): node is Record<string, unknown> {
+  return !!node && typeof node === "object" && "CODSENTENCA" in (node as Record<string, unknown>);
 }
 
 /**
- * Writes a sentence definition back to GCONSSQL via wsDataServer.SaveRecord.
- * RM_GCONSSQL_DATASERVER_NAME is the DataServerName exposing that table —
- * also customer/installation-specific and not guessable from public docs.
+ * ReadViewResult is XML-as-string; the row collection can be nested at any depth in the parsed
+ * tree, and a single matching row commonly serializes as a bare object instead of a 1-item array
+ * (a well-known fast-xml-parser/.NET XML serialization quirk) — so this walks the tree looking
+ * for whatever "looks like" a GConsSql row instead of assuming one fixed wrapper shape.
+ */
+function extractConsSqlRows(jsonResponse: Record<string, unknown>): Record<string, unknown>[] {
+  const visited = new Set<unknown>();
+
+  function walk(node: unknown): Record<string, unknown>[] | null {
+    if (!node || typeof node !== "object" || visited.has(node)) return null;
+    visited.add(node);
+
+    if (Array.isArray(node)) {
+      const rows = node.filter(looksLikeConsSqlRow);
+      if (rows.length > 0) return rows;
+      for (const item of node) {
+        const found = walk(item);
+        if (found) return found;
+      }
+      return null;
+    }
+
+    if (looksLikeConsSqlRow(node)) return [node];
+
+    for (const value of Object.values(node as Record<string, unknown>)) {
+      const found = walk(value);
+      if (found) return found;
+    }
+    return null;
+  }
+
+  return walk(jsonResponse) ?? [];
+}
+
+function parseTotvsDate(value: unknown): Date | null {
+  if (value === undefined || value === null || value === "") return null;
+  const date = new Date(String(value));
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+/** Live read of GlbConsSqlData (wsDataServer.ReadView) scoped by the Filtro's own expression + coligada/sistema. */
+async function fetchSentencesFromTotvs(
+  filter: FilterForFetch,
+  tbc: TbcForRm,
+  organizationId: string
+): Promise<RmSentenceRecord[]> {
+  const endpointType = await soapEndpointService.getActiveTypeByKey("dataserver");
+  const endpointMethod = await soapEndpointService.getActiveMethodByKey(endpointType.id, "READVIEW");
+
+  const filtro = buildViewFiltro(filter);
+  const methodXml = `<ReadView>
+  <DataServerName>${escapeXml(GLB_CONS_SQL_DATA)}</DataServerName>
+  <Filtro>${escapeXml(filtro)}</Filtro>
+</ReadView>`;
+
+  const result = await soapService.execute(
+    {
+      tbc: {
+        id: tbc.id,
+        link: tbc.link,
+        user: tbc.user,
+        password: tbc.password,
+        notRequiredLicense: tbc.notRequiredLicense,
+      },
+      wsName: endpointType.suffix as WsName,
+      method: endpointMethod.method as SoapMethod,
+      xml: methodXml,
+      context: {
+        coligate: filter.coligateContext,
+        branch: filter.branchContext,
+        levelEducation: filter.levelEducationContext,
+        codSystem: filter.codSystemContext,
+        user: filter.userContext,
+      },
+    },
+    organizationId
+  );
+
+  const rows = extractConsSqlRows(result.jsonResponse);
+
+  return rows.map((row) => ({
+    codeSentence: String(row.CODSENTENCA ?? ""),
+    codColigada: String(row.CODCOLIGADA ?? filter.codColigadaSentenca),
+    codSystem: String(row.APLICACAO ?? filter.codSistemaSentenca),
+    nameSentence: String(row.TITULO ?? row.CODSENTENCA ?? ""),
+    contentSentence: String(row.SENTENCA ?? ""),
+    totvsUpdatedAt: parseTotvsDate(row.DTULTALTERACAO),
+    totvsUpdatedBy: row.USRULTALTERACAO != null ? String(row.USRULTALTERACAO) : null,
+  }));
+}
+
+/**
+ * "Realizar Backup" always does the live read — that's the entire point of a backup — and its
+ * result is what gets persisted into `backups` below; nothing else re-reads TOTVS afterwards.
+ */
+export async function fetchSentencesForFilter(
+  filter: FilterForFetch,
+  tbc: TbcForRm,
+  organizationId: string
+): Promise<RmSentenceRecord[]> {
+  return fetchSentencesFromTotvs(filter, tbc, organizationId);
+}
+
+/**
+ * Writes a sentence definition back to GConsSql via wsDataServer.SaveRecord. Defaults to the
+ * confirmed DataServerName (GlbConsSqlData, same object read by fetchSentencesFromTotvs above);
+ * RM_GCONSSQL_DATASERVER_NAME only needs to be set to override that for a non-standard install.
  */
 export async function restoreSentenceToTbc(
   tbc: TbcForRm,
@@ -91,31 +196,39 @@ export async function restoreSentenceToTbc(
 ): Promise<void> {
   if (env.RM_SENTENCE_SERVICE_MODE === "mock") return;
 
-  if (!env.RM_GCONSSQL_DATASERVER_NAME) {
-    throw new Error(
-      "RM_GCONSSQL_DATASERVER_NAME não configurado — defina o DataServerName do RM que representa a tabela " +
-        "GCONSSQL (wsDataServer.SaveRecord) para habilitar a restauração em modo live."
-    );
-  }
-
-  const root = env.RM_GCONSSQL_DATASERVER_NAME;
-  const recordXml = `<${root}>
+  // <DataServerName> is the ws-level identifier (GlbConsSqlData); the record's own XML root must
+  // be the underlying table name (GCONSSQL) — same distinction the user confirmed for ReadView's
+  // Filtro. Untested live (restricted to AutenticaAcesso/CheckServiceActivity/IsValidDataServer) —
+  // flagging this inference so it gets verified before relying on it.
+  const dataServerName = env.RM_GCONSSQL_DATASERVER_NAME || GLB_CONS_SQL_DATA;
+  const recordXml = `<${GCONSSQL_TABLE}>
   <CODCOLIGADA>${escapeXml(sentence.codColigada)}</CODCOLIGADA>
   <APLICACAO>${escapeXml(sentence.codSystem)}</APLICACAO>
   <CODSENTENCA>${escapeXml(sentence.codeSentence)}</CODSENTENCA>
   <SENTENCA><![CDATA[${sentence.contentSentence}]]></SENTENCA>
-</${root}>`;
+</${GCONSSQL_TABLE}>`;
 
   const methodXml = `<SaveRecord>
-  <DataServerName>${escapeXml(root)}</DataServerName>
-  <XML><![CDATA[${recordXml}]]></XML>
+  <DataServerName>${escapeXml(dataServerName)}</DataServerName>
+  <XML>${cdata(recordXml)}</XML>
 </SaveRecord>`;
+
+  // Resolve the ws folder + method from what's actually registered (and active) in
+  // /admin/soap-endpoints instead of hardcoding "wsDataServer"/"SAVERECORD" here.
+  const endpointType = await soapEndpointService.getActiveTypeByKey("dataserver");
+  const endpointMethod = await soapEndpointService.getActiveMethodByKey(endpointType.id, "SAVERECORD");
 
   await soapService.execute(
     {
-      dataserver: tbc.link,
-      process: tbc.link,
-      method: "SAVERECORD",
+      tbc: {
+        id: tbc.id,
+        link: tbc.link,
+        user: tbc.user,
+        password: tbc.password,
+        notRequiredLicense: tbc.notRequiredLicense,
+      },
+      wsName: endpointType.suffix as WsName,
+      method: endpointMethod.method as SoapMethod,
       xml: methodXml,
       context: { user: tbc.user },
     },

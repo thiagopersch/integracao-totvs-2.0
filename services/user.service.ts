@@ -6,7 +6,7 @@ import type { User } from "@prisma/client";
 
 class UserRepository extends BaseRepository<User> {
   constructor() {
-    super(prisma.user, ["name", "email"], "users");
+    super(prisma.user, ["name", "email"], "users", "User");
   }
 }
 

@@ -6,6 +6,7 @@ import { auditService } from "@/services/audit.service";
 import { createSistemaSchema, updateSistemaSchema } from "@/schemas/sistema.schema";
 import { requirePermission } from "@/lib/rbac";
 import { getRequestContext } from "@/lib/tenant";
+import { formatBlockingReferences } from "@/lib/entity-relations";
 import type { ListParams } from "@/types/common";
 
 export async function listAllSistemas() {
@@ -115,17 +116,28 @@ export async function restoreSistema(id: string) {
 }
 
 export async function bulkDeleteSistemas(ids: string[]) {
-  const { organizationId } = await requirePermission("sistemas", "delete");
+  const { organizationId, userId } = await requirePermission("sistemas", "delete");
   try {
-    const count = await sistemaService.bulkSoftDelete(ids, organizationId);
-    await auditService.log({
-      action: "BULK_DELETE",
-      entity: "TotvsSystem",
-      entityId: ids.join(","),
-      newData: { count },
-    });
+    const result = await sistemaService.bulkSoftDelete(ids, organizationId);
+    if (result.deletedIds.length) {
+      await auditService.log({
+        action: "BULK_DELETE",
+        entity: "TotvsSystem",
+        entityId: result.deletedIds.join(","),
+        organizationId,
+        userId,
+        newData: { count: result.deletedCount },
+      });
+    }
+    if (result.blocked.length) {
+      await auditService.logBulkDeleteBlocked("TotvsSystem", result.blocked, organizationId, userId);
+    }
     updateTag("sistemas");
-    return { success: true, count };
+    return {
+      success: true,
+      deletedCount: result.deletedCount,
+      blocked: result.blocked.map((b) => ({ id: b.id, reasons: formatBlockingReferences(b.reasons) })),
+    };
   } catch (error) {
     return { success: false, error: (error as Error).message };
   }

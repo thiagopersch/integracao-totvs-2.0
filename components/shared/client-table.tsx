@@ -1,6 +1,6 @@
 "use client"
 
-import { createClient, deleteClient, restoreClient, updateClient } from "@/actions/admin/clients"
+import { createClient, deleteClient, restoreClient, updateClient, bulkDeleteClients } from "@/actions/admin/clients"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
 import { DataTable } from "@/components/shared/data-table"
 import { DataTableFilterPanel } from "@/components/shared/data-table-filter-panel"
@@ -514,6 +514,12 @@ export function ClientTable({ data, meta }: ClientTableProps) {
         onSearch={(v) => pushParams({ search: v || undefined, page: 1 })}
         toolbarActions={newDialog}
         filterPanel={filterPanel}
+        bulkDelete={{
+          getId: (row) => row.id,
+          getRowLabel: (row) => row.name,
+          action: bulkDeleteClients,
+          onSuccess: () => router.refresh(),
+        }}
       />
 
       <ConfirmDialog

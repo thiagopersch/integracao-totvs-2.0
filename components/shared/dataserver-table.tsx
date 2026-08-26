@@ -12,6 +12,7 @@ import { createSelectColumn } from "@/components/shared/select-column"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Field, FieldLabel, FieldError } from "@/components/ui/field"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
   Dialog,
   DialogBody,
@@ -21,8 +22,15 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import { Plus, Loader2 } from "lucide-react"
-import { deleteDataserver, restoreDataserver, createDataserver, updateDataserver } from "@/actions/admin/dataservers"
+import { Plus, Loader2, ShieldCheck, ShieldAlert } from "lucide-react"
+import {
+  deleteDataserver,
+  restoreDataserver,
+  createDataserver,
+  updateDataserver,
+  validateDataserverCode,
+  bulkDeleteDataservers,
+} from "@/actions/admin/dataservers"
 import { createDataserverSchema, updateDataserverSchema, type CreateDataserverInput } from "@/schemas/dataserver.schema"
 import { toast } from "sonner"
 import { useCrudTable } from "@/hooks/use-crud-table"
@@ -32,9 +40,10 @@ import type { PaginationMeta } from "@/types/common"
 interface DataserverTableProps {
   data: Dataserver[]
   meta: PaginationMeta
+  tbcs: { id: string; name: string }[]
 }
 
-export function DataserverTable({ data, meta }: DataserverTableProps) {
+export function DataserverTable({ data, meta, tbcs }: DataserverTableProps) {
   const {
     router,
     deleteDialog,
@@ -50,6 +59,9 @@ export function DataserverTable({ data, meta }: DataserverTableProps) {
     restoreSuccessMessage: "Dataserver restaurado com sucesso",
   })
   const [loading, setLoading] = useState(false)
+  const [validationTbcId, setValidationTbcId] = useState("")
+  const [validating, setValidating] = useState(false)
+  const [validatedCode, setValidatedCode] = useState<string | null>(null)
 
   const form = useForm<CreateDataserverInput>({
     mode: "onChange",
@@ -58,6 +70,30 @@ export function DataserverTable({ data, meta }: DataserverTableProps) {
       ? { code: editDialog.entity.code, nameAlternative: editDialog.entity.nameAlternative || "", name: editDialog.entity.name }
       : { code: "", nameAlternative: "", name: "" },
   })
+
+  const code = form.watch("code")
+  const isValidated = !!code && code === validatedCode
+
+  async function handleValidate() {
+    if (!validationTbcId) { toast.error("Selecione um TBC para validar"); return }
+    if (!code?.trim()) { toast.error("Informe o código do dataserver"); return }
+
+    setValidating(true)
+    try {
+      const result = await validateDataserverCode(validationTbcId, code.trim())
+      if (!result.success) {
+        toast.error(result.error || "Erro ao validar dataserver")
+      } else if (result.valid) {
+        setValidatedCode(code)
+        toast.success("Dataserver válido — pode salvar")
+      } else {
+        setValidatedCode(null)
+        toast.error("Dataserver inválido nesse TBC")
+      }
+    } finally {
+      setValidating(false)
+    }
+  }
 
   async function onSubmit(data: CreateDataserverInput) {
     setLoading(true)
@@ -73,6 +109,7 @@ export function DataserverTable({ data, meta }: DataserverTableProps) {
     if (result.success) {
       toast.success(editDialog.entity ? "Dataserver atualizado" : "Dataserver criado")
       form.reset()
+      setValidatedCode(null)
       setEditDialog({ open: false })
       router.refresh()
     } else {
@@ -83,6 +120,7 @@ export function DataserverTable({ data, meta }: DataserverTableProps) {
 
   function handleCancel() {
     form.reset()
+    setValidatedCode(null)
     setEditDialog({ open: false })
   }
 
@@ -113,7 +151,13 @@ export function DataserverTable({ data, meta }: DataserverTableProps) {
   ]
 
   const newDialog = (
-    <Dialog open={editDialog.open} onOpenChange={(open) => { setEditDialog({ open, entity: open ? editDialog.entity : undefined }); if (!open) form.reset() }}>
+    <Dialog
+      open={editDialog.open}
+      onOpenChange={(open) => {
+        setEditDialog({ open, entity: open ? editDialog.entity : undefined })
+        if (!open) { form.reset(); setValidatedCode(null); setValidationTbcId("") }
+      }}
+    >
       <DialogTrigger render={<Button><Plus className="h-4 w-4 mr-2" /> Novo Dataserver</Button>} />
       <DialogContent>
         <DialogHeader>
@@ -123,8 +167,36 @@ export function DataserverTable({ data, meta }: DataserverTableProps) {
         <DialogBody>
           <Field>
             <FieldLabel htmlFor="code">Código</FieldLabel>
-            <Input id="code" {...form.register("code")} placeholder="Código único" aria-invalid={!!form.formState.errors.code} />
+            <Input
+              id="code"
+              {...form.register("code", { onChange: () => setValidatedCode(null) })}
+              placeholder="Código único (DataServerName no TOTVS)"
+              aria-invalid={!!form.formState.errors.code}
+            />
             <FieldError errors={[form.formState.errors.code]} />
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="validationTbc">TBC para validação</FieldLabel>
+            <div className="flex items-center gap-2">
+              <Select
+                items={tbcs.map((t) => ({ value: t.id, label: t.name }))}
+                value={validationTbcId || null}
+                onValueChange={(v) => { setValidationTbcId(v || ""); setValidatedCode(null) }}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Selecionar TBC..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {tbcs.map((t) => (
+                    <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button type="button" variant="secondary" onClick={handleValidate} disabled={validating} className="shrink-0">
+                {validating ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : isValidated ? <ShieldCheck className="h-4 w-4 mr-2" /> : <ShieldAlert className="h-4 w-4 mr-2" />}
+                Validar
+              </Button>
+            </div>
           </Field>
           <Field>
             <FieldLabel htmlFor="name">Nome</FieldLabel>
@@ -138,7 +210,7 @@ export function DataserverTable({ data, meta }: DataserverTableProps) {
         </DialogBody>
         <DialogFooter>
           <Button type="button" variant="outline" onClick={handleCancel} disabled={loading}>Cancelar</Button>
-          <Button type="submit" disabled={loading}>
+          <Button type="submit" disabled={loading || !isValidated} title={!isValidated ? "Valide o dataserver antes de salvar" : undefined}>
             {loading && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
             Salvar
           </Button>
@@ -164,6 +236,12 @@ export function DataserverTable({ data, meta }: DataserverTableProps) {
         searchPlaceholder="Buscar por código ou nome..."
         onSearch={(v) => pushParams({ search: v || undefined, page: 1 })}
         toolbarActions={newDialog}
+        bulkDelete={{
+          getId: (row) => row.id,
+          getRowLabel: (row) => row.code,
+          action: bulkDeleteDataservers,
+          onSuccess: () => router.refresh(),
+        }}
       />
 
       <ConfirmDialog

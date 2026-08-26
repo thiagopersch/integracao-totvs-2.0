@@ -5,7 +5,7 @@ import type { Dataserver } from "@prisma/client";
 
 class DataserverRepository extends BaseRepository<Dataserver> {
   constructor() {
-    super(prisma.dataserver, ["code", "name"], "dataservers");
+    super(prisma.dataserver, ["code", "name"], "dataservers", "Dataserver");
   }
 }
 

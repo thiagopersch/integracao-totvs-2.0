@@ -6,7 +6,7 @@ import type { ListParams } from "@/types/common";
 
 class DemandRepository extends BaseRepository<Demand> {
   constructor() {
-    super(prisma.demand, ["name", "description"], "demands");
+    super(prisma.demand, ["name", "description"], "demands", "Demand");
   }
 }
 
@@ -78,5 +78,13 @@ export const demandService = {
 
   async restore(id: string, organizationId: string) {
     return demandRepository.restore(id, organizationId);
+  },
+
+  async bulkSoftDelete(ids: string[], organizationId: string) {
+    return demandRepository.bulkSoftDelete(ids, organizationId);
+  },
+
+  async bulkRestore(ids: string[], organizationId: string) {
+    return demandRepository.bulkRestore(ids, organizationId);
   },
 };

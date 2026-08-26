@@ -1,7 +1,6 @@
 "use client"
 
-import { listActiveClientsWithTbc, listAllClients } from "@/actions/admin/clients"
-import { createTbc, deleteTbc, restoreTbc, updateTbc } from "@/actions/admin/tbcs"
+import { createTbc, deleteTbc, restoreTbc, updateTbc, bulkDeleteTbcs } from "@/actions/admin/tbcs"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
 import { DataTable } from "@/components/shared/data-table"
 import { DataTableFilterPanel } from "@/components/shared/data-table-filter-panel"
@@ -33,16 +32,18 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import type { Client } from "@prisma/client"
 import type { ColumnDef } from "@tanstack/react-table"
 import { Loader2, Plus } from "lucide-react"
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import { Controller, useForm, type Resolver } from "react-hook-form"
 import { toast } from "sonner"
 
 interface TbcTableProps {
   data: TbcRow[]
   meta: PaginationMeta
+  clients: Client[]
+  filterClients: Client[]
 }
 
-export function TbcTable({ data, meta }: TbcTableProps) {
+export function TbcTable({ data, meta, clients, filterClients }: TbcTableProps) {
   const { router, searchParams, deleteDialog, setDeleteDialog, editDialog, setEditDialog, pushParams, handleDelete } =
     useCrudTable<TbcRow>({
       deleteAction: deleteTbc,
@@ -51,17 +52,10 @@ export function TbcTable({ data, meta }: TbcTableProps) {
       restoreSuccessMessage: "TBC restaurado com sucesso",
     })
   const [loading, setLoading] = useState(false)
-  const [clients, setClients] = useState<Client[]>([])
-  const [filterClients, setFilterClients] = useState<Client[]>([])
   const [clientFilter, setClientFilter] = useState(searchParams.get("clientId") || "")
   const [statusFilter, setStatusFilter] = useState(searchParams.get("status") || "")
   const [noLicenseFilter, setNoLicenseFilter] = useState(searchParams.get("notRequiredLicense") || "")
   const [changePassword, setChangePassword] = useState(false)
-
-  useEffect(() => {
-    listAllClients().then(setClients)
-    listActiveClientsWithTbc().then(setFilterClients)
-  }, [])
 
   const form = useForm<CreateTbcInput>({
     mode: "onChange",
@@ -390,6 +384,12 @@ export function TbcTable({ data, meta }: TbcTableProps) {
         onSearch={(v) => pushParams({ search: v || undefined, page: 1 })}
         toolbarActions={newDialog}
         filterPanel={filterPanel}
+        bulkDelete={{
+          getId: (row) => row.id,
+          getRowLabel: (row) => row.name,
+          action: bulkDeleteTbcs,
+          onSuccess: () => router.refresh(),
+        }}
       />
 
       <ConfirmDialog

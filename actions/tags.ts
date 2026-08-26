@@ -6,17 +6,17 @@ import { auditService } from "@/services/audit.service";
 import { createTagSchema, updateTagSchema } from "@/schemas/tag.schema";
 import { requirePermission } from "@/lib/rbac";
 import { getRequestContext } from "@/lib/tenant";
+import type { ListParams } from "@/types/common";
 
 export async function listAllTags() {
   const { organizationId } = await getRequestContext();
   return tagService.listAll(organizationId);
 }
 
-export async function listTags(search?: string) {
+export async function listTags(params: ListParams, organizationId: string) {
   "use cache";
   cacheTag("tags");
-  const { organizationId } = await getRequestContext();
-  return tagService.list(organizationId, search);
+  return tagService.list(params, organizationId);
 }
 
 export async function createTag(formData: FormData) {
@@ -70,6 +70,27 @@ export async function deleteTag(id: string) {
     await auditService.log({ action: "DELETE", entity: "Tag", entityId: id });
     updateCacheTag("tags");
     return { success: true };
+  } catch (error) {
+    return { success: false, error: (error as Error).message };
+  }
+}
+
+export async function bulkDeleteTags(ids: string[]) {
+  const { organizationId, userId } = await requirePermission("tags", "delete");
+  try {
+    const result = await tagService.bulkDelete(ids, organizationId);
+    if (result.deletedIds.length) {
+      await auditService.log({
+        action: "BULK_DELETE",
+        entity: "Tag",
+        entityId: result.deletedIds.join(","),
+        organizationId,
+        userId,
+        newData: { count: result.deletedCount },
+      });
+    }
+    updateCacheTag("tags");
+    return { success: true, deletedCount: result.deletedCount, blocked: [] as { id: string; reasons: string }[] };
   } catch (error) {
     return { success: false, error: (error as Error).message };
   }

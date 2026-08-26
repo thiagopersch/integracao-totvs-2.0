@@ -6,6 +6,7 @@ import { auditService } from "@/services/audit.service";
 import { createTbcSchema, updateTbcSchema } from "@/schemas/tbc.schema";
 import { requirePermission } from "@/lib/rbac";
 import { getRequestContext } from "@/lib/tenant";
+import { formatBlockingReferences } from "@/lib/entity-relations";
 import type { ListParams } from "@/types/common";
 
 export async function listAllTbcs() {
@@ -123,17 +124,28 @@ export async function restoreTbc(id: string) {
 }
 
 export async function bulkDeleteTbcs(ids: string[]) {
-  const { organizationId } = await requirePermission("tbcs", "delete");
+  const { organizationId, userId } = await requirePermission("tbcs", "delete");
   try {
-    const count = await tbcService.bulkSoftDelete(ids, organizationId);
-    await auditService.log({
-      action: "BULK_DELETE",
-      entity: "Tbc",
-      entityId: ids.join(","),
-      newData: { count },
-    });
+    const result = await tbcService.bulkSoftDelete(ids, organizationId);
+    if (result.deletedIds.length) {
+      await auditService.log({
+        action: "BULK_DELETE",
+        entity: "Tbc",
+        entityId: result.deletedIds.join(","),
+        organizationId,
+        userId,
+        newData: { count: result.deletedCount },
+      });
+    }
+    if (result.blocked.length) {
+      await auditService.logBulkDeleteBlocked("Tbc", result.blocked, organizationId, userId);
+    }
     updateTag("tbcs");
-    return { success: true, count };
+    return {
+      success: true,
+      deletedCount: result.deletedCount,
+      blocked: result.blocked.map((b) => ({ id: b.id, reasons: formatBlockingReferences(b.reasons) })),
+    };
   } catch (error) {
     return { success: false, error: (error as Error).message };
   }

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import type { ColumnDef } from "@tanstack/react-table"
 import { useForm, Controller, type Resolver } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -35,8 +35,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { Plus, Loader2 } from "lucide-react"
-import { deleteSentence, restoreSentence, createSentence, updateSentence } from "@/actions/admin/sentences"
-import { listAllSentenceCategories } from "@/actions/admin/sentence-categories"
+import { deleteSentence, restoreSentence, createSentence, updateSentence, bulkDeleteSentences } from "@/actions/admin/sentences"
 import { createSentenceSchema, updateSentenceSchema, type CreateSentenceInput } from "@/schemas/sentence.schema"
 import { toast } from "sonner"
 import { useCrudTable } from "@/hooks/use-crud-table"
@@ -57,9 +56,10 @@ function detectContentLanguage(content: string): CodeEditorLanguage {
 interface SentenceTableProps {
   data: SentenceRow[]
   meta: PaginationMeta
+  categories: SentenceCategory[]
 }
 
-export function SentenceTable({ data, meta }: SentenceTableProps) {
+export function SentenceTable({ data, meta, categories }: SentenceTableProps) {
   const {
     router,
     searchParams,
@@ -76,13 +76,8 @@ export function SentenceTable({ data, meta }: SentenceTableProps) {
     restoreSuccessMessage: "Sentença restaurada com sucesso",
   })
   const [loading, setLoading] = useState(false)
-  const [categories, setCategories] = useState<SentenceCategory[]>([])
   const [categoryFilter, setCategoryFilter] = useState(searchParams.get("sentenceCategoryId") || "")
   const [fullscreen, setFullscreen] = useState(false)
-
-  useEffect(() => {
-    listAllSentenceCategories().then(setCategories)
-  }, [])
 
   const form = useForm<CreateSentenceInput>({
     mode: "onChange",
@@ -298,6 +293,12 @@ export function SentenceTable({ data, meta }: SentenceTableProps) {
         onSearch={(v) => pushParams({ search: v || undefined, page: 1 })}
         toolbarActions={newDialog}
         filterPanel={filterPanel}
+        bulkDelete={{
+          getId: (row) => row.id,
+          getRowLabel: (row) => row.code,
+          action: bulkDeleteSentences,
+          onSuccess: () => router.refresh(),
+        }}
       />
 
       <ConfirmDialog

@@ -8,6 +8,7 @@ import { createBackupSchema, updateBackupSchema } from "@/schemas/backup.schema"
 import { requirePermission } from "@/lib/rbac";
 import { getRequestContext } from "@/lib/tenant";
 import { prisma } from "@/lib/prisma";
+import { formatBlockingReferences } from "@/lib/entity-relations";
 import type { ListParams } from "@/types/common";
 
 export async function listBackups(params: ListParams, organizationId: string) {
@@ -120,17 +121,28 @@ export async function restoreBackup(id: string) {
 }
 
 export async function bulkDeleteBackups(ids: string[]) {
-  const { organizationId } = await requirePermission("backups", "delete");
+  const { organizationId, userId } = await requirePermission("backups", "delete");
   try {
-    const count = await backupService.bulkSoftDelete(ids, organizationId);
-    await auditService.log({
-      action: "BULK_DELETE",
-      entity: "Backup",
-      entityId: ids.join(","),
-      newData: { count },
-    });
+    const result = await backupService.bulkSoftDelete(ids, organizationId);
+    if (result.deletedIds.length) {
+      await auditService.log({
+        action: "BULK_DELETE",
+        entity: "Backup",
+        entityId: result.deletedIds.join(","),
+        organizationId,
+        userId,
+        newData: { count: result.deletedCount },
+      });
+    }
+    if (result.blocked.length) {
+      await auditService.logBulkDeleteBlocked("Backup", result.blocked, organizationId, userId);
+    }
     updateTag("backups");
-    return { success: true, count };
+    return {
+      success: true,
+      deletedCount: result.deletedCount,
+      blocked: result.blocked.map((b) => ({ id: b.id, reasons: formatBlockingReferences(b.reasons) })),
+    };
   } catch (error) {
     return { success: false, error: (error as Error).message };
   }
@@ -153,10 +165,10 @@ export async function bulkRestoreBackups(ids: string[]) {
   }
 }
 
-export async function listLatestBackupsForFilter(filterId: string, organizationId: string) {
+export async function listLatestBackupsForFilter(filterId: string, params: ListParams, organizationId: string) {
   "use cache";
   cacheTag(`filter-backups-${filterId}`);
-  return backupService.listLatestByFilter(filterId, organizationId);
+  return backupService.listLatestByFilter(filterId, params, organizationId);
 }
 
 export async function listBackupRunsForFilter(filterId: string, params: ListParams, organizationId: string) {
@@ -168,6 +180,11 @@ export async function listBackupRunsForFilter(filterId: string, params: ListPara
 export async function listBackupHistoryForCode(filterId: string, codeSentence: string) {
   const { organizationId } = await getRequestContext();
   return backupService.listHistoryByCode(filterId, codeSentence, organizationId);
+}
+
+export async function getLatestBackupForCode(filterId: string, codeSentence: string) {
+  const { organizationId } = await getRequestContext();
+  return backupService.getLatestByCode(filterId, codeSentence, organizationId);
 }
 
 export async function listBackupsForRun(backupRunId: string) {

@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
 import type { ColumnDef } from "@tanstack/react-table"
 import { Eye, History, MoreHorizontal } from "lucide-react"
 import { DataTable } from "@/components/shared/data-table"
@@ -13,7 +14,12 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { ViewBackupSentenceDialog } from "@/components/shared/view-backup-sentence-dialog"
 import { BackupCodeHistoryDialog } from "@/components/shared/backup-code-history-dialog"
+import { getLatestBackupForCode } from "@/actions/admin/backups"
+import { toast } from "sonner"
 import type { Backup } from "@prisma/client"
+import type { PaginationMeta } from "@/types/common"
+
+const SORTABLE_COLUMNS = ["codeSentence", "codColigada", "codSystem", "nameSentence", "createdAt", "restoreStatus"]
 
 const RESTORE_STATUS_LABELS: Record<string, { label: string; variant: "outline" | "default" | "destructive" }> = {
   NOT_RESTORED: { label: "Não restaurado", variant: "outline" },
@@ -24,15 +30,49 @@ const RESTORE_STATUS_LABELS: Record<string, { label: string; variant: "outline" 
 interface BackupsSentencesTableProps {
   filterId: string
   data: Backup[]
+  meta: PaginationMeta
   onRestoreSingle: (backupId: string) => void
 }
 
-export function BackupsSentencesTable({ filterId, data, onRestoreSingle }: BackupsSentencesTableProps) {
+export function BackupsSentencesTable({ filterId, data, meta, onRestoreSingle }: BackupsSentencesTableProps) {
+  const router = useRouter()
+  const searchParams = useSearchParams()
   const [viewDialog, setViewDialog] = useState<{ open: boolean; backup: Backup | null }>({ open: false, backup: null })
+  const [viewingCode, setViewingCode] = useState<string | null>(null)
   const [historyDialog, setHistoryDialog] = useState<{ open: boolean; codeSentence: string | null }>({
     open: false,
     codeSentence: null,
   })
+
+  const sortParam = searchParams.get("sort")
+  const sort = sortParam
+    ? { field: sortParam.split(":")[0], direction: sortParam.split(":")[1] as "asc" | "desc" }
+    : { field: "codeSentence", direction: "asc" as const }
+
+  function pushSentenceParams(updates: Record<string, string | number | undefined>) {
+    const params = new URLSearchParams(searchParams.toString())
+    Object.entries(updates).forEach(([key, value]) => {
+      if (value === undefined || value === "") params.delete(key)
+      else params.set(key, String(value))
+    })
+    router.push(`?${params.toString()}`)
+  }
+
+  async function handleView(row: Backup) {
+    if (!row.codeSentence) {
+      setViewDialog({ open: true, backup: row })
+      return
+    }
+    setViewingCode(row.codeSentence)
+    try {
+      const latest = await getLatestBackupForCode(filterId, row.codeSentence)
+      setViewDialog({ open: true, backup: latest ?? row })
+    } catch {
+      toast.error("Erro ao buscar a versão mais recente da sentença")
+    } finally {
+      setViewingCode(null)
+    }
+  }
 
   const columns: ColumnDef<Backup>[] = [
     { accessorKey: "codeSentence", header: "Código da consulta", cell: ({ row }) => row.getValue("codeSentence") || "-" },
@@ -42,7 +82,7 @@ export function BackupsSentencesTable({ filterId, data, onRestoreSingle }: Backu
     {
       accessorKey: "createdAt",
       header: "Data da versão mais recente",
-      cell: ({ row }) => new Date(row.getValue("createdAt")).toLocaleString("pt-BR"),
+      cell: ({ row }) => new Date(row.getValue("createdAt")).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" }),
     },
     {
       accessorKey: "restoreStatus",
@@ -60,7 +100,7 @@ export function BackupsSentencesTable({ filterId, data, onRestoreSingle }: Backu
             <MoreHorizontal className="h-4 w-4" />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-auto whitespace-nowrap">
-            <DropdownMenuItem onClick={() => setViewDialog({ open: true, backup: row.original })}>
+            <DropdownMenuItem disabled={viewingCode === row.original.codeSentence} onClick={() => handleView(row.original)}>
               <Eye className="h-4 w-4 mr-2" /> Visualizar
             </DropdownMenuItem>
             <DropdownMenuItem
@@ -76,7 +116,20 @@ export function BackupsSentencesTable({ filterId, data, onRestoreSingle }: Backu
 
   return (
     <>
-      <DataTable columns={columns} data={data} searchPlaceholder="Buscar por código ou nome..." />
+      <DataTable
+        columns={columns}
+        data={data}
+        page={meta.page}
+        pageSize={meta.pageSize}
+        total={meta.total}
+        pageCount={meta.totalPages}
+        onPageChange={(p) => pushSentenceParams({ page: p })}
+        onPageSizeChange={(ps) => pushSentenceParams({ pageSize: ps, page: 1 })}
+        searchPlaceholder="Buscar por código ou nome..."
+        sort={sort}
+        onSortChange={(s) => pushSentenceParams({ sort: `${s.field}:${s.direction}`, page: 1 })}
+        sortableColumns={SORTABLE_COLUMNS}
+      />
 
       <ViewBackupSentenceDialog
         open={viewDialog.open}

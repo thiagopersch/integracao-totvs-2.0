@@ -5,6 +5,7 @@ import { sentenceService } from "@/services/sentence.service";
 import { auditService } from "@/services/audit.service";
 import { createSentenceSchema, updateSentenceSchema } from "@/schemas/sentence.schema";
 import { requirePermission } from "@/lib/rbac";
+import { formatBlockingReferences } from "@/lib/entity-relations";
 import type { ListParams } from "@/types/common";
 
 export async function listSentences(params: ListParams, organizationId: string) {
@@ -117,17 +118,28 @@ export async function restoreSentence(id: string) {
 }
 
 export async function bulkDeleteSentences(ids: string[]) {
-  const { organizationId } = await requirePermission("sentences", "delete");
+  const { organizationId, userId } = await requirePermission("sentences", "delete");
   try {
-    const count = await sentenceService.bulkSoftDelete(ids, organizationId);
-    await auditService.log({
-      action: "BULK_DELETE",
-      entity: "Sentence",
-      entityId: ids.join(","),
-      newData: { count },
-    });
+    const result = await sentenceService.bulkSoftDelete(ids, organizationId);
+    if (result.deletedIds.length) {
+      await auditService.log({
+        action: "BULK_DELETE",
+        entity: "Sentence",
+        entityId: result.deletedIds.join(","),
+        organizationId,
+        userId,
+        newData: { count: result.deletedCount },
+      });
+    }
+    if (result.blocked.length) {
+      await auditService.logBulkDeleteBlocked("Sentence", result.blocked, organizationId, userId);
+    }
     updateTag("sentences");
-    return { success: true, count };
+    return {
+      success: true,
+      deletedCount: result.deletedCount,
+      blocked: result.blocked.map((b) => ({ id: b.id, reasons: formatBlockingReferences(b.reasons) })),
+    };
   } catch (error) {
     return { success: false, error: (error as Error).message };
   }

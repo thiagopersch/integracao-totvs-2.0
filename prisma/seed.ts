@@ -304,12 +304,15 @@ async function main() {
 
   console.log("✅ Feature flags seeded");
 
+  // suffix stores the real TOTVS RM webservice folder name (verified live against each
+  // service's own MEX WSDL) — soap.service.ts appends "EduLicense" in front of it when the
+  // TBC's "não consumir licença" flag is set, and the port interface after it.
   const endpointTypes = [
-    { type: "dataserver", label: "Dataserver", suffix: "/dataserver", active: true },
-    { type: "process", label: "Processo", suffix: "/process", active: true },
-    { type: "consulta", label: "Consulta SQL", suffix: "/query", active: true },
-    { type: "formula", label: "Fórmulas Visuais", suffix: "/formula", active: true },
-    { type: "relatorio", label: "Relatórios", suffix: "/report", active: true },
+    { type: "dataserver", label: "Dataserver", suffix: "wsDataServer", active: true },
+    { type: "process", label: "Processo", suffix: "wsProcess", active: true },
+    { type: "consulta", label: "Consulta SQL", suffix: "wsConsultaSQL", active: true },
+    { type: "formula", label: "Fórmulas Visuais", suffix: "wsFormulaVisual", active: true },
+    { type: "relatorio", label: "Relatórios", suffix: "wsReport", active: true },
   ] as const;
 
   const typeMethods: Record<string, { method: SoapMethod; label: string; sortOrder: number }[]> = {
@@ -319,7 +322,8 @@ async function main() {
       { method: "READVIEW", label: "Read View", sortOrder: 3 },
       { method: "SAVERECORD", label: "Save Record", sortOrder: 4 },
       { method: "DELETERECORD", label: "Delete Record", sortOrder: 5 },
-      { method: "ISVALIDDATASERVER", label: "Is Valid Dataserver", sortOrder: 6 },
+      { method: "DELETERECORDBYKEY", label: "Delete Record By Key", sortOrder: 6 },
+      { method: "ISVALIDDATASERVER", label: "Is Valid Dataserver", sortOrder: 7 },
     ],
     process: [
       { method: "GETSCHEMA2", label: "Get Schema 2", sortOrder: 1 },
