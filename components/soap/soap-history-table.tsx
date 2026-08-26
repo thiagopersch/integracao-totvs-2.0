@@ -2,12 +2,28 @@
 
 import { useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
+import { format } from "date-fns"
+import type { DateRange } from "react-day-picker"
 import { cn } from "@/utils/cn"
 import { DataTable } from "@/components/shared/data-table"
+import { DataTableFilterPanel } from "@/components/shared/data-table-filter-panel"
+import { ConfirmDialog } from "@/components/shared/confirm-dialog"
 import { PageHeader } from "@/components/shared/page-header"
 import { CodeEditor } from "@/components/shared/code-editor"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Label } from "@/components/ui/label"
+import { Combobox } from "@/components/ui/combobox"
+import { MultiSelect } from "@/components/ui/multi-select"
+import { Slider } from "@/components/ui/slider"
+import { DateRangePicker } from "@/components/ui/date-range-picker"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import {
   Dialog,
   DialogBody,
@@ -22,14 +38,20 @@ import { reexecuteSoapLog } from "@/actions/soap"
 import { Eye, RotateCcw, Maximize2, Minimize2 } from "lucide-react"
 import { toast } from "sonner"
 import type { ColumnDef } from "@tanstack/react-table"
-import type { SoapLog } from "@prisma/client"
+import type { Client, SoapLog } from "@prisma/client"
 import type { PaginationMeta } from "@/types/common"
+import type { TbcRow } from "@/services/tbc.service"
+import type { SoapEndpointTypeWithMethods } from "@/services/soap-endpoint.service"
 
 type SoapLogRow = SoapLog & { user?: { id: string; name: string } | null }
 
 interface SoapHistoryTableProps {
   data: SoapLogRow[]
   meta: PaginationMeta
+  clients: Client[]
+  tbcs: TbcRow[]
+  endpointTypes: SoapEndpointTypeWithMethods[]
+  statuses: number[]
 }
 
 /** Some logged values are plain scalars (e.g. AutenticaAcessoResult "1", CheckServiceActivityResult
@@ -55,12 +77,31 @@ function safeFormatXmlDeep(value: string): string {
   }
 }
 
-export function SoapHistoryTable({ data, meta }: SoapHistoryTableProps) {
+export function SoapHistoryTable({ data, meta, clients, tbcs, endpointTypes, statuses }: SoapHistoryTableProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [executing, setExecuting] = useState<string | null>(null)
   const [detailDialog, setDetailDialog] = useState<{ open: boolean; log: SoapLogRow | null }>({ open: false, log: null })
   const [fullscreen, setFullscreen] = useState(false)
+  const [reexecuteDialog, setReexecuteDialog] = useState<{ open: boolean; log: SoapLogRow | null }>({ open: false, log: null })
+
+  const [clientFilter, setClientFilter] = useState(searchParams.get("clientId") || "")
+  const [tbcFilter, setTbcFilter] = useState(searchParams.get("tbcId") || "")
+  const [endpointTypeFilter, setEndpointTypeFilter] = useState(searchParams.get("endpointTypeId") || "")
+  const [methodFilter, setMethodFilter] = useState(searchParams.get("method") || "")
+  const [statusFilter, setStatusFilter] = useState<string[]>(
+    searchParams.get("status")?.split(",").filter(Boolean) || []
+  )
+  const [dateRange, setDateRange] = useState<DateRange | undefined>(() => {
+    const from = searchParams.get("dateFrom")
+    const to = searchParams.get("dateTo")
+    return from ? { from: new Date(from), to: to ? new Date(to) : undefined } : undefined
+  })
+  const [minDuration, setMinDuration] = useState(Number(searchParams.get("minDuration")) || 0)
+
+  const filteredTbcs = clientFilter ? tbcs.filter((t) => t.client?.id === clientFilter) : []
+  const selectedEndpointType = endpointTypes.find((t) => t.id === endpointTypeFilter)
+  const availableMethods = selectedEndpointType?.methods ?? []
 
   function pushParams(updates: Record<string, string | number | undefined>) {
     const params = new URLSearchParams(searchParams.toString())
@@ -71,7 +112,48 @@ export function SoapHistoryTable({ data, meta }: SoapHistoryTableProps) {
     router.push(`?${params.toString()}`)
   }
 
-  async function handleReexecute(log: SoapLog) {
+  function clearFilters() {
+    setClientFilter("")
+    setTbcFilter("")
+    setEndpointTypeFilter("")
+    setMethodFilter("")
+    setStatusFilter([])
+    setDateRange(undefined)
+    setMinDuration(0)
+    pushParams({
+      clientId: undefined,
+      tbcId: undefined,
+      endpointTypeId: undefined,
+      method: undefined,
+      status: undefined,
+      dateFrom: undefined,
+      dateTo: undefined,
+      minDuration: undefined,
+      page: 1,
+    })
+  }
+
+  function applyFilters() {
+    pushParams({
+      clientId: clientFilter || undefined,
+      tbcId: tbcFilter || undefined,
+      endpointTypeId: endpointTypeFilter || undefined,
+      method: methodFilter || undefined,
+      status: statusFilter.length ? statusFilter.join(",") : undefined,
+      dateFrom: dateRange?.from ? format(dateRange.from, "yyyy-MM-dd") : undefined,
+      dateTo: dateRange?.to ? format(dateRange.to, "yyyy-MM-dd") : undefined,
+      minDuration: minDuration || undefined,
+      page: 1,
+    })
+  }
+
+  function requestReexecute(log: SoapLogRow) {
+    setReexecuteDialog({ open: true, log })
+  }
+
+  async function confirmReexecute() {
+    const log = reexecuteDialog.log
+    if (!log) return
     setExecuting(log.id)
     try {
       const result = await reexecuteSoapLog(log.id)
@@ -83,9 +165,106 @@ export function SoapHistoryTable({ data, meta }: SoapHistoryTableProps) {
       }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Erro na reexecução")
+    } finally {
+      setExecuting(null)
+      setReexecuteDialog({ open: false, log: null })
     }
-    setExecuting(null)
   }
+
+  const filterPanel = (
+    <DataTableFilterPanel onApply={applyFilters} onClear={clearFilters}>
+      <div className="space-y-2">
+        <Label>Cliente</Label>
+        <Combobox
+          items={clients.map((c) => ({ value: c.id, label: c.name }))}
+          value={clientFilter}
+          onValueChange={(v) => {
+            setClientFilter(v)
+            setTbcFilter("")
+          }}
+          placeholder="Todos"
+        />
+      </div>
+      <div className="space-y-2">
+        <Label>TBC</Label>
+        <Combobox
+          items={filteredTbcs.map((t) => ({ value: t.id, label: t.name }))}
+          value={tbcFilter}
+          onValueChange={setTbcFilter}
+          placeholder={clientFilter ? "Todos" : "Selecione um cliente primeiro"}
+          disabled={!clientFilter}
+        />
+      </div>
+      <div className="space-y-2">
+        <Label>Serviço</Label>
+        <Select
+          items={[{ value: "all", label: "Todos" }, ...endpointTypes.map((t) => ({ value: t.id, label: t.label }))]}
+          value={endpointTypeFilter || "all"}
+          onValueChange={(v) => {
+            setEndpointTypeFilter(!v || v === "all" ? "" : v)
+            setMethodFilter("")
+          }}
+        >
+          <SelectTrigger className="w-full">
+            <SelectValue placeholder="Todos" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos</SelectItem>
+            {endpointTypes.map((t) => (
+              <SelectItem key={t.id} value={t.id}>
+                {t.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="space-y-2">
+        <Label>Método</Label>
+        <Select
+          items={[{ value: "all", label: "Todos" }, ...availableMethods.map((m) => ({ value: m.method, label: m.label }))]}
+          value={methodFilter || "all"}
+          onValueChange={(v) => setMethodFilter(!v || v === "all" ? "" : v)}
+          disabled={!endpointTypeFilter}
+        >
+          <SelectTrigger className="w-full">
+            <SelectValue placeholder="Todos" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos</SelectItem>
+            {availableMethods.map((m) => (
+              <SelectItem key={m.id} value={m.method}>
+                {m.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="space-y-2">
+        <Label>Status</Label>
+        <MultiSelect
+          items={statuses.map((s) => ({ value: String(s), label: String(s) }))}
+          value={statusFilter}
+          onValueChange={setStatusFilter}
+          placeholder="Todos"
+        />
+      </div>
+      <div className="space-y-2">
+        <Label>Data</Label>
+        <DateRangePicker value={dateRange} onValueChange={setDateRange} placeholder="Selecione um período" />
+      </div>
+      <div className="space-y-2">
+        <Label>Duração mínima: {minDuration}s</Label>
+        <Slider
+          min={0}
+          max={60}
+          step={1}
+          value={minDuration}
+          onValueChange={(v) => setMinDuration(v)}
+          className="pt-2"
+        />
+      </div>
+    </DataTableFilterPanel>
+  )
 
   const columns: ColumnDef<SoapLogRow>[] = [
     {
@@ -152,7 +331,7 @@ export function SoapHistoryTable({ data, meta }: SoapHistoryTableProps) {
             variant="ghost"
             size="sm"
             disabled={executing === row.original.id}
-            onClick={() => handleReexecute(row.original)}
+            onClick={() => requestReexecute(row.original)}
             title="Reexecutar"
           >
             <RotateCcw className={`h-4 w-4 ${executing === row.original.id ? "animate-spin" : ""}`} />
@@ -179,6 +358,18 @@ export function SoapHistoryTable({ data, meta }: SoapHistoryTableProps) {
         searchPlaceholder="Buscar por dataserver ou processo..."
         onSearch={(v) => pushParams({ search: v || undefined, page: 1 })}
         onRowClick={(log) => setDetailDialog({ open: true, log })}
+        filterPanel={filterPanel}
+      />
+
+      <ConfirmDialog
+        open={reexecuteDialog.open}
+        onOpenChange={(open) => !executing && setReexecuteDialog({ open, log: open ? reexecuteDialog.log : null })}
+        title="Reexecutar chamada SOAP"
+        description={`Isso vai reexecutar ${reexecuteDialog.log?.method ?? "esta chamada"} contra "${reexecuteDialog.log?.dataserver ?? "o TBC original"}", chamando primeiro AutenticaAcesso e CheckServiceActivity (conforme exigido pelo TOTVS) antes do método de destino.`}
+        confirmLabel="Reexecutar"
+        onConfirm={confirmReexecute}
+        loading={executing === reexecuteDialog.log?.id}
+        loadingLabel="Reexecutando..."
       />
 
       <Dialog

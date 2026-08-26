@@ -16,6 +16,17 @@ export type TbcCredentials = {
   notRequiredLicense: boolean;
 };
 
+export type SoapHistoryFilters = {
+  clientId?: string;
+  tbcId?: string;
+  endpointTypeId?: string;
+  method?: SoapMethod;
+  status?: number[];
+  dateFrom?: Date;
+  dateTo?: Date;
+  minDurationMs?: number;
+};
+
 export type SoapRequest = {
   tbc: TbcCredentials;
   wsName: WsName;
@@ -368,13 +379,51 @@ export const soapService = {
     }
   },
 
-  async getHistory(organizationId: string, page = 1, pageSize = 50, search?: string) {
+  async getHistory(
+    organizationId: string,
+    page = 1,
+    pageSize = 50,
+    search?: string,
+    filters?: SoapHistoryFilters
+  ) {
     const where: Prisma.SoapLogWhereInput = { organizationId };
     if (search) {
       where.OR = [
         { dataserver: { contains: search, mode: "insensitive" } },
         { process: { contains: search, mode: "insensitive" } },
       ];
+    }
+
+    if (filters?.tbcId) {
+      const tbc = await prisma.tbc.findFirst({
+        where: { id: filters.tbcId, organizationId },
+        select: { link: true },
+      });
+      where.dataserver = tbc?.link ?? "__none__";
+    } else if (filters?.clientId) {
+      const tbcs = await prisma.tbc.findMany({
+        where: { clientId: filters.clientId, organizationId, deletedAt: null },
+        select: { link: true },
+      });
+      where.dataserver = { in: tbcs.map((t) => t.link) };
+    }
+
+    if (filters?.endpointTypeId) {
+      const endpointType = await prisma.soapEndpointType.findUnique({
+        where: { id: filters.endpointTypeId },
+        select: { suffix: true },
+      });
+      where.process = endpointType?.suffix ?? "__none__";
+    }
+
+    if (filters?.method) where.method = filters.method;
+    if (filters?.status?.length) where.status = { in: filters.status };
+    if (filters?.minDurationMs) where.duration = { gte: filters.minDurationMs };
+    if (filters?.dateFrom || filters?.dateTo) {
+      where.createdAt = {
+        ...(filters.dateFrom ? { gte: filters.dateFrom } : {}),
+        ...(filters.dateTo ? { lte: filters.dateTo } : {}),
+      };
     }
 
     const [data, total] = await Promise.all([
@@ -392,6 +441,16 @@ export const soapService = {
       data,
       meta: { page, pageSize, total, totalPages: Math.ceil(total / pageSize) },
     };
+  },
+
+  async listDistinctStatuses(organizationId: string) {
+    const rows = await prisma.soapLog.findMany({
+      where: { organizationId, status: { not: null } },
+      distinct: ["status"],
+      select: { status: true },
+      orderBy: { status: "asc" },
+    });
+    return rows.map((r) => r.status as number);
   },
 
   async saveTemplate(data: {

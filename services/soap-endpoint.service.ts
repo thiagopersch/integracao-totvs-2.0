@@ -8,7 +8,7 @@ import type {
 import type { SoapEndpointType, SoapEndpointMethod } from "@prisma/client";
 import type { ListParams, PaginationMeta } from "@/types/common";
 
-type SoapEndpointTypeWithMethods = SoapEndpointType & { methods: SoapEndpointMethod[] };
+export type SoapEndpointTypeWithMethods = SoapEndpointType & { methods: SoapEndpointMethod[] };
 
 function buildWhere(
   params: ListParams,
