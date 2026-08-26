@@ -4,9 +4,14 @@ import { updateTag } from "next/cache";
 import { notificationService } from "@/services/notification.service";
 import { getRequestContext } from "@/lib/tenant";
 
-export async function listNotifications(page = 1, pageSize = 20, unreadOnly = false) {
+export async function listNotifications(
+  page = 1,
+  pageSize = 20,
+  unreadOnly = false,
+  sort?: { field: string; direction: "asc" | "desc" }
+) {
   const { organizationId, userId } = await getRequestContext();
-  return notificationService.list(organizationId, userId, page, pageSize, unreadOnly);
+  return notificationService.list(organizationId, userId, page, pageSize, unreadOnly, sort);
 }
 
 export async function markNotificationAsRead(id: string) {

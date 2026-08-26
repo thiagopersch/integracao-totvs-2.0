@@ -1,25 +1,21 @@
 "use client"
 
-import { useState, useEffect, useRef, useCallback } from "react"
-import { EditorView, basicSetup } from "codemirror"
-import { EditorState, type Extension } from "@codemirror/state"
-import { xml } from "@codemirror/lang-xml"
-import { json } from "@codemirror/lang-json"
-import { oneDark } from "@codemirror/theme-one-dark"
-import { useTheme } from "next-themes"
+import { useCallback, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Combobox } from "@/components/ui/combobox"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { CodeEditor } from "@/components/shared/code-editor"
 import { Play, Copy, Download, Loader2, Code2, FileJson, Table2, Globe, Braces, Database, Workflow, Search } from "lucide-react"
 import { toast } from "sonner"
 import axios from "axios"
-import { formatXml, xmlToJson, jsonToXml } from "@/utils/xml"
+import { xmlToJson, jsonToXml, safeFormatXmlDeep } from "@/utils/xml"
 import { formatDuration } from "@/utils/format"
 import { useSoapStore } from "@/store/soap.store"
 
@@ -47,27 +43,30 @@ type TbcOption = {
   client: { id: string; name: string } | null
 }
 
+type ClientOption = { id: string; name: string }
+type SistemaOption = { id: string; code: string; internalName: string; externalName: string }
+
 interface SoapBuilderClientProps {
   initialEndpointTypes: EndpointType[]
   initialTbcs: TbcOption[]
+  initialClients: ClientOption[]
+  initialSistemas: SistemaOption[]
 }
 
-export function SoapBuilderClient({ initialEndpointTypes, initialTbcs }: SoapBuilderClientProps) {
-  const { theme } = useTheme()
-  const xmlEditorRef = useRef<HTMLDivElement>(null)
-  const jsonEditorRef = useRef<HTMLDivElement>(null)
-  const xmlViewRef = useRef<EditorView | null>(null)
-  const jsonViewRef = useRef<EditorView | null>(null)
-
+export function SoapBuilderClient({ initialEndpointTypes, initialTbcs, initialClients, initialSistemas }: SoapBuilderClientProps) {
   const endpointTypes = initialEndpointTypes
   const tbcs = initialTbcs
-  const [tbcSearch, setTbcSearch] = useState("")
-  const [loading, setLoading] = useState(false)
+  const clients = initialClients
+  const sistemas = initialSistemas
 
   const selectedTypeId = useSoapStore((state) => state.selectedTypeId)
   const setSelectedTypeId = useSoapStore((state) => state.setSelectedTypeId)
   const selectedMethodId = useSoapStore((state) => state.selectedMethodId)
   const setSelectedMethodId = useSoapStore((state) => state.setSelectedMethodId)
+  const selectedSistemaId = useSoapStore((state) => state.selectedSistemaId)
+  const setSelectedSistemaId = useSoapStore((state) => state.setSelectedSistemaId)
+  const selectedClientId = useSoapStore((state) => state.selectedClientId)
+  const setSelectedClientId = useSoapStore((state) => state.setSelectedClientId)
   const selectedTbcId = useSoapStore((state) => state.selectedTbcId)
   const setSelectedTbcId = useSoapStore((state) => state.setSelectedTbcId)
   const xmlContent = useSoapStore((state) => state.xmlContent)
@@ -85,8 +84,16 @@ export function SoapBuilderClient({ initialEndpointTypes, initialTbcs }: SoapBui
   const timeout = useSoapStore((state) => state.timeout)
   const setTimeout_ = useSoapStore((state) => state.setTimeout)
 
+  const [loading, setLoading] = useState(false)
+  // Bumped whenever the request XML/JSON is set programmatically (type/method change, schema
+  // fetch) — used as CodeEditor's resetKey so the box actually refreshes to show it; left alone
+  // while the user types, so their own edits never get stomped by a remount.
+  const [requestVersion, setRequestVersion] = useState(0)
+  const [responseVersion, setResponseVersion] = useState(0)
+
   const selectedType = endpointTypes.find((t) => t.id === selectedTypeId)
   const methods = selectedType?.methods ?? []
+  const tbcsForClient = selectedClientId ? tbcs.filter((t) => t.client?.id === selectedClientId) : tbcs
   const selectedTbc = tbcs.find((t) => t.id === selectedTbcId)
   const selectedMethodObj = methods.find((m) => m.id === selectedMethodId)
   const selectedMethod = selectedMethodObj?.method
@@ -100,12 +107,24 @@ export function SoapBuilderClient({ initialEndpointTypes, initialTbcs }: SoapBui
     return `${base}/${prefix}${wsFolder}/${port}`
   })()
 
-  const filteredTbcs = tbcs.filter(
-    (t) =>
-      t.name.toLowerCase().includes(tbcSearch.toLowerCase()) ||
-      t.link.toLowerCase().includes(tbcSearch.toLowerCase()) ||
-      (t.client?.name || "").toLowerCase().includes(tbcSearch.toLowerCase())
-  )
+  /** Programmatic updates (type/method switch, schema fetch) — bumps requestVersion so the
+   *  still-mounted CodeEditor actually remounts and shows the new content. */
+  function setRequestXml(newXml: string) {
+    setXmlContent(newXml)
+    try {
+      setJsonContent(JSON.stringify(xmlToJson(newXml), null, 2))
+    } catch { /* empty */ }
+    setRequestVersion((v) => v + 1)
+  }
+
+  /** User typing in the XML editor — must NOT bump requestVersion, or every keystroke remounts
+   *  the editor and resets the cursor. */
+  function handleXmlChange(newXml: string) {
+    setXmlContent(newXml)
+    try {
+      setJsonContent(JSON.stringify(xmlToJson(newXml), null, 2))
+    } catch { /* empty */ }
+  }
 
   function handleSelectType(type: EndpointType) {
     setSelectedTypeId(type.id)
@@ -115,74 +134,36 @@ export function SoapBuilderClient({ initialEndpointTypes, initialTbcs }: SoapBui
       return
     }
     setSelectedMethodId(firstMethod.id)
-    const initialXml = `<${firstMethod.method} />`
-    setXmlContent(initialXml)
+    setRequestXml(`<${firstMethod.method} />`)
+  }
+
+  function handleSelectMethod(methodId: string) {
+    setSelectedMethodId(methodId)
+    const method = methods.find((m) => m.id === methodId)
+    if (method) setRequestXml(`<${method.method} />`)
+  }
+
+  function handleSelectSistema(sistemaId: string) {
+    setSelectedSistemaId(sistemaId)
+    const sistema = sistemas.find((s) => s.id === sistemaId)
+    if (sistema) setContext({ codSystem: sistema.code })
+  }
+
+  function handleSelectClient(clientId: string) {
+    setSelectedClientId(clientId)
+    const stillValid = tbcs.find((t) => t.id === selectedTbcId && t.client?.id === clientId)
+    if (!stillValid) setSelectedTbcId("")
+  }
+
+  function handleJsonChange(newJson: string) {
+    setJsonContent(newJson)
     try {
-      const parsed = xmlToJson(initialXml)
-      setJsonContent(JSON.stringify(parsed, null, 2))
+      setXmlContent(jsonToXml(JSON.parse(newJson)))
     } catch { /* empty */ }
   }
 
-  useEffect(() => {
-    if (!xmlEditorRef.current) return
-    const isDark = theme === "dark"
-    const extensions: Extension[] = [basicSetup, xml(), isDark ? oneDark : []]
-
-    const state = EditorState.create({
-      doc: xmlContent,
-      extensions: [
-        ...extensions,
-        EditorView.updateListener.of((update) => {
-          if (update.docChanged) {
-            const newXml = update.state.doc.toString()
-            setXmlContent(newXml)
-            try {
-              const parsed = xmlToJson(newXml)
-              setJsonContent(JSON.stringify(parsed, null, 2))
-            } catch { /* empty */ }
-          }
-        }),
-      ],
-    })
-
-    if (xmlViewRef.current) xmlViewRef.current.destroy()
-    xmlViewRef.current = new EditorView({ state, parent: xmlEditorRef.current })
-
-    return () => { xmlViewRef.current?.destroy() }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [theme])
-
-  useEffect(() => {
-    if (!jsonEditorRef.current || activeTab !== "json") return
-    const isDark = theme === "dark"
-    const extensions: Extension[] = [basicSetup, json(), isDark ? oneDark : []]
-
-    const state = EditorState.create({
-      doc: jsonContent,
-      extensions: [
-        ...extensions,
-        EditorView.updateListener.of((update) => {
-          if (update.docChanged) {
-            const newJson = update.state.doc.toString()
-            setJsonContent(newJson)
-            try {
-              const parsed = JSON.parse(newJson)
-              setXmlContent(jsonToXml(parsed))
-            } catch { /* empty */ }
-          }
-        }),
-      ],
-    })
-
-    if (jsonViewRef.current) jsonViewRef.current.destroy()
-    jsonViewRef.current = new EditorView({ state, parent: jsonEditorRef.current })
-
-    return () => { jsonViewRef.current?.destroy() }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [theme, activeTab])
-
   async function handleExecute() {
-    if (!selectedTypeId) { toast.error("Selecione o tipo de endpoint"); return }
+    if (!selectedTypeId) { toast.error("Selecione o sistema/endpoint"); return }
     if (!selectedMethodId) { toast.error("Selecione o método"); return }
     if (!selectedTbcId) { toast.error("Selecione o TBC"); return }
 
@@ -206,6 +187,7 @@ export function SoapBuilderClient({ initialEndpointTypes, initialTbcs }: SoapBui
       })
 
       setResponse(res.data)
+      setResponseVersion((v) => v + 1)
       toast.success(`Executado em ${formatDuration(res.data.duration)}`)
     } catch (err) {
       const msg = axios.isAxiosError(err) ? err.response?.data?.error || err.message : (err as Error).message
@@ -237,12 +219,7 @@ export function SoapBuilderClient({ initialEndpointTypes, initialTbcs }: SoapBui
         context,
         timeout,
       })
-      const formatted = formatXml(res.data.xmlResponse)
-      setXmlContent(formatted)
-      try {
-        const parsed = xmlToJson(formatted)
-        setJsonContent(JSON.stringify(parsed, null, 2))
-      } catch { /* empty */ }
+      setRequestXml(safeFormatXmlDeep(res.data.xmlResponse))
       toast.success("Schema gerado")
     } catch (err) {
       toast.error(axios.isAxiosError(err) ? err.response?.data?.error || err.message : (err as Error).message)
@@ -329,8 +306,8 @@ export function SoapBuilderClient({ initialEndpointTypes, initialTbcs }: SoapBui
       </div>
 
       <Card>
-        <CardContent className="pt-6">
-          <div className="flex flex-wrap gap-2 mb-4">
+        <CardContent className="pt-6 space-y-4">
+          <div className="flex flex-wrap gap-2">
             {endpointTypes.map((type) => (
               <Button
                 key={type.id}
@@ -349,85 +326,105 @@ export function SoapBuilderClient({ initialEndpointTypes, initialTbcs }: SoapBui
             ))}
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="space-y-2">
-              <Label>Método</Label>
-              <Select
-                items={methods.map((m) => ({ value: m.id, label: m.label }))}
-                value={selectedMethodId || null}
-                onValueChange={(v) => setSelectedMethodId(v || "")}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Selecionar método..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {methods.map((m) => (
-                    <SelectItem key={m.id} value={m.id}>{m.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+          <fieldset className="space-y-3 rounded-lg border border-input p-3">
+            <legend className="px-1 text-sm font-medium text-muted-foreground">Destino da chamada</legend>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+              <div className="space-y-2">
+                <Label>Sistema TOTVS</Label>
+                <Select
+                  items={sistemas.map((s) => ({ value: s.id, label: `${s.code} - ${s.internalName}` }))}
+                  value={selectedSistemaId || null}
+                  onValueChange={(v) => handleSelectSistema(v || "")}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Selecionar sistema..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {sistemas.map((s) => (
+                      <SelectItem key={s.id} value={s.id}>{s.code} - {s.internalName}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Cliente</Label>
+                <Combobox
+                  items={clients.map((c) => ({ value: c.id, label: c.name }))}
+                  value={selectedClientId}
+                  onValueChange={handleSelectClient}
+                  placeholder="Selecionar cliente..."
+                  searchPlaceholder="Buscar cliente..."
+                  emptyText="Nenhum cliente encontrado."
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>TBC</Label>
+                <Combobox
+                  items={tbcsForClient.map((t) => ({ value: t.id, label: `${t.name}${t.client ? ` (${t.client.name})` : ""}` }))}
+                  value={selectedTbcId}
+                  onValueChange={setSelectedTbcId}
+                  placeholder="Selecionar TBC..."
+                  searchPlaceholder="Buscar TBC..."
+                  emptyText="Nenhum TBC encontrado."
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Método</Label>
+                <Select
+                  items={methods.map((m) => ({ value: m.id, label: m.label }))}
+                  value={selectedMethodId || null}
+                  onValueChange={(v) => handleSelectMethod(v || "")}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Selecionar método..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {methods.map((m) => (
+                      <SelectItem key={m.id} value={m.id}>{m.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
-            <div className="space-y-2">
-              <Label>TBC</Label>
-              <Select
-                items={tbcs.map((t) => ({ value: t.id, label: `${t.name}${t.client ? ` (${t.client.name})` : ""}` }))}
-                value={selectedTbcId || null}
-                onValueChange={(v) => setSelectedTbcId(v || "")}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Selecionar TBC..." />
-                </SelectTrigger>
-                <SelectContent>
-                  <div className="p-2">
-                    <Input
-                      placeholder="Buscar TBC..."
-                      value={tbcSearch}
-                      onChange={(e) => setTbcSearch(e.target.value)}
-                      className="h-8 w-full"
-                    />
-                  </div>
-                  {filteredTbcs.map((t) => (
-                    <SelectItem key={t.id} value={t.id}>
-                      {t.name}{t.client ? ` (${t.client.name})` : ""}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label>URL da requisição</Label>
+                <Input value={fullUrl} readOnly className="w-full font-mono text-xs" placeholder="Selecione o sistema e o TBC..." />
+              </div>
+              <div className="space-y-2">
+                <Label>Tempo limite (ms)</Label>
+                <Input type="number" value={timeout} onChange={(e) => setTimeout_(Number(e.target.value))} className="w-full" />
+              </div>
             </div>
-            <div className="space-y-2">
-              <Label>Timeout (ms)</Label>
-              <Input type="number" value={timeout} onChange={(e) => setTimeout_(Number(e.target.value))} className="w-full" />
-            </div>
-            <div className="space-y-2">
-              <Label>URL</Label>
-              <Input value={fullUrl} readOnly className="w-full font-mono text-xs" placeholder="Selecione tipo e TBC..." />
-            </div>
-          </div>
+          </fieldset>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4 mt-4">
-            <div className="space-y-2">
-              <Label>Coligate</Label>
-              <Input type="number" value={context.coligate} onChange={(e) => setContext({ ...context, coligate: Number(e.target.value) })} className="w-full" />
+          <fieldset className="space-y-3 rounded-lg border border-input p-3">
+            <legend className="px-1 text-sm font-medium text-muted-foreground">Contexto de execução</legend>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-3 lg:grid-cols-5">
+              <div className="space-y-2">
+                <Label>Coligada</Label>
+                <Input type="number" value={context.coligate} onChange={(e) => setContext({ coligate: Number(e.target.value) })} className="w-full" />
+              </div>
+              <div className="space-y-2">
+                <Label>Filial</Label>
+                <Input type="number" value={context.branch} onChange={(e) => setContext({ branch: Number(e.target.value) })} className="w-full" />
+              </div>
+              <div className="space-y-2">
+                <Label>Nível de Ensino</Label>
+                <Input type="number" value={context.levelEducation} onChange={(e) => setContext({ levelEducation: Number(e.target.value) })} className="w-full" />
+              </div>
+              <div className="space-y-2">
+                <Label>Código do Sistema</Label>
+                <Input value={context.codSystem} onChange={(e) => setContext({ codSystem: e.target.value })} className="w-full" />
+              </div>
+              <div className="space-y-2">
+                <Label>Usuário</Label>
+                <Input value={context.user} onChange={(e) => setContext({ user: e.target.value })} className="w-full" />
+              </div>
             </div>
-            <div className="space-y-2">
-              <Label>Branch</Label>
-              <Input type="number" value={context.branch} onChange={(e) => setContext({ ...context, branch: Number(e.target.value) })} className="w-full" />
-            </div>
-            <div className="space-y-2">
-              <Label>Level Education</Label>
-              <Input type="number" value={context.levelEducation} onChange={(e) => setContext({ ...context, levelEducation: Number(e.target.value) })} className="w-full" />
-            </div>
-            <div className="space-y-2">
-              <Label>Cod System</Label>
-              <Input value={context.codSystem} onChange={(e) => setContext({ ...context, codSystem: e.target.value })} className="w-full" />
-            </div>
-            <div className="space-y-2">
-              <Label>User</Label>
-              <Input value={context.user} onChange={(e) => setContext({ ...context, user: e.target.value })} className="w-full" />
-            </div>
-          </div>
+          </fieldset>
 
-          <div className="flex items-center gap-2 mt-4">
+          <div className="flex items-center gap-2">
             <Button onClick={handleExecute} disabled={loading}>
               {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Play className="h-4 w-4 mr-2" />}
               Executar
@@ -451,11 +448,11 @@ export function SoapBuilderClient({ initialEndpointTypes, initialTbcs }: SoapBui
               </Tabs>
             </CardTitle>
           </CardHeader>
-          <CardContent className="p-0">
+          <CardContent>
             {activeTab === "xml" ? (
-              <div ref={xmlEditorRef} className="min-h-[400px]" />
+              <CodeEditor value={xmlContent} onChange={handleXmlChange} language="xml" resetKey={requestVersion} minHeight="400px" />
             ) : (
-              <div ref={jsonEditorRef} className="min-h-[400px]" />
+              <CodeEditor value={jsonContent} onChange={handleJsonChange} language="json" resetKey={requestVersion} minHeight="400px" />
             )}
           </CardContent>
         </Card>
@@ -474,51 +471,45 @@ export function SoapBuilderClient({ initialEndpointTypes, initialTbcs }: SoapBui
               )}
             </CardTitle>
           </CardHeader>
-          <CardContent className="p-0">
+          <CardContent>
             <Tabs defaultValue="xml">
-              <div className="px-4">
-                <TabsList>
-                  <TabsTrigger value="xml">XML</TabsTrigger>
-                  <TabsTrigger value="json">JSON</TabsTrigger>
-                  <TabsTrigger value="raw">Raw</TabsTrigger>
-                  <TabsTrigger value="table">
-                    <Table2 className="h-3 w-3 mr-1" /> Tabela
-                  </TabsTrigger>
-                </TabsList>
-              </div>
+              <TabsList className="mb-2">
+                <TabsTrigger value="xml">XML</TabsTrigger>
+                <TabsTrigger value="json">JSON</TabsTrigger>
+                <TabsTrigger value="raw">Raw</TabsTrigger>
+                <TabsTrigger value="table">
+                  <Table2 className="h-3 w-3 mr-1" /> Tabela
+                </TabsTrigger>
+              </TabsList>
               <TabsContent value="xml" className="m-0">
-                <ScrollArea className="h-[400px] p-4">
-                  {response ? (
-                    <pre className="text-xs font-mono whitespace-pre-wrap">{formatXml(response.xmlResponse)}</pre>
-                  ) : error ? (
-                    <pre className="text-xs font-mono text-destructive whitespace-pre-wrap">{error}</pre>
-                  ) : (
-                    <p className="text-muted-foreground text-sm p-4">Execute uma chamada para ver a resposta</p>
-                  )}
-                </ScrollArea>
+                {response ? (
+                  <CodeEditor value={safeFormatXmlDeep(response.xmlResponse)} language="xml" readOnly theme="dark" resetKey={responseVersion} minHeight="400px" />
+                ) : error ? (
+                  <pre className="text-xs font-mono text-destructive whitespace-pre-wrap p-3">{error}</pre>
+                ) : (
+                  <p className="text-muted-foreground text-sm p-4">Execute uma chamada para ver a resposta</p>
+                )}
               </TabsContent>
               <TabsContent value="json" className="m-0">
-                <ScrollArea className="h-[400px] p-4">
-                  {response ? (
-                    <pre className="text-xs font-mono whitespace-pre-wrap">{JSON.stringify(response.jsonResponse, null, 2)}</pre>
-                  ) : (
-                    <p className="text-muted-foreground text-sm p-4">Execute uma chamada para ver a resposta</p>
-                  )}
-                </ScrollArea>
+                {response ? (
+                  <CodeEditor value={JSON.stringify(response.jsonResponse, null, 2)} language="json" readOnly theme="dark" resetKey={responseVersion} minHeight="400px" />
+                ) : (
+                  <p className="text-muted-foreground text-sm p-4">Execute uma chamada para ver a resposta</p>
+                )}
               </TabsContent>
               <TabsContent value="raw" className="m-0">
-                <ScrollArea className="h-[400px] p-4">
+                <ScrollArea className="h-[400px] rounded-lg border border-input p-4">
                   {response ? (
                     <pre className="text-xs font-mono whitespace-pre-wrap">{response.xmlResponse}</pre>
                   ) : (
-                    <p className="text-muted-foreground text-sm p-4">Execute uma chamada para ver a resposta raw</p>
+                    <p className="text-muted-foreground text-sm">Execute uma chamada para ver a resposta raw</p>
                   )}
                 </ScrollArea>
               </TabsContent>
               <TabsContent value="table" className="m-0">
-                <ScrollArea className="h-[400px]">
+                <ScrollArea className="h-[400px] rounded-lg border border-input">
                   {response ? (
-                    <div className="p-4">
+                    <div>
                       {renderTable(
                         response.jsonResponse,
                         selectedMethod === "REALIZARCONSULTASQL" || selectedMethod === "REALIZARCONSULTASQLCONTEXTO"

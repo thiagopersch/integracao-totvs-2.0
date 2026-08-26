@@ -34,6 +34,8 @@ interface ProcessTableProps {
   meta: PaginationMeta
 }
 
+const SORTABLE_COLUMNS = ["code", "name", "nameAlternative"]
+
 export function ProcessTable({ data, meta }: ProcessTableProps) {
   const {
     router,
@@ -43,11 +45,14 @@ export function ProcessTable({ data, meta }: ProcessTableProps) {
     setEditDialog,
     pushParams,
     handleDelete,
+    sort,
+    onSortChange,
   } = useCrudTable<Process>({
     deleteAction: deleteProcess,
     restoreAction: restoreProcess,
     deleteSuccessMessage: "Processo excluído com sucesso",
     restoreSuccessMessage: "Processo restaurado com sucesso",
+    defaultSort: { field: "code", direction: "asc" },
   })
   const [loading, setLoading] = useState(false)
 
@@ -164,6 +169,9 @@ export function ProcessTable({ data, meta }: ProcessTableProps) {
         searchPlaceholder="Buscar por código ou nome..."
         onSearch={(v) => pushParams({ search: v || undefined, page: 1 })}
         toolbarActions={newDialog}
+        sort={sort}
+        onSortChange={onSortChange}
+        sortableColumns={SORTABLE_COLUMNS}
         bulkDelete={{
           getId: (row) => row.id,
           getRowLabel: (row) => row.code,

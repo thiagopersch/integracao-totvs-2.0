@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+export const backupScheduleSchema = z.enum(["NONE", "EVERY_3H", "EVERY_6H", "EVERY_12H", "DAILY", "WEEKLY", "MONTHLY"]);
+
 export const createFilterSchema = z.object({
   tbcId: z.string().min(1, "TBC é obrigatório"),
   clientId: z.string().min(1, "Cliente é obrigatório"),
@@ -16,6 +18,7 @@ export const createFilterSchema = z.object({
     .regex(/^\d*$/, "Apenas dígitos"),
   codSistemaSentenca: z.string().min(1, "Cód. Sistema Sentença é obrigatório"),
   status: z.boolean().default(true),
+  schedule: backupScheduleSchema.default("NONE"),
 });
 
 export const updateFilterSchema = z.object({
@@ -35,6 +38,7 @@ export const updateFilterSchema = z.object({
     .optional(),
   codSistemaSentenca: z.string().min(1, "Cód. Sistema Sentença é obrigatório").optional(),
   status: z.boolean().optional(),
+  schedule: backupScheduleSchema.optional(),
 });
 
 export type CreateFilterInput = z.output<typeof createFilterSchema>;

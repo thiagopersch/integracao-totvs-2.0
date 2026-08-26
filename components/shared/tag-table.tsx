@@ -35,6 +35,8 @@ interface TagTableProps {
   meta: PaginationMeta
 }
 
+const SORTABLE_COLUMNS = ["name"]
+
 export function TagTable({ data, meta }: TagTableProps) {
   const {
     router,
@@ -44,9 +46,12 @@ export function TagTable({ data, meta }: TagTableProps) {
     setEditDialog,
     pushParams,
     handleDelete,
+    sort,
+    onSortChange,
   } = useCrudTable<Tag>({
     deleteAction: deleteTag,
     deleteSuccessMessage: "Tag excluída com sucesso",
+    defaultSort: { field: "name", direction: "asc" },
   })
   const [loading, setLoading] = useState(false)
 
@@ -154,6 +159,9 @@ export function TagTable({ data, meta }: TagTableProps) {
         searchPlaceholder="Buscar por nome..."
         onSearch={(v) => pushParams({ search: v || undefined, page: 1 })}
         toolbarActions={newDialog}
+        sort={sort}
+        onSortChange={onSortChange}
+        sortableColumns={SORTABLE_COLUMNS}
         bulkDelete={{
           getId: (row) => row.id,
           getRowLabel: (row) => row.name,

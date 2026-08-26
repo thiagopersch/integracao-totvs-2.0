@@ -71,6 +71,8 @@ const STATUS_VARIANTS: Record<string, "default" | "secondary" | "destructive" | 
   CANCELLED: "destructive",
 }
 
+const SORTABLE_COLUMNS = ["contractedHours", "hourlyRate", "startDate", "endDate", "status"]
+
 export function ContractTable({ data, meta, clients }: ContractTableProps) {
   const {
     router,
@@ -81,9 +83,12 @@ export function ContractTable({ data, meta, clients }: ContractTableProps) {
     setEditDialog,
     pushParams,
     handleDelete,
+    sort,
+    onSortChange,
   } = useCrudTable<ContractRow>({
     deleteAction: deleteContract,
     deleteSuccessMessage: "Contrato excluído com sucesso",
+    defaultSort: { field: "startDate", direction: "desc" },
   })
   const [loading, setLoading] = useState(false)
   const [statusFilter, setStatusFilter] = useState(searchParams.get("status") || "")
@@ -326,6 +331,9 @@ export function ContractTable({ data, meta, clients }: ContractTableProps) {
         onSearch={(v) => pushParams({ search: v || undefined, page: 1 })}
         toolbarActions={newDialog}
         filterPanel={filterPanel}
+        sort={sort}
+        onSortChange={onSortChange}
+        sortableColumns={SORTABLE_COLUMNS}
         bulkDelete={{
           getId: (row) => row.id,
           getRowLabel: (row) => row.client.name,

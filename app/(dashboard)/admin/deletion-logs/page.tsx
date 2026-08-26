@@ -15,7 +15,10 @@ export default function DeletionLogsPage({ searchParams }: { searchParams: Promi
 
 async function DeletionLogsContent({ searchParams }: { searchParams: Promise<Record<string, string>> }) {
   const params = await searchParams
-  const { data, meta } = await listDeletionErrors(Number(params.page) || 1, Number(params.pageSize) || 20)
+  const sort = params.sort
+    ? { field: params.sort.split(":")[0], direction: params.sort.split(":")[1] as "asc" | "desc" }
+    : undefined
+  const { data, meta } = await listDeletionErrors(Number(params.page) || 1, Number(params.pageSize) || 20, sort)
 
   return <DeletionLogTable data={data} meta={meta} />
 }

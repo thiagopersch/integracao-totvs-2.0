@@ -80,6 +80,18 @@ export async function deleteAnalyst(id: string) {
   }
 }
 
+export async function setAnalystStatus(id: string, status: boolean) {
+  const { organizationId } = await requirePermission("analysts", "update");
+  try {
+    await analystService.setStatus(id, status, organizationId);
+    await auditService.log({ action: status ? "ACTIVATE" : "DEACTIVATE", entity: "Analyst", entityId: id });
+    updateTag("analysts");
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: (error as Error).message };
+  }
+}
+
 export async function bulkDeleteAnalysts(ids: string[]) {
   const { organizationId, userId } = await requirePermission("analysts", "delete");
   try {

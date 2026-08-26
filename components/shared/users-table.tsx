@@ -26,7 +26,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { Plus } from "lucide-react"
-import { deleteUser, restoreUser, bulkDeleteUsers } from "@/actions/admin/users"
+import { deleteUser, restoreUser, bulkDeleteUsers, setUserStatus } from "@/actions/admin/users"
 import { UserForm } from "./user-form"
 import { useCrudTable } from "@/hooks/use-crud-table"
 import type { User } from "@prisma/client"
@@ -36,6 +36,8 @@ interface UsersTableProps {
   data: User[]
   meta: PaginationMeta
 }
+
+const SORTABLE_COLUMNS = ["name", "email", "role", "status"]
 
 export function UsersTable({ data, meta }: UsersTableProps) {
   const {
@@ -47,11 +49,16 @@ export function UsersTable({ data, meta }: UsersTableProps) {
     setEditDialog,
     pushParams,
     handleDelete,
+    handleToggleStatus,
+    sort,
+    onSortChange,
   } = useCrudTable<User>({
     deleteAction: deleteUser,
     restoreAction: restoreUser,
+    setStatusAction: setUserStatus,
     deleteSuccessMessage: "Usuário excluído com sucesso",
     restoreSuccessMessage: "Usuário restaurado com sucesso",
+    defaultSort: { field: "name", direction: "asc" },
   })
   const [roleFilter, setRoleFilter] = useState(searchParams.get("role") || "")
 
@@ -92,6 +99,8 @@ export function UsersTable({ data, meta }: UsersTableProps) {
         <EntityActionsCell
           onEdit={() => setEditDialog({ open: true, entity: row.original })}
           onDelete={() => setDeleteDialog({ open: true, id: row.original.id })}
+          onToggleStatus={() => handleToggleStatus(row.original.id, row.original.status)}
+          isActive={row.original.status}
         />
       ),
     },
@@ -164,6 +173,9 @@ export function UsersTable({ data, meta }: UsersTableProps) {
         onSearch={(v) => pushParams({ search: v || undefined, page: 1 })}
         toolbarActions={newDialog}
         filterPanel={filterPanel}
+        sort={sort}
+        onSortChange={onSortChange}
+        sortableColumns={SORTABLE_COLUMNS}
         bulkDelete={{
           getId: (row) => row.id,
           getRowLabel: (row) => row.name,

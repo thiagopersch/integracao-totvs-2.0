@@ -112,6 +112,18 @@ export async function restoreUser(id: string) {
   }
 }
 
+export async function setUserStatus(id: string, status: boolean) {
+  const { organizationId } = await requirePermission("users", "update");
+  try {
+    await userService.setStatus(id, status, organizationId);
+    await auditService.log({ action: status ? "ACTIVATE" : "DEACTIVATE", entity: "User", entityId: id });
+    updateTag("users");
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: (error as Error).message };
+  }
+}
+
 export async function bulkDeleteUsers(ids: string[]) {
   const { organizationId, userId } = await requirePermission("users", "delete");
   try {

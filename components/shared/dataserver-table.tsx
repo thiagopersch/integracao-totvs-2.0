@@ -43,6 +43,8 @@ interface DataserverTableProps {
   tbcs: { id: string; name: string }[]
 }
 
+const SORTABLE_COLUMNS = ["code", "name", "nameAlternative"]
+
 export function DataserverTable({ data, meta, tbcs }: DataserverTableProps) {
   const {
     router,
@@ -52,11 +54,14 @@ export function DataserverTable({ data, meta, tbcs }: DataserverTableProps) {
     setEditDialog,
     pushParams,
     handleDelete,
+    sort,
+    onSortChange,
   } = useCrudTable<Dataserver>({
     deleteAction: deleteDataserver,
     restoreAction: restoreDataserver,
     deleteSuccessMessage: "Dataserver excluído com sucesso",
     restoreSuccessMessage: "Dataserver restaurado com sucesso",
+    defaultSort: { field: "code", direction: "asc" },
   })
   const [loading, setLoading] = useState(false)
   const [validationTbcId, setValidationTbcId] = useState("")
@@ -236,6 +241,9 @@ export function DataserverTable({ data, meta, tbcs }: DataserverTableProps) {
         searchPlaceholder="Buscar por código ou nome..."
         onSearch={(v) => pushParams({ search: v || undefined, page: 1 })}
         toolbarActions={newDialog}
+        sort={sort}
+        onSortChange={onSortChange}
+        sortableColumns={SORTABLE_COLUMNS}
         bulkDelete={{
           getId: (row) => row.id,
           getRowLabel: (row) => row.code,

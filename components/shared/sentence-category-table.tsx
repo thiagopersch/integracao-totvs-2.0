@@ -32,7 +32,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { Plus, Loader2 } from "lucide-react"
-import { deleteSentenceCategory, restoreSentenceCategory, createSentenceCategory, updateSentenceCategory, bulkDeleteSentenceCategories } from "@/actions/admin/sentence-categories"
+import { deleteSentenceCategory, restoreSentenceCategory, createSentenceCategory, updateSentenceCategory, bulkDeleteSentenceCategories, setSentenceCategoryStatus } from "@/actions/admin/sentence-categories"
 import { createSentenceCategorySchema, updateSentenceCategorySchema, type CreateSentenceCategoryInput } from "@/schemas/sentence-category.schema"
 import { toast } from "sonner"
 import { useCrudTable } from "@/hooks/use-crud-table"
@@ -44,6 +44,8 @@ interface SentenceCategoryTableProps {
   meta: PaginationMeta
 }
 
+const SORTABLE_COLUMNS = ["code", "name", "status"]
+
 export function SentenceCategoryTable({ data, meta }: SentenceCategoryTableProps) {
   const {
     router,
@@ -54,11 +56,16 @@ export function SentenceCategoryTable({ data, meta }: SentenceCategoryTableProps
     setEditDialog,
     pushParams,
     handleDelete,
+    handleToggleStatus,
+    sort,
+    onSortChange,
   } = useCrudTable<SentenceCategory>({
     deleteAction: deleteSentenceCategory,
     restoreAction: restoreSentenceCategory,
+    setStatusAction: setSentenceCategoryStatus,
     deleteSuccessMessage: "Categoria excluída com sucesso",
     restoreSuccessMessage: "Categoria restaurada com sucesso",
+    defaultSort: { field: "name", direction: "asc" },
   })
   const [loading, setLoading] = useState(false)
   const [statusFilter, setStatusFilter] = useState(searchParams.get("status") || "")
@@ -122,6 +129,8 @@ export function SentenceCategoryTable({ data, meta }: SentenceCategoryTableProps
         <EntityActionsCell
           onEdit={() => setEditDialog({ open: true, entity: row.original })}
           onDelete={() => setDeleteDialog({ open: true, id: row.original.id })}
+          onToggleStatus={() => handleToggleStatus(row.original.id, row.original.status)}
+          isActive={row.original.status}
         />
       ),
     },
@@ -212,6 +221,9 @@ export function SentenceCategoryTable({ data, meta }: SentenceCategoryTableProps
         onSearch={(v) => pushParams({ search: v || undefined, page: 1 })}
         toolbarActions={newDialog}
         filterPanel={filterPanel}
+        sort={sort}
+        onSortChange={onSortChange}
+        sortableColumns={SORTABLE_COLUMNS}
         bulkDelete={{
           getId: (row) => row.id,
           getRowLabel: (row) => row.code,

@@ -16,6 +16,10 @@ class ClientRepository extends BaseRepository<Client> {
     else if (hasImage === "false") where.image = null;
     return where;
   }
+
+  protected defaultOrderBy() {
+    return [{ favorite: "desc" as const }, { name: "asc" as const }];
+  }
 }
 
 export const clientRepository = new ClientRepository();
@@ -64,6 +68,10 @@ export const clientService = {
 
   async softDelete(id: string, organizationId: string) {
     return clientRepository.softDelete(id, organizationId);
+  },
+
+  async setStatus(id: string, status: boolean, organizationId: string) {
+    return clientRepository.setStatus(id, status, organizationId);
   },
 
   async restore(id: string, organizationId: string) {

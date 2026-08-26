@@ -36,7 +36,7 @@ export const tbcService = {
     const where = await tbcRepository.buildWhere(params, organizationId);
     const orderBy = params.sort
       ? { [params.sort.field]: params.sort.direction }
-      : { createdAt: "desc" as const };
+      : [{ client: { favorite: "desc" as const } }, { client: { name: "asc" as const } }];
 
     const [tbcs, total] = await Promise.all([
       prisma.tbc.findMany({
@@ -97,6 +97,11 @@ export const tbcService = {
 
   async softDelete(id: string, organizationId: string) {
     const tbc = await tbcRepository.softDelete(id, organizationId);
+    return stripPassword(tbc)!;
+  },
+
+  async setStatus(id: string, status: boolean, organizationId: string) {
+    const tbc = await tbcRepository.setStatus(id, status, organizationId);
     return stripPassword(tbc)!;
   },
 

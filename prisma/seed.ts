@@ -33,6 +33,7 @@ async function main() {
   await prisma.soapEndpointType.deleteMany();
   await prisma.auditLog.deleteMany();
   await prisma.backup.deleteMany();
+  await prisma.backupRun.deleteMany();
   await prisma.filter.deleteMany();
   await prisma.tbc.deleteMany();
   await prisma.sentence.deleteMany();

@@ -1,6 +1,6 @@
 "use client"
 
-import { createClient, deleteClient, restoreClient, updateClient, bulkDeleteClients } from "@/actions/admin/clients"
+import { createClient, deleteClient, restoreClient, updateClient, bulkDeleteClients, setClientStatus } from "@/actions/admin/clients"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
 import { DataTable } from "@/components/shared/data-table"
 import { DataTableFilterPanel } from "@/components/shared/data-table-filter-panel"
@@ -16,6 +16,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Textarea } from "@/components/ui/textarea"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { formatDocument, formatPhone } from "@/lib/masks"
 import { createClientSchema, updateClientSchema, type CreateClientInput } from "@/schemas/client.schema"
 import type { PaginationMeta } from "@/types/common"
@@ -33,6 +34,8 @@ interface ClientTableProps {
   meta: PaginationMeta
 }
 
+const SORTABLE_COLUMNS = ["name", "linkCrm", "document", "email", "status"]
+
 export function ClientTable({ data, meta }: ClientTableProps) {
   const {
     router,
@@ -43,9 +46,13 @@ export function ClientTable({ data, meta }: ClientTableProps) {
     setEditDialog,
     pushParams,
     handleDelete,
+    handleToggleStatus,
+    sort,
+    onSortChange,
   } = useCrudTable<Client>({
     deleteAction: deleteClient,
     restoreAction: restoreClient,
+    setStatusAction: setClientStatus,
     deleteSuccessMessage: "Cliente excluído com sucesso",
     restoreSuccessMessage: "Cliente restaurado com sucesso",
   })
@@ -147,6 +154,38 @@ export function ClientTable({ data, meta }: ClientTableProps) {
   const columns: ColumnDef<Client>[] = [
     createSelectColumn<Client>(),
     {
+      id: "image",
+      header: "Logo",
+      cell: ({ row }) => {
+        const image = row.original.image
+        if (!image) {
+          return (
+            <div className="flex h-10 w-10 items-center justify-center rounded-md border border-dashed border-input text-[10px] text-muted-foreground">
+              —
+            </div>
+          )
+        }
+        return (
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={image}
+                  alt={row.original.name}
+                  className="h-10 w-10 rounded-md border border-input object-cover"
+                />
+              }
+            />
+            <TooltipContent side="right" className="max-w-none p-1">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={image} alt={row.original.name} className="h-48 w-48 rounded-md object-cover" />
+            </TooltipContent>
+          </Tooltip>
+        )
+      },
+    },
+    {
       accessorKey: "name",
       header: "Nome",
       cell: ({ row }) => (
@@ -173,6 +212,8 @@ export function ClientTable({ data, meta }: ClientTableProps) {
         <EntityActionsCell
           onEdit={() => setEditDialog({ open: true, entity: row.original })}
           onDelete={() => setDeleteDialog({ open: true, id: row.original.id })}
+          onToggleStatus={() => handleToggleStatus(row.original.id, row.original.status)}
+          isActive={row.original.status}
         />
       ),
     },
@@ -345,14 +386,12 @@ export function ClientTable({ data, meta }: ClientTableProps) {
                 className="hidden"
               />
               {imagePreview ? (
-                <div className="mt-2 flex items-center gap-4">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={imagePreview}
-                    alt="Pré-visualização"
-                    className="h-20 w-20 rounded-md border border-input object-cover"
-                  />
-                  <div className="flex flex-col gap-2">
+                <div className="mt-2 space-y-2">
+                  <div className="h-40 w-full overflow-hidden rounded-md border border-input">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={imagePreview} alt="Pré-visualização" className="h-full w-full object-cover" />
+                  </div>
+                  <div className="flex gap-2">
                     <Button
                       type="button"
                       variant="outline"
@@ -377,21 +416,21 @@ export function ClientTable({ data, meta }: ClientTableProps) {
                 <button
                   type="button"
                   onClick={handleReplaceImage}
-                  className="mt-2 flex h-20 w-20 flex-col items-center justify-center gap-1 rounded-md border border-dashed border-input text-muted-foreground transition-colors hover:border-primary hover:text-primary cursor-pointer"
+                  className="mt-2 flex h-40 w-full flex-col items-center justify-center gap-1 rounded-md border border-dashed border-input text-muted-foreground transition-colors hover:border-primary hover:text-primary cursor-pointer"
                 >
-                  <ImagePlus className="h-5 w-5" />
-                  <span className="text-[10px]">Anexar</span>
+                  <ImagePlus className="h-6 w-6" />
+                  <span className="text-xs">Anexar imagem</span>
                 </button>
               )}
+            </Field>
+            <Field className="w-[30%]">
+              <FieldLabel htmlFor="color">Cor</FieldLabel>
+              <Input id="color" type="color" className="h-9 w-20 p-1" {...form.register("color")} />
             </Field>
           </fieldset>
           <Field>
             <FieldLabel htmlFor="notes">Observações</FieldLabel>
             <Textarea id="notes" {...form.register("notes")} placeholder="Observações (opcional)" />
-          </Field>
-          <Field className="w-[30%]">
-            <FieldLabel htmlFor="color">Cor</FieldLabel>
-            <Input id="color" type="color" className="h-9 w-20 p-1" {...form.register("color")} />
           </Field>
         </DialogBody>
         <DialogFooter>
@@ -514,6 +553,9 @@ export function ClientTable({ data, meta }: ClientTableProps) {
         onSearch={(v) => pushParams({ search: v || undefined, page: 1 })}
         toolbarActions={newDialog}
         filterPanel={filterPanel}
+        sort={sort}
+        onSortChange={onSortChange}
+        sortableColumns={SORTABLE_COLUMNS}
         bulkDelete={{
           getId: (row) => row.id,
           getRowLabel: (row) => row.name,

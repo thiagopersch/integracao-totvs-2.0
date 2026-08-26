@@ -18,6 +18,8 @@ interface NotificationTableProps {
   unreadCount: number
 }
 
+const SORTABLE_COLUMNS = ["title", "createdAt"]
+
 export function NotificationTable({ data, meta, unreadCount }: NotificationTableProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -30,6 +32,11 @@ export function NotificationTable({ data, meta, unreadCount }: NotificationTable
     })
     router.push(`?${params.toString()}`)
   }
+
+  const sortParam = searchParams.get("sort")
+  const sort = sortParam
+    ? { field: sortParam.split(":")[0], direction: sortParam.split(":")[1] as "asc" | "desc" }
+    : { field: "createdAt", direction: "desc" as const }
 
   async function handleRead(id: string) {
     await markNotificationAsRead(id)
@@ -89,6 +96,9 @@ export function NotificationTable({ data, meta, unreadCount }: NotificationTable
         onPageChange={(p) => pushParams({ page: p })}
         onPageSizeChange={(ps) => pushParams({ pageSize: ps, page: 1 })}
         searchable={false}
+        sort={sort}
+        onSortChange={(s) => pushParams({ sort: `${s.field}:${s.direction}`, page: 1 })}
+        sortableColumns={SORTABLE_COLUMNS}
       />
     </>
   )

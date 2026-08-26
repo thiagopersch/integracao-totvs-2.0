@@ -43,6 +43,14 @@ export const navGroups: NavGroup[] = [
     ],
   },
   {
+    label: "Integrações",
+    icon: "Plug",
+    items: [
+      { href: "/integrations/tpi", label: "TPI TOTVS", icon: "Landmark", resource: "integrations", action: "execute" },
+      { href: "/integrations/cielo", label: "Cielo", icon: "CreditCard", resource: "integrations", action: "execute" },
+    ],
+  },
+  {
     label: "Demandas",
     icon: "ListChecks",
     items: [

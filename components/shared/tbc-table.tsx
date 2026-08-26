@@ -1,6 +1,6 @@
 "use client"
 
-import { createTbc, deleteTbc, restoreTbc, updateTbc, bulkDeleteTbcs } from "@/actions/admin/tbcs"
+import { createTbc, deleteTbc, restoreTbc, updateTbc, bulkDeleteTbcs, setTbcStatus } from "@/actions/admin/tbcs"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
 import { DataTable } from "@/components/shared/data-table"
 import { DataTableFilterPanel } from "@/components/shared/data-table-filter-panel"
@@ -43,11 +43,14 @@ interface TbcTableProps {
   filterClients: Client[]
 }
 
+const SORTABLE_COLUMNS = ["name", "link", "notRequiredLicense", "status"]
+
 export function TbcTable({ data, meta, clients, filterClients }: TbcTableProps) {
-  const { router, searchParams, deleteDialog, setDeleteDialog, editDialog, setEditDialog, pushParams, handleDelete } =
+  const { router, searchParams, deleteDialog, setDeleteDialog, editDialog, setEditDialog, pushParams, handleDelete, handleToggleStatus, sort, onSortChange } =
     useCrudTable<TbcRow>({
       deleteAction: deleteTbc,
       restoreAction: restoreTbc,
+      setStatusAction: setTbcStatus,
       deleteSuccessMessage: "TBC excluído com sucesso",
       restoreSuccessMessage: "TBC restaurado com sucesso",
     })
@@ -119,11 +122,15 @@ export function TbcTable({ data, meta, clients, filterClients }: TbcTableProps) 
       header: "Link",
     },
     {
-      accessorKey: "hasPassword",
-      header: "Senha",
+      accessorKey: "notRequiredLicense",
+      header: "Não consumir licença",
       cell: ({ row }) => {
-        const has = row.getValue("hasPassword") as boolean
-        return <Badge variant={has ? "default" : "secondary"}>{has ? "Configurada" : "Não configurada"}</Badge>
+        const value = row.getValue("notRequiredLicense") as boolean
+        return (
+          <Badge className={value ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100" : "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-100"}>
+            {value ? "Sim" : "Não"}
+          </Badge>
+        )
       },
     },
     {
@@ -140,6 +147,8 @@ export function TbcTable({ data, meta, clients, filterClients }: TbcTableProps) 
         <EntityActionsCell
           onEdit={() => setEditDialog({ open: true, entity: row.original })}
           onDelete={() => setDeleteDialog({ open: true, id: row.original.id })}
+          onToggleStatus={() => handleToggleStatus(row.original.id, row.original.status)}
+          isActive={row.original.status}
         />
       ),
     },
@@ -384,6 +393,9 @@ export function TbcTable({ data, meta, clients, filterClients }: TbcTableProps) 
         onSearch={(v) => pushParams({ search: v || undefined, page: 1 })}
         toolbarActions={newDialog}
         filterPanel={filterPanel}
+        sort={sort}
+        onSortChange={onSortChange}
+        sortableColumns={SORTABLE_COLUMNS}
         bulkDelete={{
           getId: (row) => row.id,
           getRowLabel: (row) => row.name,

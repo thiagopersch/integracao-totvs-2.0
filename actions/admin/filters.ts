@@ -1,9 +1,12 @@
 "use server"
 
 import { updateTag, cacheTag } from "next/cache";
+import { prisma } from "@/lib/prisma";
 import { filterService } from "@/services/filter.service";
 import { backupService } from "@/services/backup.service";
 import { auditService } from "@/services/audit.service";
+import { tbcService } from "@/services/tbc.service";
+import { restoreSentenceToTbc } from "@/services/rm-sentence.service";
 import { createFilterSchema, updateFilterSchema } from "@/schemas/filter.schema";
 import { requirePermission } from "@/lib/rbac";
 import { getRequestContext } from "@/lib/tenant";
@@ -47,6 +50,7 @@ export async function createFilter(formData: FormData) {
     codColigadaSentenca: (formData.get("codColigadaSentenca") as string) || "",
     codSistemaSentenca: (formData.get("codSistemaSentenca") as string) || "",
     status: formData.get("status") === "true",
+    schedule: (formData.get("schedule") as string) || "NONE",
   };
 
   const parsed = createFilterSchema.safeParse(data);
@@ -83,6 +87,7 @@ export async function updateFilter(id: string, formData: FormData) {
     codColigadaSentenca: (formData.get("codColigadaSentenca") as string) || "",
     codSistemaSentenca: (formData.get("codSistemaSentenca") as string) || "",
     status: formData.get("status") === "true",
+    schedule: (formData.get("schedule") as string) || "NONE",
   };
 
   const parsed = updateFilterSchema.safeParse(data);
@@ -138,6 +143,18 @@ export async function restoreFilter(id: string) {
   }
 }
 
+export async function setFilterStatus(id: string, status: boolean) {
+  const { organizationId } = await requirePermission("filters", "update");
+  try {
+    await filterService.setStatus(id, status, organizationId);
+    await auditService.log({ action: status ? "ACTIVATE" : "DEACTIVATE", entity: "Filter", entityId: id });
+    updateTag("filters");
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: (error as Error).message };
+  }
+}
+
 export async function bulkDeleteFilters(ids: string[]) {
   const { organizationId, userId } = await requirePermission("filters", "delete");
   try {
@@ -171,6 +188,7 @@ export async function createBackupFromFilter(filterId: string, sentenceCategoryI
   const { organizationId, userId } = await requirePermission("backups", "create");
   try {
     await backupService.createFromFilter(filterId, organizationId, sentenceCategoryId, userId)
+    await auditService.log({ action: "CREATE", entity: "BackupRun", entityId: filterId, organizationId, userId })
     updateTag("backups")
     updateTag("filters")
     updateTag(`filter-${filterId}`)
@@ -179,6 +197,63 @@ export async function createBackupFromFilter(filterId: string, sentenceCategoryI
     return { success: true }
   } catch (e) {
     return { success: false, error: (e as Error).message }
+  }
+}
+
+/**
+ * Pushes every active "sentença padrão" in a category to a chosen TBC — reuses
+ * restoreSentenceToTbc (the same SaveRecord call the backup-restore flow uses) so the write path
+ * to GConsSqlData is exercised in exactly one place.
+ */
+export async function importStandardSentencesToTbc(tbcId: string, sentenceCategoryId: string) {
+  const { organizationId } = await requirePermission("filters", "update");
+  try {
+    const credentials = await tbcService.getCredentialsForRequest(tbcId, organizationId);
+    const tbc = { ...credentials, id: tbcId };
+    const sentences = await prisma.sentence.findMany({
+      where: { sentenceCategoryId, organizationId, status: true, deletedAt: null },
+    });
+
+    if (sentences.length === 0) {
+      return { success: false, error: "Nenhuma sentença padrão ativa encontrada nessa categoria" };
+    }
+
+    const failed: { code: string; error: string }[] = [];
+    let imported = 0;
+
+    for (const sentence of sentences) {
+      if (!sentence.codSystem || !sentence.codColigada || !sentence.content) {
+        failed.push({ code: sentence.code, error: "Coligada, sistema ou conteúdo não preenchidos" });
+        continue;
+      }
+      try {
+        await restoreSentenceToTbc(
+          tbc,
+          {
+            codeSentence: sentence.code,
+            codColigada: sentence.codColigada,
+            codSystem: sentence.codSystem,
+            nameSentence: sentence.name,
+            contentSentence: sentence.content,
+          },
+          organizationId
+        );
+        imported++;
+      } catch (error) {
+        failed.push({ code: sentence.code, error: (error as Error).message });
+      }
+    }
+
+    await auditService.log({
+      action: "IMPORT_STANDARD_SENTENCES",
+      entity: "Sentence",
+      entityId: sentenceCategoryId,
+      newData: { tbcId, imported, failed: failed.length },
+    });
+
+    return { success: true, imported, failed };
+  } catch (error) {
+    return { success: false, error: (error as Error).message };
   }
 }
 

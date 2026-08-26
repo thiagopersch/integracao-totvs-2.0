@@ -53,6 +53,8 @@ interface SoapEndpointTableProps {
   meta: PaginationMeta
 }
 
+const SORTABLE_COLUMNS = ["type", "label", "suffix", "active"]
+
 export function SoapEndpointTable({ data, meta }: SoapEndpointTableProps) {
   const {
     router,
@@ -62,9 +64,12 @@ export function SoapEndpointTable({ data, meta }: SoapEndpointTableProps) {
     setEditDialog,
     pushParams,
     handleDelete,
+    sort,
+    onSortChange,
   } = useCrudTable<SoapEndpointTypeWithMethods>({
     deleteAction: deleteSoapEndpointType,
     deleteSuccessMessage: "Tipo de endpoint excluído com sucesso",
+    defaultSort: { field: "type", direction: "asc" },
   })
   const [expandedTypeId, setExpandedTypeId] = useState<string | null>(null)
   const [methodDeleteId, setMethodDeleteId] = useState<string | null>(null)
@@ -277,6 +282,9 @@ export function SoapEndpointTable({ data, meta }: SoapEndpointTableProps) {
         searchPlaceholder="Buscar por label, tipo ou suffix..."
         onSearch={(v) => pushParams({ search: v || undefined, page: 1 })}
         toolbarActions={newDialog}
+        sort={sort}
+        onSortChange={onSortChange}
+        sortableColumns={SORTABLE_COLUMNS}
         emptyMessage="Nenhum tipo de endpoint encontrado."
         expandable={{
           isExpanded: (row) => row.id === expandedTypeId,

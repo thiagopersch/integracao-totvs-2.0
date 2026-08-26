@@ -133,6 +133,18 @@ export async function restoreClient(id: string) {
   }
 }
 
+export async function setClientStatus(id: string, status: boolean) {
+  const { organizationId } = await requirePermission("clients", "update");
+  try {
+    await clientService.setStatus(id, status, organizationId);
+    await auditService.log({ action: status ? "ACTIVATE" : "DEACTIVATE", entity: "Client", entityId: id });
+    updateTag("clients");
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: (error as Error).message };
+  }
+}
+
 export async function bulkDeleteClients(ids: string[]) {
   const { organizationId, userId } = await requirePermission("clients", "delete");
   try {

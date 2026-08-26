@@ -33,3 +33,8 @@ export function formatDateShort(date: Date | string): string {
     timeZone: APP_TIME_ZONE,
   }).format(new Date(date));
 }
+
+/** Caps decimals at 2 places (pt-BR grouping/decimal separators) — the app-wide rule for numeric display. */
+export function formatNumber(value: number): string {
+  return value.toLocaleString("pt-BR", { maximumFractionDigits: 2 });
+}

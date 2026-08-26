@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
-import { findBlockingReferences, type BlockingReference } from "@/lib/entity-relations";
+import { findBlockingReferences, formatBlockingReferences, type BlockingReference } from "@/lib/entity-relations";
 import type { ListParams, PaginationMeta } from "@/types/common";
 
 export interface BulkDeleteBlocked {
@@ -25,7 +25,12 @@ function toColumnName(field: string): string {
  * since BaseRepository builds those generically across every entity.
  */
 export interface CrudDelegate<T> {
-  findMany(args: { where: Record<string, unknown>; orderBy: Record<string, unknown>; skip?: number; take?: number }): Promise<T[]>;
+  findMany(args: {
+    where: Record<string, unknown>;
+    orderBy: Record<string, unknown> | Record<string, unknown>[];
+    skip?: number;
+    take?: number;
+  }): Promise<T[]>;
   count(args: { where: Record<string, unknown> }): Promise<number>;
   findFirst(args: { where: Record<string, unknown> }): Promise<T | null>;
   create(args: { data: Record<string, unknown> }): Promise<T>;
@@ -97,13 +102,18 @@ export class BaseRepository<T extends { id: string; deletedAt: Date | null }> {
     return where;
   }
 
+  /** Order used when the caller hasn't picked a column to sort by. Override for entities with a custom default (e.g. favorites first). */
+  protected defaultOrderBy(): Record<string, unknown> | Record<string, unknown>[] {
+    return { createdAt: "desc" as const };
+  }
+
   async findAll(params: ListParams & { status?: boolean }, organizationId?: string) {
     const page = params.page || 1;
     const pageSize = params.pageSize || 10;
     const where = await this.buildWhere(params, organizationId);
     const orderBy = params.sort
       ? { [params.sort.field]: params.sort.direction }
-      : { createdAt: "desc" as const };
+      : this.defaultOrderBy();
 
     const [data, total] = await Promise.all([
       this.model.findMany({
@@ -144,6 +154,12 @@ export class BaseRepository<T extends { id: string; deletedAt: Date | null }> {
   }
 
   async softDelete(id: string, organizationId?: string): Promise<T> {
+    if (this.modelName) {
+      const reasons = await findBlockingReferences(this.modelName, id);
+      if (reasons.length > 0) {
+        throw new Error(`Não é possível excluir: registro em uso em ${formatBlockingReferences(reasons)}.`);
+      }
+    }
     return this.model.update({
       where: { id, ...(organizationId ? { organizationId } : {}) },
       data: { deletedAt: new Date() },
@@ -154,6 +170,20 @@ export class BaseRepository<T extends { id: string; deletedAt: Date | null }> {
     return this.model.update({
       where: { id, ...(organizationId ? { organizationId } : {}) },
       data: { deletedAt: null },
+    }) as Promise<T>;
+  }
+
+  /** Flips the `status` (Ativado/Desativado) flag directly from the table row — blocked, like delete, when another registry still references this record. */
+  async setStatus(id: string, status: boolean, organizationId?: string): Promise<T> {
+    if (!status && this.modelName) {
+      const reasons = await findBlockingReferences(this.modelName, id);
+      if (reasons.length > 0) {
+        throw new Error(`Não é possível desativar: registro em uso em ${formatBlockingReferences(reasons)}.`);
+      }
+    }
+    return this.model.update({
+      where: { id, ...(organizationId ? { organizationId } : {}) },
+      data: { status },
     }) as Promise<T>;
   }
 

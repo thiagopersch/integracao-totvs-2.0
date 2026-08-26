@@ -123,6 +123,18 @@ export async function restoreTbc(id: string) {
   }
 }
 
+export async function setTbcStatus(id: string, status: boolean) {
+  const { organizationId } = await requirePermission("tbcs", "update");
+  try {
+    await tbcService.setStatus(id, status, organizationId);
+    await auditService.log({ action: status ? "ACTIVATE" : "DEACTIVATE", entity: "Tbc", entityId: id });
+    updateTag("tbcs");
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: (error as Error).message };
+  }
+}
+
 export async function bulkDeleteTbcs(ids: string[]) {
   const { organizationId, userId } = await requirePermission("tbcs", "delete");
   try {

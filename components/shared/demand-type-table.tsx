@@ -35,6 +35,8 @@ interface DemandTypeTableProps {
   meta: PaginationMeta
 }
 
+const SORTABLE_COLUMNS = ["name", "description"]
+
 export function DemandTypeTable({ data, meta }: DemandTypeTableProps) {
   const {
     router,
@@ -44,9 +46,12 @@ export function DemandTypeTable({ data, meta }: DemandTypeTableProps) {
     setEditDialog,
     pushParams,
     handleDelete,
+    sort,
+    onSortChange,
   } = useCrudTable<DemandType>({
     deleteAction: deleteDemandType,
     deleteSuccessMessage: "Tipo excluído com sucesso",
+    defaultSort: { field: "name", direction: "asc" },
   })
   const [loading, setLoading] = useState(false)
 
@@ -161,6 +166,9 @@ export function DemandTypeTable({ data, meta }: DemandTypeTableProps) {
         searchPlaceholder="Buscar por nome..."
         onSearch={(v) => pushParams({ search: v || undefined, page: 1 })}
         toolbarActions={newDialog}
+        sort={sort}
+        onSortChange={onSortChange}
+        sortableColumns={SORTABLE_COLUMNS}
         bulkDelete={{
           getId: (row) => row.id,
           getRowLabel: (row) => row.name,

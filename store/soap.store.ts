@@ -18,6 +18,8 @@ interface SoapBuilderContext {
 interface SoapBuilderState {
   selectedTypeId: string
   selectedMethodId: string
+  selectedSistemaId: string
+  selectedClientId: string
   selectedTbcId: string
   xmlContent: string
   jsonContent: string
@@ -28,6 +30,8 @@ interface SoapBuilderState {
   error: string | null
   setSelectedTypeId: (id: string) => void
   setSelectedMethodId: (id: string) => void
+  setSelectedSistemaId: (id: string) => void
+  setSelectedClientId: (id: string) => void
   setSelectedTbcId: (id: string) => void
   setXmlContent: (xml: string) => void
   setJsonContent: (json: string) => void
@@ -42,6 +46,8 @@ interface SoapBuilderState {
 const initialState = {
   selectedTypeId: "",
   selectedMethodId: "",
+  selectedSistemaId: "",
+  selectedClientId: "",
   selectedTbcId: "",
   xmlContent: "<GetSchema />",
   jsonContent: "{}",
@@ -62,6 +68,8 @@ export const useSoapStore = create<SoapBuilderState>((set) => ({
   ...initialState,
   setSelectedTypeId: (selectedTypeId) => set({ selectedTypeId }),
   setSelectedMethodId: (selectedMethodId) => set({ selectedMethodId }),
+  setSelectedSistemaId: (selectedSistemaId) => set({ selectedSistemaId }),
+  setSelectedClientId: (selectedClientId) => set({ selectedClientId }),
   setSelectedTbcId: (selectedTbcId) => set({ selectedTbcId }),
   setXmlContent: (xmlContent) => set({ xmlContent }),
   setJsonContent: (jsonContent) => set({ jsonContent }),

@@ -27,7 +27,11 @@ export function jsonToXml(json: Record<string, unknown>): string {
 
 export function formatXml(xml: string): string {
   const json = xmlToJson(xml);
-  return builder.build(json);
+  const built = builder.build(json);
+  // Same force-escape quirk formatXmlDeep works around below: the builder re-encodes quotes in
+  // attribute values regardless of source formatting — harmless here since this is display-only,
+  // never re-parsed as XML.
+  return built.replace(/&apos;/g, "'").replace(/&quot;/g, "\"");
 }
 
 /** TOTVS's nested dataset text carries raw numeric char refs (`&#xD;` for embedded line breaks)
@@ -124,6 +128,29 @@ export function formatXmlDeep(xml: string): string {
   // The builder force-escapes quotes in attribute values regardless of tagValueProcessor above —
   // harmless here since this output is only ever displayed, never re-parsed as XML.
   return built.replace(/&apos;/g, "'").replace(/&quot;/g, "\"");
+}
+
+/** Some logged values are plain scalars (e.g. AutenticaAcessoResult "1", CheckServiceActivityResult
+ *  "true") rather than XML — formatXml silently returns "" for those, so fall back to the raw text. */
+export function safeFormatXml(value: string): string {
+  try {
+    const formatted = formatXml(value);
+    return formatted.trim() ? formatted : value;
+  } catch {
+    return value;
+  }
+}
+
+/** ReadViewResult/GetSchemaResult-style fields nest a second, XML-escaped XML document inside a
+ *  text node — safeFormatXml only unescapes the outer envelope, so fall back to that if the
+ *  deeper re-parse fails instead of showing the raw, unescaped blob. */
+export function safeFormatXmlDeep(value: string): string {
+  try {
+    const formatted = formatXmlDeep(value);
+    return formatted.trim() ? formatted : value;
+  } catch {
+    return safeFormatXml(value);
+  }
 }
 
 export function extractSoapBody(xml: string): string {

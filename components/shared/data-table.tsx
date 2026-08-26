@@ -220,28 +220,53 @@ export function DataTable<TData, TValue>({
                   if (header.isPlaceholder) return <TableHead key={header.id} className={stickyActionsClass} />
 
                   const content = flexRender(header.column.columnDef.header, header.getContext())
-                  const canSort = !!onSortChange && sortableColumns?.includes(header.column.id)
-                  if (!canSort) return <TableHead key={header.id} className={stickyActionsClass}>{content}</TableHead>
+                  const sortEligible = sortableColumns?.includes(header.column.id)
+                  if (!sortEligible) return <TableHead key={header.id} className={stickyActionsClass}>{content}</TableHead>
 
-                  const isActive = sort?.field === header.column.id
-                  const direction = isActive ? sort.direction : undefined
+                  // Server-driven sort (sort/onSortChange passed in): caller re-fetches with the new orderBy.
+                  if (onSortChange) {
+                    const isActive = sort?.field === header.column.id
+                    const direction = isActive ? sort.direction : undefined
+
+                    return (
+                      <TableHead key={header.id} className={stickyActionsClass}>
+                        <button
+                          type="button"
+                          className="flex items-center gap-1 hover:text-foreground cursor-pointer"
+                          onClick={() =>
+                            onSortChange({
+                              field: header.column.id,
+                              direction: isActive && direction === "asc" ? "desc" : "asc",
+                            })
+                          }
+                        >
+                          {content}
+                          {direction === "asc" ? (
+                            <ArrowUp className="h-3.5 w-3.5" />
+                          ) : direction === "desc" ? (
+                            <ArrowDown className="h-3.5 w-3.5" />
+                          ) : (
+                            <ArrowUpDown className="h-3.5 w-3.5 opacity-40" />
+                          )}
+                        </button>
+                      </TableHead>
+                    )
+                  }
+
+                  // No server sort wired up: sort the already-loaded rows client-side via TanStack's own state.
+                  const clientDirection = header.column.getIsSorted()
 
                   return (
                     <TableHead key={header.id} className={stickyActionsClass}>
                       <button
                         type="button"
                         className="flex items-center gap-1 hover:text-foreground cursor-pointer"
-                        onClick={() =>
-                          onSortChange({
-                            field: header.column.id,
-                            direction: isActive && direction === "asc" ? "desc" : "asc",
-                          })
-                        }
+                        onClick={header.column.getToggleSortingHandler()}
                       >
                         {content}
-                        {direction === "asc" ? (
+                        {clientDirection === "asc" ? (
                           <ArrowUp className="h-3.5 w-3.5" />
-                        ) : direction === "desc" ? (
+                        ) : clientDirection === "desc" ? (
                           <ArrowDown className="h-3.5 w-3.5" />
                         ) : (
                           <ArrowUpDown className="h-3.5 w-3.5 opacity-40" />

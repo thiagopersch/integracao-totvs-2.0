@@ -33,7 +33,7 @@ import {
 } from "@/components/ui/dialog"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { formatDate, formatDuration } from "@/utils/format"
-import { formatXml, formatXmlDeep } from "@/utils/xml"
+import { safeFormatXml, safeFormatXmlDeep } from "@/utils/xml"
 import { reexecuteSoapLog } from "@/actions/soap"
 import { Eye, RotateCcw, Maximize2, Minimize2 } from "lucide-react"
 import { toast } from "sonner"
@@ -45,6 +45,30 @@ import type { SoapEndpointTypeWithMethods } from "@/services/soap-endpoint.servi
 
 type SoapLogRow = SoapLog & { user?: { id: string; name: string } | null }
 
+const HTTP_STATUS_LABELS: Record<number, string> = {
+  0: "Erro",
+  200: "OK",
+  201: "Criado",
+  204: "Sem conteúdo",
+  400: "Requisição inválida",
+  401: "Não autorizado",
+  403: "Proibido",
+  404: "Não encontrado",
+  408: "Tempo esgotado",
+  409: "Conflito",
+  422: "Entidade não processável",
+  429: "Muitas requisições",
+  500: "Erro interno",
+  502: "Gateway inválido",
+  503: "Serviço indisponível",
+  504: "Tempo do gateway esgotado",
+}
+
+function formatStatusOption(status: number): string {
+  const label = HTTP_STATUS_LABELS[status]
+  return label ? `${status} - ${label}` : String(status)
+}
+
 interface SoapHistoryTableProps {
   data: SoapLogRow[]
   meta: PaginationMeta
@@ -54,32 +78,16 @@ interface SoapHistoryTableProps {
   statuses: number[]
 }
 
-/** Some logged values are plain scalars (e.g. AutenticaAcessoResult "1", CheckServiceActivityResult
- *  "true") rather than XML — formatXml silently returns "" for those, so fall back to the raw text. */
-function safeFormatXml(value: string): string {
-  try {
-    const formatted = formatXml(value)
-    return formatted.trim() ? formatted : value
-  } catch {
-    return value
-  }
-}
-
-/** ReadViewResult/GetSchemaResult-style fields nest a second, XML-escaped XML document inside a
- *  text node — safeFormatXml only unescapes the outer envelope, so fall back to that if the
- *  deeper re-parse fails instead of showing the raw, unescaped blob. */
-function safeFormatXmlDeep(value: string): string {
-  try {
-    const formatted = formatXmlDeep(value)
-    return formatted.trim() ? formatted : value
-  } catch {
-    return safeFormatXml(value)
-  }
-}
+const SORTABLE_COLUMNS = ["dataserver", "process", "method", "status", "duration", "createdAt"]
 
 export function SoapHistoryTable({ data, meta, clients, tbcs, endpointTypes, statuses }: SoapHistoryTableProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
+
+  const sortParam = searchParams.get("sort")
+  const sort = sortParam
+    ? { field: sortParam.split(":")[0], direction: sortParam.split(":")[1] as "asc" | "desc" }
+    : { field: "createdAt", direction: "desc" as const }
   const [executing, setExecuting] = useState<string | null>(null)
   const [detailDialog, setDetailDialog] = useState<{ open: boolean; log: SoapLogRow | null }>({ open: false, log: null })
   const [fullscreen, setFullscreen] = useState(false)
@@ -242,7 +250,7 @@ export function SoapHistoryTable({ data, meta, clients, tbcs, endpointTypes, sta
       <div className="space-y-2">
         <Label>Status</Label>
         <MultiSelect
-          items={statuses.map((s) => ({ value: String(s), label: String(s) }))}
+          items={statuses.map((s) => ({ value: String(s), label: formatStatusOption(s) }))}
           value={statusFilter}
           onValueChange={setStatusFilter}
           placeholder="Todos"
@@ -359,6 +367,9 @@ export function SoapHistoryTable({ data, meta, clients, tbcs, endpointTypes, sta
         onSearch={(v) => pushParams({ search: v || undefined, page: 1 })}
         onRowClick={(log) => setDetailDialog({ open: true, log })}
         filterPanel={filterPanel}
+        sort={sort}
+        onSortChange={(s) => pushParams({ sort: `${s.field}:${s.direction}`, page: 1 })}
+        sortableColumns={SORTABLE_COLUMNS}
       />
 
       <ConfirmDialog

@@ -86,6 +86,8 @@ const PRIORITY_LABELS: Record<string, string> = {
   URGENT: "Urgente",
 }
 
+const SORTABLE_COLUMNS = ["name", "date", "priority", "status"]
+
 export function DemandTable({ data, meta, analysts, clients, requesters, departments, demandTypes, tags }: DemandTableProps) {
   const {
     router,
@@ -96,9 +98,12 @@ export function DemandTable({ data, meta, analysts, clients, requesters, departm
     setEditDialog,
     pushParams,
     handleDelete,
+    sort,
+    onSortChange,
   } = useCrudTable<DemandRow>({
     deleteAction: deleteDemand,
     deleteSuccessMessage: "Demanda excluída com sucesso",
+    defaultSort: { field: "date", direction: "desc" },
   })
   const [loading, setLoading] = useState(false)
   const [statusFilter, setStatusFilter] = useState(searchParams.get("status") || "")
@@ -462,6 +467,9 @@ export function DemandTable({ data, meta, analysts, clients, requesters, departm
         onSearch={(v) => pushParams({ search: v || undefined, page: 1 })}
         toolbarActions={newDialog}
         filterPanel={filterPanel}
+        sort={sort}
+        onSortChange={onSortChange}
+        sortableColumns={SORTABLE_COLUMNS}
         bulkDelete={{
           getId: (row) => row.id,
           getRowLabel: (row) => row.name,

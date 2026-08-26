@@ -23,6 +23,8 @@ interface BackupsHistoryTableProps {
   onRestoreSingle: (backupId: string) => void
 }
 
+const SORTABLE_COLUMNS = ["startedAt"]
+
 export function BackupsHistoryTable({ data, meta, onRestoreRun, onRestoreSingle }: BackupsHistoryTableProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -40,6 +42,11 @@ export function BackupsHistoryTable({ data, meta, onRestoreRun, onRestoreSingle 
     })
     router.push(`?${params.toString()}`)
   }
+
+  const runsSortParam = searchParams.get("runsSort")
+  const runsSort = runsSortParam
+    ? { field: runsSortParam.split(":")[0], direction: runsSortParam.split(":")[1] as "asc" | "desc" }
+    : { field: "startedAt", direction: "desc" as const }
 
   const columns: ColumnDef<BackupRun>[] = [
     {
@@ -81,6 +88,9 @@ export function BackupsHistoryTable({ data, meta, onRestoreRun, onRestoreSingle 
         onPageChange={(p) => pushRunsParams({ runsPage: p })}
         onPageSizeChange={(ps) => pushRunsParams({ runsPageSize: ps, runsPage: 1 })}
         searchable={false}
+        sort={runsSort}
+        onSortChange={(s) => pushRunsParams({ runsSort: `${s.field}:${s.direction}`, runsPage: 1 })}
+        sortableColumns={SORTABLE_COLUMNS}
       />
 
       <BackupRunSentencesDialog

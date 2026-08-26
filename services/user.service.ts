@@ -50,6 +50,10 @@ export const userService = {
     return userRepository.softDelete(id, organizationId);
   },
 
+  async setStatus(id: string, status: boolean, organizationId: string) {
+    return userRepository.setStatus(id, status, organizationId);
+  },
+
   async restore(id: string, organizationId: string) {
     return userRepository.restore(id, organizationId);
   },

@@ -35,7 +35,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { Plus, Loader2 } from "lucide-react"
-import { deleteSentence, restoreSentence, createSentence, updateSentence, bulkDeleteSentences } from "@/actions/admin/sentences"
+import { deleteSentence, restoreSentence, createSentence, updateSentence, bulkDeleteSentences, setSentenceStatus } from "@/actions/admin/sentences"
 import { createSentenceSchema, updateSentenceSchema, type CreateSentenceInput } from "@/schemas/sentence.schema"
 import { toast } from "sonner"
 import { useCrudTable } from "@/hooks/use-crud-table"
@@ -59,6 +59,8 @@ interface SentenceTableProps {
   categories: SentenceCategory[]
 }
 
+const SORTABLE_COLUMNS = ["code", "name", "codSystem", "status"]
+
 export function SentenceTable({ data, meta, categories }: SentenceTableProps) {
   const {
     router,
@@ -69,11 +71,16 @@ export function SentenceTable({ data, meta, categories }: SentenceTableProps) {
     setEditDialog,
     pushParams,
     handleDelete,
+    handleToggleStatus,
+    sort,
+    onSortChange,
   } = useCrudTable<SentenceRow>({
     deleteAction: deleteSentence,
     restoreAction: restoreSentence,
+    setStatusAction: setSentenceStatus,
     deleteSuccessMessage: "Sentença excluída com sucesso",
     restoreSuccessMessage: "Sentença restaurada com sucesso",
+    defaultSort: { field: "name", direction: "asc" },
   })
   const [loading, setLoading] = useState(false)
   const [categoryFilter, setCategoryFilter] = useState(searchParams.get("sentenceCategoryId") || "")
@@ -149,6 +156,8 @@ export function SentenceTable({ data, meta, categories }: SentenceTableProps) {
         <EntityActionsCell
           onEdit={() => setEditDialog({ open: true, entity: row.original })}
           onDelete={() => setDeleteDialog({ open: true, id: row.original.id })}
+          onToggleStatus={() => handleToggleStatus(row.original.id, row.original.status)}
+          isActive={row.original.status}
         />
       ),
     },
@@ -293,6 +302,9 @@ export function SentenceTable({ data, meta, categories }: SentenceTableProps) {
         onSearch={(v) => pushParams({ search: v || undefined, page: 1 })}
         toolbarActions={newDialog}
         filterPanel={filterPanel}
+        sort={sort}
+        onSortChange={onSortChange}
+        sortableColumns={SORTABLE_COLUMNS}
         bulkDelete={{
           getId: (row) => row.id,
           getRowLabel: (row) => row.code,

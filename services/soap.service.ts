@@ -384,7 +384,8 @@ export const soapService = {
     page = 1,
     pageSize = 50,
     search?: string,
-    filters?: SoapHistoryFilters
+    filters?: SoapHistoryFilters,
+    sort?: { field: string; direction: "asc" | "desc" }
   ) {
     const where: Prisma.SoapLogWhereInput = { organizationId };
     if (search) {
@@ -426,10 +427,11 @@ export const soapService = {
       };
     }
 
+    const orderBy = sort ? { [sort.field]: sort.direction } : { createdAt: "desc" as const };
     const [data, total] = await Promise.all([
       prisma.soapLog.findMany({
         where,
-        orderBy: { createdAt: "desc" },
+        orderBy,
         skip: (page - 1) * pageSize,
         take: pageSize,
         include: { user: { select: { id: true, name: true } } },

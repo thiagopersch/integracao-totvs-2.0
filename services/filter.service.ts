@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { BaseRepository } from "@/repositories/base.repository";
+import { computeNextRunAt } from "@/lib/backup-schedule";
 import type { CreateFilterInput, UpdateFilterInput } from "@/schemas/filter.schema";
 import type { ListParams } from "@/types/common";
 import type { Filter } from "@prisma/client";
@@ -27,7 +28,11 @@ export const filterService = {
     const where = await filterRepository.buildWhere(params, organizationId);
     const orderBy = params.sort
       ? { [params.sort.field]: params.sort.direction }
-      : { createdAt: "desc" as const };
+      : [
+          { client: { favorite: "desc" as const } },
+          { client: { name: "asc" as const } },
+          { codSistemaSentenca: "asc" as const },
+        ];
 
     const [data, total] = await Promise.all([
       prisma.filter.findMany({
@@ -80,15 +85,23 @@ export const filterService = {
   },
 
   async create(input: CreateFilterInput, organizationId: string) {
-    return filterRepository.create({ ...input, organizationId });
+    const nextRunAt = computeNextRunAt(input.schedule, new Date());
+    return filterRepository.create({ ...input, organizationId, nextRunAt });
   },
 
   async update(id: string, input: UpdateFilterInput, organizationId: string) {
-    return filterRepository.update(id, input, organizationId);
+    // Re-anchor the schedule to "now" whenever it's (re)saved, per spec — a weekly/monthly
+    // schedule fires from the moment the record was last saved, not from a fixed clock.
+    const nextRunAt = input.schedule ? computeNextRunAt(input.schedule, new Date()) : undefined;
+    return filterRepository.update(id, { ...input, ...(input.schedule ? { nextRunAt } : {}) }, organizationId);
   },
 
   async softDelete(id: string, organizationId: string) {
     return filterRepository.softDelete(id, organizationId);
+  },
+
+  async setStatus(id: string, status: boolean, organizationId: string) {
+    return filterRepository.setStatus(id, status, organizationId);
   },
 
   async restore(id: string, organizationId: string) {

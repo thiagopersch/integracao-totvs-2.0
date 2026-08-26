@@ -36,6 +36,10 @@ export const requesterService = {
     return requesterRepository.softDelete(id, organizationId);
   },
 
+  async setStatus(id: string, status: boolean, organizationId: string) {
+    return requesterRepository.setStatus(id, status, organizationId);
+  },
+
   async restore(id: string, organizationId: string) {
     return requesterRepository.restore(id, organizationId);
   },

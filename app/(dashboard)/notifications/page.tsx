@@ -15,7 +15,10 @@ export default function NotificationsPage({ searchParams }: { searchParams: Prom
 
 async function NotificationsContent({ searchParams }: { searchParams: Promise<Record<string, string>> }) {
   const params = await searchParams
-  const { data, meta, unreadCount } = await listNotifications(Number(params.page) || 1, Number(params.pageSize) || 20)
+  const sort = params.sort
+    ? { field: params.sort.split(":")[0], direction: params.sort.split(":")[1] as "asc" | "desc" }
+    : undefined
+  const { data, meta, unreadCount } = await listNotifications(Number(params.page) || 1, Number(params.pageSize) || 20, false, sort)
 
   return <NotificationTable data={data} meta={meta} unreadCount={unreadCount} />
 }

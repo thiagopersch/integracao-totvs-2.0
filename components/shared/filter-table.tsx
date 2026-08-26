@@ -34,10 +34,11 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import { Plus, RotateCcw, History, Loader2 } from "lucide-react"
+import { Plus, RotateCcw, History, Loader2, Download } from "lucide-react"
 import { RestoreBackupDialog, type RestoreScope } from "@/components/shared/restore-backup-dialog"
 import { RestorePasswordConfirmDialog } from "@/components/shared/restore-password-confirm-dialog"
-import { deleteFilter, restoreFilter, createFilter, updateFilter, createBackupFromFilter, bulkDeleteFilters } from "@/actions/admin/filters"
+import { deleteFilter, restoreFilter, createFilter, updateFilter, createBackupFromFilter, bulkDeleteFilters, setFilterStatus, importStandardSentencesToTbc } from "@/actions/admin/filters"
+import { BACKUP_SCHEDULE_LABELS } from "@/lib/backup-schedule"
 import { createFilterSchema, updateFilterSchema, type CreateFilterInput } from "@/schemas/filter.schema"
 import { toast } from "sonner"
 import { useCrudTable } from "@/hooks/use-crud-table"
@@ -71,6 +72,8 @@ interface FilterTableProps {
   sentenceCodes: { codigosColigada: string[]; codigosSistema: string[] }
 }
 
+const SORTABLE_COLUMNS = ["status", "filter"]
+
 export function FilterTable({ data, meta, clients, tbcs, sistemas, categories, filterClients, sentenceCodes }: FilterTableProps) {
   const {
     router,
@@ -81,9 +84,13 @@ export function FilterTable({ data, meta, clients, tbcs, sistemas, categories, f
     setEditDialog,
     pushParams,
     handleDelete,
+    handleToggleStatus,
+    sort,
+    onSortChange,
   } = useCrudTable<FilterRow>({
     deleteAction: deleteFilter,
     restoreAction: restoreFilter,
+    setStatusAction: setFilterStatus,
     deleteSuccessMessage: "Filtro excluído com sucesso",
     restoreSuccessMessage: "Filtro restaurado com sucesso",
   })
@@ -108,6 +115,37 @@ export function FilterTable({ data, meta, clients, tbcs, sistemas, categories, f
     targetTbcId: string | null
   }>({ open: false, scope: null, targetTbcId: null })
   const [backupCategoryId, setBackupCategoryId] = useState("")
+  const [importDialogOpen, setImportDialogOpen] = useState(false)
+  const [importTbcId, setImportTbcId] = useState("")
+  const [importCategoryId, setImportCategoryId] = useState("")
+  const [importing, setImporting] = useState(false)
+
+  async function handleImportStandardSentences() {
+    if (!importTbcId || !importCategoryId) {
+      toast.error("Selecione o TBC e a categoria")
+      return
+    }
+    setImporting(true)
+    try {
+      const result = await importStandardSentencesToTbc(importTbcId, importCategoryId)
+      if (!result.success) {
+        toast.error(result.error || "Erro ao importar sentenças padrões")
+        return
+      }
+      if (result.imported) toast.success(`${result.imported} sentença(s) importada(s) para o RM`)
+      if (result.failed && result.failed.length > 0) {
+        toast.error(`${result.failed.length} sentença(s) não puderam ser importadas`, {
+          description: result.failed.map((f) => `${f.code}: ${f.error}`).join("\n"),
+          duration: 10000,
+        })
+      }
+      setImportDialogOpen(false)
+      setImportTbcId("")
+      setImportCategoryId("")
+    } finally {
+      setImporting(false)
+    }
+  }
 
   const form = useForm<CreateFilterInput>({
     mode: "onChange",
@@ -125,6 +163,7 @@ export function FilterTable({ data, meta, clients, tbcs, sistemas, categories, f
           codColigadaSentenca: editDialog.entity.codColigadaSentenca || "",
           codSistemaSentenca: editDialog.entity.codSistemaSentenca || "",
           status: editDialog.entity.status,
+          schedule: editDialog.entity.schedule,
         } as CreateFilterInput
       : {
           clientId: "",
@@ -138,6 +177,7 @@ export function FilterTable({ data, meta, clients, tbcs, sistemas, categories, f
           codColigadaSentenca: "",
           codSistemaSentenca: "",
           status: true,
+          schedule: "NONE",
         },
   })
 
@@ -209,6 +249,18 @@ export function FilterTable({ data, meta, clients, tbcs, sistemas, categories, f
       cell: ({ row }) => <span className="font-jetbrains font-bold">{row.getValue("filter")}</span>,
     },
     {
+      accessorKey: "schedule",
+      header: "Agendamento",
+      cell: ({ row }) => {
+        const schedule = row.getValue("schedule") as keyof typeof BACKUP_SCHEDULE_LABELS
+        return schedule === "NONE" ? (
+          <span className="text-muted-foreground text-sm">{BACKUP_SCHEDULE_LABELS.NONE}</span>
+        ) : (
+          <Badge variant="outline">{BACKUP_SCHEDULE_LABELS[schedule]}</Badge>
+        )
+      },
+    },
+    {
       id: "coligadaSistemaSentenca",
       header: "Coligada;Sistema",
       cell: ({ row }) => (
@@ -249,6 +301,8 @@ export function FilterTable({ data, meta, clients, tbcs, sistemas, categories, f
         <EntityActionsCell
           onEdit={() => setEditDialog({ open: true, entity: row.original })}
           onDelete={() => setDeleteDialog({ open: true, id: row.original.id })}
+          onToggleStatus={() => handleToggleStatus(row.original.id, row.original.status)}
+          isActive={row.original.status}
           extraItems={
             <>
               <DropdownMenuItem onClick={() => setBackupDialog({ open: true, filterId: row.original.id })}>
@@ -377,6 +431,24 @@ export function FilterTable({ data, meta, clients, tbcs, sistemas, categories, f
             </Field>
           </div>
 
+          <Field>
+            <FieldLabel htmlFor="schedule">Agendamento</FieldLabel>
+            <Select
+              items={Object.entries(BACKUP_SCHEDULE_LABELS).map(([value, label]) => ({ value, label }))}
+              value={form.watch("schedule") || "NONE"}
+              onValueChange={(v) => form.setValue("schedule", (v || "NONE") as CreateFilterInput["schedule"])}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {Object.entries(BACKUP_SCHEDULE_LABELS).map(([value, label]) => (
+                  <SelectItem key={value} value={value}>{label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
+
           <fieldset className="space-y-3 rounded-lg border border-input p-3">
             <legend className="px-1 text-sm font-medium text-muted-foreground">Contexto</legend>
             <div className="grid grid-cols-1 gap-4 md:grid-cols-5">
@@ -413,6 +485,57 @@ export function FilterTable({ data, meta, clients, tbcs, sistemas, categories, f
           </Button>
         </DialogFooter>
         </form>
+      </DialogContent>
+    </Dialog>
+  )
+
+  const importDialog = (
+    <Dialog open={importDialogOpen} onOpenChange={(open) => { setImportDialogOpen(open); if (!open) { setImportTbcId(""); setImportCategoryId("") } }}>
+      <DialogTrigger render={<Button variant="outline"><Download className="h-4 w-4 mr-2" /> Importar sentenças padrões</Button>} />
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Importar sentenças padrões</DialogTitle>
+        </DialogHeader>
+        <DialogBody>
+          <p className="text-sm text-muted-foreground">
+            Todas as sentenças padrões ativas da categoria selecionada serão gravadas no TOTVS RM através do TBC escolhido, usando o código do sistema e o código da sentença de cada uma.
+          </p>
+          <div className="space-y-2">
+            <Label>Categoria</Label>
+            <Select
+              items={categories.map((c) => ({ value: c.id, label: c.name }))}
+              value={importCategoryId || null}
+              onValueChange={(v) => setImportCategoryId(v || "")}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Selecione uma categoria" />
+              </SelectTrigger>
+              <SelectContent>
+                {categories.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label>TBC de destino</Label>
+            <Combobox
+              items={tbcs.map((t) => ({ value: t.id, label: `${t.client?.name ?? ""} | ${t.name}` }))}
+              value={importTbcId}
+              onValueChange={setImportTbcId}
+              placeholder="Selecione um TBC"
+              searchPlaceholder="Buscar TBC..."
+              emptyText="Nenhum TBC encontrado."
+            />
+          </div>
+        </DialogBody>
+        <DialogFooter>
+          <Button type="button" variant="outline" onClick={() => setImportDialogOpen(false)} disabled={importing}>Cancelar</Button>
+          <Button type="button" onClick={handleImportStandardSentences} disabled={importing}>
+            {importing && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+            Importar
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   )
@@ -559,8 +682,16 @@ export function FilterTable({ data, meta, clients, tbcs, sistemas, categories, f
         onPageSizeChange={(ps) => pushParams({ pageSize: ps, page: 1 })}
         searchPlaceholder="Buscar por filtro, código ou usuário..."
         onSearch={(v) => pushParams({ search: v || undefined, page: 1 })}
-        toolbarActions={newDialog}
+        toolbarActions={
+          <div className="flex items-center gap-2">
+            {importDialog}
+            {newDialog}
+          </div>
+        }
         filterPanel={filterPanel}
+        sort={sort}
+        onSortChange={onSortChange}
+        sortableColumns={SORTABLE_COLUMNS}
         bulkDelete={{
           getId: (row) => row.id,
           getRowLabel: (row) => row.filter,

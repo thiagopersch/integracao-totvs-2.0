@@ -62,6 +62,10 @@ export const sentenceService = {
     return sentenceRepository.softDelete(id, organizationId);
   },
 
+  async setStatus(id: string, status: boolean, organizationId: string) {
+    return sentenceRepository.setStatus(id, status, organizationId);
+  },
+
   async restore(id: string, organizationId: string) {
     return sentenceRepository.restore(id, organizationId);
   },

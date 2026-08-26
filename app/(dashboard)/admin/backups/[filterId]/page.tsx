@@ -45,12 +45,24 @@ async function BackupsContent({
         sort: search.sort
           ? { field: search.sort.split(":")[0], direction: search.sort.split(":")[1] as "asc" | "desc" }
           : undefined,
+        filters: {
+          codColigada: search.codColigada || undefined,
+          codSystem: search.codSystem || undefined,
+          dateFrom: search.dateFrom || undefined,
+          dateTo: search.dateTo || undefined,
+        },
       },
       organizationId
     ),
     listBackupRunsForFilter(
       filterId,
-      { page: Number(search.runsPage) || 1, pageSize: Number(search.runsPageSize) || 10 },
+      {
+        page: Number(search.runsPage) || 1,
+        pageSize: Number(search.runsPageSize) || 10,
+        sort: search.runsSort
+          ? { field: search.runsSort.split(":")[0], direction: search.runsSort.split(":")[1] as "asc" | "desc" }
+          : undefined,
+      },
       organizationId
     ),
   ])

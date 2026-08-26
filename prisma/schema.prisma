@@ -53,6 +53,16 @@ enum ContractStatus {
   CANCELLED
 }
 
+enum BackupSchedule {
+  NONE
+  EVERY_3H
+  EVERY_6H
+  EVERY_12H
+  DAILY
+  WEEKLY
+  MONTHLY
+}
+
 enum NotificationChannel {
   IN_APP
   EMAIL
@@ -277,6 +287,8 @@ model Filter {
   lastBackupStatus      BackupRunStatus? @map("last_backup_status")
   lastBackupAt          DateTime? @map("last_backup_at")
   lastBackupByUserId    String?   @map("last_backup_by_user_id")
+  schedule              BackupSchedule @default(NONE)
+  nextRunAt             DateTime? @map("next_run_at")
   createdAt             DateTime  @default(now()) @map("created_at")
   updatedAt             DateTime  @updatedAt @map("updated_at")
   deletedAt             DateTime? @map("deleted_at")

@@ -80,6 +80,18 @@ export async function deleteRequester(id: string) {
   }
 }
 
+export async function setRequesterStatus(id: string, status: boolean) {
+  const { organizationId } = await requirePermission("requesters", "update");
+  try {
+    await requesterService.setStatus(id, status, organizationId);
+    await auditService.log({ action: status ? "ACTIVATE" : "DEACTIVATE", entity: "Requester", entityId: id });
+    updateTag("requesters");
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: (error as Error).message };
+  }
+}
+
 export async function bulkDeleteRequesters(ids: string[]) {
   const { organizationId, userId } = await requirePermission("requesters", "delete");
   try {

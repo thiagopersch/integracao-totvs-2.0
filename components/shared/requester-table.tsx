@@ -27,7 +27,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { Plus, Loader2 } from "lucide-react"
-import { deleteRequester, createRequester, updateRequester, bulkDeleteRequesters } from "@/actions/requesters"
+import { deleteRequester, createRequester, updateRequester, bulkDeleteRequesters, setRequesterStatus } from "@/actions/requesters"
 import { createRequesterSchema, updateRequesterSchema, type CreateRequesterInput } from "@/schemas/requester.schema"
 import { toast } from "sonner"
 import { useCrudTable } from "@/hooks/use-crud-table"
@@ -39,6 +39,8 @@ interface RequesterTableProps {
   meta: PaginationMeta
 }
 
+const SORTABLE_COLUMNS = ["name", "email", "phone", "status"]
+
 export function RequesterTable({ data, meta }: RequesterTableProps) {
   const {
     router,
@@ -49,9 +51,14 @@ export function RequesterTable({ data, meta }: RequesterTableProps) {
     setEditDialog,
     pushParams,
     handleDelete,
+    handleToggleStatus,
+    sort,
+    onSortChange,
   } = useCrudTable<Requester>({
     deleteAction: deleteRequester,
+    setStatusAction: setRequesterStatus,
     deleteSuccessMessage: "Solicitante excluído com sucesso",
+    defaultSort: { field: "name", direction: "asc" },
   })
   const [loading, setLoading] = useState(false)
   const [statusFilter, setStatusFilter] = useState(searchParams.get("status") || "")
@@ -110,6 +117,8 @@ export function RequesterTable({ data, meta }: RequesterTableProps) {
         <EntityActionsCell
           onEdit={() => setEditDialog({ open: true, entity: row.original })}
           onDelete={() => setDeleteDialog({ open: true, id: row.original.id })}
+          onToggleStatus={() => handleToggleStatus(row.original.id, row.original.status)}
+          isActive={row.original.status}
         />
       ),
     },
@@ -211,6 +220,9 @@ export function RequesterTable({ data, meta }: RequesterTableProps) {
         onSearch={(v) => pushParams({ search: v || undefined, page: 1 })}
         toolbarActions={newDialog}
         filterPanel={filterPanel}
+        sort={sort}
+        onSortChange={onSortChange}
+        sortableColumns={SORTABLE_COLUMNS}
         bulkDelete={{
           getId: (row) => row.id,
           getRowLabel: (row) => row.name,

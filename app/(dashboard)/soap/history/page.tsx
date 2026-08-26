@@ -34,8 +34,12 @@ async function SoapHistoryContent({ searchParams }: { searchParams: Promise<Reco
     minDurationMs: params.minDuration ? Number(params.minDuration) * 1000 : undefined,
   }
 
+  const sort = params.sort
+    ? { field: params.sort.split(":")[0], direction: params.sort.split(":")[1] as "asc" | "desc" }
+    : undefined
+
   const [{ data, meta }, clients, tbcs, endpointTypes, statuses] = await Promise.all([
-    soapService.getHistory(organizationId, Number(params.page) || 1, Number(params.pageSize) || 10, params.search, filters),
+    soapService.getHistory(organizationId, Number(params.page) || 1, Number(params.pageSize) || 10, params.search, filters, sort),
     clientService.listActiveWithTbc(organizationId),
     tbcService.listAll(organizationId),
     soapEndpointService.listAllTypes(),

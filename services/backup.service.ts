@@ -1,12 +1,16 @@
 import { createHash } from "node:crypto";
+import { endOfDay } from "date-fns";
 import { prisma } from "@/lib/prisma";
+import { logger } from "@/lib/logger";
 import { BaseRepository } from "@/repositories/base.repository";
+import { computeNextRunAt } from "@/lib/backup-schedule";
+import { auditService } from "@/services/audit.service";
 import { fetchSentencesForFilter, restoreSentenceToTbc } from "@/services/rm-sentence.service";
 import { soapService, type WsName } from "@/services/soap.service";
 import { soapEndpointService } from "@/services/soap-endpoint.service";
 import type { CreateBackupInput, UpdateBackupInput } from "@/schemas/backup.schema";
 import type { ListParams } from "@/types/common";
-import type { Backup } from "@prisma/client";
+import type { Backup, Prisma } from "@prisma/client";
 
 class BackupRepository extends BaseRepository<Backup> {
   constructor() {
@@ -74,11 +78,12 @@ export const backupService = {
     return backupRepository.findAll(params, organizationId);
   },
 
+  /** `executedByUserId` is omitted for scheduler-triggered runs — there's no human behind them. */
   async createFromFilter(
     filterId: string,
     organizationId: string,
     sentenceCategoryId: string | undefined,
-    executedByUserId: string
+    executedByUserId?: string
   ) {
     const filter = await prisma.filter.findFirst({
       where: { id: filterId, organizationId },
@@ -171,10 +176,55 @@ export const backupService = {
     }
   },
 
+  /**
+   * Polled by the in-process scheduler (see lib/backup-scheduler.ts) — runs every filter whose
+   * `nextRunAt` has passed, then re-anchors `nextRunAt` from "now" regardless of success/failure
+   * (a filter stuck failing every run must not fire in a tight retry loop).
+   */
+  async runDueScheduledBackups() {
+    const due = await prisma.filter.findMany({
+      where: {
+        deletedAt: null,
+        status: true,
+        schedule: { not: "NONE" },
+        nextRunAt: { lte: new Date() },
+      },
+      select: { id: true, organizationId: true, schedule: true },
+    });
+
+    for (const filter of due) {
+      try {
+        await this.createFromFilter(filter.id, filter.organizationId, undefined, undefined);
+        await auditService.log({
+          action: "CREATE",
+          entity: "BackupRun",
+          entityId: filter.id,
+          organizationId: filter.organizationId,
+        });
+      } catch (error) {
+        logger.error(`Backup agendado falhou para o filtro ${filter.id}`, { error: (error as Error).message });
+      } finally {
+        const nextRunAt = computeNextRunAt(filter.schedule, new Date());
+        await prisma.filter.update({ where: { id: filter.id }, data: { nextRunAt } });
+      }
+    }
+
+    return { processed: due.length };
+  },
+
   async listLatestByFilter(filterId: string, params: ListParams, organizationId: string) {
     const page = params.page || 1;
     const pageSize = params.pageSize || 10;
-    const where = { filterId, organizationId, isLatest: true, deletedAt: null };
+    const f = params.filters ?? {};
+    const where: Prisma.BackupWhereInput = { filterId, organizationId, isLatest: true, deletedAt: null };
+    if (f.codColigada) where.codColigada = f.codColigada as string;
+    if (f.codSystem) where.codSystem = f.codSystem as string;
+    if (f.dateFrom || f.dateTo) {
+      where.createdAt = {
+        ...(f.dateFrom ? { gte: new Date(f.dateFrom as string) } : {}),
+        ...(f.dateTo ? { lte: endOfDay(new Date(f.dateTo as string)) } : {}),
+      };
+    }
     const orderBy = params.sort
       ? { [params.sort.field]: params.sort.direction }
       : { codeSentence: "asc" as const };
@@ -211,11 +261,12 @@ export const backupService = {
     const page = params.page || 1;
     const pageSize = params.pageSize || 10;
     const where = { filterId, organizationId };
+    const orderBy = params.sort ? { [params.sort.field]: params.sort.direction } : { startedAt: "desc" as const };
 
     const [data, total] = await Promise.all([
       prisma.backupRun.findMany({
         where,
-        orderBy: { startedAt: "desc" },
+        orderBy,
         skip: (page - 1) * pageSize,
         take: pageSize,
       }),

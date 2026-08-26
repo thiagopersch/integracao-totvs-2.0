@@ -3,7 +3,11 @@
 import { auditService } from "@/services/audit.service";
 import { requirePermission } from "@/lib/rbac";
 
-export async function listDeletionErrors(page = 1, pageSize = 20) {
+export async function listDeletionErrors(
+  page = 1,
+  pageSize = 20,
+  sort?: { field: string; direction: "asc" | "desc" }
+) {
   const { organizationId } = await requirePermission("deletion_logs", "read");
-  return auditService.listBulkDeleteBlocked(organizationId, page, pageSize);
+  return auditService.listBulkDeleteBlocked(organizationId, page, pageSize, sort);
 }

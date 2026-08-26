@@ -115,6 +115,18 @@ export async function restoreSentenceCategory(id: string) {
   }
 }
 
+export async function setSentenceCategoryStatus(id: string, status: boolean) {
+  const { organizationId } = await requirePermission("sentence_categories", "update");
+  try {
+    await sentenceCategoryService.setStatus(id, status, organizationId);
+    await auditService.log({ action: status ? "ACTIVATE" : "DEACTIVATE", entity: "SentenceCategory", entityId: id });
+    updateTag("sentenceCategories");
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: (error as Error).message };
+  }
+}
+
 export async function bulkDeleteSentenceCategories(ids: string[]) {
   const { organizationId, userId } = await requirePermission("sentence_categories", "delete");
   try {

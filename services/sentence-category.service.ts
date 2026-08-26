@@ -48,6 +48,10 @@ export const sentenceCategoryService = {
     return sentenceCategoryRepository.softDelete(id, organizationId);
   },
 
+  async setStatus(id: string, status: boolean, organizationId: string) {
+    return sentenceCategoryRepository.setStatus(id, status, organizationId);
+  },
+
   async restore(id: string, organizationId: string) {
     return sentenceCategoryRepository.restore(id, organizationId);
   },

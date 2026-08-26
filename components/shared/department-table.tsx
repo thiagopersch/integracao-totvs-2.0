@@ -35,6 +35,8 @@ interface DepartmentTableProps {
   meta: PaginationMeta
 }
 
+const SORTABLE_COLUMNS = ["name", "description"]
+
 export function DepartmentTable({ data, meta }: DepartmentTableProps) {
   const {
     router,
@@ -44,9 +46,12 @@ export function DepartmentTable({ data, meta }: DepartmentTableProps) {
     setEditDialog,
     pushParams,
     handleDelete,
+    sort,
+    onSortChange,
   } = useCrudTable<Department>({
     deleteAction: deleteDepartment,
     deleteSuccessMessage: "Departamento excluído com sucesso",
+    defaultSort: { field: "name", direction: "asc" },
   })
   const [loading, setLoading] = useState(false)
 
@@ -147,6 +152,9 @@ export function DepartmentTable({ data, meta }: DepartmentTableProps) {
         searchPlaceholder="Buscar por nome..."
         onSearch={(v) => pushParams({ search: v || undefined, page: 1 })}
         toolbarActions={newDialog}
+        sort={sort}
+        onSortChange={onSortChange}
+        sortableColumns={SORTABLE_COLUMNS}
         bulkDelete={{
           getId: (row) => row.id,
           getRowLabel: (row) => row.name,

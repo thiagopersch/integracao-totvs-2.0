@@ -117,6 +117,18 @@ export async function restoreSentence(id: string) {
   }
 }
 
+export async function setSentenceStatus(id: string, status: boolean) {
+  const { organizationId } = await requirePermission("sentences", "update");
+  try {
+    await sentenceService.setStatus(id, status, organizationId);
+    await auditService.log({ action: status ? "ACTIVATE" : "DEACTIVATE", entity: "Sentence", entityId: id });
+    updateTag("sentences");
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: (error as Error).message };
+  }
+}
+
 export async function bulkDeleteSentences(ids: string[]) {
   const { organizationId, userId } = await requirePermission("sentences", "delete");
   try {

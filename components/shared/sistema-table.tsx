@@ -34,6 +34,8 @@ interface SistemaTableProps {
   meta: PaginationMeta
 }
 
+const SORTABLE_COLUMNS = ["code", "internalName", "externalName"]
+
 export function SistemaTable({ data, meta }: SistemaTableProps) {
   const {
     router,
@@ -43,11 +45,14 @@ export function SistemaTable({ data, meta }: SistemaTableProps) {
     setEditDialog,
     pushParams,
     handleDelete,
+    sort,
+    onSortChange,
   } = useCrudTable<TotvsSystem>({
     deleteAction: deleteSistema,
     restoreAction: restoreSistema,
     deleteSuccessMessage: "Sistema excluído com sucesso",
     restoreSuccessMessage: "Sistema restaurado com sucesso",
+    defaultSort: { field: "code", direction: "asc" },
   })
   const [loading, setLoading] = useState(false)
 
@@ -164,6 +169,9 @@ export function SistemaTable({ data, meta }: SistemaTableProps) {
         searchPlaceholder="Buscar por código ou nome..."
         onSearch={(v) => pushParams({ search: v || undefined, page: 1 })}
         toolbarActions={newDialog}
+        sort={sort}
+        onSortChange={onSortChange}
+        sortableColumns={SORTABLE_COLUMNS}
         bulkDelete={{
           getId: (row) => row.id,
           getRowLabel: (row) => row.code,

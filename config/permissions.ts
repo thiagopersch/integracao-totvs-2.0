@@ -35,6 +35,13 @@ export const PERMISSIONS: PermissionDef[] = [
   ...crud("demands", "Demandas", "demands"),
   { resource: "soap", action: "execute", name: "Executar SOAP", description: "Executar chamadas SOAP", module: "soap" },
   { resource: "soap", action: "history", name: "Ver Histórico", description: "Visualizar histórico SOAP", module: "soap" },
+  {
+    resource: "integrations",
+    action: "execute",
+    name: "Executar Integrações Externas",
+    description: "Testar conexões de integrações externas (TPI, Cielo, etc.)",
+    module: "integrations",
+  },
   { resource: "dashboard", action: "view", name: "Ver Dashboard", description: "Visualizar dashboard", module: "dashboard" },
   { resource: "settings", action: "manage", name: "Gerenciar Configurações", description: "Gerenciar configurações do sistema", module: "settings" },
   { resource: "notifications", action: "read", name: "Ver Notificações", description: "Visualizar próprias notificações", module: "notifications" },
@@ -59,7 +66,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<"ADMIN" | "MANAGER" | "USER", stri
       ? p.action !== "delete"
       : ["dataservers", "processes"].includes(p.resource)
         ? p.action === "read"
-        : ["soap", "dashboard", "notifications", "reports", "deletion_logs"].includes(p.resource)
+        : ["soap", "integrations", "dashboard", "notifications", "reports", "deletion_logs"].includes(p.resource)
           ? true
           : ["analysts", "contracts", "requesters", "departments", "demand_types", "tags", "demands"].includes(p.resource)
             ? p.action !== "delete"

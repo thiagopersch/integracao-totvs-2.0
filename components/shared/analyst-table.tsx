@@ -27,7 +27,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { Plus, Loader2 } from "lucide-react"
-import { deleteAnalyst, createAnalyst, updateAnalyst, bulkDeleteAnalysts } from "@/actions/analysts"
+import { deleteAnalyst, createAnalyst, updateAnalyst, bulkDeleteAnalysts, setAnalystStatus } from "@/actions/analysts"
 import { createAnalystSchema, updateAnalystSchema, type CreateAnalystInput } from "@/schemas/analyst.schema"
 import { toast } from "sonner"
 import { useCrudTable } from "@/hooks/use-crud-table"
@@ -39,6 +39,8 @@ interface AnalystTableProps {
   meta: PaginationMeta
 }
 
+const SORTABLE_COLUMNS = ["name", "role", "team", "level", "status"]
+
 export function AnalystTable({ data, meta }: AnalystTableProps) {
   const {
     router,
@@ -49,9 +51,14 @@ export function AnalystTable({ data, meta }: AnalystTableProps) {
     setEditDialog,
     pushParams,
     handleDelete,
+    handleToggleStatus,
+    sort,
+    onSortChange,
   } = useCrudTable<Analyst>({
     deleteAction: deleteAnalyst,
+    setStatusAction: setAnalystStatus,
     deleteSuccessMessage: "Analista excluído com sucesso",
+    defaultSort: { field: "name", direction: "asc" },
   })
   const [loading, setLoading] = useState(false)
   const [statusFilter, setStatusFilter] = useState(searchParams.get("status") || "")
@@ -130,6 +137,8 @@ export function AnalystTable({ data, meta }: AnalystTableProps) {
         <EntityActionsCell
           onEdit={() => setEditDialog({ open: true, entity: row.original })}
           onDelete={() => setDeleteDialog({ open: true, id: row.original.id })}
+          onToggleStatus={() => handleToggleStatus(row.original.id, row.original.status)}
+          isActive={row.original.status}
         />
       ),
     },
@@ -259,6 +268,9 @@ export function AnalystTable({ data, meta }: AnalystTableProps) {
         onSearch={(v) => pushParams({ search: v || undefined, page: 1 })}
         toolbarActions={newDialog}
         filterPanel={filterPanel}
+        sort={sort}
+        onSortChange={onSortChange}
+        sortableColumns={SORTABLE_COLUMNS}
         bulkDelete={{
           getId: (row) => row.id,
           getRowLabel: (row) => row.name,

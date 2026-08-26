@@ -7,7 +7,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { MoreHorizontal, Pencil, Trash2 } from "lucide-react"
+import { MoreHorizontal, Pencil, Trash2, Power, PowerOff } from "lucide-react"
 
 interface EntityActionsCellProps {
   onEdit: () => void
@@ -15,6 +15,9 @@ interface EntityActionsCellProps {
   editLabel?: string
   deleteLabel?: string
   extraItems?: React.ReactNode
+  /** When set, renders an "Ativar"/"Desativar" item that flips the record's status without opening the edit dialog. */
+  onToggleStatus?: () => void
+  isActive?: boolean
 }
 
 export function EntityActionsCell({
@@ -23,6 +26,8 @@ export function EntityActionsCell({
   editLabel = "Editar",
   deleteLabel = "Excluir",
   extraItems,
+  onToggleStatus,
+  isActive,
 }: EntityActionsCellProps) {
   return (
     <DropdownMenu>
@@ -33,6 +38,19 @@ export function EntityActionsCell({
         <DropdownMenuItem onClick={onEdit}>
           <Pencil className="h-4 w-4 mr-2" /> {editLabel}
         </DropdownMenuItem>
+        {onToggleStatus && (
+          <DropdownMenuItem onClick={onToggleStatus}>
+            {isActive ? (
+              <>
+                <PowerOff className="h-4 w-4 mr-2" /> Desativar
+              </>
+            ) : (
+              <>
+                <Power className="h-4 w-4 mr-2" /> Ativar
+              </>
+            )}
+          </DropdownMenuItem>
+        )}
         {extraItems}
         {onDelete && (
           <>

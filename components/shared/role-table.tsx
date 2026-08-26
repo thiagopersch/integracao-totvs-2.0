@@ -45,6 +45,8 @@ interface RoleTableProps {
   permissions: PermissionRow[]
 }
 
+const SORTABLE_COLUMNS = ["name", "description", "permissionsCount", "usersCount"]
+
 export function RoleTable({ data, permissions }: RoleTableProps) {
   const {
     router,
@@ -145,13 +147,13 @@ export function RoleTable({ data, permissions }: RoleTableProps) {
     },
     {
       id: "permissionsCount",
+      accessorFn: (row) => row.rolePermissions.length,
       header: "Permissões",
-      cell: ({ row }) => row.original.rolePermissions.length,
     },
     {
       id: "usersCount",
+      accessorFn: (row) => row.userRoles.length,
       header: "Usuários",
-      cell: ({ row }) => row.original.userRoles.length,
     },
     {
       id: "actions",
@@ -252,6 +254,7 @@ export function RoleTable({ data, permissions }: RoleTableProps) {
           searchDefaultValue={search}
           onSearch={setSearch}
           toolbarActions={newDialog}
+          sortableColumns={SORTABLE_COLUMNS}
         />
       </div>
 

@@ -18,6 +18,8 @@ interface DeletionLogTableProps {
   meta: PaginationMeta
 }
 
+const SORTABLE_COLUMNS = ["createdAt", "entity", "entityId"]
+
 export function DeletionLogTable({ data, meta }: DeletionLogTableProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -30,6 +32,11 @@ export function DeletionLogTable({ data, meta }: DeletionLogTableProps) {
     })
     router.push(`?${params.toString()}`)
   }
+
+  const sortParam = searchParams.get("sort")
+  const sort = sortParam
+    ? { field: sortParam.split(":")[0], direction: sortParam.split(":")[1] as "asc" | "desc" }
+    : { field: "createdAt", direction: "desc" as const }
 
   const columns: ColumnDef<DeletionErrorRow>[] = [
     {
@@ -81,6 +88,9 @@ export function DeletionLogTable({ data, meta }: DeletionLogTableProps) {
         onPageSizeChange={(ps) => pushParams({ pageSize: ps, page: 1 })}
         searchable={false}
         emptyMessage="Nenhum registro bloqueado encontrado."
+        sort={sort}
+        onSortChange={(s) => pushParams({ sort: `${s.field}:${s.direction}`, page: 1 })}
+        sortableColumns={SORTABLE_COLUMNS}
       />
     </>
   )
