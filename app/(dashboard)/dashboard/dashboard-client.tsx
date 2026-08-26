@@ -96,10 +96,10 @@ function CategoryBarChart({
         />
         <Tooltip
           contentStyle={tooltipStyle}
-          formatter={(value) => formatNumber(Number(value))}
+          formatter={(value) => [formatNumber(Number(value)), "Quantidade"]}
           cursor={{ fill: "var(--muted)" }}
         />
-        <Bar dataKey="value" radius={[0, 4, 4, 0]} maxBarSize={22}>
+        <Bar dataKey="value" name="Quantidade" radius={[0, 4, 4, 0]} maxBarSize={22}>
           {data.map((entry, index) => (
             <Cell
               key={entry.name}
@@ -134,6 +134,7 @@ interface DashboardClientProps {
     user?: { name: string } | null
   }>
   chartData: Array<{ date: string; calls: number }>
+  clientStatusData: NamedValue[]
   tbcStatusData: NamedValue[]
   filterStatusData: NamedValue[]
   sentencesByCategory: NamedValue[]
@@ -147,6 +148,7 @@ export function DashboardClient({
   stats,
   recentLogs,
   chartData,
+  clientStatusData,
   tbcStatusData,
   filterStatusData,
   sentencesByCategory,
@@ -325,7 +327,15 @@ export function DashboardClient({
         </Card>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm">Clientes por Status</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <CategoryBarChart data={clientStatusData} colorByIndex emptyMessage="Nenhum cliente cadastrado" />
+          </CardContent>
+        </Card>
         <Card>
           <CardHeader>
             <CardTitle className="text-sm">TBCs por Status</CardTitle>

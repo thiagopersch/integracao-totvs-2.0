@@ -19,6 +19,8 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 export interface MultiSelectItem {
   value: string
   label: string
+  /** Overrides how the item renders in the dropdown list (e.g. a colored badge next to the value); `label` still drives search matching and the selected-chip text. */
+  render?: React.ReactNode
 }
 
 interface MultiSelectProps {
@@ -73,21 +75,21 @@ export function MultiSelect({
               <Badge
                 key={item.value}
                 variant="secondary"
-                className="gap-1"
+                className="h-auto max-w-full gap-1 overflow-visible whitespace-normal break-words"
                 onClick={(e) => {
                   e.stopPropagation()
                   toggle(item.value)
                 }}
               >
-                {item.label}
-                <X className="h-3 w-3 cursor-pointer" />
+                <span className="break-words">{item.label}</span>
+                <X className="h-3 w-3 shrink-0 cursor-pointer" />
               </Badge>
             ))
           )}
         </div>
         <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
       </PopoverTrigger>
-      <PopoverContent className="w-(--anchor-width) p-0" align="start">
+      <PopoverContent className="min-w-(--anchor-width) w-max max-w-(--available-width) p-0" align="start">
         <Command>
           <CommandInput placeholder={searchPlaceholder} />
           <CommandList>
@@ -102,7 +104,7 @@ export function MultiSelect({
                     onSelect={() => toggle(item.value)}
                   >
                     <Check className={cn("mr-2 h-4 w-4", isSelected ? "opacity-100" : "opacity-0")} />
-                    {item.label}
+                    {item.render ?? item.label}
                   </CommandItem>
                 )
               })}

@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { findBlockingReferences, formatBlockingReferences, type BlockingReference } from "@/lib/entity-relations";
 import type { CreateContractInput, UpdateContractInput } from "@/schemas/contract.schema";
 import type { ListParams } from "@/types/common";
 import type { BulkDeleteResult } from "@/repositories/base.repository";
@@ -63,6 +64,10 @@ export const contractService = {
   async delete(id: string, organizationId: string) {
     const existing = await prisma.clientContract.findFirst({ where: { id, client: { organizationId } } });
     if (!existing) throw new Error("Contrato não encontrado");
+    const reasons = await findBlockingReferences("ClientContract", id);
+    if (reasons.length > 0) {
+      throw new Error(`Não é possível excluir: registro em uso em ${formatBlockingReferences(reasons)}.`);
+    }
     return prisma.clientContract.delete({ where: { id } });
   },
 
@@ -71,10 +76,18 @@ export const contractService = {
       where: { id: { in: ids }, client: { organizationId } },
       select: { id: true },
     });
-    const deletableIds = owned.map((c) => c.id);
+
+    const blocked: { id: string; reasons: BlockingReference[] }[] = [];
+    const deletableIds: string[] = [];
+    for (const contract of owned) {
+      const reasons = await findBlockingReferences("ClientContract", contract.id);
+      if (reasons.length > 0) blocked.push({ id: contract.id, reasons });
+      else deletableIds.push(contract.id);
+    }
+
     if (deletableIds.length > 0) {
       await prisma.clientContract.deleteMany({ where: { id: { in: deletableIds } } });
     }
-    return { deletedCount: deletableIds.length, deletedIds: deletableIds, blocked: [] };
+    return { deletedCount: deletableIds.length, deletedIds: deletableIds, blocked };
   },
 };

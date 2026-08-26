@@ -33,7 +33,7 @@ import {
 } from "@/components/ui/dialog"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { formatDate, formatDuration } from "@/utils/format"
-import { safeFormatXml, safeFormatXmlDeep } from "@/utils/xml"
+import { safeFormatXmlDeep } from "@/utils/xml"
 import { reexecuteSoapLog } from "@/actions/soap"
 import { Eye, RotateCcw, Maximize2, Minimize2 } from "lucide-react"
 import { toast } from "sonner"
@@ -250,7 +250,16 @@ export function SoapHistoryTable({ data, meta, clients, tbcs, endpointTypes, sta
       <div className="space-y-2">
         <Label>Status</Label>
         <MultiSelect
-          items={statuses.map((s) => ({ value: String(s), label: formatStatusOption(s) }))}
+          items={statuses.map((s) => ({
+            value: String(s),
+            label: formatStatusOption(s),
+            render: (
+              <span className="flex items-center gap-2">
+                <span className="font-mono text-xs">{s}</span>
+                <Badge variant={s < 400 ? "default" : "destructive"}>{HTTP_STATUS_LABELS[s] || String(s)}</Badge>
+              </span>
+            ),
+          }))}
           value={statusFilter}
           onValueChange={setStatusFilter}
           placeholder="Todos"
@@ -480,7 +489,7 @@ export function SoapHistoryTable({ data, meta, clients, tbcs, endpointTypes, sta
                 <TabsContent value="request">
                   {detail.xmlRequest ? (
                     <CodeEditor
-                      value={safeFormatXml(detail.xmlRequest)}
+                      value={safeFormatXmlDeep(detail.xmlRequest)}
                       language="xml"
                       readOnly
                       theme="dark"

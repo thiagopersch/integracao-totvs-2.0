@@ -27,6 +27,8 @@ import {
   Plug,
   Landmark,
   CreditCard,
+  Mail,
+  FileBarChart,
   type LucideIcon,
 } from "lucide-react";
 
@@ -59,4 +61,6 @@ export const NAV_ICONS: Record<string, LucideIcon> = {
   Plug,
   Landmark,
   CreditCard,
+  Mail,
+  FileBarChart,
 };

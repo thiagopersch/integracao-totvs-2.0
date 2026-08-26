@@ -48,6 +48,8 @@ export const navGroups: NavGroup[] = [
     items: [
       { href: "/integrations/tpi", label: "TPI TOTVS", icon: "Landmark", resource: "integrations", action: "execute" },
       { href: "/integrations/cielo", label: "Cielo", icon: "CreditCard", resource: "integrations", action: "execute" },
+      { href: "/integrations/email", label: "E-mail", icon: "Mail", resource: "integrations", action: "execute" },
+      { href: "/integrations/tbc-reports", label: "Relatórios TBC", icon: "FileBarChart", resource: "tbc_reports", action: "execute" },
     ],
   },
   {

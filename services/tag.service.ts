@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { findBlockingReferences, formatBlockingReferences, type BlockingReference } from "@/lib/entity-relations";
 import type { CreateTagInput, UpdateTagInput } from "@/schemas/tag.schema";
 import type { ListParams } from "@/types/common";
 import type { BulkDeleteResult } from "@/repositories/base.repository";
@@ -42,15 +43,27 @@ export const tagService = {
   async remove(id: string, organizationId: string) {
     const tag = await prisma.tag.findFirst({ where: { id, organizationId } });
     if (!tag) throw new Error("Tag não encontrada");
+    const reasons = await findBlockingReferences("Tag", id);
+    if (reasons.length > 0) {
+      throw new Error(`Não é possível excluir: registro em uso em ${formatBlockingReferences(reasons)}.`);
+    }
     await prisma.tag.delete({ where: { id } });
   },
 
   async bulkDelete(ids: string[], organizationId: string): Promise<BulkDeleteResult> {
     const owned = await prisma.tag.findMany({ where: { id: { in: ids }, organizationId }, select: { id: true } });
-    const deletableIds = owned.map((t) => t.id);
+
+    const blocked: { id: string; reasons: BlockingReference[] }[] = [];
+    const deletableIds: string[] = [];
+    for (const tag of owned) {
+      const reasons = await findBlockingReferences("Tag", tag.id);
+      if (reasons.length > 0) blocked.push({ id: tag.id, reasons });
+      else deletableIds.push(tag.id);
+    }
+
     if (deletableIds.length > 0) {
       await prisma.tag.deleteMany({ where: { id: { in: deletableIds } } });
     }
-    return { deletedCount: deletableIds.length, deletedIds: deletableIds, blocked: [] };
+    return { deletedCount: deletableIds.length, deletedIds: deletableIds, blocked };
   },
 };

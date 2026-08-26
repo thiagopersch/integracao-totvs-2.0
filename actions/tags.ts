@@ -6,6 +6,7 @@ import { auditService } from "@/services/audit.service";
 import { createTagSchema, updateTagSchema } from "@/schemas/tag.schema";
 import { requirePermission } from "@/lib/rbac";
 import { getRequestContext } from "@/lib/tenant";
+import { formatBlockingReferences } from "@/lib/entity-relations";
 import type { ListParams } from "@/types/common";
 
 export async function listAllTags() {
@@ -89,8 +90,15 @@ export async function bulkDeleteTags(ids: string[]) {
         newData: { count: result.deletedCount },
       });
     }
+    if (result.blocked.length) {
+      await auditService.logBulkDeleteBlocked("Tag", result.blocked, organizationId, userId);
+    }
     updateCacheTag("tags");
-    return { success: true, deletedCount: result.deletedCount, blocked: [] as { id: string; reasons: string }[] };
+    return {
+      success: true,
+      deletedCount: result.deletedCount,
+      blocked: result.blocked.map((b) => ({ id: b.id, reasons: formatBlockingReferences(b.reasons) })),
+    };
   } catch (error) {
     return { success: false, error: (error as Error).message };
   }

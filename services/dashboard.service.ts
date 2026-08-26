@@ -104,6 +104,11 @@ export const dashboardService = {
       calls: count,
     }));
 
+    const clientStatusData = [
+      { name: "Ativos", value: totalClients },
+      { name: "Inativos", value: Math.max(clientCount - totalClients, 0) },
+    ];
+
     const tbcStatusData = [
       { name: "Ativos", value: activeTbcs },
       { name: "Inativos", value: inactiveTbcs },
@@ -174,6 +179,7 @@ export const dashboardService = {
       },
       recentLogs,
       chartData,
+      clientStatusData,
       tbcStatusData,
       filterStatusData,
       sentencesByCategory,

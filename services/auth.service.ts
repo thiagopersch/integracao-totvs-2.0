@@ -1,8 +1,14 @@
 import { prisma } from "@/lib/prisma";
 import { hashPassword, comparePassword } from "@/lib/encryption";
 import { logger } from "@/lib/logger";
+import { checkRateLimit } from "@/lib/rate-limiter";
+import { notificationService } from "@/services/notification.service";
+import { buildLoginSuspiciousNotification } from "@/lib/notification-types";
 import type { AuthUser, LoginInput } from "@/types/auth";
 import type { User } from "@prisma/client";
+
+const LOGIN_FAILURE_WINDOW_MS = 15 * 60 * 1000;
+const LOGIN_FAILURE_THRESHOLD = 3;
 
 function toAuthUser(user: User): AuthUser {
   return {
@@ -51,6 +57,18 @@ export const authService = {
     const valid = await comparePassword(input.password, user.password);
     if (!valid) {
       logger.warn("Login failed: wrong password", { email: input.email, ip });
+
+      // Reuses the same in-memory limiter as API rate limiting — fires exactly once, on the
+      // Nth failure, not on every attempt after (checkRateLimit flips to `allowed: false` past it).
+      const attempts = checkRateLimit(`login-fail:${input.email}`, LOGIN_FAILURE_WINDOW_MS, LOGIN_FAILURE_THRESHOLD);
+      if (attempts.allowed && attempts.remaining === 0) {
+        await notificationService.broadcastToRole(
+          user.organizationId,
+          "ADMIN",
+          buildLoginSuspiciousNotification({ email: input.email, attempts: LOGIN_FAILURE_THRESHOLD })
+        );
+      }
+
       return null;
     }
 

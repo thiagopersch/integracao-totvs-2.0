@@ -1,5 +1,44 @@
 import { prisma } from "@/lib/prisma";
-import type { Prisma } from "@prisma/client";
+import { emitToUser } from "@/lib/notification-events";
+import { sendEmail } from "@/lib/mailer";
+import type { Notification, NotificationChannel, Prisma, UserRoleLevel } from "@prisma/client";
+
+/**
+ * Live-pushes each new row over SSE (see app/api/notifications/stream/route.ts) and, for
+ * recipients who opted into the EMAIL channel (NotificationSetting, opt-in — no row means
+ * disabled), sends it by mail too. Fire-and-forget-safe: email failures are logged inside
+ * sendEmail and never block the in-app notification from having been created.
+ */
+async function dispatch(notifications: Notification[]): Promise<void> {
+  if (notifications.length === 0) return;
+
+  for (const notification of notifications) {
+    emitToUser(notification.userId, notification);
+  }
+
+  const userIds = [...new Set(notifications.map((n) => n.userId))];
+  const emailSettings = await prisma.notificationSetting.findMany({
+    where: { userId: { in: userIds }, channel: "EMAIL", enabled: true },
+    select: { userId: true },
+  });
+  const emailEnabledUserIds = new Set(emailSettings.map((s) => s.userId));
+  if (emailEnabledUserIds.size === 0) return;
+
+  const users = await prisma.user.findMany({
+    where: { id: { in: [...emailEnabledUserIds] } },
+    select: { id: true, email: true },
+  });
+  const emailByUserId = new Map(users.map((u) => [u.id, u.email]));
+
+  await Promise.all(
+    notifications
+      .filter((n) => emailEnabledUserIds.has(n.userId))
+      .map((n) => {
+        const email = emailByUserId.get(n.userId);
+        return email ? sendEmail(n.organizationId, email, n.title, n.body) : Promise.resolve();
+      })
+  );
+}
 
 export const notificationService = {
   async list(
@@ -31,7 +70,9 @@ export const notificationService = {
   },
 
   async create(data: { organizationId: string; userId: string; type: string; title: string; body: string; data?: Record<string, unknown> }) {
-    return prisma.notification.create({ data: { ...data, data: data.data as Prisma.InputJsonValue } });
+    const notification = await prisma.notification.create({ data: { ...data, data: data.data as Prisma.InputJsonValue } });
+    await dispatch([notification]);
+    return notification;
   },
 
   /**
@@ -55,7 +96,7 @@ export const notificationService = {
     });
     if (users.length === 0) return;
 
-    await prisma.notification.createMany({
+    const notifications = await prisma.notification.createManyAndReturn({
       data: users.map((u) => ({
         organizationId,
         userId: u.id,
@@ -64,6 +105,45 @@ export const notificationService = {
         body: payload.body,
         data: payload.data as Prisma.InputJsonValue,
       })),
+    });
+    await dispatch(notifications);
+  },
+
+  /** Same as broadcastToOrganization, but scoped to a single role (e.g. security alerts for admins only). */
+  async broadcastToRole(
+    organizationId: string,
+    role: UserRoleLevel,
+    payload: { type: string; title: string; body: string; data?: Record<string, unknown> }
+  ) {
+    const users = await prisma.user.findMany({
+      where: { organizationId, role, status: true, deletedAt: null },
+      select: { id: true },
+    });
+    if (users.length === 0) return;
+
+    const notifications = await prisma.notification.createManyAndReturn({
+      data: users.map((u) => ({
+        organizationId,
+        userId: u.id,
+        type: payload.type,
+        title: payload.title,
+        body: payload.body,
+        data: payload.data as Prisma.InputJsonValue,
+      })),
+    });
+    await dispatch(notifications);
+  },
+
+  /** In-app is always on (there's no row/toggle for it); only opt-in channels like EMAIL show up here. */
+  async getSettings(userId: string) {
+    return prisma.notificationSetting.findMany({ where: { userId } });
+  },
+
+  async setChannelEnabled(userId: string, channel: NotificationChannel, enabled: boolean) {
+    return prisma.notificationSetting.upsert({
+      where: { userId_channel: { userId, channel } },
+      update: { enabled },
+      create: { userId, channel, enabled },
     });
   },
 

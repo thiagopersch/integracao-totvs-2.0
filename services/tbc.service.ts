@@ -36,7 +36,7 @@ export const tbcService = {
     const where = await tbcRepository.buildWhere(params, organizationId);
     const orderBy = params.sort
       ? { [params.sort.field]: params.sort.direction }
-      : [{ client: { favorite: "desc" as const } }, { client: { name: "asc" as const } }];
+      : [{ client: { favorite: "desc" as const } }, { client: { name: "asc" as const } }, { name: "asc" as const }];
 
     const [tbcs, total] = await Promise.all([
       prisma.tbc.findMany({

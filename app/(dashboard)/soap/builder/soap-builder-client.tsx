@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useState } from "react"
+import { useCallback, useMemo, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -12,10 +12,11 @@ import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { CodeEditor } from "@/components/shared/code-editor"
-import { Play, Copy, Download, Loader2, Code2, FileJson, Table2, Globe, Braces, Database, Workflow, Search } from "lucide-react"
+import { Play, Copy, Download, Loader2, Code2, FileJson, Table2, Globe } from "lucide-react"
 import { toast } from "sonner"
 import axios from "axios"
 import { xmlToJson, jsonToXml, safeFormatXmlDeep } from "@/utils/xml"
+import { buildSoapEnvelope } from "@/utils/soap-envelope"
 import { formatDuration } from "@/utils/format"
 import { useSoapStore } from "@/store/soap.store"
 
@@ -106,6 +107,9 @@ export function SoapBuilderClient({ initialEndpointTypes, initialTbcs, initialCl
     const port = isSharedAuthMethod ? "IwsBase" : `Iws${wsFolder.slice(2)}`
     return `${base}/${prefix}${wsFolder}/${port}`
   })()
+
+  /** Live preview of the exact envelope that will be sent — same shape `soapService.dispatch` builds and logs to history, kept in sync as the method, TBC, XML body or context fields change. */
+  const fullEnvelope = useMemo(() => safeFormatXmlDeep(buildSoapEnvelope(xmlContent, context)), [xmlContent, context])
 
   /** Programmatic updates (type/method switch, schema fetch) — bumps requestVersion so the
    *  still-mounted CodeEditor actually remounts and shows the new content. */
@@ -307,28 +311,29 @@ export function SoapBuilderClient({ initialEndpointTypes, initialTbcs, initialCl
 
       <Card>
         <CardContent className="pt-6 space-y-4">
-          <div className="flex flex-wrap gap-2">
-            {endpointTypes.map((type) => (
-              <Button
-                key={type.id}
-                variant={selectedTypeId === type.id ? "default" : "outline"}
-                size="sm"
-                onClick={() => handleSelectType(type)}
-                className="flex items-center gap-1"
-              >
-                {type.type === "dataserver" ? <Database className="h-4 w-4" /> :
-                 type.type === "process" ? <Workflow className="h-4 w-4" /> :
-                 type.type === "consulta" ? <Search className="h-4 w-4" /> :
-                 type.type === "formula" ? <Braces className="h-4 w-4" /> :
-                 <Globe className="h-4 w-4" />}
-                {type.label}
-              </Button>
-            ))}
-          </div>
-
           <fieldset className="space-y-3 rounded-lg border border-input p-3">
             <legend className="px-1 text-sm font-medium text-muted-foreground">Destino da chamada</legend>
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-5">
+              <div className="space-y-2">
+                <Label>Tipo</Label>
+                <Select
+                  items={endpointTypes.map((t) => ({ value: t.id, label: `${t.label} (${t.type})` }))}
+                  value={selectedTypeId || null}
+                  onValueChange={(v) => {
+                    const type = endpointTypes.find((t) => t.id === v)
+                    if (type) handleSelectType(type)
+                  }}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Selecionar tipo..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {endpointTypes.map((t) => (
+                      <SelectItem key={t.id} value={t.id}>{t.label} ({t.type})</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
               <div className="space-y-2">
                 <Label>Sistema TOTVS</Label>
                 <Select
@@ -371,7 +376,7 @@ export function SoapBuilderClient({ initialEndpointTypes, initialTbcs, initialCl
               <div className="space-y-2">
                 <Label>Método</Label>
                 <Select
-                  items={methods.map((m) => ({ value: m.id, label: m.label }))}
+                  items={methods.map((m) => ({ value: m.id, label: `${m.label} (${m.method})` }))}
                   value={selectedMethodId || null}
                   onValueChange={(v) => handleSelectMethod(v || "")}
                 >
@@ -380,7 +385,7 @@ export function SoapBuilderClient({ initialEndpointTypes, initialTbcs, initialCl
                   </SelectTrigger>
                   <SelectContent>
                     {methods.map((m) => (
-                      <SelectItem key={m.id} value={m.id}>{m.label}</SelectItem>
+                      <SelectItem key={m.id} value={m.id}>{m.label} ({m.method})</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -444,6 +449,7 @@ export function SoapBuilderClient({ initialEndpointTypes, initialTbcs, initialCl
                 <TabsList>
                   <TabsTrigger value="xml"><Code2 className="h-3 w-3 mr-1" /> XML</TabsTrigger>
                   <TabsTrigger value="json"><FileJson className="h-3 w-3 mr-1" /> JSON</TabsTrigger>
+                  <TabsTrigger value="full"><Globe className="h-3 w-3 mr-1" /> XML Completo</TabsTrigger>
                 </TabsList>
               </Tabs>
             </CardTitle>
@@ -451,8 +457,10 @@ export function SoapBuilderClient({ initialEndpointTypes, initialTbcs, initialCl
           <CardContent>
             {activeTab === "xml" ? (
               <CodeEditor value={xmlContent} onChange={handleXmlChange} language="xml" resetKey={requestVersion} minHeight="400px" />
-            ) : (
+            ) : activeTab === "json" ? (
               <CodeEditor value={jsonContent} onChange={handleJsonChange} language="json" resetKey={requestVersion} minHeight="400px" />
+            ) : (
+              <CodeEditor value={fullEnvelope} language="xml" readOnly resetKey={fullEnvelope} minHeight="400px" />
             )}
           </CardContent>
         </Card>

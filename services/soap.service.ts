@@ -3,6 +3,9 @@ import { XMLParser } from "fast-xml-parser";
 import { logger } from "@/lib/logger";
 import { prisma } from "@/lib/prisma";
 import { env } from "@/config/app.config";
+import { buildSoapEnvelope, type SoapContext } from "@/utils/soap-envelope";
+import { notificationService } from "@/services/notification.service";
+import { buildSoapCallFailedNotification } from "@/lib/notification-types";
 import { Prisma, type SoapMethod } from "@prisma/client";
 
 /** The 5 real TOTVS RM webservice "folders" confirmed live against a TBC (wsConsultaSQL/wsDataServer/wsProcess/wsFormulaVisual/wsReport MEX WSDLs). */
@@ -32,13 +35,7 @@ export type SoapRequest = {
   wsName: WsName;
   method: SoapMethod;
   xml: string;
-  context?: {
-    coligate?: number;
-    branch?: number;
-    levelEducation?: number;
-    codSystem?: string;
-    user?: string;
-  };
+  context?: SoapContext;
   timeout?: number;
   endpointType?: string;
 };
@@ -84,6 +81,16 @@ const METHOD_OPERATION: Record<SoapMethod, string> = {
   GETPROCESSSTATUS: "GetProcessStatus",
   REALIZARCONSULTASQL: "RealizarConsultaSQL",
   REALIZARCONSULTASQLCONTEXTO: "RealizarConsultaSQLContexto",
+  GETREPORTLIST: "GetReportList",
+  GETREPORTMETADATA: "GetReportMetaData",
+  GETREPORTINFO: "GetReportInfo",
+  GENERATEREPORT: "GenerateReport",
+  GENERATEREPORTASYNCHRONOUS: "GenerateReportAsynchronous",
+  GETGENERATEDREPORTSTATUS: "GetGeneratedReportStatus",
+  GETGENERATEDREPORTSIZE: "GetGeneratedReportSize",
+  GETFILECHUNK: "GetFileChunk",
+  GETPARAMETERS: "GetParameters",
+  EXECUTE: "Execute",
 };
 
 /** AutenticaAcesso/CheckServiceActivity are shared across every ws and don't live on the service-specific port. */
@@ -99,52 +106,6 @@ function servicePortInterface(wsName: WsName, method: SoapMethod): string {
 /** Wraps XML that is itself passed as the *content* of a SOAP parameter (e.g. SaveRecord's XML field), per TOTVS's requirement. */
 export function cdata(xml: string): string {
   return `<![CDATA[${xml}]]>`;
-}
-
-/**
- * Contexto field names/casing must match TOTVS RM's own standard exactly — every method relies on
- * this to execute correctly: CODCOLIGADA, CODFILIAL, CODTIPOCURSO, CODSISTEMA, CODUSUARIO.
- */
-function buildContextoString(context?: SoapRequest["context"]): string {
-  if (!context) return "";
-  const parts: string[] = [];
-  if (context.coligate !== undefined) parts.push(`CODCOLIGADA=${context.coligate}`);
-  if (context.branch !== undefined) parts.push(`CODFILIAL=${context.branch}`);
-  if (context.levelEducation !== undefined) parts.push(`CODTIPOCURSO=${context.levelEducation}`);
-  if (context.codSystem) parts.push(`CODSISTEMA=${context.codSystem}`);
-  if (context.user) parts.push(`CODUSUARIO=${context.user}`);
-  return parts.join(";");
-}
-
-function injectContexto(methodXml: string, contexto: string): string {
-  if (!contexto || /<Contexto>/i.test(methodXml)) return methodXml;
-  return methodXml.replace(
-    /<\/([\w:]+)>\s*$/,
-    (full, tag) => `  <Contexto>${escapeXml(contexto)}</Contexto>\n</${tag}>`
-  );
-}
-
-function escapeXml(value: string): string {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&apos;");
-}
-
-function buildSoapEnvelope(xml: string, context?: SoapRequest["context"]): string {
-  const contexto = buildContextoString(context);
-  const bodyXml = injectContexto(xml.trim(), contexto);
-  const namespaced = bodyXml.replace(/^<([\w:]+)(\s*\/?)/, `<$1 xmlns="http://www.totvs.com/"$2`);
-
-  return `<?xml version="1.0" encoding="utf-8"?>
-<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/">
-  <soap:Header/>
-  <soap:Body>
-    ${namespaced}
-  </soap:Body>
-</soap:Envelope>`;
 }
 
 /** `{baseLink}/{EduLicense prefix when notRequiredLicense}{wsName}/{PortInterface}` — verified live against a real TBC. */
@@ -168,7 +129,7 @@ function resolveSoapAction(wsName: WsName, method: SoapMethod): string {
  * being handed to the XML parser, or the parser sees literal "&lt;" text (not a tag) and silently
  * returns {} — which is why rows/results looked like they came back empty.
  */
-function decodeXmlEntities(value: string): string {
+export function decodeXmlEntities(value: string): string {
   return value
     .replace(/&#x([0-9A-Fa-f]+);/g, (_, hex: string) => String.fromCharCode(parseInt(hex, 16)))
     .replace(/&#(\d+);/g, (_, dec: string) => String.fromCharCode(parseInt(dec, 10)))
@@ -326,6 +287,17 @@ export const soapService = {
     const duration = Date.now() - startTime;
     const errorMsg = lastError?.message || "Unknown error";
     await this.log(request, envelope, null, null, 0, duration, errorMsg, organizationId, userId);
+
+    // Only for user-initiated calls — internal/scheduled dispatches (no userId, e.g. backups)
+    // are already covered by their own caller's failure notification, avoiding duplicate alerts.
+    if (userId) {
+      const notification = buildSoapCallFailedNotification({
+        method: request.method,
+        wsName: request.wsName,
+        errorMessage: errorMsg,
+      });
+      await notificationService.create({ organizationId, userId, ...notification });
+    }
 
     throw new Error(errorMsg);
   },

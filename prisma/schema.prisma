@@ -30,6 +30,16 @@ enum SoapMethod {
   REALIZARCONSULTASQL
   REALIZARCONSULTASQLCONTEXTO
   AUTENTICAACESSO
+  GETREPORTLIST
+  GETREPORTMETADATA
+  GETREPORTINFO
+  GENERATEREPORT
+  GENERATEREPORTASYNCHRONOUS
+  GETGENERATEDREPORTSTATUS
+  GETGENERATEDREPORTSIZE
+  GETFILECHUNK
+  GETPARAMETERS
+  EXECUTE
 }
 
 enum DemandStatus {
@@ -116,6 +126,7 @@ model Organization {
   analysts           Analyst[]
   demands            Demand[]
   notifications      Notification[]
+  emailSettings      EmailSettings?
 
   @@map("organizations")
 }
@@ -797,4 +808,22 @@ model NotificationSetting {
 
   @@unique([userId, channel])
   @@map("notification_settings")
+}
+
+/** SMTP credentials for the EMAIL notification channel — configured per organization here instead of fixed .env vars. */
+model EmailSettings {
+  id             String   @id @default(uuid())
+  organizationId String   @unique @map("organization_id")
+  host           String
+  port           Int
+  user           String
+  password       String
+  from           String
+  enabled        Boolean  @default(true)
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@map("email_settings")
 }

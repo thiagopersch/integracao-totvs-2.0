@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import type { ColumnDef } from "@tanstack/react-table"
 import { Eye } from "lucide-react"
 import { listBackupHistoryForCode } from "@/actions/admin/backups"
@@ -10,6 +10,8 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Dialog, DialogBody, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { ViewBackupSentenceDialog } from "@/components/shared/view-backup-sentence-dialog"
 import type { Backup } from "@prisma/client"
+
+const SORTABLE_COLUMNS = ["codeSentence", "codColigada", "codSystem", "nameSentence", "createdAt"]
 
 interface BackupCodeHistoryDialogProps {
   open: boolean
@@ -28,6 +30,7 @@ export function BackupCodeHistoryDialog({
 }: BackupCodeHistoryDialogProps) {
   const [loading, setLoading] = useState(false)
   const [data, setData] = useState<Backup[]>([])
+  const [sort, setSort] = useState<{ field: string; direction: "asc" | "desc" }>({ field: "createdAt", direction: "desc" })
   const [viewDialog, setViewDialog] = useState<{ open: boolean; backup: Backup | null }>({ open: false, backup: null })
 
   useEffect(() => {
@@ -40,6 +43,24 @@ export function BackupCodeHistoryDialog({
     }
     load()
   }, [open, filterId, codeSentence])
+
+  // This dialog's data is a small, already-loaded list (no backend pagination requested here), so
+  // sorting is done client-side — reusing the same clickable-header UI/logic from DataTable that
+  // drives server-side sort elsewhere, just fed by local state instead of URL params.
+  const sortedData = useMemo(() => {
+    const field = sort.field as keyof Backup
+    const dir = sort.direction === "asc" ? 1 : -1
+    return [...data].sort((a, b) => {
+      const av = a[field]
+      const bv = b[field]
+      if (av == null && bv == null) return 0
+      if (av == null) return 1
+      if (bv == null) return -1
+      if (av < bv) return -dir
+      if (av > bv) return dir
+      return 0
+    })
+  }, [data, sort])
 
   const columns: ColumnDef<Backup>[] = [
     { accessorKey: "codeSentence", header: "Código da consulta", cell: ({ row }) => row.getValue("codeSentence") || "-" },
@@ -69,7 +90,18 @@ export function BackupCodeHistoryDialog({
             <DialogTitle>Histórico de alterações — {codeSentence}</DialogTitle>
           </DialogHeader>
           <DialogBody>
-            {loading ? <Skeleton className="h-64 w-full" /> : <DataTable columns={columns} data={data} searchable={false} />}
+            {loading ? (
+              <Skeleton className="h-64 w-full" />
+            ) : (
+              <DataTable
+                columns={columns}
+                data={sortedData}
+                searchable={false}
+                sort={sort}
+                onSortChange={setSort}
+                sortableColumns={SORTABLE_COLUMNS}
+              />
+            )}
           </DialogBody>
         </DialogContent>
       </Dialog>

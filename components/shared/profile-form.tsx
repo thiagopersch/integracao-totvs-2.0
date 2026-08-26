@@ -1,11 +1,12 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useForm, Controller } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Field, FieldLabel, FieldError } from "@/components/ui/field"
 import { PasswordInput } from "@/components/ui/password-input"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -14,6 +15,7 @@ import { Loader2 } from "lucide-react"
 import { toast } from "sonner"
 import { updateProfileAction } from "@/actions/auth/profile"
 import { changePasswordAction } from "@/actions/auth/login"
+import { getNotificationSettings, updateNotificationSetting } from "@/actions/notifications"
 import { changePasswordSchema } from "@/schemas/auth.schema"
 import { z } from "zod"
 import type { AuthUser } from "@/types/auth"
@@ -30,6 +32,25 @@ interface ProfileFormProps {
 export function ProfileForm({ user }: ProfileFormProps) {
   const [profileLoading, setProfileLoading] = useState(false)
   const [passwordLoading, setPasswordLoading] = useState(false)
+  const [emailNotifications, setEmailNotifications] = useState(false)
+  const [notificationSettingsLoading, setNotificationSettingsLoading] = useState(false)
+
+  useEffect(() => {
+    getNotificationSettings().then((settings) => {
+      setEmailNotifications(settings.some((s) => s.channel === "EMAIL" && s.enabled))
+    })
+  }, [])
+
+  async function handleEmailNotificationsChange(checked: boolean) {
+    setNotificationSettingsLoading(true)
+    const result = await updateNotificationSetting("EMAIL", checked)
+    if (result.success) {
+      setEmailNotifications(checked)
+    } else {
+      toast.error(result.error || "Erro ao atualizar preferência de notificação")
+    }
+    setNotificationSettingsLoading(false)
+  }
 
   const profileForm = useForm<z.infer<typeof profileSchema>>({
     mode: "onChange",
@@ -176,6 +197,28 @@ export function ProfileForm({ user }: ProfileFormProps) {
               Alterar senha
             </Button>
           </form>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Notificações</CardTitle>
+          <CardDescription>Escolha por quais canais você quer ser avisado</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center gap-2">
+            <Checkbox checked disabled />
+            <Label className="text-muted-foreground">No aplicativo (sempre ativo)</Label>
+          </div>
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="emailNotifications"
+              checked={emailNotifications}
+              disabled={notificationSettingsLoading}
+              onCheckedChange={(v) => handleEmailNotificationsChange(v === true)}
+            />
+            <Label htmlFor="emailNotifications">E-mail</Label>
+          </div>
         </CardContent>
       </Card>
     </div>

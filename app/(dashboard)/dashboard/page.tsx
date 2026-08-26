@@ -6,6 +6,7 @@ export default async function DashboardPage() {
     stats,
     recentLogs,
     chartData,
+    clientStatusData,
     tbcStatusData,
     filterStatusData,
     sentencesByCategory,
@@ -20,6 +21,7 @@ export default async function DashboardPage() {
       stats={stats}
       recentLogs={recentLogs}
       chartData={chartData}
+      clientStatusData={clientStatusData}
       tbcStatusData={tbcStatusData}
       filterStatusData={filterStatusData}
       sentencesByCategory={sentencesByCategory}

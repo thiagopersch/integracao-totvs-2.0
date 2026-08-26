@@ -36,14 +36,34 @@ export function NotificationBell() {
 
   useEffect(() => {
     // Strict Mode's dev-only double-invoke would otherwise fire this initial load() twice on
-    // every mount; the ref survives that replay, so it still runs exactly once, while the
-    // interval itself is always (re)created so polling keeps working correctly either way.
+    // every mount; the ref survives that replay, so it still runs exactly once.
     if (!hasLoadedOnce.current) {
       hasLoadedOnce.current = true
       load()
     }
-    const interval = setInterval(load, 60000)
-    return () => clearInterval(interval)
+
+    // Live updates via SSE — falls back to the old 60s polling if the stream errors out
+    // (e.g. a proxy that mishandles text/event-stream), so the bell never goes fully silent.
+    let pollInterval: ReturnType<typeof setInterval> | null = null
+    function startPolling() {
+      if (pollInterval) return
+      pollInterval = setInterval(load, 60000)
+    }
+    function stopPolling() {
+      if (!pollInterval) return
+      clearInterval(pollInterval)
+      pollInterval = null
+    }
+
+    const source = new EventSource("/api/notifications/stream")
+    source.addEventListener("ready", stopPolling)
+    source.addEventListener("notification", load)
+    source.onerror = startPolling
+
+    return () => {
+      source.close()
+      stopPolling()
+    }
   }, [])
 
   async function handleRead(id: string) {

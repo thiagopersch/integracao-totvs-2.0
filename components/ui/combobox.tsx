@@ -61,10 +61,10 @@ export function Combobox({
           />
         }
       >
-        <span className="truncate">{selected ? selected.label : placeholder}</span>
+        <span className="min-w-0 flex-1 truncate text-left">{selected ? selected.label : placeholder}</span>
         <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
       </PopoverTrigger>
-      <PopoverContent className="w-(--anchor-width) p-0" align="start">
+      <PopoverContent className="min-w-(--anchor-width) w-max max-w-(--available-width) p-0" align="start">
         <Command>
           <CommandInput placeholder={searchPlaceholder} />
           <CommandList>

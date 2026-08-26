@@ -5,6 +5,7 @@ import { contractService } from "@/services/contract.service";
 import { auditService } from "@/services/audit.service";
 import { createContractSchema, updateContractSchema } from "@/schemas/contract.schema";
 import { requirePermission } from "@/lib/rbac";
+import { formatBlockingReferences } from "@/lib/entity-relations";
 import type { ListParams } from "@/types/common";
 
 export async function listContracts(params: ListParams, organizationId: string) {
@@ -85,8 +86,15 @@ export async function bulkDeleteContracts(ids: string[]) {
         newData: { count: result.deletedCount },
       });
     }
+    if (result.blocked.length) {
+      await auditService.logBulkDeleteBlocked("ClientContract", result.blocked, organizationId, userId);
+    }
     updateTag("contracts");
-    return { success: true, deletedCount: result.deletedCount, blocked: [] as { id: string; reasons: string }[] };
+    return {
+      success: true,
+      deletedCount: result.deletedCount,
+      blocked: result.blocked.map((b) => ({ id: b.id, reasons: formatBlockingReferences(b.reasons) })),
+    };
   } catch (error) {
     return { success: false, error: (error as Error).message };
   }

@@ -164,9 +164,7 @@ export default function TpiIntegrationPage() {
           ) : result.success ? (
             <CodeEditor value={JSON.stringify(result.data, null, 2)} language="json" readOnly minHeight="240px" />
           ) : (
-            <pre className="text-xs font-mono text-destructive whitespace-pre-wrap rounded-md border border-destructive/30 bg-destructive/5 p-3">
-              {result.error}
-            </pre>
+            <CodeEditor value={result.error ?? ""} language="json" readOnly minHeight="120px" />
           )}
         </CardContent>
       </Card>

@@ -14,6 +14,10 @@ class SistemaRepository extends BaseRepository<TotvsSystem> {
       orderBy: { code: "asc" as const },
     }) as Promise<TotvsSystem[]>;
   }
+
+  protected defaultOrderBy() {
+    return { code: "asc" as const };
+  }
 }
 
 export const sistemaRepository = new SistemaRepository();

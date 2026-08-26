@@ -5,6 +5,8 @@ import { logger } from "@/lib/logger";
 import { BaseRepository } from "@/repositories/base.repository";
 import { computeNextRunAt } from "@/lib/backup-schedule";
 import { auditService } from "@/services/audit.service";
+import { notificationService } from "@/services/notification.service";
+import { buildBackupRunFailedNotification } from "@/lib/notification-types";
 import { fetchSentencesForFilter, restoreSentenceToTbc } from "@/services/rm-sentence.service";
 import { soapService, type WsName } from "@/services/soap.service";
 import { soapEndpointService } from "@/services/soap-endpoint.service";
@@ -172,6 +174,15 @@ export const backupService = {
         where: { id: filterId },
         data: { lastBackupStatus: "ERROR", lastBackupAt: finishedAt, lastBackupByUserId: executedByUserId },
       });
+
+      const notification = buildBackupRunFailedNotification({
+        filterId,
+        filterLabel: filter.filter,
+        tbcName: filter.tbc.name,
+        errorMessage,
+      });
+      await notificationService.broadcastToOrganization(organizationId, notification, executedByUserId);
+
       throw error;
     }
   },
