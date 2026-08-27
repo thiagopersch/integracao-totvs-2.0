@@ -60,6 +60,13 @@ export const PERMISSIONS: PermissionDef[] = [
     description: "Visualizar registros que não puderam ser excluídos por estarem vinculados a outros cadastros",
     module: "settings",
   },
+  {
+    resource: "activity_logs",
+    action: "read",
+    name: "Ver Rastreamento de Atividades",
+    description: "Visualizar log unificado de CRUD, SOAP, e-mails e integrações externas",
+    module: "settings",
+  },
 ];
 
 function toKey(p: Pick<PermissionDef, "resource" | "action">): string {
@@ -73,7 +80,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<"ADMIN" | "MANAGER" | "USER", stri
       ? p.action !== "delete"
       : ["dataservers", "processes"].includes(p.resource)
         ? p.action === "read"
-        : ["soap", "integrations", "tbc_reports", "dashboard", "notifications", "reports", "deletion_logs"].includes(p.resource)
+        : ["soap", "integrations", "tbc_reports", "dashboard", "notifications", "reports", "deletion_logs", "activity_logs"].includes(p.resource)
           ? true
           : ["analysts", "contracts", "requesters", "departments", "demand_types", "tags", "demands"].includes(p.resource)
             ? p.action !== "delete"

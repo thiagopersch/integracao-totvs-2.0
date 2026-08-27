@@ -119,6 +119,8 @@ model Organization {
   soapTemplates      SoapTemplate[]
   soapFavorites      SoapFavorite[]
   auditLogs          AuditLog[]
+  emailLogs          EmailLog[]
+  apiLogs            ApiLog[]
   requesters         Requester[]
   departments        Department[]
   demandTypes        DemandType[]
@@ -182,6 +184,8 @@ model User {
   soapLogs              SoapLog[]
   soapTemplates         SoapTemplate[]
   soapFavorites         SoapFavorite[]
+  emailLogs             EmailLog[]
+  apiLogs               ApiLog[]
   userRoles             UserRole[]
   analyst               Analyst?
   comments              Comment[]
@@ -467,6 +471,48 @@ model SoapLog {
   endpointMethod SoapEndpointMethod? @relation(fields: [methodId], references: [id])
 
   @@map("soap_logs")
+}
+
+model EmailLog {
+  id             String         @id @default(uuid())
+  organizationId String         @map("organization_id")
+  userId         String?        @map("user_id")
+  to             String
+  subject        String
+  status         EmailLogStatus
+  error          String?
+  createdAt      DateTime       @default(now()) @map("created_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  user         User?        @relation(fields: [userId], references: [id])
+
+  @@map("email_logs")
+}
+
+enum EmailLogStatus {
+  SENT
+  FAILED
+  SKIPPED
+}
+
+model ApiLog {
+  id              String   @id @default(uuid())
+  organizationId  String   @map("organization_id")
+  userId          String?  @map("user_id")
+  integration     String
+  url             String
+  httpMethod      String   @map("http_method")
+  httpStatus      Int?     @map("http_status")
+  duration        Int?
+  error           String?
+  requestSummary  Json?    @map("request_summary")
+  responseSummary Json?    @map("response_summary")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  user         User?        @relation(fields: [userId], references: [id])
+
+  @@map("api_logs")
 }
 
 model SoapTemplate {

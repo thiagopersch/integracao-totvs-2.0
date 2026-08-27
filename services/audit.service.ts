@@ -3,19 +3,9 @@ import { logger } from "@/lib/logger";
 import { getRequestContext } from "@/lib/tenant";
 import { ENTITY_LABELS, type BlockingReference } from "@/lib/entity-relations";
 import { notificationService } from "@/services/notification.service";
+import { redactObject } from "@/lib/redact";
+import { ACTION_LABELS } from "@/lib/audit-labels";
 import type { Prisma } from "@prisma/client";
-
-const ACTION_LABELS: Record<string, string> = {
-  CREATE: "criou",
-  UPDATE: "atualizou",
-  DELETE: "excluiu",
-  RESTORE: "restaurou",
-  BULK_DELETE: "excluiu em massa",
-  BULK_RESTORE: "restaurou em massa",
-  ACTIVATE: "ativou",
-  DEACTIVATE: "desativou",
-  IMPORT_STANDARD_SENTENCES: "importou sentenças padrões para",
-};
 
 /** Best-effort human label for the affected record — most call sites pass a name/code/title-ish
  *  string field in newData or oldData; falls back to the raw id when none is found. */
@@ -29,6 +19,42 @@ function describeSubject(entityId: string, newData?: Record<string, unknown>, ol
     }
   }
   return entityId;
+}
+
+export type ChangeEntry = { field: string; from?: unknown; to?: unknown };
+
+const MAX_CHANGE_FIELDS = 8;
+
+/** Turns oldData/newData into a compact, redacted diff for the notification `data` payload —
+ *  lets the notification card/detail show what changed without a second AuditLog query. */
+function summarizeChange(
+  action: string,
+  oldData?: Record<string, unknown>,
+  newData?: Record<string, unknown>
+): ChangeEntry[] | undefined {
+  if (action === "CREATE" && newData) {
+    return Object.entries(redactObject(newData))
+      .slice(0, MAX_CHANGE_FIELDS)
+      .map(([field, to]) => ({ field, to }));
+  }
+  if (action === "DELETE" && oldData) {
+    return Object.entries(redactObject(oldData))
+      .slice(0, MAX_CHANGE_FIELDS)
+      .map(([field, from]) => ({ field, from }));
+  }
+  if (action === "UPDATE" && oldData && newData) {
+    const redactedOld = redactObject(oldData);
+    const redactedNew = redactObject(newData);
+    const changed: ChangeEntry[] = [];
+    for (const field of Object.keys(redactedNew)) {
+      if (changed.length >= MAX_CHANGE_FIELDS) break;
+      const from = redactedOld[field];
+      const to = redactedNew[field];
+      if (JSON.stringify(from) !== JSON.stringify(to)) changed.push({ field, from, to });
+    }
+    return changed;
+  }
+  return undefined;
 }
 
 export type AuditInput = {
@@ -100,7 +126,12 @@ export const auditService = {
             type: `audit.${input.entity.toLowerCase()}.${input.action.toLowerCase()}`,
             title: `${entityLabel}: ${subject}`,
             body: `${actorName} ${actionLabel} um registro em ${entityLabel}.`,
-            data: { entity: input.entity, entityId: input.entityId, action: input.action },
+            data: {
+              entity: input.entity,
+              entityId: input.entityId,
+              action: input.action,
+              changes: summarizeChange(input.action, input.oldData, input.newData),
+            },
           },
           userId
         );

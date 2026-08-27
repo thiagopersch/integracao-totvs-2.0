@@ -1,7 +1,17 @@
+import { Suspense } from "react"
 import { getDashboardStats } from "@/actions/dashboard"
 import { DashboardClient } from "./dashboard-client"
+import DashboardLoading from "../loading"
 
-export default async function DashboardPage() {
+export default function DashboardPage() {
+  return (
+    <Suspense fallback={<DashboardLoading />}>
+      <DashboardData />
+    </Suspense>
+  )
+}
+
+async function DashboardData() {
   const {
     stats,
     recentLogs,

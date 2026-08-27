@@ -34,6 +34,7 @@ export const ENTITY_LABELS: Record<string, string> = {
   SoapTemplate: "Templates SOAP",
   SoapFavorite: "Favoritos SOAP",
   AuditLog: "Logs de Auditoria",
+  EmailSettings: "Configurações de E-mail",
 };
 
 export interface BlockingReference {

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { revalidateTag } from "next/cache";
 import { soapService, type WsName } from "@/services/soap.service";
 import { tbcService } from "@/services/tbc.service";
 import { soapEndpointService } from "@/services/soap-endpoint.service";
@@ -55,8 +56,12 @@ export async function POST(request: NextRequest) {
       userId
     );
 
+    revalidateTag("dashboard", { expire: 0 });
     return NextResponse.json(result);
   } catch (error) {
+    // soapService.execute logs the SoapLog row even on failure, so the dashboard's
+    // recent-executions box needs invalidating here too, not just on the success path.
+    revalidateTag("dashboard", { expire: 0 });
     logger.error("SOAP execute error", { error: (error as Error).message });
     return NextResponse.json(
       { error: (error as Error).message },

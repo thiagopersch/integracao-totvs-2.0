@@ -8,6 +8,7 @@ import { soapEndpointService } from "@/services/soap-endpoint.service";
 import { tbcService } from "@/services/tbc.service";
 import { createDataserverSchema, updateDataserverSchema } from "@/schemas/dataserver.schema";
 import { requirePermission } from "@/lib/rbac";
+import { getRequestContext } from "@/lib/tenant";
 import { formatBlockingReferences } from "@/lib/entity-relations";
 import type { ListParams } from "@/types/common";
 import type { SoapMethod } from "@prisma/client";
@@ -20,6 +21,11 @@ export async function listDataservers(params: ListParams, organizationId: string
   "use cache";
   cacheTag("dataservers");
   return dataserverService.list(params, organizationId);
+}
+
+export async function listAllDataservers() {
+  const { organizationId } = await getRequestContext();
+  return dataserverService.listAll(organizationId);
 }
 
 export async function getDataserverById(id: string, organizationId: string) {
@@ -171,10 +177,14 @@ export async function validateDataserverCode(tbcId: string, code: string) {
       organizationId
     );
 
+    updateTag("dashboard");
     const raw = result.xmlResponse.trim().toLowerCase();
     const valid = raw === "true" || raw === "1";
     return { success: true, valid };
   } catch (error) {
+    // soapService.execute logs the SoapLog row even on failure, so the dashboard's
+    // recent-executions box needs invalidating here too, not just on the success path.
+    updateTag("dashboard");
     return { success: false, valid: false, error: (error as Error).message };
   }
 }

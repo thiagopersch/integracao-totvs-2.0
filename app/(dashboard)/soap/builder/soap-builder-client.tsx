@@ -46,19 +46,52 @@ type TbcOption = {
 
 type ClientOption = { id: string; name: string }
 type SistemaOption = { id: string; code: string; internalName: string; externalName: string }
+type DataserverOption = { id: string; code: string; name: string }
+type ProcessOption = { id: string; code: string; name: string }
 
 interface SoapBuilderClientProps {
   initialEndpointTypes: EndpointType[]
   initialTbcs: TbcOption[]
   initialClients: ClientOption[]
   initialSistemas: SistemaOption[]
+  initialDataservers: DataserverOption[]
+  initialProcesses: ProcessOption[]
 }
 
-export function SoapBuilderClient({ initialEndpointTypes, initialTbcs, initialClients, initialSistemas }: SoapBuilderClientProps) {
+/** The 2 endpoint types whose methods operate on one specific catalog entry — TOTVS's generic
+ *  wsDataServer/wsProcess folders take the entry name as the method's first parameter
+ *  (`DataServerName` confirmed live against wsDataServer.ReadView/SaveRecord, see
+ *  services/rm-sentence.service.ts; `ProcessName` inferred by the same ws-family convention but
+ *  not yet verified live against wsProcess — confirm before relying on it in production). */
+const ENTITY_NAME_TAG: Record<string, "DataServerName" | "ProcessName"> = {
+  dataserver: "DataServerName",
+  process: "ProcessName",
+}
+
+/** These 3 operate ws-wide (auth handshake / whole-schema dump), not on one catalog entry, so the
+ *  entity name must never be injected into their template. */
+const ENTITY_EXEMPT_METHODS = new Set(["AUTENTICAACESSO", "CHECKSERVICEACTIVITY", "GETSCHEMA"])
+
+function buildMethodTemplateXml(methodName: string, typeKey: string, entityCode: string): string {
+  const tag = ENTITY_NAME_TAG[typeKey]
+  if (!tag || !entityCode || ENTITY_EXEMPT_METHODS.has(methodName)) return `<${methodName} />`
+  return `<${methodName}>\n  <${tag}>${entityCode}</${tag}>\n</${methodName}>`
+}
+
+export function SoapBuilderClient({
+  initialEndpointTypes,
+  initialTbcs,
+  initialClients,
+  initialSistemas,
+  initialDataservers,
+  initialProcesses,
+}: SoapBuilderClientProps) {
   const endpointTypes = initialEndpointTypes
   const tbcs = initialTbcs
   const clients = initialClients
   const sistemas = initialSistemas
+  const dataservers = initialDataservers
+  const processes = initialProcesses
 
   const selectedTypeId = useSoapStore((state) => state.selectedTypeId)
   const setSelectedTypeId = useSoapStore((state) => state.setSelectedTypeId)
@@ -70,6 +103,10 @@ export function SoapBuilderClient({ initialEndpointTypes, initialTbcs, initialCl
   const setSelectedClientId = useSoapStore((state) => state.setSelectedClientId)
   const selectedTbcId = useSoapStore((state) => state.selectedTbcId)
   const setSelectedTbcId = useSoapStore((state) => state.setSelectedTbcId)
+  const selectedDataserverId = useSoapStore((state) => state.selectedDataserverId)
+  const setSelectedDataserverId = useSoapStore((state) => state.setSelectedDataserverId)
+  const selectedProcessId = useSoapStore((state) => state.selectedProcessId)
+  const setSelectedProcessId = useSoapStore((state) => state.setSelectedProcessId)
   const xmlContent = useSoapStore((state) => state.xmlContent)
   const setXmlContent = useSoapStore((state) => state.setXmlContent)
   const jsonContent = useSoapStore((state) => state.jsonContent)
@@ -132,19 +169,46 @@ export function SoapBuilderClient({ initialEndpointTypes, initialTbcs, initialCl
 
   function handleSelectType(type: EndpointType) {
     setSelectedTypeId(type.id)
+    // Entity selection (Dataserver/Processo) is scoped to the previous type — reset both so a
+    // stale code from "dataserver" never gets injected into a "process" (or other) template.
+    setSelectedDataserverId("")
+    setSelectedProcessId("")
     const firstMethod = type.methods[0]
     if (!firstMethod) {
       setSelectedMethodId("")
       return
     }
     setSelectedMethodId(firstMethod.id)
-    setRequestXml(`<${firstMethod.method} />`)
+    setRequestXml(buildMethodTemplateXml(firstMethod.method, type.type, ""))
   }
 
   function handleSelectMethod(methodId: string) {
     setSelectedMethodId(methodId)
     const method = methods.find((m) => m.id === methodId)
-    if (method) setRequestXml(`<${method.method} />`)
+    if (!method) return
+    const entityCode =
+      selectedType?.type === "dataserver"
+        ? dataservers.find((d) => d.id === selectedDataserverId)?.code ?? ""
+        : selectedType?.type === "process"
+          ? processes.find((p) => p.id === selectedProcessId)?.code ?? ""
+          : ""
+    setRequestXml(buildMethodTemplateXml(method.method, selectedType?.type ?? "", entityCode))
+  }
+
+  function handleSelectDataserver(id: string) {
+    setSelectedDataserverId(id)
+    const dataserver = dataservers.find((d) => d.id === id)
+    if (dataserver && selectedMethodObj) {
+      setRequestXml(buildMethodTemplateXml(selectedMethodObj.method, "dataserver", dataserver.code))
+    }
+  }
+
+  function handleSelectProcess(id: string) {
+    setSelectedProcessId(id)
+    const process = processes.find((p) => p.id === id)
+    if (process && selectedMethodObj) {
+      setRequestXml(buildMethodTemplateXml(selectedMethodObj.method, "process", process.code))
+    }
   }
 
   function handleSelectSistema(sistemaId: string) {
@@ -334,6 +398,32 @@ export function SoapBuilderClient({ initialEndpointTypes, initialTbcs, initialCl
                   </SelectContent>
                 </Select>
               </div>
+              {selectedType?.type === "dataserver" && (
+                <div className="space-y-2">
+                  <Label>Dataserver</Label>
+                  <Combobox
+                    items={dataservers.map((d) => ({ value: d.id, label: `${d.name} (${d.code})` }))}
+                    value={selectedDataserverId}
+                    onValueChange={handleSelectDataserver}
+                    placeholder="Selecionar dataserver..."
+                    searchPlaceholder="Buscar dataserver..."
+                    emptyText="Nenhum dataserver encontrado."
+                  />
+                </div>
+              )}
+              {selectedType?.type === "process" && (
+                <div className="space-y-2">
+                  <Label>Processo</Label>
+                  <Combobox
+                    items={processes.map((p) => ({ value: p.id, label: `${p.name} (${p.code})` }))}
+                    value={selectedProcessId}
+                    onValueChange={handleSelectProcess}
+                    placeholder="Selecionar processo..."
+                    searchPlaceholder="Buscar processo..."
+                    emptyText="Nenhum processo encontrado."
+                  />
+                </div>
+              )}
               <div className="space-y-2">
                 <Label>Sistema TOTVS</Label>
                 <Select

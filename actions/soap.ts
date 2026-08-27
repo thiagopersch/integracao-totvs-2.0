@@ -1,10 +1,12 @@
 "use server"
 
+import { updateTag } from "next/cache";
 import { soapService, type WsName } from "@/services/soap.service";
 import { soapEndpointService } from "@/services/soap-endpoint.service";
 import { tbcService } from "@/services/tbc.service";
 import { prisma } from "@/lib/prisma";
 import { getRequestContext } from "@/lib/tenant";
+import { auditService } from "@/services/audit.service";
 import type { SoapContext } from "@/types/soap";
 import type { SoapMethod } from "@prisma/client";
 
@@ -21,7 +23,16 @@ export async function listSoapTemplates() {
 export async function deleteSoapFavorite(id: string) {
   const { organizationId, userId } = await getRequestContext();
   try {
+    const favorite = await prisma.soapFavorite.findFirst({ where: { id, userId, organizationId } });
     await soapService.deleteFavorite(id, userId, organizationId);
+    await auditService.log({
+      action: "DELETE",
+      entity: "SoapFavorite",
+      entityId: id,
+      organizationId,
+      userId,
+      oldData: favorite ? { name: favorite.name, dataserver: favorite.dataserver, process: favorite.process, method: favorite.method } : undefined,
+    });
     return { success: true };
   } catch (error) {
     return { success: false, error: (error as Error).message };
@@ -31,7 +42,15 @@ export async function deleteSoapFavorite(id: string) {
 export async function deleteSoapTemplate(id: string) {
   const { organizationId } = await getRequestContext();
   try {
+    const template = await prisma.soapTemplate.findFirst({ where: { id, organizationId } });
     await soapService.deleteTemplate(id, organizationId);
+    await auditService.log({
+      action: "DELETE",
+      entity: "SoapTemplate",
+      entityId: id,
+      organizationId,
+      oldData: template ? { name: template.name, dataserver: template.dataserver, process: template.process, method: template.method } : undefined,
+    });
     return { success: true };
   } catch (error) {
     return { success: false, error: (error as Error).message };
@@ -71,8 +90,12 @@ export async function reexecuteSoapLog(logId: string) {
       userId
     );
 
+    updateTag("dashboard");
     return { success: true, data: result };
   } catch (error) {
+    // soapService.execute logs the SoapLog row even on failure, so the dashboard's
+    // recent-executions box needs invalidating here too, not just on the success path.
+    updateTag("dashboard");
     return { success: false, error: (error as Error).message };
   }
 }

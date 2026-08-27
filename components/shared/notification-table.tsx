@@ -1,12 +1,15 @@
 "use client"
 
+import { useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import type { ColumnDef } from "@tanstack/react-table"
 import { DataTable } from "@/components/shared/data-table"
 import { PageHeader } from "@/components/shared/page-header"
+import { NotificationDetailDialog } from "@/components/shared/notification-detail-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { formatDate } from "@/utils/format"
+import { getNotificationCategory } from "@/lib/notification-category"
 import { markNotificationAsRead, markAllNotificationsAsRead } from "@/actions/notifications"
 import { toast } from "sonner"
 import type { Notification } from "@prisma/client"
@@ -23,6 +26,7 @@ const SORTABLE_COLUMNS = ["title", "createdAt"]
 export function NotificationTable({ data, meta, unreadCount }: NotificationTableProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
+  const [detail, setDetail] = useState<Notification | null>(null)
 
   function pushParams(updates: Record<string, string | number | undefined>) {
     const params = new URLSearchParams(searchParams.toString())
@@ -51,11 +55,29 @@ export function NotificationTable({ data, meta, unreadCount }: NotificationTable
     }
   }
 
+  function handleRowClick(notification: Notification) {
+    if (!notification.readAt) handleRead(notification.id)
+    setDetail(notification)
+  }
+
   const columns: ColumnDef<Notification>[] = [
     {
       id: "unread",
       header: "",
       cell: ({ row }) => (!row.original.readAt ? <span className="block h-2 w-2 rounded-full bg-primary" /> : null),
+    },
+    {
+      id: "category",
+      header: "Categoria",
+      cell: ({ row }) => {
+        const category = getNotificationCategory(row.original.type)
+        return (
+          <Badge variant="outline" className="gap-1">
+            <category.icon className="h-3 w-3" />
+            {category.label}
+          </Badge>
+        )
+      },
     },
     { accessorKey: "title", header: "Título" },
     { accessorKey: "body", header: "Mensagem", cell: ({ row }) => <span className="line-clamp-1">{row.getValue("body")}</span> },
@@ -68,16 +90,18 @@ export function NotificationTable({ data, meta, unreadCount }: NotificationTable
       id: "actions",
       cell: ({ row }) =>
         !row.original.readAt && (
-          <Button variant="ghost" size="sm" onClick={() => handleRead(row.original.id)}>
-            Marcar como lida
-          </Button>
+          <div onClick={(e) => e.stopPropagation()}>
+            <Button variant="ghost" size="sm" onClick={() => handleRead(row.original.id)}>
+              Marcar como lida
+            </Button>
+          </div>
         ),
     },
   ]
 
   return (
     <>
-      <PageHeader title="Notificações" description="Suas notificações">
+      <PageHeader title="Notificações" description="Suas notificações — clique em uma para ver todos os detalhes">
         {unreadCount > 0 && (
           <div className="flex items-center gap-2">
             <Badge variant="secondary">{unreadCount} não lida{unreadCount !== 1 ? "s" : ""}</Badge>
@@ -96,10 +120,13 @@ export function NotificationTable({ data, meta, unreadCount }: NotificationTable
         onPageChange={(p) => pushParams({ page: p })}
         onPageSizeChange={(ps) => pushParams({ pageSize: ps, page: 1 })}
         searchable={false}
+        onRowClick={handleRowClick}
         sort={sort}
         onSortChange={(s) => pushParams({ sort: `${s.field}:${s.direction}`, page: 1 })}
         sortableColumns={SORTABLE_COLUMNS}
       />
+
+      <NotificationDetailDialog open={!!detail} onOpenChange={(open) => !open && setDetail(null)} notification={detail} />
     </>
   )
 }

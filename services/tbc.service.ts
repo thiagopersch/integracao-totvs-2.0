@@ -124,7 +124,10 @@ export const tbcService = {
    * this is the single place that enforces that and hands back live SOAP credentials.
    */
   async getCredentialsForRequest(id: string, organizationId: string): Promise<TbcCredentials> {
-    const tbc = await prisma.tbc.findFirst({ where: { id, organizationId, deletedAt: null } });
+    const tbc = await prisma.tbc.findFirst({
+      where: { id, organizationId, deletedAt: null },
+      include: { client: { select: { id: true, name: true } } },
+    });
     if (!tbc) {
       throw new Error("TBC não encontrado. Cadastre e selecione um TBC válido antes de executar a requisição.");
     }
@@ -133,10 +136,13 @@ export const tbcService = {
     }
     return {
       id: tbc.id,
+      name: tbc.name,
       link: tbc.link,
       user: tbc.user,
       password: tbc.password,
       notRequiredLicense: tbc.notRequiredLicense,
+      clientId: tbc.client.id,
+      clientName: tbc.client.name,
     };
   },
 };

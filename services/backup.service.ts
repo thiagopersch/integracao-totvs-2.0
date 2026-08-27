@@ -7,6 +7,7 @@ import { computeNextRunAt } from "@/lib/backup-schedule";
 import { auditService } from "@/services/audit.service";
 import { notificationService } from "@/services/notification.service";
 import { buildBackupRunFailedNotification } from "@/lib/notification-types";
+import { classifyError } from "@/lib/error-kind";
 import { fetchSentencesForFilter, restoreSentenceToTbc } from "@/services/rm-sentence.service";
 import { soapService, type WsName } from "@/services/soap.service";
 import { soapEndpointService } from "@/services/soap-endpoint.service";
@@ -89,7 +90,7 @@ export const backupService = {
   ) {
     const filter = await prisma.filter.findFirst({
       where: { id: filterId, organizationId },
-      include: { tbc: true },
+      include: { tbc: true, client: { select: { id: true, name: true } } },
     });
     if (!filter) throw new Error("Filtro não encontrado");
 
@@ -106,10 +107,13 @@ export const backupService = {
       await soapService.authenticate(
         {
           id: filter.tbc.id,
+          name: filter.tbc.name,
           link: filter.tbc.link,
           user: filter.tbc.user,
           password: filter.tbc.password,
           notRequiredLicense: filter.tbc.notRequiredLicense,
+          clientId: filter.client.id,
+          clientName: filter.client.name,
         },
         dataserverType.suffix as WsName,
         organizationId,
@@ -180,6 +184,9 @@ export const backupService = {
         filterLabel: filter.filter,
         tbcName: filter.tbc.name,
         errorMessage,
+        clientId: filter.client.id,
+        clientName: filter.client.name,
+        errorKind: classifyError(error),
       });
       await notificationService.broadcastToOrganization(organizationId, notification, executedByUserId);
 

@@ -2,6 +2,12 @@
 
 import axios from "axios";
 import { requirePermission } from "@/lib/rbac";
+import { notificationService } from "@/services/notification.service";
+import { buildIntegrationTestFailedNotification } from "@/lib/notification-types";
+import { classifyError } from "@/lib/error-kind";
+import { prisma } from "@/lib/prisma";
+import { redactObject } from "@/lib/redact";
+import type { Prisma } from "@prisma/client";
 
 const CIELO_URLS = {
   sandbox: "https://apisandbox.cieloecommerce.cielo.com.br/1/sales",
@@ -44,7 +50,7 @@ export interface CieloPaymentInput {
 }
 
 export async function testCieloPayment(input: CieloPaymentInput) {
-  await requirePermission("integrations", "execute");
+  const { organizationId, userId } = await requirePermission("integrations", "execute");
 
   const url = CIELO_URLS[input.environment];
 
@@ -96,6 +102,17 @@ export async function testCieloPayment(input: CieloPaymentInput) {
     },
   };
 
+  // Never persist the full card body — only a safe summary (last 4 digits, no CVV/full PAN/merchant key).
+  const requestSummary = {
+    merchantOrderId: input.merchantOrderId,
+    environment: input.environment,
+    amount: input.amount,
+    installments: input.installments,
+    brand: input.brand,
+    cardLast4: input.cardNumber.slice(-4),
+  };
+  const startTime = Date.now();
+
   try {
     const res = await axios.post(url, body, {
       headers: {
@@ -106,9 +123,46 @@ export async function testCieloPayment(input: CieloPaymentInput) {
       validateStatus: () => true,
       timeout: 30_000,
     });
+    const duration = Date.now() - startTime;
+    const failed = res.status >= 400;
+
+    await prisma.apiLog.create({
+      data: {
+        organizationId,
+        userId,
+        integration: "CIELO",
+        url,
+        httpMethod: "POST",
+        httpStatus: res.status,
+        duration,
+        error: failed ? `HTTP ${res.status}` : undefined,
+        requestSummary: requestSummary as Prisma.InputJsonValue,
+        responseSummary: (typeof res.data === "object" && res.data !== null ? redactObject(res.data as Record<string, unknown>) : { raw: String(res.data).slice(0, 500) }) as Prisma.InputJsonValue,
+      },
+    });
+
+    if (failed) {
+      const notification = buildIntegrationTestFailedNotification({
+        integration: "Cielo",
+        errorMessage: `HTTP ${res.status}`,
+        errorKind: res.status === 401 ? "auth" : "http",
+        url,
+      });
+      await notificationService.create({ organizationId, userId, ...notification });
+    }
 
     return { success: true, url, httpStatus: res.status, data: res.data };
   } catch (error) {
-    return { success: false, url, error: (error as Error).message };
+    const duration = Date.now() - startTime;
+    const errorMessage = (error as Error).message;
+
+    await prisma.apiLog.create({
+      data: { organizationId, userId, integration: "CIELO", url, httpMethod: "POST", duration, error: errorMessage, requestSummary },
+    });
+
+    const notification = buildIntegrationTestFailedNotification({ integration: "Cielo", errorMessage, errorKind: classifyError(error), url });
+    await notificationService.create({ organizationId, userId, ...notification });
+
+    return { success: false, url, error: errorMessage };
   }
 }

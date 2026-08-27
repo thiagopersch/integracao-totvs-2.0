@@ -27,6 +27,27 @@ export function formatDate(date: Date | string): string {
   }).format(new Date(date));
 }
 
+const relativeTimeFormatter = new Intl.RelativeTimeFormat("pt-BR", { numeric: "auto" });
+
+const RELATIVE_TIME_UNITS: { unit: Intl.RelativeTimeFormatUnit; seconds: number }[] = [
+  { unit: "year", seconds: 31536000 },
+  { unit: "month", seconds: 2592000 },
+  { unit: "day", seconds: 86400 },
+  { unit: "hour", seconds: 3600 },
+  { unit: "minute", seconds: 60 },
+];
+
+/** "há 5 minutos" / "há 2 dias" style relative timestamp — falls back to "agora" under a minute. */
+export function formatRelativeTime(date: Date | string): string {
+  const diffSeconds = (new Date(date).getTime() - Date.now()) / 1000;
+  for (const { unit, seconds } of RELATIVE_TIME_UNITS) {
+    if (Math.abs(diffSeconds) >= seconds) {
+      return relativeTimeFormatter.format(Math.round(diffSeconds / seconds), unit);
+    }
+  }
+  return "agora";
+}
+
 export function formatDateShort(date: Date | string): string {
   return new Intl.DateTimeFormat("pt-BR", {
     dateStyle: "short",

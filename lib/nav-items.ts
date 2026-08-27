@@ -72,6 +72,7 @@ export const navGroups: NavGroup[] = [
       { href: "/admin/users", label: "Usuários", icon: "Users", resource: "users" },
       { href: "/admin/roles", label: "Papéis e Permissões", icon: "ShieldCheck", resource: "roles" },
       { href: "/admin/deletion-logs", label: "Logs de Exclusão", icon: "AlertTriangle", resource: "deletion_logs" },
+      { href: "/admin/activity", label: "Rastreamento de Atividades", icon: "Activity", resource: "activity_logs" },
     ],
   },
   {

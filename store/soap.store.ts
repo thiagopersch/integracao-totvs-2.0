@@ -21,6 +21,8 @@ interface SoapBuilderState {
   selectedSistemaId: string
   selectedClientId: string
   selectedTbcId: string
+  selectedDataserverId: string
+  selectedProcessId: string
   xmlContent: string
   jsonContent: string
   activeTab: string
@@ -33,6 +35,8 @@ interface SoapBuilderState {
   setSelectedSistemaId: (id: string) => void
   setSelectedClientId: (id: string) => void
   setSelectedTbcId: (id: string) => void
+  setSelectedDataserverId: (id: string) => void
+  setSelectedProcessId: (id: string) => void
   setXmlContent: (xml: string) => void
   setJsonContent: (json: string) => void
   setActiveTab: (tab: string) => void
@@ -49,6 +53,8 @@ const initialState = {
   selectedSistemaId: "",
   selectedClientId: "",
   selectedTbcId: "",
+  selectedDataserverId: "",
+  selectedProcessId: "",
   xmlContent: "<GetSchema />",
   jsonContent: "{}",
   activeTab: "xml",
@@ -71,6 +77,8 @@ export const useSoapStore = create<SoapBuilderState>((set) => ({
   setSelectedSistemaId: (selectedSistemaId) => set({ selectedSistemaId }),
   setSelectedClientId: (selectedClientId) => set({ selectedClientId }),
   setSelectedTbcId: (selectedTbcId) => set({ selectedTbcId }),
+  setSelectedDataserverId: (selectedDataserverId) => set({ selectedDataserverId }),
+  setSelectedProcessId: (selectedProcessId) => set({ selectedProcessId }),
   setXmlContent: (xmlContent) => set({ xmlContent }),
   setJsonContent: (jsonContent) => set({ jsonContent }),
   setActiveTab: (activeTab) => set({ activeTab }),

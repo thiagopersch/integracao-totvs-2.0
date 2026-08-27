@@ -5,6 +5,7 @@ import { processService } from "@/services/process.service";
 import { auditService } from "@/services/audit.service";
 import { createProcessSchema, updateProcessSchema } from "@/schemas/process.schema";
 import { requirePermission } from "@/lib/rbac";
+import { getRequestContext } from "@/lib/tenant";
 import { formatBlockingReferences } from "@/lib/entity-relations";
 import type { ListParams } from "@/types/common";
 
@@ -12,6 +13,11 @@ export async function listProcesses(params: ListParams, organizationId: string) 
   "use cache";
   cacheTag("processes");
   return processService.list(params, organizationId);
+}
+
+export async function listAllProcesses() {
+  const { organizationId } = await getRequestContext();
+  return processService.listAll(organizationId);
 }
 
 export async function getProcessById(id: string, organizationId: string) {

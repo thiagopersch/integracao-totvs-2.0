@@ -16,6 +16,13 @@ export const dataserverService = {
     return dataserverRepository.findAll(params, organizationId);
   },
 
+  async listAll(organizationId: string) {
+    return prisma.dataserver.findMany({
+      where: { organizationId, deletedAt: null },
+      orderBy: { name: "asc" },
+    });
+  },
+
   async getById(id: string, organizationId: string) {
     return dataserverRepository.findById(id, organizationId);
   },

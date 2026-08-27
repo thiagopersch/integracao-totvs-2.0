@@ -138,77 +138,265 @@ async function main() {
   // ---------------------------------------------------------------------
   await prisma.dataserver.createMany({
     data: [
-      { organizationId: orgId, code: "REST", name: "Dataserver REST", nameAlternative: "REST API" },
-      { organizationId: orgId, code: "RM", name: "Dataserver RM", nameAlternative: "RM Principal" },
-      { organizationId: orgId, code: "RMTHOMAS", name: "Dataserver RM Thomas", nameAlternative: "RM Thomas" },
-      { organizationId: orgId, code: "RMGPE", name: "Dataserver RM GPE", nameAlternative: "RM GPE" },
-      { organizationId: orgId, code: "RMAD", name: "Dataserver RM AD", nameAlternative: "RM Administrativo" },
-      { organizationId: orgId, code: "RMCDC", name: "Dataserver RM CDC", nameAlternative: "RM CDC" },
-      // Catálogo de dataservers reais do TOTVS RM (Educacional, Financeiro, Global, RH, CRM)
-      { organizationId: orgId, code: "CRMAtendimentoArquivosAnexosData", name: "Anexos de Atendimento CRM", nameAlternative: "CRMAtendimentoArquivosAnexos" },
-      { organizationId: orgId, code: "CRMAtendimentoExtData", name: "Atendimento CRM (Extensão)", nameAlternative: "CRMAtendimentoExt" },
-      { organizationId: orgId, code: "CstDiversidadeInclusaoAnexoData", name: "Anexo de Diversidade e Inclusão", nameAlternative: "CstDiversidadeInclusaoAnexo" },
+      {
+        organizationId: orgId,
+        code: "CRMAtendimentoArquivosAnexosData",
+        name: "Anexos de Atendimento CRM",
+        nameAlternative: "CRMAtendimentoArquivosAnexos",
+      },
+      {
+        organizationId: orgId,
+        code: "CRMAtendimentoExtData",
+        name: "Atendimento CRM (Extensão)",
+        nameAlternative: "CRMAtendimentoExt",
+      },
+      {
+        organizationId: orgId,
+        code: "CstDiversidadeInclusaoAnexoData",
+        name: "Anexo de Diversidade e Inclusão",
+        nameAlternative: "CstDiversidadeInclusaoAnexo",
+      },
       { organizationId: orgId, code: "EduAlunoData", name: "Aluno (Educacional)", nameAlternative: "EduAluno" },
       { organizationId: orgId, code: "EduBolsaAlunoData", name: "Bolsa do Aluno", nameAlternative: "EduBolsaAluno" },
       { organizationId: orgId, code: "EduContratoData", name: "Contrato Educacional", nameAlternative: "EduContrato" },
       { organizationId: orgId, code: "EduDocAlunoData", name: "Documento do Aluno", nameAlternative: "EduDocAluno" },
       { organizationId: orgId, code: "EduDocFiadorData", name: "Documento do Fiador", nameAlternative: "EduDocFiador" },
       { organizationId: orgId, code: "EduFiadorData", name: "Fiador", nameAlternative: "EduFiador" },
-      { organizationId: orgId, code: "EduFichaMedicaAlunoData", name: "Ficha Médica do Aluno", nameAlternative: "EduFichaMedicaAluno" },
-      { organizationId: orgId, code: "EduHabilitacaoAlunoData", name: "Habilitação do Aluno", nameAlternative: "EduHabilitacaoAluno" },
-      { organizationId: orgId, code: "EduHistDiscFacData", name: "Histórico de Disciplina/Faculdade", nameAlternative: "EduHistDiscFac" },
-      { organizationId: orgId, code: "EduHistDiscFacExtData", name: "Histórico de Disciplina/Faculdade (Extensão)", nameAlternative: "EduHistDiscFacExt" },
-      { organizationId: orgId, code: "EduInscAlunoAtvOfertadaData", name: "Inscrição do Aluno em Atividade Ofertada", nameAlternative: "EduInscAlunoAtvOfertada" },
-      { organizationId: orgId, code: "EduMatricPLData", name: "Matrícula (Plano de Ensino)", nameAlternative: "EduMatricPL" },
+      {
+        organizationId: orgId,
+        code: "EduFichaMedicaAlunoData",
+        name: "Ficha Médica do Aluno",
+        nameAlternative: "EduFichaMedicaAluno",
+      },
+      {
+        organizationId: orgId,
+        code: "EduHabilitacaoAlunoData",
+        name: "Habilitação do Aluno",
+        nameAlternative: "EduHabilitacaoAluno",
+      },
+      {
+        organizationId: orgId,
+        code: "EduHistDiscFacData",
+        name: "Histórico de Disciplina/Faculdade",
+        nameAlternative: "EduHistDiscFac",
+      },
+      {
+        organizationId: orgId,
+        code: "EduHistDiscFacExtData",
+        name: "Histórico de Disciplina/Faculdade (Extensão)",
+        nameAlternative: "EduHistDiscFacExt",
+      },
+      {
+        organizationId: orgId,
+        code: "EduInscAlunoAtvOfertadaData",
+        name: "Inscrição do Aluno em Atividade Ofertada",
+        nameAlternative: "EduInscAlunoAtvOfertada",
+      },
+      {
+        organizationId: orgId,
+        code: "EduMatricPLData",
+        name: "Matrícula (Plano de Ensino)",
+        nameAlternative: "EduMatricPL",
+      },
       { organizationId: orgId, code: "EduParcelaData", name: "Parcela Educacional", nameAlternative: "EduParcela" },
-      { organizationId: orgId, code: "EduPSDocumentoEntregueData", name: "Documento Entregue (Processo Seletivo)", nameAlternative: "EduPSDocumentoEntregue" },
-      { organizationId: orgId, code: "EduPSInscricaoAreaOfertadaData", name: "Inscrição em Área Ofertada (PS)", nameAlternative: "EduPSInscricaoAreaOfertada" },
-      { organizationId: orgId, code: "EduPSInscricaoUsuarioAreaData", name: "Inscrição de Usuário por Área (PS)", nameAlternative: "EduPSInscricaoUsuarioArea" },
-      { organizationId: orgId, code: "EduPSLocalEtapaInscritoData", name: "Local de Etapa do Inscrito (PS)", nameAlternative: "EduPSLocalEtapaInscrito" },
-      { organizationId: orgId, code: "EduPSRecursoData", name: "Recurso (Processo Seletivo)", nameAlternative: "EduPSRecurso" },
-      { organizationId: orgId, code: "EduPSUsuarioData", name: "Usuário (Processo Seletivo)", nameAlternative: "EduPSUsuario" },
-      { organizationId: orgId, code: "EduPSUsuarioTipoRelacData", name: "Tipo de Relacionamento do Usuário (PS)", nameAlternative: "EduPSUsuarioTipoRelac" },
-      { organizationId: orgId, code: "EduResponsavelAlunoData", name: "Responsável pelo Aluno", nameAlternative: "EduResponsavelAluno" },
+      {
+        organizationId: orgId,
+        code: "EduPSDocumentoEntregueData",
+        name: "Documento Entregue (Processo Seletivo)",
+        nameAlternative: "EduPSDocumentoEntregue",
+      },
+      {
+        organizationId: orgId,
+        code: "EduPSInscricaoAreaOfertadaData",
+        name: "Inscrição em Área Ofertada (PS)",
+        nameAlternative: "EduPSInscricaoAreaOfertada",
+      },
+      {
+        organizationId: orgId,
+        code: "EduPSInscricaoUsuarioAreaData",
+        name: "Inscrição de Usuário por Área (PS)",
+        nameAlternative: "EduPSInscricaoUsuarioArea",
+      },
+      {
+        organizationId: orgId,
+        code: "EduPSLocalEtapaInscritoData",
+        name: "Local de Etapa do Inscrito (PS)",
+        nameAlternative: "EduPSLocalEtapaInscrito",
+      },
+      {
+        organizationId: orgId,
+        code: "EduPSRecursoData",
+        name: "Recurso (Processo Seletivo)",
+        nameAlternative: "EduPSRecurso",
+      },
+      {
+        organizationId: orgId,
+        code: "EduPSUsuarioData",
+        name: "Usuário (Processo Seletivo)",
+        nameAlternative: "EduPSUsuario",
+      },
+      {
+        organizationId: orgId,
+        code: "EduPSUsuarioTipoRelacData",
+        name: "Tipo de Relacionamento do Usuário (PS)",
+        nameAlternative: "EduPSUsuarioTipoRelac",
+      },
+      {
+        organizationId: orgId,
+        code: "EduResponsavelAlunoData",
+        name: "Responsável pelo Aluno",
+        nameAlternative: "EduResponsavelAluno",
+      },
       { organizationId: orgId, code: "EduTCCBancaData", name: "Banca de TCC", nameAlternative: "EduTCCBanca" },
       { organizationId: orgId, code: "EduTCCData", name: "TCC", nameAlternative: "EduTCC" },
-      { organizationId: orgId, code: "EduTCCMatAlunoData", name: "Matrícula do Aluno em TCC", nameAlternative: "EduTCCMatAluno" },
-      { organizationId: orgId, code: "EduTCCOrientadorData", name: "Orientador de TCC", nameAlternative: "EduTCCOrientador" },
-      { organizationId: orgId, code: "EduTCCParticipantesBancaData", name: "Participantes da Banca de TCC", nameAlternative: "EduTCCParticipantesBanca" },
+      {
+        organizationId: orgId,
+        code: "EduTCCMatAlunoData",
+        name: "Matrícula do Aluno em TCC",
+        nameAlternative: "EduTCCMatAluno",
+      },
+      {
+        organizationId: orgId,
+        code: "EduTCCOrientadorData",
+        name: "Orientador de TCC",
+        nameAlternative: "EduTCCOrientador",
+      },
+      {
+        organizationId: orgId,
+        code: "EduTCCParticipantesBancaData",
+        name: "Participantes da Banca de TCC",
+        nameAlternative: "EduTCCParticipantesBanca",
+      },
       { organizationId: orgId, code: "EduCampusData", name: "Campus", nameAlternative: "EduCampus" },
       { organizationId: orgId, code: "EduCursoData", name: "Curso", nameAlternative: "EduCurso" },
       { organizationId: orgId, code: "EduGradeData", name: "Grade Curricular", nameAlternative: "EduGrade" },
-      { organizationId: orgId, code: "EduGradeAlunoData", name: "Grade Curricular do Aluno", nameAlternative: "EduGradeAluno" },
+      {
+        organizationId: orgId,
+        code: "EduGradeAlunoData",
+        name: "Grade Curricular do Aluno",
+        nameAlternative: "EduGradeAluno",
+      },
       { organizationId: orgId, code: "EduTipoCursoData", name: "Tipo de Curso", nameAlternative: "EduTipoCurso" },
-      { organizationId: orgId, code: "EduHabilitacaoFilialCampusData", name: "Habilitação por Filial/Campus", nameAlternative: "EduHabilitacaoFilialCampus" },
+      {
+        organizationId: orgId,
+        code: "EduHabilitacaoFilialCampusData",
+        name: "Habilitação por Filial/Campus",
+        nameAlternative: "EduHabilitacaoFilialCampus",
+      },
       { organizationId: orgId, code: "EduDisciplinaData", name: "Disciplina", nameAlternative: "EduDisciplina" },
       { organizationId: orgId, code: "EduPLetivoData", name: "Período Letivo", nameAlternative: "EduPLetivo" },
       { organizationId: orgId, code: "EduTurnoData", name: "Turno", nameAlternative: "EduTurno" },
-      { organizationId: orgId, code: "EduDocExigidosData", name: "Documentos Exigidos", nameAlternative: "EduDocExigidos" },
-      { organizationId: orgId, code: "EduDocumentosExigidosFiadorData", name: "Documentos Exigidos do Fiador", nameAlternative: "EduDocumentosExigidosFiador" },
-      { organizationId: orgId, code: "EduParcPlanoData", name: "Plano de Parcelamento", nameAlternative: "EduParcPlano" },
-      { organizationId: orgId, code: "EduPSAtividadeAgendadaData", name: "Atividade Agendada (PS)", nameAlternative: "EduPSAtividadeAgendada" },
-      { organizationId: orgId, code: "EduPSCampusData", name: "Campus (Processo Seletivo)", nameAlternative: "EduPSCampus" },
-      { organizationId: orgId, code: "EduPSCategoriaProcSelData", name: "Categoria do Processo Seletivo", nameAlternative: "EduPSCategoriaProcSel" },
-      { organizationId: orgId, code: "EduPSFormaInscricaoPSData", name: "Forma de Inscrição (PS)", nameAlternative: "EduPSFormaInscricaoPS" },
-      { organizationId: orgId, code: "EduPSPredioData", name: "Prédio (Processo Seletivo)", nameAlternative: "EduPSPredio" },
-      { organizationId: orgId, code: "EduPSProcessoSeletivoData", name: "Processo Seletivo", nameAlternative: "EduPSProcessoSeletivo" },
+      {
+        organizationId: orgId,
+        code: "EduDocExigidosData",
+        name: "Documentos Exigidos",
+        nameAlternative: "EduDocExigidos",
+      },
+      {
+        organizationId: orgId,
+        code: "EduDocumentosExigidosFiadorData",
+        name: "Documentos Exigidos do Fiador",
+        nameAlternative: "EduDocumentosExigidosFiador",
+      },
+      {
+        organizationId: orgId,
+        code: "EduParcPlanoData",
+        name: "Plano de Parcelamento",
+        nameAlternative: "EduParcPlano",
+      },
+      {
+        organizationId: orgId,
+        code: "EduPSAtividadeAgendadaData",
+        name: "Atividade Agendada (PS)",
+        nameAlternative: "EduPSAtividadeAgendada",
+      },
+      {
+        organizationId: orgId,
+        code: "EduPSCampusData",
+        name: "Campus (Processo Seletivo)",
+        nameAlternative: "EduPSCampus",
+      },
+      {
+        organizationId: orgId,
+        code: "EduPSCategoriaProcSelData",
+        name: "Categoria do Processo Seletivo",
+        nameAlternative: "EduPSCategoriaProcSel",
+      },
+      {
+        organizationId: orgId,
+        code: "EduPSFormaInscricaoPSData",
+        name: "Forma de Inscrição (PS)",
+        nameAlternative: "EduPSFormaInscricaoPS",
+      },
+      {
+        organizationId: orgId,
+        code: "EduPSPredioData",
+        name: "Prédio (Processo Seletivo)",
+        nameAlternative: "EduPSPredio",
+      },
+      {
+        organizationId: orgId,
+        code: "EduPSProcessoSeletivoData",
+        name: "Processo Seletivo",
+        nameAlternative: "EduPSProcessoSeletivo",
+      },
       { organizationId: orgId, code: "Recurso", name: "Recurso" },
-      { organizationId: orgId, code: "EduPSAgendamentosData", name: "Agendamentos (Processo Seletivo)", nameAlternative: "EduPSAgendamentos" },
-      { organizationId: orgId, code: "EduPSAreaInteresseData", name: "Área de Interesse (PS)", nameAlternative: "EduPSAreaInteresse" },
-      { organizationId: orgId, code: "EduPSConcursoBolsaData", name: "Concurso de Bolsa (PS)", nameAlternative: "EduPSConcursoBolsa" },
+      {
+        organizationId: orgId,
+        code: "EduPSAgendamentosData",
+        name: "Agendamentos (Processo Seletivo)",
+        nameAlternative: "EduPSAgendamentos",
+      },
+      {
+        organizationId: orgId,
+        code: "EduPSAreaInteresseData",
+        name: "Área de Interesse (PS)",
+        nameAlternative: "EduPSAreaInteresse",
+      },
+      {
+        organizationId: orgId,
+        code: "EduPSConcursoBolsaData",
+        name: "Concurso de Bolsa (PS)",
+        nameAlternative: "EduPSConcursoBolsa",
+      },
       { organizationId: orgId, code: "RptReportsData", name: "Relatórios (RPT)", nameAlternative: "RptReports" },
-      { organizationId: orgId, code: "FinCFOContatoDataBR", name: "Contato do CFO (BR)", nameAlternative: "FinCFOContatoBR" },
+      {
+        organizationId: orgId,
+        code: "FinCFOContatoDataBR",
+        name: "Contato do CFO (BR)",
+        nameAlternative: "FinCFOContatoBR",
+      },
       { organizationId: orgId, code: "FinCFODataBR", name: "CFO (BR)", nameAlternative: "FinCFOBR" },
       { organizationId: orgId, code: "FinLanDataBR", name: "Lançamento Financeiro (BR)", nameAlternative: "FinLanBR" },
       { organizationId: orgId, code: "GlbConsSQLData", name: "Consulta SQL (Global)", nameAlternative: "GlbConsSQL" },
       { organizationId: orgId, code: "GlbWorkflowData", name: "Workflow (Global)", nameAlternative: "GlbWorkflow" },
       { organizationId: orgId, code: "GlbUsuarioData", name: "Usuário (Global)", nameAlternative: "GlbUsuario" },
       { organizationId: orgId, code: "GlbPerfilData", name: "Perfil (Global)", nameAlternative: "GlbPerfil" },
-      { organizationId: orgId, code: "GlbAtributoTipoData", name: "Tipo de Atributo (Global)", nameAlternative: "GlbAtributoTipo" },
+      {
+        organizationId: orgId,
+        code: "GlbAtributoTipoData",
+        name: "Tipo de Atributo (Global)",
+        nameAlternative: "GlbAtributoTipo",
+      },
       { organizationId: orgId, code: "GlbTabelaData", name: "Tabela (Global)", nameAlternative: "GlbTabela" },
-      { organizationId: orgId, code: "GlbRelacionamentoData", name: "Relacionamento (Global)", nameAlternative: "GlbRelacionamento" },
-      { organizationId: orgId, code: "GlbMdNegocioData", name: "Modelo de Negócio (Global)", nameAlternative: "GlbMdNegocio" },
-      { organizationId: orgId, code: "GlbApresentacaoData", name: "Apresentação (Global)", nameAlternative: "GlbApresentacao" },
+      {
+        organizationId: orgId,
+        code: "GlbRelacionamentoData",
+        name: "Relacionamento (Global)",
+        nameAlternative: "GlbRelacionamento",
+      },
+      {
+        organizationId: orgId,
+        code: "GlbMdNegocioData",
+        name: "Modelo de Negócio (Global)",
+        nameAlternative: "GlbMdNegocio",
+      },
+      {
+        organizationId: orgId,
+        code: "GlbApresentacaoData",
+        name: "Apresentação (Global)",
+        nameAlternative: "GlbApresentacao",
+      },
       { organizationId: orgId, code: "GlbProjetoData", name: "Projeto (Global)", nameAlternative: "GlbProjeto" },
       { organizationId: orgId, code: "RhuFiliacaoData", name: "Filiação (RH)", nameAlternative: "RhuFiliacao" },
       { organizationId: orgId, code: "RhuPessoaData", name: "Pessoa (RH)", nameAlternative: "RhuPessoa" },
@@ -221,50 +409,148 @@ async function main() {
     data: [
       {
         organizationId: orgId,
-        code: "INTEGRACAO_CLIENTE",
-        name: "Integração de Cliente",
-        nameAlternative: "Sync Cliente",
+        code: "EduAtendAlunoData",
+        name: "Atendimento ao Aluno",
+        nameAlternative: "EduAtendAluno",
       },
       {
         organizationId: orgId,
-        code: "INTEGRACAO_CONTRATO",
-        name: "Integração de Contrato",
-        nameAlternative: "Sync Contrato",
+        code: "EduAtualizaRespFinData",
+        name: "Atualização de Responsável Financeiro",
+        nameAlternative: "EduAtualizaRespFin",
       },
       {
         organizationId: orgId,
-        code: "INTEGRACAO_FINANCEIRO",
-        name: "Integração Financeira",
-        nameAlternative: "Sync Financeiro",
+        code: "EduGerarLancFromParcelaData",
+        name: "Gerar Lançamento a partir de Parcela",
+        nameAlternative: "EduGerarLancFromParcela",
       },
-      { organizationId: orgId, code: "CONSULTA_ALUNO", name: "Consulta de Aluno", nameAlternative: "Query Aluno" },
-      { organizationId: orgId, code: "CONSULTA_TURMA", name: "Consulta de Turma", nameAlternative: "Query Turma" },
-      { organizationId: orgId, code: "LANCAMENTO_NOTA", name: "Lançamento de Nota", nameAlternative: "Nota Aluno" },
-      // Catálogo de processos reais do TOTVS RM (Educacional, Financeiro, Global)
-      { organizationId: orgId, code: "EduAtendAlunoData", name: "Atendimento ao Aluno", nameAlternative: "EduAtendAluno" },
-      { organizationId: orgId, code: "EduAtualizaRespFinData", name: "Atualização de Responsável Financeiro", nameAlternative: "EduAtualizaRespFin" },
-      { organizationId: orgId, code: "EduGerarLancFromParcelaData", name: "Gerar Lançamento a partir de Parcela", nameAlternative: "EduGerarLancFromParcela" },
-      { organizationId: orgId, code: "EduMatricAprovadosPSData", name: "Matrícula de Aprovados (Processo Seletivo)", nameAlternative: "EduMatricAprovadosPS" },
-      { organizationId: orgId, code: "EduMatricProcData", name: "Processo de Matrícula", nameAlternative: "EduMatricProc" },
-      { organizationId: orgId, code: "EduMudancaStatusData", name: "Mudança de Status", nameAlternative: "EduMudancaStatus" },
-      { organizationId: orgId, code: "EduPSAlteraFormalInscricaoData", name: "Altera Formalização de Inscrição (PS)", nameAlternative: "EduPSAlteraFormalInscricao" },
-      { organizationId: orgId, code: "EduPSAlteraStatusOpcaoData", name: "Altera Status de Opção (PS)", nameAlternative: "EduPSAlteraStatusOpcao" },
-      { organizationId: orgId, code: "EduPSCancelaDistribuicaoCadernoProvaData", name: "Cancela Distribuição de Caderno de Prova (PS)", nameAlternative: "EduPSCancelaDistribuicaoCadernoProva" },
-      { organizationId: orgId, code: "EduPSCancelaInscricaoData", name: "Cancela Inscrição (PS)", nameAlternative: "EduPSCancelaInscricao" },
-      { organizationId: orgId, code: "EduPSChamadaCandidatosData", name: "Chamada de Candidatos (PS)", nameAlternative: "EduPSChamadaCandidatos" },
-      { organizationId: orgId, code: "EduPSClassificaCandidatosData", name: "Classifica Candidatos (PS)", nameAlternative: "EduPSClassificaCandidatos" },
-      { organizationId: orgId, code: "EduPSConfirmaInscricaoData", name: "Confirma Inscrição (PS)", nameAlternative: "EduPSConfirmaInscricao" },
-      { organizationId: orgId, code: "EduPSDistribuicaoCadernoProvaData", name: "Distribuição de Caderno de Prova (PS)", nameAlternative: "EduPSDistribuicaoCadernoProva" },
-      { organizationId: orgId, code: "EduTotvsSignContratoSliceableProcData", name: "Assinatura de Contrato via TOTVS Sign", nameAlternative: "EduTotvsSignContratoSliceableProc" },
-      { organizationId: orgId, code: "FinAcordoGeracaoProcData", name: "Geração de Acordo Financeiro", nameAlternative: "FinAcordoGeracaoProc" },
-      { organizationId: orgId, code: "FinBoletoCancelamentoData", name: "Cancelamento de Boleto", nameAlternative: "FinBoletoCancelamento" },
-      { organizationId: orgId, code: "FinBoletoInclusaoData", name: "Inclusão de Boleto", nameAlternative: "FinBoletoInclusao" },
-      { organizationId: orgId, code: "FinBoletoRegistroOnLineDataProc", name: "Registro Online de Boleto", nameAlternative: "FinBoletoRegistroOnLine" },
-      { organizationId: orgId, code: "FinCancelamentoRemessaBoletoDataProcess", name: "Cancelamento de Remessa de Boleto", nameAlternative: "FinCancelamentoRemessaBoleto" },
-      { organizationId: orgId, code: "FinGeraCliForPessoaServer", name: "Geração de Cliente/Fornecedor a partir de Pessoa", nameAlternative: "FinGeraCliForPessoa" },
-      { organizationId: orgId, code: "FinLanBaixaTBCData", name: "Baixa de Lançamento (TBC)", nameAlternative: "FinLanBaixaTBC" },
-      { organizationId: orgId, code: "FinLanCancelamentoData", name: "Cancelamento de Lançamento", nameAlternative: "FinLanCancelamento" },
-      { organizationId: orgId, code: "GlbWorkflowExecProc", name: "Execução de Workflow", nameAlternative: "GlbWorkflowExec" },
+      {
+        organizationId: orgId,
+        code: "EduMatricAprovadosPSData",
+        name: "Matrícula de Aprovados (Processo Seletivo)",
+        nameAlternative: "EduMatricAprovadosPS",
+      },
+      {
+        organizationId: orgId,
+        code: "EduMatricProcData",
+        name: "Processo de Matrícula",
+        nameAlternative: "EduMatricProc",
+      },
+      {
+        organizationId: orgId,
+        code: "EduMudancaStatusData",
+        name: "Mudança de Status",
+        nameAlternative: "EduMudancaStatus",
+      },
+      {
+        organizationId: orgId,
+        code: "EduPSAlteraFormalInscricaoData",
+        name: "Altera Formalização de Inscrição (PS)",
+        nameAlternative: "EduPSAlteraFormalInscricao",
+      },
+      {
+        organizationId: orgId,
+        code: "EduPSAlteraStatusOpcaoData",
+        name: "Altera Status de Opção (PS)",
+        nameAlternative: "EduPSAlteraStatusOpcao",
+      },
+      {
+        organizationId: orgId,
+        code: "EduPSCancelaDistribuicaoCadernoProvaData",
+        name: "Cancela Distribuição de Caderno de Prova (PS)",
+        nameAlternative: "EduPSCancelaDistribuicaoCadernoProva",
+      },
+      {
+        organizationId: orgId,
+        code: "EduPSCancelaInscricaoData",
+        name: "Cancela Inscrição (PS)",
+        nameAlternative: "EduPSCancelaInscricao",
+      },
+      {
+        organizationId: orgId,
+        code: "EduPSChamadaCandidatosData",
+        name: "Chamada de Candidatos (PS)",
+        nameAlternative: "EduPSChamadaCandidatos",
+      },
+      {
+        organizationId: orgId,
+        code: "EduPSClassificaCandidatosData",
+        name: "Classifica Candidatos (PS)",
+        nameAlternative: "EduPSClassificaCandidatos",
+      },
+      {
+        organizationId: orgId,
+        code: "EduPSConfirmaInscricaoData",
+        name: "Confirma Inscrição (PS)",
+        nameAlternative: "EduPSConfirmaInscricao",
+      },
+      {
+        organizationId: orgId,
+        code: "EduPSDistribuicaoCadernoProvaData",
+        name: "Distribuição de Caderno de Prova (PS)",
+        nameAlternative: "EduPSDistribuicaoCadernoProva",
+      },
+      {
+        organizationId: orgId,
+        code: "EduTotvsSignContratoSliceableProcData",
+        name: "Assinatura de Contrato via TOTVS Sign",
+        nameAlternative: "EduTotvsSignContratoSliceableProc",
+      },
+      {
+        organizationId: orgId,
+        code: "FinAcordoGeracaoProcData",
+        name: "Geração de Acordo Financeiro",
+        nameAlternative: "FinAcordoGeracaoProc",
+      },
+      {
+        organizationId: orgId,
+        code: "FinBoletoCancelamentoData",
+        name: "Cancelamento de Boleto",
+        nameAlternative: "FinBoletoCancelamento",
+      },
+      {
+        organizationId: orgId,
+        code: "FinBoletoInclusaoData",
+        name: "Inclusão de Boleto",
+        nameAlternative: "FinBoletoInclusao",
+      },
+      {
+        organizationId: orgId,
+        code: "FinBoletoRegistroOnLineDataProc",
+        name: "Registro Online de Boleto",
+        nameAlternative: "FinBoletoRegistroOnLine",
+      },
+      {
+        organizationId: orgId,
+        code: "FinCancelamentoRemessaBoletoDataProcess",
+        name: "Cancelamento de Remessa de Boleto",
+        nameAlternative: "FinCancelamentoRemessaBoleto",
+      },
+      {
+        organizationId: orgId,
+        code: "FinGeraCliForPessoaServer",
+        name: "Geração de Cliente/Fornecedor a partir de Pessoa",
+        nameAlternative: "FinGeraCliForPessoa",
+      },
+      {
+        organizationId: orgId,
+        code: "FinLanBaixaTBCData",
+        name: "Baixa de Lançamento (TBC)",
+        nameAlternative: "FinLanBaixaTBC",
+      },
+      {
+        organizationId: orgId,
+        code: "FinLanCancelamentoData",
+        name: "Cancelamento de Lançamento",
+        nameAlternative: "FinLanCancelamento",
+      },
+      {
+        organizationId: orgId,
+        code: "GlbWorkflowExecProc",
+        name: "Execução de Workflow",
+        nameAlternative: "GlbWorkflowExec",
+      },
     ],
   })
 
@@ -370,67 +656,12 @@ async function main() {
 
   console.log("✅ Filters seeded")
 
-  const filters = await prisma.filter.findMany()
-
-  for (const filter of filters) {
-    await prisma.backup.create({
-      data: {
-        organizationId: orgId,
-        tbcId: filter.tbcId,
-        filterId: filter.id,
-        branchSentence: "1",
-        codSystem: "S",
-        codeSentence: "BACKUP_PADRAO",
-        nameSentence: "Backup Padrão",
-        contentSentence: "<sentence><name>Backup Padrão</name><code>BACKUP_PADRAO</code></sentence>",
-      },
-    })
-  }
-
-  console.log("✅ Backups seeded")
-
-  const catMatricula = await prisma.sentenceCategory.create({
-    data: { organizationId: orgId, code: "CAPTACAO", name: "Captação", status: true },
-  })
-  const catFinanceiro = await prisma.sentenceCategory.create({
-    data: { organizationId: orgId, code: "FINANCEIRO", name: "Financeiro", status: true },
-  })
-  const catAcademico = await prisma.sentenceCategory.create({
-    data: { organizationId: orgId, code: "AVALIACAO", name: "Avaliação online", status: true },
-  })
-
-  console.log("✅ Sentence Categories seeded")
-
-  await prisma.sentence.createMany({
-    data: [
-      {
-        organizationId: orgId,
-        sentenceCategoryId: catMatricula.id,
-        code: "REALIZAR_MATRICULA",
-        name: "Realizar Matrícula",
-        codSystem: "SISTEMA_PADRAO",
-        status: true,
-      },
-      {
-        organizationId: orgId,
-        sentenceCategoryId: catFinanceiro.id,
-        code: "GERAR_BOLETO",
-        name: "Gerar Boleto",
-        codSystem: "SISTEMA_PADRAO",
-        status: true,
-      },
-      {
-        organizationId: orgId,
-        sentenceCategoryId: catAcademico.id,
-        code: "LANCAR_NOTA",
-        name: "Lançar Nota",
-        codSystem: "SISTEMA_PADRAO",
-        status: true,
-      },
-    ],
-  })
-
-  console.log("✅ Sentences seeded")
+  // Backups and Sentences are intentionally left empty here: a Backup row is a snapshot of a
+  // live TOTVS sentence pulled by the app's own "Realizar Backup" flow (see
+  // services/rm-sentence.service.ts / services/backup.service.ts), scoped strictly to its
+  // filterId — not test/placeholder data. Seeding a fake "BACKUP_PADRAO" row per filter here
+  // used to make every filter's backup list start non-empty with data no real backup run ever
+  // produced; removed so each filter's list only ever shows what its own backup runs fetched.
 
   await prisma.appConfig.createMany({
     data: [
@@ -500,42 +731,7 @@ async function main() {
       { method: "AUTENTICAACESSO", label: "Autentica acesso", sortOrder: 0 },
       { method: "CHECKSERVICEACTIVITY", label: "Verifica atividade do serviço", sortOrder: 1 },
       { method: "GETPARAMETERS", label: "Busca todo o esquema", sortOrder: 2 },
-      /*
-        O getParameters tem o formato no soap:
-        <soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:tot="http://www.totvs.com/">
-          <soapenv:Header/>
-          <soapenv:Body>
-              <tot:GetParameters>
-                <!--Optional:-->
-                <tot:codColigada>?</tot:codColigada>
-                <!--Optional:-->
-                <tot:idFormula>?</tot:idFormula>
-              </tot:GetParameters>
-          </soapenv:Body>
-        </soapenv:Envelope>
-      */
       { method: "EXECUTE", label: "Executar Fórmula", sortOrder: 3 },
-      /*
-        <soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:tot="http://www.totvs.com/">
-          <soapenv:Header/>
-          <soapenv:Body>
-              <tot:Execute>
-                <!--Optional:-->
-                <tot:codColigada>?</tot:codColigada>
-                <!--Optional:-->
-                <tot:idFormula>?</tot:idFormula>
-                <!--Optional:-->
-                <tot:context>?</tot:context>
-                <!--Optional:-->
-                <tot:dataSetXML>?</tot:dataSetXML>
-                <!--Optional:-->
-                <tot:parametersXML>?</tot:parametersXML>
-                <!--Optional:-->
-                <tot:ownerData>?</tot:ownerData>
-              </tot:Execute>
-          </soapenv:Body>
-        </soapenv:Envelope>
-      */
     ],
     relatorio: [
       { method: "AUTENTICAACESSO", label: "Autentica acesso", sortOrder: 0 },

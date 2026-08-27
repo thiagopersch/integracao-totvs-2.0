@@ -6,17 +6,31 @@ import { env } from "@/config/app.config";
 import { buildSoapEnvelope, type SoapContext } from "@/utils/soap-envelope";
 import { notificationService } from "@/services/notification.service";
 import { buildSoapCallFailedNotification } from "@/lib/notification-types";
+import { classifyError, type ErrorKind } from "@/lib/error-kind";
 import { Prisma, type SoapMethod } from "@prisma/client";
 
 /** The 5 real TOTVS RM webservice "folders" confirmed live against a TBC (wsConsultaSQL/wsDataServer/wsProcess/wsFormulaVisual/wsReport MEX WSDLs). */
 export type WsName = "wsDataServer" | "wsConsultaSQL" | "wsProcess" | "wsFormulaVisual" | "wsReport";
 
+/** Friendly label per ws "folder" — used to tell the user which kind of TOTVS call (dataserver,
+ *  processo, consulta SQL, relatório, fórmula visual) a failed notification came from. */
+export const WS_NAME_LABELS: Record<WsName, string> = {
+  wsDataServer: "Dataserver",
+  wsConsultaSQL: "Consulta SQL",
+  wsProcess: "Processo",
+  wsFormulaVisual: "Fórmula Visual",
+  wsReport: "Relatório",
+};
+
 export type TbcCredentials = {
   id?: string;
+  name?: string;
   link: string;
   user: string;
   password: string;
   notRequiredLicense: boolean;
+  clientId?: string;
+  clientName?: string;
 };
 
 export type SoapHistoryFilters = {
@@ -216,6 +230,7 @@ export const soapService = {
     const url = resolveUrl(request.tbc, request.wsName, request.method);
     const authHeader = "Basic " + Buffer.from(`${request.tbc.user}:${request.tbc.password}`).toString("base64");
     let lastError: Error | null = null;
+    let lastErrorKind: ErrorKind = "unknown";
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
@@ -250,6 +265,7 @@ export const soapService = {
         lastError = error as Error;
 
         if (error instanceof SoapFaultError) {
+          lastErrorKind = "fault";
           logger.warn("SOAP fault (business error, not retried)", {
             wsName: request.wsName,
             method: request.method,
@@ -259,6 +275,7 @@ export const soapService = {
         }
 
         if (axios.isAxiosError(error) && error.response && error.response.status >= 400 && error.response.status < 500) {
+          lastErrorKind = error.response.status === 401 ? "auth" : "http";
           lastError = new Error(
             error.response.status === 401
               ? `Autenticação HTTP rejeitada pelo TOTVS (usuário/senha do TBC inválidos) [${request.wsName}]`
@@ -272,6 +289,7 @@ export const soapService = {
           break;
         }
 
+        lastErrorKind = classifyError(error);
         logger.warn(`SOAP attempt ${attempt}/${maxRetries} failed`, {
           wsName: request.wsName,
           method: request.method,
@@ -286,7 +304,7 @@ export const soapService = {
 
     const duration = Date.now() - startTime;
     const errorMsg = lastError?.message || "Unknown error";
-    await this.log(request, envelope, null, null, 0, duration, errorMsg, organizationId, userId);
+    const logId = await this.log(request, envelope, null, null, 0, duration, errorMsg, organizationId, userId);
 
     // Only for user-initiated calls — internal/scheduled dispatches (no userId, e.g. backups)
     // are already covered by their own caller's failure notification, avoiding duplicate alerts.
@@ -294,7 +312,13 @@ export const soapService = {
       const notification = buildSoapCallFailedNotification({
         method: request.method,
         wsName: request.wsName,
+        sourceLabel: WS_NAME_LABELS[request.wsName],
         errorMessage: errorMsg,
+        errorKind: lastErrorKind,
+        clientId: request.tbc.clientId,
+        clientName: request.tbc.clientName,
+        tbcName: request.tbc.name,
+        logId: logId ?? undefined,
       });
       await notificationService.create({ organizationId, userId, ...notification });
     }
@@ -325,9 +349,9 @@ export const soapService = {
     error: string | null | undefined,
     organizationId: string,
     userId?: string
-  ): Promise<void> {
+  ): Promise<string | null> {
     try {
-      await prisma.soapLog.create({
+      const created = await prisma.soapLog.create({
         data: {
           organizationId,
           userId,
@@ -346,8 +370,10 @@ export const soapService = {
           context: request.context as Prisma.InputJsonValue | undefined,
         },
       });
+      return created.id;
     } catch (logError) {
       logger.error("Failed to save SOAP log", { error: logError });
+      return null;
     }
   },
 

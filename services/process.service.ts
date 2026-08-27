@@ -16,6 +16,13 @@ export const processService = {
     return processRepository.findAll(params, organizationId);
   },
 
+  async listAll(organizationId: string) {
+    return prisma.process.findMany({
+      where: { organizationId, deletedAt: null },
+      orderBy: { name: "asc" },
+    });
+  },
+
   async getById(id: string, organizationId: string) {
     return processRepository.findById(id, organizationId);
   },

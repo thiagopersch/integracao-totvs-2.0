@@ -35,7 +35,7 @@ async function dispatch(notifications: Notification[]): Promise<void> {
       .filter((n) => emailEnabledUserIds.has(n.userId))
       .map((n) => {
         const email = emailByUserId.get(n.userId);
-        return email ? sendEmail(n.organizationId, email, n.title, n.body) : Promise.resolve();
+        return email ? sendEmail(n.organizationId, email, n.title, n.body, n.userId) : Promise.resolve();
       })
   );
 }

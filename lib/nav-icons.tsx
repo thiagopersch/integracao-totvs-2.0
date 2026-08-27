@@ -29,6 +29,7 @@ import {
   CreditCard,
   Mail,
   FileBarChart,
+  Activity,
   type LucideIcon,
 } from "lucide-react";
 
@@ -63,4 +64,5 @@ export const NAV_ICONS: Record<string, LucideIcon> = {
   CreditCard,
   Mail,
   FileBarChart,
+  Activity,
 };

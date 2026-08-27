@@ -2,6 +2,7 @@
 
 import { emailSettingsService } from "@/services/email-settings.service";
 import { requirePermission } from "@/lib/rbac";
+import { auditService } from "@/services/audit.service";
 
 export async function getEmailSettings() {
   const { organizationId } = await requirePermission("integrations", "execute");
@@ -20,7 +21,7 @@ export async function getEmailSettings() {
 }
 
 export async function saveEmailSettings(formData: FormData) {
-  const { organizationId } = await requirePermission("integrations", "execute");
+  const { organizationId, userId } = await requirePermission("integrations", "execute");
 
   const host = (formData.get("host") as string) || "";
   const port = Number(formData.get("port"));
@@ -35,6 +36,16 @@ export async function saveEmailSettings(formData: FormData) {
 
   try {
     await emailSettingsService.save(organizationId, { host, port, user, password: password || undefined, from, enabled });
+    // password is intentionally never included, even redacted — matches getEmailSettings never
+    // round-tripping it either.
+    await auditService.log({
+      action: "UPDATE",
+      entity: "EmailSettings",
+      entityId: organizationId,
+      organizationId,
+      userId,
+      newData: { host, port, user, from, enabled },
+    });
     return { success: true };
   } catch (error) {
     return { success: false, error: (error as Error).message };
