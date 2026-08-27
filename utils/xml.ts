@@ -36,12 +36,15 @@ export function formatXml(xml: string): string {
 
 /** TOTVS's nested dataset text carries raw numeric char refs (`&#xD;` for embedded line breaks)
  *  that fast-xml-parser leaves undecoded unless htmlEntities is on — kept off the default `parser`
- *  above so formatXml/xmlToJson behavior elsewhere is unchanged, and only used by formatXmlDeep. */
+ *  above so formatXml/xmlToJson behavior elsewhere is unchanged, and only used by formatXmlDeep.
+ *  parseAttributeValue is off here (unlike `parser` above) because this is a pure round-trip
+ *  formatter — numeric-coercing an attribute like the envelope's own `version="1.0"` turns it into
+ *  the JS number 1, which then re-serializes as "1" and corrupts the XML declaration on display. */
 const deepParser = new XMLParser({
   ignoreAttributes: false,
   attributeNamePrefix: "@_",
   textNodeName: "#text",
-  parseAttributeValue: true,
+  parseAttributeValue: false,
   trimValues: true,
   parseTagValue: true,
   htmlEntities: true,

@@ -11,12 +11,24 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import {
+  Dialog,
+  DialogBody,
+  DialogClose,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
 import { CodeEditor } from "@/components/shared/code-editor"
+import { SoapSchemaView } from "@/components/shared/soap-schema-view"
 import { Play, Copy, Download, Loader2, Code2, FileJson, Table2, Globe } from "lucide-react"
 import { toast } from "sonner"
 import axios from "axios"
 import { xmlToJson, jsonToXml, safeFormatXmlDeep } from "@/utils/xml"
-import { buildSoapEnvelope } from "@/utils/soap-envelope"
+import { buildSoapEnvelope, METHOD_OPERATION } from "@/utils/soap-envelope"
+import { parseDataServerSchema, parseProcessSchema, type SchemaTable } from "@/utils/soap-schema"
 import { formatDuration } from "@/utils/format"
 import { useSoapStore } from "@/store/soap.store"
 
@@ -40,6 +52,7 @@ type TbcOption = {
   id: string
   name: string
   link: string
+  user: string
   notRequiredLicense: boolean
   client: { id: string; name: string } | null
 }
@@ -61,21 +74,28 @@ interface SoapBuilderClientProps {
 /** The 2 endpoint types whose methods operate on one specific catalog entry — TOTVS's generic
  *  wsDataServer/wsProcess folders take the entry name as the method's first parameter
  *  (`DataServerName` confirmed live against wsDataServer.ReadView/SaveRecord, see
- *  services/rm-sentence.service.ts; `ProcessName` inferred by the same ws-family convention but
- *  not yet verified live against wsProcess — confirm before relying on it in production). */
-const ENTITY_NAME_TAG: Record<string, "DataServerName" | "ProcessName"> = {
+ *  services/rm-sentence.service.ts; `ProcessServerName` confirmed live against
+ *  wsProcess.GetSchema — NOT `ProcessName`, which TOTVS rejects with "Código do objeto não foi
+ *  informado."). */
+const ENTITY_NAME_TAG: Record<string, "DataServerName" | "ProcessServerName"> = {
   dataserver: "DataServerName",
-  process: "ProcessName",
+  process: "ProcessServerName",
 }
 
-/** These 3 operate ws-wide (auth handshake / whole-schema dump), not on one catalog entry, so the
- *  entity name must never be injected into their template. */
-const ENTITY_EXEMPT_METHODS = new Set(["AUTENTICAACESSO", "CHECKSERVICEACTIVITY", "GETSCHEMA"])
+/** These 2 are the ws-wide auth handshake, not operating on any catalog entry, so the entity name
+ *  must never be injected into their template. GetSchema DOES take DataServerName/ProcessServerName —
+ *  confirmed against TOTVS's own TDN docs (wsDataServer.GetSchema(DataServerName, Contexto)) — so
+ *  it is NOT exempt, unlike the two handshake methods below. */
+const ENTITY_EXEMPT_METHODS = new Set(["AUTENTICAACESSO", "CHECKSERVICEACTIVITY"])
 
+/** `methodName` is the raw `SoapMethod` enum value (e.g. "READRECORD") as stored in the DB —
+ *  translated here to the real PascalCase TOTVS operation name (e.g. "ReadRecord") via
+ *  `METHOD_OPERATION`, since the root element sent on the wire must match that exact casing. */
 function buildMethodTemplateXml(methodName: string, typeKey: string, entityCode: string): string {
+  const operation = METHOD_OPERATION[methodName as keyof typeof METHOD_OPERATION] ?? methodName
   const tag = ENTITY_NAME_TAG[typeKey]
-  if (!tag || !entityCode || ENTITY_EXEMPT_METHODS.has(methodName)) return `<${methodName} />`
-  return `<${methodName}>\n  <${tag}>${entityCode}</${tag}>\n</${methodName}>`
+  if (!tag || !entityCode || ENTITY_EXEMPT_METHODS.has(methodName)) return `<${operation} />`
+  return `<${operation}>\n  <${tag}>${entityCode}</${tag}>\n</${operation}>`
 }
 
 export function SoapBuilderClient({
@@ -123,6 +143,10 @@ export function SoapBuilderClient({
   const setTimeout_ = useSoapStore((state) => state.setTimeout)
 
   const [loading, setLoading] = useState(false)
+  const [requestDialogOpen, setRequestDialogOpen] = useState(false)
+  const [responseTab, setResponseTab] = useState("xml")
+  const [schemaTables, setSchemaTables] = useState<SchemaTable[] | null>(null)
+  const [schemaSourceType, setSchemaSourceType] = useState<"dataserver" | "process" | null>(null)
   // Bumped whenever the request XML/JSON is set programmatically (type/method change, schema
   // fetch) — used as CodeEditor's resetKey so the box actually refreshes to show it; left alone
   // while the user types, so their own edits never get stomped by a remount.
@@ -154,7 +178,9 @@ export function SoapBuilderClient({
     setXmlContent(newXml)
     try {
       setJsonContent(JSON.stringify(xmlToJson(newXml), null, 2))
-    } catch { /* empty */ }
+    } catch {
+      /* empty */
+    }
     setRequestVersion((v) => v + 1)
   }
 
@@ -164,7 +190,9 @@ export function SoapBuilderClient({
     setXmlContent(newXml)
     try {
       setJsonContent(JSON.stringify(xmlToJson(newXml), null, 2))
-    } catch { /* empty */ }
+    } catch {
+      /* empty */
+    }
   }
 
   function handleSelectType(type: EndpointType) {
@@ -188,9 +216,9 @@ export function SoapBuilderClient({
     if (!method) return
     const entityCode =
       selectedType?.type === "dataserver"
-        ? dataservers.find((d) => d.id === selectedDataserverId)?.code ?? ""
+        ? (dataservers.find((d) => d.id === selectedDataserverId)?.code ?? "")
         : selectedType?.type === "process"
-          ? processes.find((p) => p.id === selectedProcessId)?.code ?? ""
+          ? (processes.find((p) => p.id === selectedProcessId)?.code ?? "")
           : ""
     setRequestXml(buildMethodTemplateXml(method.method, selectedType?.type ?? "", entityCode))
   }
@@ -223,33 +251,47 @@ export function SoapBuilderClient({
     if (!stillValid) setSelectedTbcId("")
   }
 
+  function handleSelectTbc(tbcId: string) {
+    setSelectedTbcId(tbcId)
+    const tbc = tbcs.find((t) => t.id === tbcId)
+    if (tbc) setContext({ user: tbc.user })
+  }
+
   function handleJsonChange(newJson: string) {
     setJsonContent(newJson)
     try {
       setXmlContent(jsonToXml(JSON.parse(newJson)))
-    } catch { /* empty */ }
+    } catch {
+      /* empty */
+    }
   }
 
   async function handleExecute() {
-    if (!selectedTypeId) { toast.error("Selecione o sistema/endpoint"); return }
-    if (!selectedMethodId) { toast.error("Selecione o método"); return }
-    if (!selectedTbcId) { toast.error("Selecione o TBC"); return }
+    if (!selectedTypeId) {
+      toast.error("Selecione o sistema/endpoint")
+      return
+    }
+    if (!selectedMethodId) {
+      toast.error("Selecione o método")
+      return
+    }
+    if (!selectedTbcId) {
+      toast.error("Selecione o TBC")
+      return
+    }
 
     setLoading(true)
     setError(null)
     setResponse(null)
+    setSchemaTables(null)
+    setSchemaSourceType(null)
 
     try {
-      let xml = xmlContent
-      if (selectedMethodObj?.method === "GETSCHEMA" || selectedMethodObj?.method === "GETSCHEMA2") {
-        xml = "<GetSchema />"
-      }
-
       const res = await axios.post("/api/soap/execute", {
         endpointTypeId: selectedTypeId,
         methodId: selectedMethodId,
         tbcId: selectedTbcId,
-        xml,
+        xml: xmlContent,
         context,
         timeout,
       })
@@ -257,40 +299,23 @@ export function SoapBuilderClient({
       setResponse(res.data)
       setResponseVersion((v) => v + 1)
       toast.success(`Executado em ${formatDuration(res.data.duration)}`)
+
+      // GetSchema on a dataserver/processo defaults straight to the table view — that's the whole
+      // point of asking for a schema — parsed into per-table field lists (dataserver: real XSD
+      // metadata; processo: inferred from the one sample instance TOTVS returns, see soap-schema.ts).
+      const isSchemaCall = selectedMethod === "GETSCHEMA" || selectedMethod === "GETSCHEMA2"
+      const entityType = selectedType?.type
+      if (isSchemaCall && (entityType === "dataserver" || entityType === "process")) {
+        const tables =
+          entityType === "process" ? parseProcessSchema(res.data.xmlResponse) : parseDataServerSchema(res.data.xmlResponse)
+        setSchemaTables(tables)
+        setSchemaSourceType(entityType)
+        setResponseTab("table")
+      }
     } catch (err) {
       const msg = axios.isAxiosError(err) ? err.response?.data?.error || err.message : (err as Error).message
       setError(msg)
       toast.error(msg)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  async function handleGetSchema() {
-    if (!selectedTypeId || !selectedTbcId) {
-      toast.error("Preencha todos os campos obrigatórios")
-      return
-    }
-    const schemaMethod = methods.find((m) => m.method === "GETSCHEMA" || m.method === "GETSCHEMA2")
-    if (!schemaMethod) {
-      toast.error("Este tipo de endpoint não tem um método Get Schema cadastrado em /admin/soap-endpoints")
-      return
-    }
-
-    setLoading(true)
-    try {
-      const res = await axios.post("/api/soap/execute", {
-        endpointTypeId: selectedTypeId,
-        methodId: schemaMethod.id,
-        tbcId: selectedTbcId,
-        xml: "<GetSchema />",
-        context,
-        timeout,
-      })
-      setRequestXml(safeFormatXmlDeep(res.data.xmlResponse))
-      toast.success("Schema gerado")
-    } catch (err) {
-      toast.error(axios.isAxiosError(err) ? err.response?.data?.error || err.message : (err as Error).message)
     } finally {
       setLoading(false)
     }
@@ -312,7 +337,8 @@ export function SoapBuilderClient({
   }
 
   const renderTable = useCallback((jsonData: Record<string, unknown> | null, emptyMessage: string) => {
-    if (!jsonData || typeof jsonData !== "object") return <p className="text-muted-foreground text-sm p-4">{emptyMessage}</p>
+    if (!jsonData || typeof jsonData !== "object")
+      return <p className="text-muted-foreground text-sm p-4">{emptyMessage}</p>
     const entries = Object.entries(jsonData)
     if (entries.length === 0) return <p className="text-muted-foreground text-sm p-4">{emptyMessage}</p>
 
@@ -377,7 +403,7 @@ export function SoapBuilderClient({
         <CardContent className="pt-6 space-y-4">
           <fieldset className="space-y-3 rounded-lg border border-input p-3">
             <legend className="px-1 text-sm font-medium text-muted-foreground">Destino da chamada</legend>
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-5">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
               <div className="space-y-2">
                 <Label>Tipo</Label>
                 <Select
@@ -393,7 +419,9 @@ export function SoapBuilderClient({
                   </SelectTrigger>
                   <SelectContent>
                     {endpointTypes.map((t) => (
-                      <SelectItem key={t.id} value={t.id}>{t.label} ({t.type})</SelectItem>
+                      <SelectItem key={t.id} value={t.id}>
+                        {t.label} ({t.type})
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -425,6 +453,25 @@ export function SoapBuilderClient({
                 </div>
               )}
               <div className="space-y-2">
+                <Label>Método</Label>
+                <Select
+                  items={methods.map((m) => ({ value: m.id, label: `${m.label} (${m.method})` }))}
+                  value={selectedMethodId || null}
+                  onValueChange={(v) => handleSelectMethod(v || "")}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Selecionar método..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {methods.map((m) => (
+                      <SelectItem key={m.id} value={m.id}>
+                        {m.label} ({m.method})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
                 <Label>Sistema TOTVS</Label>
                 <Select
                   items={sistemas.map((s) => ({ value: s.id, label: `${s.code} - ${s.internalName}` }))}
@@ -436,11 +483,15 @@ export function SoapBuilderClient({
                   </SelectTrigger>
                   <SelectContent>
                     {sistemas.map((s) => (
-                      <SelectItem key={s.id} value={s.id}>{s.code} - {s.internalName}</SelectItem>
+                      <SelectItem key={s.id} value={s.id}>
+                        {s.code} - {s.internalName}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
+            </div>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <div className="space-y-2">
                 <Label>Cliente</Label>
                 <Combobox
@@ -455,41 +506,35 @@ export function SoapBuilderClient({
               <div className="space-y-2">
                 <Label>TBC</Label>
                 <Combobox
-                  items={tbcsForClient.map((t) => ({ value: t.id, label: `${t.name}${t.client ? ` (${t.client.name})` : ""}` }))}
+                  items={tbcsForClient.map((t) => ({
+                    value: t.id,
+                    label: `${t.name}${t.client ? ` (${t.client.name})` : ""}`,
+                  }))}
                   value={selectedTbcId}
-                  onValueChange={setSelectedTbcId}
+                  onValueChange={handleSelectTbc}
                   placeholder="Selecionar TBC..."
                   searchPlaceholder="Buscar TBC..."
                   emptyText="Nenhum TBC encontrado."
                 />
               </div>
-              <div className="space-y-2">
-                <Label>Método</Label>
-                <Select
-                  items={methods.map((m) => ({ value: m.id, label: `${m.label} (${m.method})` }))}
-                  value={selectedMethodId || null}
-                  onValueChange={(v) => handleSelectMethod(v || "")}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Selecionar método..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {methods.map((m) => (
-                      <SelectItem key={m.id} value={m.id}>{m.label} ({m.method})</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
             </div>
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <div className="space-y-2">
-                <Label>URL da requisição</Label>
-                <Input value={fullUrl} readOnly className="w-full font-mono text-xs" placeholder="Selecione o sistema e o TBC..." />
-              </div>
-              <div className="space-y-2">
-                <Label>Tempo limite (ms)</Label>
-                <Input type="number" value={timeout} onChange={(e) => setTimeout_(Number(e.target.value))} className="w-full" />
-              </div>
+            <div className="space-y-2">
+              <Label>URL da requisição</Label>
+              <Input
+                value={fullUrl}
+                readOnly
+                className="w-full font-mono text-xs"
+                placeholder="Selecione o sistema e o TBC..."
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Tempo limite (ms)</Label>
+              <Input
+                type="number"
+                value={timeout}
+                onChange={(e) => setTimeout_(Number(e.target.value))}
+                className="w-full max-w-40"
+              />
             </div>
           </fieldset>
 
@@ -498,19 +543,38 @@ export function SoapBuilderClient({
             <div className="grid grid-cols-1 gap-4 md:grid-cols-3 lg:grid-cols-5">
               <div className="space-y-2">
                 <Label>Coligada</Label>
-                <Input type="number" value={context.coligate} onChange={(e) => setContext({ coligate: Number(e.target.value) })} className="w-full" />
+                <Input
+                  type="number"
+                  value={context.coligate}
+                  onChange={(e) => setContext({ coligate: Number(e.target.value) })}
+                  className="w-full"
+                />
               </div>
               <div className="space-y-2">
                 <Label>Filial</Label>
-                <Input type="number" value={context.branch} onChange={(e) => setContext({ branch: Number(e.target.value) })} className="w-full" />
+                <Input
+                  type="number"
+                  value={context.branch}
+                  onChange={(e) => setContext({ branch: Number(e.target.value) })}
+                  className="w-full"
+                />
               </div>
               <div className="space-y-2">
                 <Label>Nível de Ensino</Label>
-                <Input type="number" value={context.levelEducation} onChange={(e) => setContext({ levelEducation: Number(e.target.value) })} className="w-full" />
+                <Input
+                  type="number"
+                  value={context.levelEducation}
+                  onChange={(e) => setContext({ levelEducation: Number(e.target.value) })}
+                  className="w-full"
+                />
               </div>
               <div className="space-y-2">
                 <Label>Código do Sistema</Label>
-                <Input value={context.codSystem} onChange={(e) => setContext({ codSystem: e.target.value })} className="w-full" />
+                <Input
+                  value={context.codSystem}
+                  onChange={(e) => setContext({ codSystem: e.target.value })}
+                  className="w-full"
+                />
               </div>
               <div className="space-y-2">
                 <Label>Usuário</Label>
@@ -519,111 +583,148 @@ export function SoapBuilderClient({
             </div>
           </fieldset>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center justify-between gap-2">
             <Button onClick={handleExecute} disabled={loading}>
               {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Play className="h-4 w-4 mr-2" />}
               Executar
             </Button>
-            <Button variant="secondary" onClick={handleGetSchema} disabled={loading}>
-              <Code2 className="h-4 w-4 mr-2" /> GETSCHEMA
-            </Button>
+            <Dialog open={requestDialogOpen} onOpenChange={setRequestDialogOpen}>
+              <DialogTrigger
+                render={
+                  <Button variant="outline">
+                    <Code2 className="h-4 w-4 mr-2" /> Ver requisição
+                  </Button>
+                }
+              />
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Requisição SOAP</DialogTitle>
+                </DialogHeader>
+                <DialogBody className="flex min-h-0 flex-1 flex-col">
+                  <Tabs value={activeTab} onValueChange={setActiveTab}>
+                    <TabsList>
+                      <TabsTrigger value="xml">
+                        <Code2 className="h-3 w-3 mr-1" /> XML
+                      </TabsTrigger>
+                      <TabsTrigger value="json">
+                        <FileJson className="h-3 w-3 mr-1" /> JSON
+                      </TabsTrigger>
+                      <TabsTrigger value="full">
+                        <Globe className="h-3 w-3 mr-1" /> XML Completo
+                      </TabsTrigger>
+                    </TabsList>
+                  </Tabs>
+                  {activeTab === "xml" ? (
+                    <CodeEditor
+                      value={xmlContent}
+                      onChange={handleXmlChange}
+                      language="xml"
+                      resetKey={requestVersion}
+                      minHeight="55vh"
+                    />
+                  ) : activeTab === "json" ? (
+                    <CodeEditor
+                      value={jsonContent}
+                      onChange={handleJsonChange}
+                      language="json"
+                      resetKey={requestVersion}
+                      minHeight="55vh"
+                    />
+                  ) : (
+                    <CodeEditor value={fullEnvelope} language="xml" readOnly resetKey={fullEnvelope} minHeight="55vh" />
+                  )}
+                </DialogBody>
+                <DialogFooter>
+                  <DialogClose render={<Button variant="outline">Fechar</Button>} />
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
           </div>
         </CardContent>
       </Card>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <Card>
-          <CardHeader className="py-3">
-            <CardTitle className="text-sm">
-              <Tabs value={activeTab} onValueChange={setActiveTab}>
-                <TabsList>
-                  <TabsTrigger value="xml"><Code2 className="h-3 w-3 mr-1" /> XML</TabsTrigger>
-                  <TabsTrigger value="json"><FileJson className="h-3 w-3 mr-1" /> JSON</TabsTrigger>
-                  <TabsTrigger value="full"><Globe className="h-3 w-3 mr-1" /> XML Completo</TabsTrigger>
-                </TabsList>
-              </Tabs>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {activeTab === "xml" ? (
-              <CodeEditor value={xmlContent} onChange={handleXmlChange} language="xml" resetKey={requestVersion} minHeight="400px" />
-            ) : activeTab === "json" ? (
-              <CodeEditor value={jsonContent} onChange={handleJsonChange} language="json" resetKey={requestVersion} minHeight="400px" />
-            ) : (
-              <CodeEditor value={fullEnvelope} language="xml" readOnly resetKey={fullEnvelope} minHeight="400px" />
+      <Card>
+        <CardHeader className="py-3">
+          <CardTitle className="text-sm flex items-center justify-between">
+            <span>Resposta</span>
+            {response && (
+              <div className="flex items-center gap-2">
+                <Badge variant="outline">{formatDuration(response.duration)}</Badge>
+                <Badge variant={response.status < 400 ? "default" : "destructive"}>{response.status}</Badge>
+              </div>
             )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="py-3">
-            <CardTitle className="text-sm flex items-center justify-between">
-              <span>Resposta</span>
-              {response && (
-                <div className="flex items-center gap-2">
-                  <Badge variant="outline">{formatDuration(response.duration)}</Badge>
-                  <Badge variant={response.status < 400 ? "default" : "destructive"}>
-                    {response.status}
-                  </Badge>
-                </div>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Tabs value={responseTab} onValueChange={setResponseTab}>
+            <TabsList className="mb-2">
+              <TabsTrigger value="xml">XML</TabsTrigger>
+              <TabsTrigger value="json">JSON</TabsTrigger>
+              <TabsTrigger value="raw">Raw</TabsTrigger>
+              <TabsTrigger value="table">
+                <Table2 className="h-3 w-3 mr-1" /> Tabela
+              </TabsTrigger>
+            </TabsList>
+            <TabsContent value="xml" className="m-0">
+              {response ? (
+                <CodeEditor
+                  value={safeFormatXmlDeep(response.xmlResponse)}
+                  language="xml"
+                  readOnly
+                  theme="dark"
+                  resetKey={responseVersion}
+                  minHeight="400px"
+                />
+              ) : error ? (
+                <pre className="text-xs font-mono text-destructive whitespace-pre-wrap p-3">{error}</pre>
+              ) : (
+                <p className="text-muted-foreground text-sm p-4">Execute uma chamada para ver a resposta</p>
               )}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Tabs defaultValue="xml">
-              <TabsList className="mb-2">
-                <TabsTrigger value="xml">XML</TabsTrigger>
-                <TabsTrigger value="json">JSON</TabsTrigger>
-                <TabsTrigger value="raw">Raw</TabsTrigger>
-                <TabsTrigger value="table">
-                  <Table2 className="h-3 w-3 mr-1" /> Tabela
-                </TabsTrigger>
-              </TabsList>
-              <TabsContent value="xml" className="m-0">
+            </TabsContent>
+            <TabsContent value="json" className="m-0">
+              {response ? (
+                <CodeEditor
+                  value={JSON.stringify(response.jsonResponse, null, 2)}
+                  language="json"
+                  readOnly
+                  theme="dark"
+                  resetKey={responseVersion}
+                  minHeight="400px"
+                />
+              ) : (
+                <p className="text-muted-foreground text-sm p-4">Execute uma chamada para ver a resposta</p>
+              )}
+            </TabsContent>
+            <TabsContent value="raw" className="m-0">
+              <ScrollArea className="h-[400px] rounded-lg border border-input p-4">
                 {response ? (
-                  <CodeEditor value={safeFormatXmlDeep(response.xmlResponse)} language="xml" readOnly theme="dark" resetKey={responseVersion} minHeight="400px" />
-                ) : error ? (
-                  <pre className="text-xs font-mono text-destructive whitespace-pre-wrap p-3">{error}</pre>
+                  <pre className="text-xs font-mono whitespace-pre-wrap">{response.xmlResponse}</pre>
                 ) : (
-                  <p className="text-muted-foreground text-sm p-4">Execute uma chamada para ver a resposta</p>
+                  <p className="text-muted-foreground text-sm">Execute uma chamada para ver a resposta raw</p>
                 )}
-              </TabsContent>
-              <TabsContent value="json" className="m-0">
-                {response ? (
-                  <CodeEditor value={JSON.stringify(response.jsonResponse, null, 2)} language="json" readOnly theme="dark" resetKey={responseVersion} minHeight="400px" />
+              </ScrollArea>
+            </TabsContent>
+            <TabsContent value="table" className="m-0">
+              <ScrollArea className={schemaTables ? "h-[600px] rounded-lg border border-input p-3" : "h-[400px] rounded-lg border border-input"}>
+                {response && schemaTables ? (
+                  <SoapSchemaView tables={schemaTables} showPrimaryKey={schemaSourceType === "dataserver"} />
+                ) : response ? (
+                  <div>
+                    {renderTable(
+                      response.jsonResponse,
+                      selectedMethod === "REALIZARCONSULTASQL" || selectedMethod === "REALIZARCONSULTASQLCONTEXTO"
+                        ? "Nenhuma informação retornada da consulta"
+                        : "Sem dados tabulares"
+                    )}
+                  </div>
                 ) : (
-                  <p className="text-muted-foreground text-sm p-4">Execute uma chamada para ver a resposta</p>
+                  <p className="text-muted-foreground text-sm p-4">Execute uma chamada para ver os dados em tabela</p>
                 )}
-              </TabsContent>
-              <TabsContent value="raw" className="m-0">
-                <ScrollArea className="h-[400px] rounded-lg border border-input p-4">
-                  {response ? (
-                    <pre className="text-xs font-mono whitespace-pre-wrap">{response.xmlResponse}</pre>
-                  ) : (
-                    <p className="text-muted-foreground text-sm">Execute uma chamada para ver a resposta raw</p>
-                  )}
-                </ScrollArea>
-              </TabsContent>
-              <TabsContent value="table" className="m-0">
-                <ScrollArea className="h-[400px] rounded-lg border border-input">
-                  {response ? (
-                    <div>
-                      {renderTable(
-                        response.jsonResponse,
-                        selectedMethod === "REALIZARCONSULTASQL" || selectedMethod === "REALIZARCONSULTASQLCONTEXTO"
-                          ? "Nenhuma informação retornada da consulta"
-                          : "Sem dados tabulares"
-                      )}
-                    </div>
-                  ) : (
-                    <p className="text-muted-foreground text-sm p-4">Execute uma chamada para ver os dados em tabela</p>
-                  )}
-                </ScrollArea>
-              </TabsContent>
-            </Tabs>
-          </CardContent>
-        </Card>
-      </div>
+              </ScrollArea>
+            </TabsContent>
+          </Tabs>
+        </CardContent>
+      </Card>
     </div>
   )
 }

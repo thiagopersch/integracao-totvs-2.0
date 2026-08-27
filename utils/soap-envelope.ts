@@ -1,9 +1,47 @@
+import type { SoapMethod } from "@prisma/client";
+
 export type SoapContext = {
   coligate?: number;
   branch?: number;
   levelEducation?: number;
   codSystem?: string;
   user?: string;
+};
+
+/**
+ * Maps each `SoapMethod` enum value (ALL_CAPS, as stored in the DB/Prisma) to the real PascalCase
+ * TOTVS RM SOAP operation name. The root element of every request XML — built here and on the
+ * server (services/soap.service.ts re-exports this same map) — must use this exact casing: TOTVS
+ * matches the operation by element name, so `<READRECORD />` is rejected while `<ReadRecord />`
+ * is accepted.
+ */
+export const METHOD_OPERATION: Record<SoapMethod, string> = {
+  AUTENTICAACESSO: "AutenticaAcesso",
+  CHECKSERVICEACTIVITY: "CheckServiceActivity",
+  GETSCHEMA: "GetSchema",
+  GETSCHEMA2: "GetSchema2",
+  READRECORD: "ReadRecord",
+  READVIEW: "ReadView",
+  SAVERECORD: "SaveRecord",
+  DELETERECORD: "DeleteRecord",
+  DELETERECORDBYKEY: "DeleteRecordByKey",
+  ISVALIDDATASERVER: "IsValidDataServer",
+  EXECUTEPROCESS: "ExecuteProcess",
+  EXECUTEWITHXMLPARAMS: "ExecuteWithXmlParams",
+  EXECUTEWITHXMLPARAMSASYNC: "ExecuteWithXmlParamsAsync",
+  GETPROCESSSTATUS: "GetProcessStatus",
+  REALIZARCONSULTASQL: "RealizarConsultaSQL",
+  REALIZARCONSULTASQLCONTEXTO: "RealizarConsultaSQLContexto",
+  GETREPORTLIST: "GetReportList",
+  GETREPORTMETADATA: "GetReportMetaData",
+  GETREPORTINFO: "GetReportInfo",
+  GENERATEREPORT: "GenerateReport",
+  GENERATEREPORTASYNCHRONOUS: "GenerateReportAsynchronous",
+  GETGENERATEDREPORTSTATUS: "GetGeneratedReportStatus",
+  GETGENERATEDREPORTSIZE: "GetGeneratedReportSize",
+  GETFILECHUNK: "GetFileChunk",
+  GETPARAMETERS: "GetParameters",
+  EXECUTE: "Execute",
 };
 
 export function escapeXml(value: string): string {

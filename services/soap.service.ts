@@ -3,7 +3,7 @@ import { XMLParser } from "fast-xml-parser";
 import { logger } from "@/lib/logger";
 import { prisma } from "@/lib/prisma";
 import { env } from "@/config/app.config";
-import { buildSoapEnvelope, type SoapContext } from "@/utils/soap-envelope";
+import { buildSoapEnvelope, METHOD_OPERATION, type SoapContext } from "@/utils/soap-envelope";
 import { notificationService } from "@/services/notification.service";
 import { buildSoapCallFailedNotification } from "@/lib/notification-types";
 import { classifyError, type ErrorKind } from "@/lib/error-kind";
@@ -78,34 +78,6 @@ const xmlParser = new XMLParser({
  * SOAPAction is always `http://www.totvs.com/{PortInterface}/{Operation}` —
  * NOT the flat `http://www.totvs.com/{Operation}` this file used before.
  */
-const METHOD_OPERATION: Record<SoapMethod, string> = {
-  AUTENTICAACESSO: "AutenticaAcesso",
-  CHECKSERVICEACTIVITY: "CheckServiceActivity",
-  GETSCHEMA: "GetSchema",
-  GETSCHEMA2: "GetSchema2",
-  READRECORD: "ReadRecord",
-  READVIEW: "ReadView",
-  SAVERECORD: "SaveRecord",
-  DELETERECORD: "DeleteRecord",
-  DELETERECORDBYKEY: "DeleteRecordByKey",
-  ISVALIDDATASERVER: "IsValidDataServer",
-  EXECUTEPROCESS: "ExecuteProcess",
-  EXECUTEWITHXMLPARAMS: "ExecuteWithXmlParams",
-  EXECUTEWITHXMLPARAMSASYNC: "ExecuteWithXmlParamsAsync",
-  GETPROCESSSTATUS: "GetProcessStatus",
-  REALIZARCONSULTASQL: "RealizarConsultaSQL",
-  REALIZARCONSULTASQLCONTEXTO: "RealizarConsultaSQLContexto",
-  GETREPORTLIST: "GetReportList",
-  GETREPORTMETADATA: "GetReportMetaData",
-  GETREPORTINFO: "GetReportInfo",
-  GENERATEREPORT: "GenerateReport",
-  GENERATEREPORTASYNCHRONOUS: "GenerateReportAsynchronous",
-  GETGENERATEDREPORTSTATUS: "GetGeneratedReportStatus",
-  GETGENERATEDREPORTSIZE: "GetGeneratedReportSize",
-  GETFILECHUNK: "GetFileChunk",
-  GETPARAMETERS: "GetParameters",
-  EXECUTE: "Execute",
-};
 
 /** AutenticaAcesso/CheckServiceActivity are shared across every ws and don't live on the service-specific port. */
 const SHARED_PORT: Partial<Record<SoapMethod, "IwsBase" | "IRMSServer">> = {

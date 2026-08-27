@@ -33,6 +33,7 @@ async function SoapBuilderContent() {
         id: tbc.id,
         name: tbc.name,
         link: tbc.link,
+        user: tbc.user,
         notRequiredLicense: tbc.notRequiredLicense,
         client: tbc.client ?? null,
       }))}
