@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import axios from "axios"
 import { toast } from "sonner"
 import { FileBarChart2, Loader2, Download, ListChecks } from "lucide-react"
@@ -13,9 +13,15 @@ import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Progress } from "@/components/ui/progress"
 import { useTbcReportStore, type ReportStepKey } from "@/store/tbc-report.store"
-import type { RptReportPar } from "@/utils/tbc-report-parser"
+import {
+  extractFilterFields,
+  updateFilterFieldValue,
+  type FilterFieldEntry,
+  type RptReportPar,
+} from "@/utils/tbc-report-parser"
 
 type TbcOption = { id: string; name: string; link: string }
+type SistemaOption = { id: string; code: string; internalName: string; externalName: string }
 
 const BUDGET_MS = 120_000
 
@@ -82,13 +88,22 @@ function extractErrorMessage(err: unknown): string {
 
 const STEP_ORDER: ReportStepKey[] = ["list", "info", "generate", "poll", "download"]
 
-export function TbcReportsClient({ initialTbcs }: { initialTbcs: TbcOption[] }) {
+export function TbcReportsClient({
+  initialTbcs,
+  initialSistemas,
+}: {
+  initialTbcs: TbcOption[]
+  initialSistemas: SistemaOption[]
+}) {
   const tbcs = initialTbcs
+  const sistemas = initialSistemas
 
   const selectedTbcId = useTbcReportStore((s) => s.selectedTbcId)
   const setSelectedTbcId = useTbcReportStore((s) => s.setSelectedTbcId)
   const codColigada = useTbcReportStore((s) => s.codColigada)
   const setCodColigada = useTbcReportStore((s) => s.setCodColigada)
+  const selectedSistemaId = useTbcReportStore((s) => s.selectedSistemaId)
+  const setSelectedSistemaId = useTbcReportStore((s) => s.setSelectedSistemaId)
   const reports = useTbcReportStore((s) => s.reports)
   const setReports = useTbcReportStore((s) => s.setReports)
   const selectedReport = useTbcReportStore((s) => s.selectedReport)
@@ -135,7 +150,10 @@ export function TbcReportsClient({ initialTbcs }: { initialTbcs: TbcOption[] }) 
     setSelectedReport(null)
     setReportInfo(null)
     try {
-      const res = await axios.post("/api/tbc-reports/list", { tbcId: selectedTbcId, codColigada })
+      // GetReportList's own codSistema field is the module's full display name ("TOTVS
+      // Educacional"), not the Sistema catalog's short `code` — see tbc-report.service.ts.
+      const codSistema = sistemas.find((s) => s.id === selectedSistemaId)?.externalName
+      const res = await axios.post("/api/tbc-reports/list", { tbcId: selectedTbcId, codColigada, codSistema })
       setReports(res.data.reports)
       toast.success(`${res.data.reports.length} relatório(s) encontrado(s)`)
     } catch (err) {
@@ -145,8 +163,8 @@ export function TbcReportsClient({ initialTbcs }: { initialTbcs: TbcOption[] }) 
     }
   }
 
-  async function handleSelectReport(codReport: string) {
-    const report = reports.find((r) => r.codReport === codReport) || null
+  async function handleSelectReport(reportKey: string) {
+    const report = reports.find((r) => `${r.codSistema}::${r.codReport}` === reportKey) || null
     setSelectedReport(report)
     setReportInfo(null)
     if (!report) return
@@ -265,6 +283,15 @@ export function TbcReportsClient({ initialTbcs }: { initialTbcs: TbcOption[] }) 
     setParameters(parameters.map((p, i) => (i === index ? setParValueText(p, text) : p)))
   }
 
+  // Each report has its own set of filter columns/values (SPSINSCRICAOAREAOFERTADA.CODCOLIGADA,
+  // etc.) embedded in a SQL condition blob — mined out per report so the form always shows exactly
+  // the fields this report needs, not a generic single textbox.
+  const filterFields = useMemo(() => extractFilterFields(filters), [filters])
+
+  function updateFilterField(entry: FilterFieldEntry, newValue: string) {
+    setFilters(updateFilterFieldValue(filters, entry.parIndex, entry.table, entry.column, entry.value, newValue))
+  }
+
   const hasFiltersOrParams = filters.length > 0 || parameters.length > 0
 
   return (
@@ -282,7 +309,7 @@ export function TbcReportsClient({ initialTbcs }: { initialTbcs: TbcOption[] }) 
         <CardContent className="pt-6 space-y-4">
           <fieldset className="space-y-3 rounded-lg border border-input p-3">
             <legend className="px-1 text-sm font-medium text-muted-foreground">Conexão</legend>
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
               <Field>
                 <FieldLabel htmlFor="tbc">TBC</FieldLabel>
                 <Combobox
@@ -303,6 +330,20 @@ export function TbcReportsClient({ initialTbcs }: { initialTbcs: TbcOption[] }) 
                   onChange={(e) => setCodColigada(Number(e.target.value))}
                 />
               </Field>
+              <Field>
+                <FieldLabel htmlFor="sistema">Sistema</FieldLabel>
+                <Combobox
+                  items={sistemas.map((s) => ({
+                    value: s.id,
+                    label: `${s.code} - ${s.externalName} (${s.internalName})`,
+                  }))}
+                  value={selectedSistemaId}
+                  onValueChange={setSelectedSistemaId}
+                  placeholder="Todos os sistemas"
+                  searchPlaceholder="Buscar sistema..."
+                  emptyText="Nenhum sistema encontrado."
+                />
+              </Field>
               <div className="flex items-end">
                 <Button type="button" onClick={handleListReports} disabled={loading} className="w-full">
                   {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <ListChecks className="h-4 w-4 mr-2" />}
@@ -318,8 +359,11 @@ export function TbcReportsClient({ initialTbcs }: { initialTbcs: TbcOption[] }) 
               <Field>
                 <FieldLabel htmlFor="report">Relatório</FieldLabel>
                 <Combobox
-                  items={reports.map((r) => ({ value: r.codReport, label: `${r.nome} (${r.codReport})` }))}
-                  value={selectedReport?.codReport ?? null}
+                  items={reports.map((r) => ({
+                    value: `${r.codSistema}::${r.codReport}`,
+                    label: `${r.codigo} - ${r.nome} (${r.codReport})`,
+                  }))}
+                  value={selectedReport ? `${selectedReport.codSistema}::${selectedReport.codReport}` : null}
                   onValueChange={handleSelectReport}
                   placeholder="Selecionar relatório..."
                   searchPlaceholder="Buscar relatório..."
@@ -339,14 +383,30 @@ export function TbcReportsClient({ initialTbcs }: { initialTbcs: TbcOption[] }) 
             {filters.length > 0 && (
               <div className="space-y-2">
                 <p className="text-sm font-medium">Filtros</p>
-                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                  {filters.map((f, i) => (
-                    <Field key={i}>
-                      <FieldLabel>{getParLabel(f)}</FieldLabel>
-                      <Input value={getParValueText(f)} onChange={(e) => updateFilterValue(i, e.target.value)} />
-                    </Field>
-                  ))}
-                </div>
+                {filterFields.length > 0 ? (
+                  <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                    {filterFields.map((field) => (
+                      <Field key={`${field.parIndex}:${field.table}.${field.column}`}>
+                        <FieldLabel>
+                          {field.table}.{field.column}
+                        </FieldLabel>
+                        <Input
+                          value={field.value}
+                          onChange={(e) => updateFilterField(field, e.target.value)}
+                        />
+                      </Field>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                    {filters.map((f, i) => (
+                      <Field key={i}>
+                        <FieldLabel>{getParLabel(f)}</FieldLabel>
+                        <Input value={getParValueText(f)} onChange={(e) => updateFilterValue(i, e.target.value)} />
+                      </Field>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
 

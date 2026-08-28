@@ -7,14 +7,20 @@ import { logger } from "@/lib/logger";
 export async function POST(request: NextRequest) {
   try {
     const { organizationId, userId } = await requirePermission("tbc_reports", "execute");
-    const { tbcId, codColigada } = await request.json();
+    const { tbcId, codColigada, codSistema } = await request.json();
 
     if (!tbcId || codColigada === undefined || codColigada === null) {
       return NextResponse.json({ error: "Selecione o TBC e informe a coligada" }, { status: 400 });
     }
 
     const tbc = await tbcService.getCredentialsForRequest(tbcId, organizationId);
-    const reports = await tbcReportService.listReports(tbc, organizationId, Number(codColigada), userId);
+    const reports = await tbcReportService.listReports(
+      tbc,
+      organizationId,
+      Number(codColigada),
+      userId,
+      codSistema || undefined
+    );
 
     return NextResponse.json({ reports });
   } catch (error) {

@@ -48,14 +48,24 @@ export const tbcReportService = {
     tbc: TbcCredentials,
     organizationId: string,
     codColigada: number,
-    userId?: string
+    userId?: string,
+    codSistema?: string
   ): Promise<TbcReportListItem[]> {
     const res = await soapService.execute(
       { tbc, wsName: "wsReport", method: "GETREPORTLIST", xml: `<GetReportList><codColigada>${codColigada}</codColigada></GetReportList>` },
       organizationId,
       userId
     );
-    return parseReportListResponse(res.xmlResponse.trim());
+    const reports = parseReportListResponse(res.xmlResponse.trim());
+    // GetReportList only takes codColigada — TOTVS has no per-system filter on this call — so a
+    // system filter is applied here, after the fact. The `codSistema` token in each row is TOTVS's
+    // own full module display name (e.g. "TOTVS Educacional"), NOT the short internal system code —
+    // confirmed against TOTVS's own docs sample (GetReportList response: "0,TOTVS Educacional,306,
+    // Boletim,..."). Callers must pass the Sistema catalog's `externalName`, not its `code`.
+    if (!codSistema) return reports;
+    const normalize = (s: string) => s.replace(/\s+/g, " ").trim().toUpperCase();
+    const target = normalize(codSistema);
+    return reports.filter((r) => normalize(r.codSistema) === target);
   },
 
   async getReportInfo(

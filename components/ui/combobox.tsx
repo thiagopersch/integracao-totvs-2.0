@@ -45,6 +45,16 @@ export function Combobox({
 }: ComboboxProps) {
   const [open, setOpen] = React.useState(false)
   const selected = items.find((item) => item.value === value)
+  // Upstream lists (e.g. a TOTVS report/TBC listing) can legitimately repeat a `value` — dedupe so
+  // React never sees two children with the same key, which corrupts selection/rendering.
+  const dedupedItems = React.useMemo(() => {
+    const seen = new Set<string>()
+    return items.filter((item) => {
+      if (seen.has(item.value)) return false
+      seen.add(item.value)
+      return true
+    })
+  }, [items])
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -70,7 +80,7 @@ export function Combobox({
           <CommandList>
             <CommandEmpty>{emptyText}</CommandEmpty>
             <CommandGroup>
-              {items.map((item) => (
+              {dedupedItems.map((item) => (
                 <CommandItem
                   key={item.value}
                   value={item.label}

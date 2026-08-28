@@ -16,6 +16,7 @@ type DownloadResult = { base64: string; byteLength: number; fileName: string } |
 interface TbcReportState {
   selectedTbcId: string
   codColigada: number
+  selectedSistemaId: string
   reports: TbcReportListItem[]
   selectedReport: TbcReportListItem | null
   reportInfo: { filters: RptReportPar[]; parameters: RptReportPar[] } | null
@@ -32,6 +33,7 @@ interface TbcReportState {
 
   setSelectedTbcId: (id: string) => void
   setCodColigada: (value: number) => void
+  setSelectedSistemaId: (id: string) => void
   setReports: (reports: TbcReportListItem[]) => void
   setSelectedReport: (report: TbcReportListItem | null) => void
   setReportInfo: (info: { filters: RptReportPar[]; parameters: RptReportPar[] } | null) => void
@@ -68,6 +70,7 @@ function freshSteps(): ReportStep[] {
 const initialState = {
   selectedTbcId: "",
   codColigada: 1,
+  selectedSistemaId: "",
   reports: [],
   selectedReport: null,
   reportInfo: null,
@@ -87,6 +90,7 @@ export const useTbcReportStore = create<TbcReportState>((set) => ({
   ...initialState,
   setSelectedTbcId: (selectedTbcId) => set({ selectedTbcId }),
   setCodColigada: (codColigada) => set({ codColigada }),
+  setSelectedSistemaId: (selectedSistemaId) => set({ selectedSistemaId }),
   setReports: (reports) => set({ reports }),
   setSelectedReport: (selectedReport) => set({ selectedReport }),
   setReportInfo: (reportInfo) =>
