@@ -345,3 +345,80 @@ export function parseProcessSchema(xml: string): SchemaTable[] {
     return []
   }
 }
+
+export type DataTable = {
+  name: string
+  columns: string[]
+  rows: Record<string, string>[]
+}
+
+function cellText(value: unknown): string {
+  if (value === null || value === undefined) return ""
+  if (isRecord(value)) return String(value["#text"] ?? "")
+  return String(value)
+}
+
+/** A node "is a row" when every one of its children is a plain value — a scalar, or a nil-marked
+ *  empty element (`<FIELD i:nil="true" />` parses to an object with only `#text`/`@_` keys) —
+ *  never another nested structure. That's what distinguishes an actual data row (ReadView) from a
+ *  DataSet's schema/container elements. */
+function isDataRow(node: unknown): node is Record<string, unknown> {
+  if (!isRecord(node)) return false
+  return Object.entries(node).every(([key, value]) => {
+    if (key.startsWith("@_")) return true
+    if (value === null || value === undefined) return true
+    if (typeof value !== "object") return true
+    return Object.keys(value).every((k) => k === "#text" || k.startsWith("@_"))
+  })
+}
+
+/**
+ * Parses the ADO.NET DataSet-shaped XML `wsDataServer.ReadView` returns — same DataSet concept
+ * `GetSchema` describes the structure of, just carrying the actual row values this time (root is
+ * typically `NewDataSet`, wrapping one repeated element per row, per table — confirmed against the
+ * shape `services/rm-sentence.service.ts` already reads live for GlbConsSqlData/ReadView). Rows are
+ * matched structurally (see `isDataRow`) rather than against a hardcoded root/row name, so it
+ * doesn't matter which table(s) the view actually touches, or whether TOTVS serializes a single
+ * matching row as a bare object instead of a 1-item array (a known quirk).
+ */
+export function parseReadViewResult(xml: string): DataTable[] {
+  try {
+    const json = schemaParser.parse(xml) as Record<string, unknown>
+    const rowsByTable = new Map<string, Record<string, string>[]>()
+    const order: string[] = []
+
+    function walk(node: unknown, depth: number) {
+      if (depth > 20 || !isRecord(node)) return
+      for (const [rawKey, value] of Object.entries(node)) {
+        if (rawKey.startsWith("@_") || rawKey === "#text") continue
+        const key = localName(rawKey)
+        for (const item of asArray(value)) {
+          if (isDataRow(item)) {
+            const row: Record<string, string> = {}
+            for (const [fieldKey, fieldValue] of Object.entries(item)) {
+              if (fieldKey.startsWith("@_")) continue
+              row[localName(fieldKey)] = cellText(fieldValue)
+            }
+            if (!rowsByTable.has(key)) {
+              rowsByTable.set(key, [])
+              order.push(key)
+            }
+            rowsByTable.get(key)!.push(row)
+          } else {
+            walk(item, depth + 1)
+          }
+        }
+      }
+    }
+
+    walk(json, 0)
+
+    return order.map((name) => {
+      const rows = rowsByTable.get(name)!
+      const columns = Array.from(new Set(rows.flatMap((row) => Object.keys(row))))
+      return { name, columns, rows }
+    })
+  } catch {
+    return []
+  }
+}

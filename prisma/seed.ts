@@ -340,7 +340,18 @@ async function main() {
         name: "Processo Seletivo",
         nameAlternative: "EduPSProcessoSeletivo",
       },
-      { organizationId: orgId, code: "Recurso", name: "Recurso" },
+      {
+        organizationId: orgId,
+        code: "EduPSAreaOfertadaData",
+        name: "Área de Ofertada (PS)",
+        nameAlternative: "EduPSAreaOfertada",
+      },
+      {
+        organizationId: orgId,
+        code: "EduPSRecursoData",
+        name: "Recurso",
+        nameAlternative: "EduPSRecurso",
+      },
       {
         organizationId: orgId,
         code: "EduPSAgendamentosData",

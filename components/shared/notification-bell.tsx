@@ -14,6 +14,8 @@ import { formatRelativeTime } from "@/utils/format"
 import { cn } from "@/lib/utils"
 import type { Notification } from "@prisma/client"
 
+const POPOVER_NOTIFICATION_LIMIT = 6
+
 type ChangeEntry = { field: string; from?: unknown; to?: unknown }
 
 function formatShort(value: unknown): string {
@@ -56,7 +58,9 @@ export function NotificationBell() {
 
   async function load() {
     try {
-      const result = await listNotifications(1, 10)
+      // The popover is a quick glance, not the full inbox — only the most recent
+      // POPOVER_NOTIFICATION_LIMIT show here; everything else lives behind "Ver todas".
+      const result = await listNotifications(1, POPOVER_NOTIFICATION_LIMIT)
       setItems(result.data as Notification[])
       setUnreadCount(result.unreadCount)
     } catch (error) {
@@ -122,7 +126,11 @@ export function NotificationBell() {
             </span>
           )}
         </PopoverTrigger>
-        <PopoverContent align="end" className="w-96 p-0">
+        <PopoverContent
+          align="end"
+          className="w-96 !bg-popover !opacity-100 p-0 shadow-lg"
+          style={{ backgroundColor: "var(--popover)" }}
+        >
           <div className="flex items-center justify-between border-b p-3">
             <span className="text-sm font-medium">Notificações</span>
             {unreadCount > 0 && (
@@ -177,14 +185,22 @@ export function NotificationBell() {
             )}
           </ScrollArea>
           <div className="border-t p-2">
-            <Link href="/notifications" className="block rounded-md p-1.5 text-center text-xs text-muted-foreground hover:bg-accent" onClick={() => setOpen(false)}>
+            <Link
+              href="/notifications"
+              className="block rounded-md p-1.5 text-center text-xs text-muted-foreground hover:bg-accent"
+              onClick={() => setOpen(false)}
+            >
               Ver todas
             </Link>
           </div>
         </PopoverContent>
       </Popover>
 
-      <NotificationDetailDialog open={!!detail} onOpenChange={(open) => !open && setDetail(null)} notification={detail} />
+      <NotificationDetailDialog
+        open={!!detail}
+        onOpenChange={(open) => !open && setDetail(null)}
+        notification={detail}
+      />
     </>
   )
 }

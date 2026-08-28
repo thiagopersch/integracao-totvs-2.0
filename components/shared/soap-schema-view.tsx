@@ -4,6 +4,7 @@ import { Star } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { TableCellValue } from "@/components/shared/table-cell-value"
 import type { SchemaTable } from "@/utils/soap-schema"
 
 interface SoapSchemaViewProps {
@@ -75,9 +76,13 @@ export function SoapSchemaView({ tables, showPrimaryKey }: SoapSchemaViewProps) 
                         </TableCell>
                       )}
                       <TableCell className="font-mono text-xs">{field.name}</TableCell>
-                      <TableCell>{field.caption || "-"}</TableCell>
+                      <TableCell>
+                        <TableCellValue value={field.caption} />
+                      </TableCell>
                       <TableCell className="font-mono text-xs">{field.type || "-"}</TableCell>
-                      <TableCell className="font-mono text-xs">{field.defaultValue || "-"}</TableCell>
+                      <TableCell className="font-mono text-xs">
+                        <TableCellValue value={field.defaultValue} />
+                      </TableCell>
                       <TableCell className="font-mono text-xs">{field.maxLength || "-"}</TableCell>
                     </TableRow>
                   ))
