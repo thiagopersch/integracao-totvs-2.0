@@ -8,6 +8,7 @@ import { PageHeader } from "@/components/shared/page-header"
 import { NotificationDetailDialog } from "@/components/shared/notification-detail-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Eye } from "lucide-react"
 import { formatDate } from "@/utils/format"
 import { getNotificationCategory } from "@/lib/notification-category"
 import { markNotificationAsRead, markAllNotificationsAsRead } from "@/actions/notifications"
@@ -80,7 +81,17 @@ export function NotificationTable({ data, meta, unreadCount }: NotificationTable
       },
     },
     { accessorKey: "title", header: "Título" },
-    { accessorKey: "body", header: "Mensagem", cell: ({ row }) => <span className="line-clamp-1">{row.getValue("body")}</span> },
+    {
+      accessorKey: "body",
+      header: "Mensagem",
+      cell: ({ row }) => (
+        <div onClick={(e) => e.stopPropagation()}>
+          <Button variant="ghost" size="icon" onClick={() => handleRowClick(row.original)}>
+            <Eye className="h-4 w-4" />
+          </Button>
+        </div>
+      ),
+    },
     {
       accessorKey: "createdAt",
       header: "Data",

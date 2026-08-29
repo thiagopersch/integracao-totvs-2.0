@@ -166,31 +166,6 @@ export const auditService = {
     );
   },
 
-  async listBulkDeleteBlocked(
-    organizationId: string,
-    page = 1,
-    pageSize = 20,
-    sort?: { field: string; direction: "asc" | "desc" }
-  ) {
-    const where = { action: BULK_DELETE_BLOCKED_ACTION, organizationId };
-    const orderBy = sort ? { [sort.field]: sort.direction } : { createdAt: "desc" as const };
-    const [data, total] = await Promise.all([
-      prisma.auditLog.findMany({
-        where,
-        include: { user: { select: { id: true, name: true, email: true } } },
-        orderBy,
-        skip: (page - 1) * pageSize,
-        take: pageSize,
-      }),
-      prisma.auditLog.count({ where }),
-    ]);
-
-    return {
-      data,
-      meta: { page, pageSize, total, totalPages: Math.ceil(total / pageSize) },
-    };
-  },
-
   async list(entity: string, entityId?: string, page = 1, pageSize = 50) {
     const where = { entity, ...(entityId ? { entityId } : {}) };
     const [data, total] = await Promise.all([

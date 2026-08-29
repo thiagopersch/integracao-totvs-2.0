@@ -6,6 +6,7 @@ import { soapEndpointService } from "@/services/soap-endpoint.service";
 import { tbcService } from "@/services/tbc.service";
 import { prisma } from "@/lib/prisma";
 import { getRequestContext } from "@/lib/tenant";
+import { requirePermission } from "@/lib/rbac";
 import { auditService } from "@/services/audit.service";
 import type { SoapContext } from "@/types/soap";
 import type { SoapMethod } from "@prisma/client";
@@ -63,7 +64,7 @@ export async function deleteSoapTemplate(id: string) {
  * (SoapLog.process), then resolves the method from /admin/soap-endpoints like every other call.
  */
 export async function reexecuteSoapLog(logId: string) {
-  const { organizationId, userId } = await getRequestContext();
+  const { organizationId, userId } = await requirePermission("soap", "execute");
   try {
     const log = await prisma.soapLog.findFirst({ where: { id: logId, organizationId } });
     if (!log) return { success: false, error: "Registro de histórico não encontrado" };

@@ -38,7 +38,6 @@ export const navGroups: NavGroup[] = [
     icon: "Radio",
     items: [
       { href: "/soap/builder", label: "Integração SOAP", icon: "Radio", resource: "soap", action: "execute" },
-      { href: "/soap/history", label: "Histórico SOAP", icon: "History", resource: "soap", action: "history" },
       { href: "/admin/soap-endpoints", label: "Endpoints SOAP", icon: "Settings", resource: "settings", action: "manage" },
     ],
   },
@@ -71,8 +70,7 @@ export const navGroups: NavGroup[] = [
     items: [
       { href: "/admin/users", label: "Usuários", icon: "Users", resource: "users" },
       { href: "/admin/roles", label: "Papéis e Permissões", icon: "ShieldCheck", resource: "roles" },
-      { href: "/admin/deletion-logs", label: "Logs de Exclusão", icon: "AlertTriangle", resource: "deletion_logs" },
-      { href: "/admin/activity", label: "Rastreamento de Atividades", icon: "Activity", resource: "activity_logs" },
+      { href: "/admin/activity", label: "Rastreamento de Atividades", icon: "Activity", resource: null },
     ],
   },
   {

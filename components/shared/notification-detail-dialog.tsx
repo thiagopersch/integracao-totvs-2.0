@@ -1,14 +1,17 @@
 "use client"
 
+import { useState } from "react"
 import Link from "next/link"
+import { Maximize2, Minimize2 } from "lucide-react"
 import { Dialog, DialogBody, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
-import { buttonVariants } from "@/components/ui/button"
+import { Button, buttonVariants } from "@/components/ui/button"
 import { formatDate } from "@/utils/format"
 import { getNotificationCategory } from "@/lib/notification-category"
 import { ENTITY_LABELS } from "@/lib/entity-relations"
 import { ACTION_LABELS } from "@/lib/audit-labels"
 import { ERROR_KIND_LABELS, ERROR_KIND_BADGE_VARIANT, type ErrorKind } from "@/lib/error-kind"
+import { cn } from "@/lib/utils"
 import type { Notification } from "@prisma/client"
 
 type ChangeEntry = { field: string; from?: unknown; to?: unknown }
@@ -49,6 +52,8 @@ function formatValue(value: unknown): string {
 }
 
 export function NotificationDetailDialog({ open, onOpenChange, notification }: NotificationDetailDialogProps) {
+  const [expanded, setExpanded] = useState(false)
+
   if (!notification) return null
 
   const category = getNotificationCategory(notification.type)
@@ -58,19 +63,31 @@ export function NotificationDetailDialog({ open, onOpenChange, notification }: N
   const errorKindLabel = data?.errorKind ? ERROR_KIND_LABELS[data.errorKind] : null
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
+    <Dialog open={open} onOpenChange={(next) => { onOpenChange(next); if (!next) setExpanded(false) }}>
+      <DialogContent
+        className={cn(
+          expanded ? "h-[90vh]! max-h-[90vh]! w-[90vw]! max-w-[90vw]!" : "h-[70vh]! max-h-[70vh]! w-[70vw]! max-w-[70vw]!"
+        )}
+      >
         <DialogHeader>
           <DialogTitle className="flex flex-wrap items-center gap-2">
             <category.icon className="h-4 w-4 shrink-0 text-muted-foreground" />
             {notification.title}
             <Badge variant="outline">{category.label}</Badge>
             {!notification.readAt && <Badge>Não lida</Badge>}
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="ml-auto"
+              onClick={() => setExpanded((v) => !v)}
+              title={expanded ? "Tamanho normal" : "Expandir"}
+            >
+              {expanded ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+            </Button>
           </DialogTitle>
         </DialogHeader>
         <DialogBody className="space-y-4">
-          <p className="text-sm">{notification.body}</p>
-
           <div className="grid grid-cols-2 gap-3 text-sm">
             <div>
               <p className="text-xs text-muted-foreground">Data</p>
@@ -118,17 +135,32 @@ export function NotificationDetailDialog({ open, onOpenChange, notification }: N
                 <p className="break-all">{data.url}</p>
               </div>
             )}
+            {data?.integration && (
+              <div>
+                <p className="text-xs text-muted-foreground">Integração</p>
+                <p>{data.integration}</p>
+              </div>
+            )}
+            <div>
+              <p className="text-xs text-muted-foreground">Status</p>
+              <p>{notification.readAt ? `Lida em ${formatDate(notification.readAt)}` : "Não lida"}</p>
+            </div>
           </div>
 
-          {errorKindLabel && (
+          {errorKindLabel ? (
             <div>
               <div className="mb-1.5 flex items-center gap-2">
                 <p className="text-xs text-muted-foreground">Tipo de erro</p>
                 <Badge variant={ERROR_KIND_BADGE_VARIANT[data!.errorKind!]}>{errorKindLabel}</Badge>
               </div>
-              {data?.errorMessage && (
-                <pre className="whitespace-pre-wrap break-all rounded-md border bg-muted/50 p-2 text-xs">{data.errorMessage}</pre>
-              )}
+              <pre className="whitespace-pre-wrap break-all rounded-md border bg-muted/50 p-2 text-xs text-red-600 dark:text-red-400">
+                {data?.errorMessage || notification.body}
+              </pre>
+            </div>
+          ) : (
+            <div>
+              <p className="mb-1.5 text-xs text-muted-foreground">Mensagem</p>
+              <pre className="whitespace-pre-wrap break-all rounded-md border bg-muted/50 p-2 text-xs">{notification.body}</pre>
             </div>
           )}
 

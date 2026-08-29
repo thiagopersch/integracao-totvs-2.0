@@ -59,13 +59,14 @@ export function buildSoapCallFailedNotification(params: {
   clientName?: string;
   tbcName?: string;
   logId?: string;
+  url?: string;
 }): BuiltNotification {
   return {
     type: NOTIFICATION_TYPES.SOAP_CALL_FAILED,
     title: `Falha na chamada SOAP — ${params.method}`,
     body: `A chamada ${params.method} (${params.wsName}) falhou: ${params.errorMessage}`,
     data: {
-      href: "/soap/history",
+      href: "/admin/activity?source=SOAP",
       source: "soap",
       sourceLabel: params.sourceLabel,
       method: params.method,
@@ -76,6 +77,7 @@ export function buildSoapCallFailedNotification(params: {
       errorMessage: params.errorMessage,
       errorKind: params.errorKind,
       logId: params.logId,
+      url: params.url,
     },
   };
 }

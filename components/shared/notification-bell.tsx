@@ -14,7 +14,7 @@ import { formatRelativeTime } from "@/utils/format"
 import { cn } from "@/lib/utils"
 import type { Notification } from "@prisma/client"
 
-const POPOVER_NOTIFICATION_LIMIT = 6
+const POPOVER_NOTIFICATION_LIMIT = 4
 
 type ChangeEntry = { field: string; from?: unknown; to?: unknown }
 
