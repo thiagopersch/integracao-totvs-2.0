@@ -24,7 +24,7 @@ import { safeFormatXmlDeep } from "@/utils/xml"
 import { ENTITY_LABELS, formatBlockingReferences, type BlockingReference } from "@/lib/entity-relations"
 import { reexecuteSoapLog } from "@/actions/soap"
 import { cn } from "@/utils/cn"
-import { FileText, Radio, Mail, Plug, Trash2, Maximize2, Minimize2, Eye, RotateCcw } from "lucide-react"
+import { FileText, Radio, Mail, Plug, Trash2, Maximize2, Minimize2, Eye, RotateCcw, Download } from "lucide-react"
 import { toast } from "sonner"
 import { STATUS_SYMBOLS } from "@/lib/activity-status"
 import type { ActivityRow, ActivitySource, ActivityStatus } from "@/services/activity-log.service"
@@ -541,10 +541,63 @@ function ActivityDetailDialog({ open, onOpenChange, row }: { open: boolean; onOp
   )
 }
 
-function DataBlock({ label, value, language = "json" }: { label: string; value: unknown; language?: CodeEditorLanguage }) {
+const DATA_BLOCK_DOWNLOAD_THRESHOLD_LINES = 10
+
+function downloadDataBlockFile(content: string, filename: string, mimeType: string) {
+  const blob = new Blob([content], { type: mimeType })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement("a")
+  link.href = url
+  link.download = filename
+  link.click()
+  URL.revokeObjectURL(url)
+}
+
+function DataBlock({
+  label,
+  value,
+  language = "json",
+  fileNameHint,
+}: {
+  label: string
+  value: unknown
+  language?: CodeEditorLanguage
+  fileNameHint?: string
+}) {
   if (value === null || value === undefined) return null
   const content = typeof value === "string" ? value : JSON.stringify(value, null, 2)
   if (!content) return null
+
+  const lineCount = content.split("\n").length
+  if (lineCount >= DATA_BLOCK_DOWNLOAD_THRESHOLD_LINES) {
+    const extension = language === "xml" ? "xml" : "json"
+    const mimeType = language === "xml" ? "application/xml" : "application/json"
+    const nameSource = fileNameHint || label
+    const filenameBase = nameSource
+      ? nameSource
+          .toLowerCase()
+          .normalize("NFD")
+          .replace(/[̀-ͯ]/g, "")
+          .replace(/[^a-z0-9]+/g, "-")
+          .replace(/(^-|-$)/g, "")
+      : extension
+    const filename = `${filenameBase}.${extension}`
+    return (
+      <div>
+        {label && <p className="mb-1 text-xs text-muted-foreground">{label}</p>}
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={() => downloadDataBlockFile(content, filename, mimeType)}
+        >
+          <Download />
+          Baixar arquivo {extension.toUpperCase()} ({lineCount} linhas)
+        </Button>
+      </div>
+    )
+  }
+
   return (
     <div>
       {label && <p className="mb-1 text-xs text-muted-foreground">{label}</p>}
@@ -611,13 +664,23 @@ function SoapDetail({ raw }: { raw: SoapLog }) {
           <TabsTrigger value="response-json">JSON Resposta</TabsTrigger>
         </TabsList>
         <TabsContent value="request">
-          <DataBlock label="" value={raw.xmlRequest ? safeFormatXmlDeep(raw.xmlRequest) : null} language="xml" />
+          <DataBlock
+            label=""
+            value={raw.xmlRequest ? safeFormatXmlDeep(raw.xmlRequest) : null}
+            language="xml"
+            fileNameHint="requisicao"
+          />
         </TabsContent>
         <TabsContent value="response-xml">
-          <DataBlock label="" value={raw.xmlResponse ? safeFormatXmlDeep(raw.xmlResponse) : null} language="xml" />
+          <DataBlock
+            label=""
+            value={raw.xmlResponse ? safeFormatXmlDeep(raw.xmlResponse) : null}
+            language="xml"
+            fileNameHint="resposta"
+          />
         </TabsContent>
         <TabsContent value="response-json">
-          <DataBlock label="" value={raw.jsonResponse} />
+          <DataBlock label="" value={raw.jsonResponse} fileNameHint="resposta" />
         </TabsContent>
       </Tabs>
     </div>

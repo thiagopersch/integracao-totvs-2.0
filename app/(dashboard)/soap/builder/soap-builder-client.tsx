@@ -25,7 +25,7 @@ import {
 import { CodeEditor } from "@/components/shared/code-editor"
 import { SoapSchemaView } from "@/components/shared/soap-schema-view"
 import { SoapDataTableView } from "@/components/shared/soap-data-table-view"
-import { Play, Copy, Download, Loader2, Code2, FileJson, Table2, Globe, TriangleAlert } from "lucide-react"
+import { Play, Copy, Download, Loader2, Code2, FileJson, Table2, Globe, TriangleAlert, Search, CircleCheck, CircleX } from "lucide-react"
 import { toast } from "sonner"
 import axios from "axios"
 import { xmlToJson, jsonToXml, safeFormatXmlDeep } from "@/utils/xml"
@@ -200,6 +200,19 @@ export function SoapBuilderClient({
   const [readViewFiltro, setReadViewFiltro] = useState("")
   const [primaryKeyFields, setPrimaryKeyFields] = useState<{ name: string; caption: string }[]>([])
   const [primaryKeyValues, setPrimaryKeyValues] = useState<Record<string, string>>({})
+  // RealizarConsultaSQL(Contexto) guided params — codSistema is never typed here, it's always the
+  // code of whatever's selected in the "Sistema TOTVS" select above (see handleSelectSistema).
+  const [sqlCodColigada, setSqlCodColigada] = useState("")
+  const [sqlCodSentenca, setSqlCodSentenca] = useState("")
+  const [sqlParameters, setSqlParameters] = useState("")
+  const [sqlContext, setSqlContext] = useState("")
+  // "Buscar sentença" — looks the sentence up live in TOTVS RM (GlbConsSqlData) and, when found,
+  // parses its SQL text for `:PARAM` references so one text field per parameter can replace the
+  // free-text Parâmetros box. null = not searched yet (keep the manual fallback field).
+  const [sentenceLookupLoading, setSentenceLookupLoading] = useState(false)
+  const [sentenceFound, setSentenceFound] = useState<boolean | null>(null)
+  const [sentenceParams, setSentenceParams] = useState<string[]>([])
+  const [sentenceParamValues, setSentenceParamValues] = useState<Record<string, string>>({})
   // Every table the dataserver's own schema declares (not just the main one) — cached from the
   // same GetSchema call ReadRecord/DeleteRecordByKey already run for the primary key, and reused
   // to flag a ReadRecord result table that came back with no rows at all (see handleExecute).
@@ -218,8 +231,15 @@ export function SoapBuilderClient({
     const base = selectedTbc.link.replace(/\/+$/, "")
     const prefix = selectedTbc.notRequiredLicense ? "EduLicense" : ""
     const wsFolder = selectedType.suffix
-    const isSharedAuthMethod = selectedMethod === "AUTENTICAACESSO"
-    const port = isSharedAuthMethod ? "IwsBase" : `Iws${wsFolder.slice(2)}`
+    // Mirrors services/soap.service.ts's servicePortInterface: AutenticaAcesso always lives on
+    // IwsBase, CheckServiceActivity always lives on IRMSServer (confirmed live even for
+    // wsConsultaSQL: IwsConsultaSQL answers CheckServiceActivity with an empty 202, not `true`).
+    const port =
+      selectedMethod === "AUTENTICAACESSO"
+        ? "IwsBase"
+        : selectedMethod === "CHECKSERVICEACTIVITY"
+          ? "IRMSServer"
+          : `Iws${wsFolder.slice(2)}`
     return `${base}/${prefix}${wsFolder}/${port}`
   })()
 
@@ -227,6 +247,21 @@ export function SoapBuilderClient({
   const isDataserverPkMethod =
     selectedType?.type === "dataserver" && (selectedMethod === "READRECORD" || selectedMethod === "DELETERECORDBYKEY")
   const isXmlParamMethod = XML_PARAM_WRAP_METHODS.has(selectedMethod ?? "")
+  const isConsultaSqlMethod =
+    selectedType?.type === "consulta" && (selectedMethod === "REALIZARCONSULTASQL" || selectedMethod === "REALIZARCONSULTASQLCONTEXTO")
+  const isConsultaSqlContextoMethod = isConsultaSqlMethod && selectedMethod === "REALIZARCONSULTASQLCONTEXTO"
+  const selectedSistemaCode = sistemas.find((s) => s.id === selectedSistemaId)?.code ?? ""
+  // Executar stays disabled for Consulta SQL until coligada/sentença/sistema are filled — and,
+  // when the searched sentence declares parameters, until every one of them has a value too (no
+  // partial fill allowed here, unlike the free-text fallback field used before a search).
+  const consultaSqlMissingRequired =
+    isConsultaSqlMethod &&
+    (!sqlCodColigada.trim() ||
+      !sqlCodSentenca.trim() ||
+      !selectedSistemaCode ||
+      // A pure-space value counts as filled (a real value TOTVS may expect) — only an actual empty
+      // string blocks execution here.
+      (sentenceParams.length > 0 && sentenceParams.some((p) => (sentenceParamValues[p] ?? "") === "")))
   // Both the process ExecuteWithXmlParams(Async) flow and the dataserver SaveRecord/DeleteRecord
   // flow need one automatic GetSchema round-trip before the request can be filled in or sent.
   const needsGuidedSchema = isXmlParamMethod || isDataserverPkMethod
@@ -289,6 +324,131 @@ export function SoapBuilderClient({
     setPrimaryKeyFields([])
     setPrimaryKeyValues({})
     setDataserverSchemaTables(null)
+    setSqlCodColigada("")
+    setSqlCodSentenca("")
+    setSqlParameters("")
+    setSqlContext("")
+    setSentenceFound(null)
+    setSentenceParams([])
+    setSentenceParamValues({})
+  }
+
+  /** Rebuilds the RealizarConsultaSQL(Contexto) request XML from the guided fields — codSistema is
+   *  always read from the "Sistema TOTVS" select (never typed here), per TOTVS's own param list. */
+  function buildConsultaSqlXml(
+    method: string,
+    values: { codColigada: string; codSentenca: string; parameters: string; context: string }
+  ): string {
+    const operation = METHOD_OPERATION[method as keyof typeof METHOD_OPERATION] ?? method
+    const contextPart =
+      method === "REALIZARCONSULTASQLCONTEXTO"
+        ? `\n  <context>${escapeXml(values.context)}</context>`
+        : ""
+    return `<${operation}>\n  <codSentenca>${escapeXml(values.codSentenca)}</codSentenca>\n  <codColigada>${escapeXml(values.codColigada)}</codColigada>\n  <codSistema>${escapeXml(selectedSistemaCode)}</codSistema>\n  <parameters>${escapeXml(values.parameters)}</parameters>${contextPart}\n</${operation}>`
+  }
+
+  function handleSqlFieldChange(field: "codColigada" | "codSentenca" | "parameters" | "context", value: string) {
+    const next = {
+      codColigada: field === "codColigada" ? value : sqlCodColigada,
+      codSentenca: field === "codSentenca" ? value : sqlCodSentenca,
+      parameters: field === "parameters" ? value : sqlParameters,
+      context: field === "context" ? value : sqlContext,
+    }
+    if (field === "codColigada") setSqlCodColigada(value)
+    if (field === "codSentenca") setSqlCodSentenca(value)
+    if (field === "parameters") setSqlParameters(value)
+    if (field === "context") setSqlContext(value)
+    // Coligada/sentença identify WHICH sentence a previous search found — changing either one
+    // invalidates that result, so a stale set of parameter fields never lingers for a different
+    // sentence. Editing "parameters"/"context" directly doesn't change that identity.
+    if (field === "codColigada" || field === "codSentenca") {
+      setSentenceFound(null)
+      setSentenceParams([])
+      setSentenceParamValues({})
+    }
+    if (selectedMethod) setRequestXml(buildConsultaSqlXml(selectedMethod, next))
+  }
+
+  /** Looks the sentence up live in TOTVS RM and, when found, parses its SQL text for `:PARAM`
+   *  references — each becomes its own text field (see render below), replacing the free-text
+   *  Parâmetros box. Not all parameters are required, so an empty field is simply omitted when the
+   *  combined "parameters" string is built in handleSentenceParamValueChange. */
+  async function handleSearchSentence() {
+    if (!sqlCodColigada.trim() || !sqlCodSentenca.trim() || !selectedSistemaCode) {
+      toast.error("Preencha coligada, código da sentença e Sistema TOTVS antes de buscar")
+      return
+    }
+    if (!selectedTbcId) {
+      toast.error("Selecione o TBC antes de buscar a sentença")
+      return
+    }
+    setSentenceLookupLoading(true)
+    setSentenceFound(null)
+    setSentenceParams([])
+    setSentenceParamValues({})
+    try {
+      const res = await axios.post("/api/soap/consulta-sql/lookup-sentence", {
+        tbcId: selectedTbcId,
+        codColigada: sqlCodColigada,
+        codSistema: selectedSistemaCode,
+        codSentenca: sqlCodSentenca,
+        context,
+      })
+      if (!res.data.found) {
+        setSentenceFound(false)
+        toast.error("Sentença não encontrada no TOTVS RM para os códigos informados")
+        return
+      }
+      setSentenceFound(true)
+      const params: string[] = res.data.parameters ?? []
+      setSentenceParams(params)
+      setSentenceParamValues(Object.fromEntries(params.map((p) => [p, ""])))
+      if (params.length === 0) {
+        handleSqlFieldChangeParametersOnly("")
+        toast.success("Sentença encontrada — esta sentença não possui parâmetros")
+      } else {
+        toast.success(`Sentença encontrada — ${params.length} parâmetro(s) identificado(s)`)
+      }
+    } catch (err) {
+      setSentenceFound(false)
+      toast.error(axios.isAxiosError(err) ? err.response?.data?.error || err.message : (err as Error).message)
+    } finally {
+      setSentenceLookupLoading(false)
+    }
+  }
+
+  /** Same XML rebuild as handleSqlFieldChange("parameters", …) without the sentence-identity reset
+   *  above — used right after a search completes, when clearing the parameters field is a
+   *  consequence of the search itself, not a user edit that should invalidate it again. */
+  function handleSqlFieldChangeParametersOnly(value: string) {
+    setSqlParameters(value)
+    if (selectedMethod) {
+      setRequestXml(
+        buildConsultaSqlXml(selectedMethod, {
+          codColigada: sqlCodColigada,
+          codSentenca: sqlCodSentenca,
+          parameters: value,
+          context: sqlContext,
+        })
+      )
+    }
+  }
+
+  /** One text field per `:PARAM` found in the sentence's SQL — same fields, same order every
+   *  render (sentenceParams is fixed once the search resolves). Only params with a non-empty value
+   *  are joined into the final "KEY=value;KEY2=value2" string TOTVS expects, since not every
+   *  parameter a sentence declares is actually required to run it. */
+  function handleSentenceParamValueChange(paramName: string, value: string) {
+    const nextValues = { ...sentenceParamValues, [paramName]: value }
+    setSentenceParamValues(nextValues)
+    // A pure-space value is a legitimate parameter value for TOTVS, not "empty" — only an actual
+    // empty string means the user hasn't filled this optional/required field in yet, so this
+    // checks raw length rather than trimming (trimming would silently drop a real " " value).
+    const combined = sentenceParams
+      .filter((p) => (nextValues[p] ?? "") !== "")
+      .map((p) => `${p}=${nextValues[p]}`)
+      .join(";")
+    handleSqlFieldChangeParametersOnly(combined)
   }
 
   function handleSelectType(type: EndpointType) {
@@ -304,7 +464,16 @@ export function SoapBuilderClient({
       return
     }
     setSelectedMethodId(firstMethod.id)
-    setRequestXml(buildMethodTemplateXml(firstMethod.method, type.type, ""))
+    if (
+      type.type === "consulta" &&
+      (firstMethod.method === "REALIZARCONSULTASQL" || firstMethod.method === "REALIZARCONSULTASQLCONTEXTO")
+    ) {
+      setRequestXml(
+        buildConsultaSqlXml(firstMethod.method, { codColigada: "", codSentenca: "", parameters: "", context: "" })
+      )
+    } else {
+      setRequestXml(buildMethodTemplateXml(firstMethod.method, type.type, ""))
+    }
   }
 
   function handleSelectMethod(methodId: string) {
@@ -312,6 +481,15 @@ export function SoapBuilderClient({
     resetGuidedParams()
     const method = methods.find((m) => m.id === methodId)
     if (!method) return
+    if (
+      selectedType?.type === "consulta" &&
+      (method.method === "REALIZARCONSULTASQL" || method.method === "REALIZARCONSULTASQLCONTEXTO")
+    ) {
+      setRequestXml(
+        buildConsultaSqlXml(method.method, { codColigada: "", codSentenca: "", parameters: "", context: "" })
+      )
+      return
+    }
     const entityCode =
       selectedType?.type === "dataserver"
         ? (dataservers.find((d) => d.id === selectedDataserverId)?.code ?? "")
@@ -437,6 +615,20 @@ export function SoapBuilderClient({
     setSelectedSistemaId(sistemaId)
     const sistema = sistemas.find((s) => s.id === sistemaId)
     if (sistema) setContext({ codSystem: sistema.code })
+    if (isConsultaSqlMethod && selectedMethod) {
+      const newCode = sistema?.code ?? ""
+      const operation = METHOD_OPERATION[selectedMethod as keyof typeof METHOD_OPERATION] ?? selectedMethod
+      const contextPart =
+        selectedMethod === "REALIZARCONSULTASQLCONTEXTO" ? `\n  <context>${escapeXml(sqlContext)}</context>` : ""
+      setRequestXml(
+        `<${operation}>\n  <codSentenca>${escapeXml(sqlCodSentenca)}</codSentenca>\n  <codColigada>${escapeXml(sqlCodColigada)}</codColigada>\n  <codSistema>${escapeXml(newCode)}</codSistema>\n  <parameters>${escapeXml(sqlParameters)}</parameters>${contextPart}\n</${operation}>`
+      )
+      // codSistema is part of the sentence's identity (CODCOLIGADA + APLICACAO + CODSENTENCA) — a
+      // previous search's parameter fields no longer apply once it changes.
+      setSentenceFound(null)
+      setSentenceParams([])
+      setSentenceParamValues({})
+    }
   }
 
   function handleSelectClient(clientId: string) {
@@ -477,6 +669,25 @@ export function SoapBuilderClient({
       toast.error("Aguarde a estrutura de parâmetros ser carregada antes de executar")
       return
     }
+    if (isConsultaSqlMethod) {
+      if (!sqlCodColigada.trim()) {
+        toast.error("Informe a coligada da sentença")
+        return
+      }
+      if (!sqlCodSentenca.trim()) {
+        toast.error("Informe o código da sentença")
+        return
+      }
+      if (!selectedSistemaCode) {
+        toast.error("Selecione o Sistema TOTVS — o codSistema é obrigatório")
+        return
+      }
+      const missingParam = sentenceParams.find((p) => (sentenceParamValues[p] ?? "") === "")
+      if (missingParam) {
+        toast.error(`Preencha o parâmetro "${missingParam}" da sentença antes de executar`)
+        return
+      }
+    }
 
     setLoading(true)
     setError(null)
@@ -513,11 +724,17 @@ export function SoapBuilderClient({
         setSchemaTables(tables)
         setSchemaSourceType(entityType)
         setResponseTab("table")
-      } else if (selectedMethod === "READVIEW" || selectedMethod === "READRECORD") {
+      } else if (
+        selectedMethod === "READVIEW" ||
+        selectedMethod === "READRECORD" ||
+        selectedMethod === "REALIZARCONSULTASQL" ||
+        selectedMethod === "REALIZARCONSULTASQLCONTEXTO"
+      ) {
         // Same idea as GetSchema above, just rendered from actual row data instead of field
         // metadata — see SoapDataTableView. ReadRecord's result is the exact same DataSet-row
-        // shape ReadView's is (just without the NewDataSet wrapper), so the same structural parser
-        // applies unchanged.
+        // shape ReadView's is (just without the NewDataSet wrapper), and RealizarConsultaSQL(Contexto)
+        // returns that same NewDataSet/Resultado shape too (confirmed against TOTVS's own docs), so
+        // the same structural parser applies unchanged to all four.
         let tables = parseReadViewResult(res.data.xmlResponse)
 
         if (tables.length === 0) {
@@ -526,7 +743,9 @@ export function SoapBuilderClient({
           // own docs: an unmatched key returns "no more than the XSD", never a fault) — surfaced
           // the same way a real fault is (toast + response-box text), not left as a silent empty table.
           const message =
-            "Nenhum dado retornado. Verifique se você possui permissão para este dataserver/registro ou se os dados informados realmente existem."
+            selectedMethod === "REALIZARCONSULTASQL" || selectedMethod === "REALIZARCONSULTASQLCONTEXTO"
+              ? "Nenhum dado retornado. Verifique o codSentenca/codColigada/codSistema informados e os parâmetros da sentença SQL."
+              : "Nenhum dado retornado. Verifique se você possui permissão para este dataserver/registro ou se os dados informados realmente existem."
           setNoDataWarning(message)
           toast.error(message)
         } else if (selectedMethod === "READRECORD" && dataserverSchemaTables) {
@@ -750,29 +969,204 @@ export function SoapBuilderClient({
                 />
               </div>
             </div>
-            <div className="space-y-2">
-              <Label>URL da requisição</Label>
-              <Input
-                value={fullUrl}
-                readOnly
-                className="w-full font-mono text-xs"
-                placeholder="Selecione o sistema e o TBC..."
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Tempo limite (ms)</Label>
-              <Input
-                type="number"
-                value={timeout}
-                onChange={(e) => setTimeout_(Number(e.target.value))}
-                className="w-full max-w-40"
-              />
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-[1fr_auto]">
+              <div className="space-y-2">
+                <Label>URL da requisição</Label>
+                <Input
+                  value={fullUrl}
+                  readOnly
+                  className="w-full font-mono text-xs"
+                  placeholder="Selecione o sistema e o TBC..."
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Tempo limite (ms)</Label>
+                <Input
+                  type="number"
+                  value={timeout}
+                  onChange={(e) => setTimeout_(Number(e.target.value))}
+                  className="w-full md:w-40"
+                />
+              </div>
             </div>
           </fieldset>
 
-          {(isReadViewMethod || isDataserverPkMethod || isXmlParamMethod) && (
+          <fieldset className="space-y-3 rounded-lg border border-input p-3">
+            <legend className="px-1 text-sm font-medium text-muted-foreground">Contexto de execução</legend>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-3 lg:grid-cols-5">
+              <div className="space-y-2">
+                <Label>Coligada</Label>
+                <Input
+                  type="number"
+                  value={context.coligate}
+                  onChange={(e) => setContext({ coligate: Number(e.target.value) })}
+                  className="w-full"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Filial</Label>
+                <Input
+                  type="number"
+                  value={context.branch}
+                  onChange={(e) => setContext({ branch: Number(e.target.value) })}
+                  className="w-full"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Nível de Ensino</Label>
+                <Input
+                  type="number"
+                  value={context.levelEducation}
+                  onChange={(e) => setContext({ levelEducation: Number(e.target.value) })}
+                  className="w-full"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Código do Sistema</Label>
+                <Input
+                  value={context.codSystem}
+                  onChange={(e) => setContext({ codSystem: e.target.value })}
+                  className="w-full"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Usuário</Label>
+                <Input value={context.user} onChange={(e) => setContext({ user: e.target.value })} className="w-full" />
+              </div>
+            </div>
+          </fieldset>
+
+          {(isReadViewMethod || isDataserverPkMethod || isXmlParamMethod || isConsultaSqlMethod) && (
             <fieldset className="space-y-3 rounded-lg border border-input p-3">
               <legend className="px-1 text-sm font-medium text-muted-foreground">Parâmetros do método</legend>
+
+              {isConsultaSqlMethod && (
+                <div className="space-y-3">
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+                    <div className="space-y-2">
+                      <Label>
+                        Coligada da sentença <span className="text-destructive">*</span>
+                      </Label>
+                      <Input
+                        type="number"
+                        value={sqlCodColigada}
+                        onChange={(e) => handleSqlFieldChange("codColigada", e.target.value)}
+                        className="w-full"
+                        required
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>
+                        Código da sentença <span className="text-destructive">*</span>
+                      </Label>
+                      <Input
+                        value={sqlCodSentenca}
+                        onChange={(e) => handleSqlFieldChange("codSentenca", e.target.value)}
+                        className="w-full"
+                        required
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-xs text-muted-foreground">
+                        Código do sistema (Sistema TOTVS) <span className="text-destructive">*</span>
+                      </Label>
+                      <Input value={selectedSistemaCode} readOnly required className="w-full" />
+                    </div>
+                    {isConsultaSqlContextoMethod && (
+                      <div className="space-y-2">
+                        <Label>Contexto (ex.: CODCOLIGADA=1)</Label>
+                        <Input
+                          value={sqlContext}
+                          onChange={(e) => handleSqlFieldChange("context", e.target.value)}
+                          className="w-full"
+                        />
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={handleSearchSentence}
+                      disabled={
+                        sentenceLookupLoading ||
+                        !sqlCodColigada.trim() ||
+                        !sqlCodSentenca.trim() ||
+                        !selectedSistemaCode ||
+                        !selectedTbcId
+                      }
+                    >
+                      {sentenceLookupLoading ? (
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      ) : (
+                        <Search className="h-4 w-4 mr-2" />
+                      )}
+                      Buscar sentença
+                    </Button>
+                    {sentenceFound === true && (
+                      <span className="flex items-center gap-1 text-xs text-emerald-600 dark:text-emerald-500">
+                        <CircleCheck className="h-3.5 w-3.5" />
+                        Sentença encontrada
+                        {sentenceParams.length > 0
+                          ? ` — ${sentenceParams.length} parâmetro(s) identificado(s)`
+                          : " — sem parâmetros"}
+                      </span>
+                    )}
+                    {sentenceFound === false && (
+                      <span className="flex items-center gap-1 text-xs text-destructive">
+                        <CircleX className="h-3.5 w-3.5" />
+                        Sentença não encontrada
+                      </span>
+                    )}
+                  </div>
+
+                  {sentenceFound === true && sentenceParams.length > 0 ? (
+                    <div className="space-y-2">
+                      <Label>Parâmetros da sentença</Label>
+                      <div className="grid grid-cols-1 gap-4 md:grid-cols-3 lg:grid-cols-4">
+                        {sentenceParams.map((param) => (
+                          <div key={param} className="space-y-2">
+                            <Label className="text-xs text-muted-foreground">
+                              {param} <span className="text-destructive">*</span>
+                            </Label>
+                            <Input
+                              value={sentenceParamValues[param] ?? ""}
+                              onChange={(e) => handleSentenceParamValueChange(param, e.target.value)}
+                              className="w-full"
+                              required
+                            />
+                          </div>
+                        ))}
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Todos os parâmetros identificados na sentença devem ser preenchidos para executar.
+                      </p>
+                    </div>
+                  ) : sentenceFound === true ? (
+                    <p className="text-sm text-muted-foreground">Esta sentença não possui parâmetros.</p>
+                  ) : (
+                    <div className="space-y-2">
+                      <Label>
+                        Parâmetros (ex.: CODUSUARIO=MESTRE — múltiplos separados por &quot;;&quot;)
+                      </Label>
+                      <Input
+                        value={sqlParameters}
+                        onChange={(e) => handleSqlFieldChange("parameters", e.target.value)}
+                        className="w-full"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Ou use &quot;Buscar sentença&quot; acima para identificar os parâmetros automaticamente.
+                      </p>
+                    </div>
+                  )}
+                  {!selectedSistemaCode && (
+                    <p className="text-xs text-muted-foreground">
+                      Selecione o Sistema TOTVS acima para preencher o codSistema automaticamente.
+                    </p>
+                  )}
+                </div>
+              )}
 
               {isReadViewMethod && (
                 <div className="space-y-2">
@@ -828,53 +1222,8 @@ export function SoapBuilderClient({
             </fieldset>
           )}
 
-          <fieldset className="space-y-3 rounded-lg border border-input p-3">
-            <legend className="px-1 text-sm font-medium text-muted-foreground">Contexto de execução</legend>
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-3 lg:grid-cols-5">
-              <div className="space-y-2">
-                <Label>Coligada</Label>
-                <Input
-                  type="number"
-                  value={context.coligate}
-                  onChange={(e) => setContext({ coligate: Number(e.target.value) })}
-                  className="w-full"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Filial</Label>
-                <Input
-                  type="number"
-                  value={context.branch}
-                  onChange={(e) => setContext({ branch: Number(e.target.value) })}
-                  className="w-full"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Nível de Ensino</Label>
-                <Input
-                  type="number"
-                  value={context.levelEducation}
-                  onChange={(e) => setContext({ levelEducation: Number(e.target.value) })}
-                  className="w-full"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Código do Sistema</Label>
-                <Input
-                  value={context.codSystem}
-                  onChange={(e) => setContext({ codSystem: e.target.value })}
-                  className="w-full"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Usuário</Label>
-                <Input value={context.user} onChange={(e) => setContext({ user: e.target.value })} className="w-full" />
-              </div>
-            </div>
-          </fieldset>
-
           <div className="flex items-center justify-between gap-2">
-            <Button onClick={handleExecute} disabled={loading || guidedParamsPending}>
+            <Button onClick={handleExecute} disabled={loading || guidedParamsPending || consultaSqlMissingRequired}>
               {loading || guidedParamsLoading ? (
                 <Loader2 className="h-4 w-4 animate-spin mr-2" />
               ) : (
@@ -1018,14 +1367,7 @@ export function SoapBuilderClient({
                 ) : response && dataTables ? (
                   <SoapDataTableView tables={dataTables} />
                 ) : response ? (
-                  <div>
-                    {renderTable(
-                      response.jsonResponse,
-                      selectedMethod === "REALIZARCONSULTASQL" || selectedMethod === "REALIZARCONSULTASQLCONTEXTO"
-                        ? "Nenhuma informação retornada da consulta"
-                        : "Sem dados tabulares"
-                    )}
-                  </div>
+                  <div>{renderTable(response.jsonResponse, "Sem dados tabulares")}</div>
                 ) : (
                   <p className="text-muted-foreground text-sm p-4">Execute uma chamada para ver os dados em tabela</p>
                 )}

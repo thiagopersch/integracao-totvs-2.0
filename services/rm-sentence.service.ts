@@ -1,6 +1,7 @@
 import { env } from "@/config/app.config";
 import { soapService, cdata, type WsName } from "@/services/soap.service";
 import { soapEndpointService } from "@/services/soap-endpoint.service";
+import type { SoapContext } from "@/utils/soap-envelope";
 import type { Filter, Tbc, SoapMethod } from "@prisma/client";
 
 export type RmSentenceRecord = {
@@ -182,6 +183,52 @@ export async function fetchSentencesForFilter(
   organizationId: string
 ): Promise<RmSentenceRecord[]> {
   return fetchSentencesFromTotvs(filter, tbc, organizationId);
+}
+
+/**
+ * Looks up ONE sentence by its exact primary key (CODCOLIGADA + APLICACAO + CODSENTENCA) — same
+ * live read as fetchSentencesFromTotvs above, just scoped to a single exact match instead of a
+ * Filter model's free-text expression. Powers the SOAP Builder's "Buscar sentença" button: given
+ * the sentence exists, the caller can then parse its SQL text for `:PARAM` references. Returns
+ * null when TOTVS reports no matching row (unknown sentence, wrong coligada/sistema, or no
+ * permission — ReadView doesn't distinguish these, see soap-builder-client.tsx's own noDataWarning).
+ */
+export async function lookupSentenceContent(
+  key: { codColigada: number; codSistema: string; codSentenca: string },
+  tbc: Pick<TbcForRm, "link" | "user" | "password" | "notRequiredLicense">,
+  organizationId: string,
+  context?: SoapContext
+): Promise<string | null> {
+  const endpointType = await soapEndpointService.getActiveTypeByKey("dataserver");
+  const endpointMethod = await soapEndpointService.getActiveMethodByKey(endpointType.id, "READVIEW");
+
+  const filtro = qualifyGConsSqlColumns(
+    `CODCOLIGADA=${key.codColigada} AND APLICACAO='${escapeFilterLiteral(key.codSistema)}' AND CODSENTENCA='${escapeFilterLiteral(key.codSentenca)}'`
+  );
+  const methodXml = `<ReadView>
+  <DataServerName>${escapeXml(GLB_CONS_SQL_DATA)}</DataServerName>
+  <Filtro>${escapeXml(filtro)}</Filtro>
+</ReadView>`;
+
+  const result = await soapService.execute(
+    {
+      tbc: {
+        link: tbc.link,
+        user: tbc.user,
+        password: tbc.password,
+        notRequiredLicense: tbc.notRequiredLicense,
+      },
+      wsName: endpointType.suffix as WsName,
+      method: endpointMethod.method as SoapMethod,
+      xml: methodXml,
+      context,
+    },
+    organizationId
+  );
+
+  const rows = extractConsSqlRows(result.jsonResponse);
+  if (rows.length === 0) return null;
+  return String(rows[0].SENTENCA ?? "");
 }
 
 /**

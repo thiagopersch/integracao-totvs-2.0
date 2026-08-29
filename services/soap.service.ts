@@ -59,16 +59,15 @@ const xmlParser = new XMLParser({
 
 /**
  * Every real TOTVS RM webservice exposes the same 3 "ports" at
- * {baseUrl}/{EduLicense?}{wsName}/{PortInterface} (confirmed live via each
- * service's MEX WSDL): CheckServiceActivity always lives on IRMSServer,
- * AutenticaAcesso always lives on IwsBase, and every business method lives
- * on the service-specific port `Iws{PascalCase(wsName without "ws")}`
- * (e.g. wsDataServer -> IwsDataServer, wsConsultaSQL -> IwsConsultaSQL).
- * SOAPAction is always `http://www.totvs.com/{PortInterface}/{Operation}` —
- * NOT the flat `http://www.totvs.com/{Operation}` this file used before.
+ * {baseUrl}/{EduLicense?}{wsName}/{PortInterface} (confirmed live via each service's MEX WSDL, and
+ * re-confirmed live for wsConsultaSQL specifically: CheckServiceActivity returns HTTP 202 with an
+ * empty body on IwsConsultaSQL, but a real `true` on IRMSServer): CheckServiceActivity always
+ * lives on IRMSServer, AutenticaAcesso always lives on IwsBase, and every business method lives on
+ * the service-specific port `Iws{PascalCase(wsName without "ws")}` (e.g. wsDataServer ->
+ * IwsDataServer, wsConsultaSQL -> IwsConsultaSQL). SOAPAction is always
+ * `http://www.totvs.com/{PortInterface}/{Operation}` — NOT the flat
+ * `http://www.totvs.com/{Operation}` this file used before.
  */
-
-/** AutenticaAcesso/CheckServiceActivity are shared across every ws and don't live on the service-specific port. */
 const SHARED_PORT: Partial<Record<SoapMethod, "IwsBase" | "IRMSServer">> = {
   AUTENTICAACESSO: "IwsBase",
   CHECKSERVICEACTIVITY: "IRMSServer",
