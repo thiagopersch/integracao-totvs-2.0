@@ -165,3 +165,15 @@ export function extractSoapError(xml: string): string | null {
   const match = xml.match(/<faultstring[^>]*>([\s\S]*?)<\/faultstring>/i);
   return match ? match[1].trim() : null;
 }
+
+/** The DataServer/Process code actually invoked, read off the `<DataServerName>`/`<ProcessServerName>`
+ *  tag the SOAP Builder embeds in the method body (see soap-builder-client.tsx's ENTITY_NAME_TAG) —
+ *  present on ReadView/ReadRecord/SaveRecord/DeleteRecord/GetSchema/process-execution calls, absent
+ *  on AUTENTICAACESSO/CHECKSERVICEACTIVITY and consulta SQL/relatório/fórmula visual calls. */
+export function extractEntityName(xml: string): { type: "dataserver" | "process"; name: string } | null {
+  const dataserverMatch = xml.match(/<DataServerName[^>]*>([\s\S]*?)<\/DataServerName>/i);
+  if (dataserverMatch && dataserverMatch[1].trim()) return { type: "dataserver", name: dataserverMatch[1].trim() };
+  const processMatch = xml.match(/<ProcessServerName[^>]*>([\s\S]*?)<\/ProcessServerName>/i);
+  if (processMatch && processMatch[1].trim()) return { type: "process", name: processMatch[1].trim() };
+  return null;
+}

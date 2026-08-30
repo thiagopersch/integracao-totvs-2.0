@@ -61,6 +61,7 @@ export function UsersTable({ data, meta }: UsersTableProps) {
     defaultSort: { field: "name", direction: "asc" },
   })
   const [roleFilter, setRoleFilter] = useState(searchParams.get("role") || "")
+  const [statusFilter, setStatusFilter] = useState(searchParams.get("status") || "")
 
   const columns: ColumnDef<User>[] = [
     createSelectColumn<User>(),
@@ -114,6 +115,7 @@ export function UsersTable({ data, meta }: UsersTableProps) {
           <DialogTitle>{editDialog.entity ? "Editar Usuário" : "Novo Usuário"}</DialogTitle>
         </DialogHeader>
         <UserForm
+          key={editDialog.entity?.id ?? "new"}
           user={editDialog.entity}
           onSuccess={() => { setEditDialog({ open: false }); router.refresh() }}
           onCancel={() => setEditDialog({ open: false })}
@@ -124,10 +126,11 @@ export function UsersTable({ data, meta }: UsersTableProps) {
 
   const filterPanel = (
     <DataTableFilterPanel
-      onApply={() => pushParams({ role: roleFilter || undefined, page: 1 })}
+      onApply={() => pushParams({ role: roleFilter || undefined, status: statusFilter || undefined, page: 1 })}
       onClear={() => {
         setRoleFilter("")
-        pushParams({ role: undefined, page: 1 })
+        setStatusFilter("")
+        pushParams({ role: undefined, status: undefined, page: 1 })
       }}
     >
       <div className="space-y-2">
@@ -150,6 +153,27 @@ export function UsersTable({ data, meta }: UsersTableProps) {
             <SelectItem value="ADMIN">Administrador</SelectItem>
             <SelectItem value="MANAGER">Gerente</SelectItem>
             <SelectItem value="USER">Usuário</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="space-y-2">
+        <Label>Status</Label>
+        <Select
+          items={[
+            { value: "all", label: "Todos" },
+            { value: "true", label: "Ativo" },
+            { value: "false", label: "Inativo" },
+          ]}
+          value={statusFilter || "all"}
+          onValueChange={(v) => setStatusFilter(v === "all" || !v ? "" : v)}
+        >
+          <SelectTrigger className="w-full">
+            <SelectValue placeholder="Todos" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos</SelectItem>
+            <SelectItem value="true">Ativo</SelectItem>
+            <SelectItem value="false">Inativo</SelectItem>
           </SelectContent>
         </Select>
       </div>

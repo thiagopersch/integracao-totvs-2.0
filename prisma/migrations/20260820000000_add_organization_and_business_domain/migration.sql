@@ -411,14 +411,17 @@ ALTER TABLE "notification_settings" ADD CONSTRAINT "notification_settings_user_i
 CREATE EXTENSION IF NOT EXISTS "unaccent";
 CREATE EXTENSION IF NOT EXISTS "pg_trgm";
 
+-- Fully schema-qualified: Postgres evaluates IMMUTABLE functions used in index
+-- expressions under a locked-down search_path (pg_catalog only), so unqualified
+-- references to extension objects living in "public" fail to resolve here.
 CREATE OR REPLACE FUNCTION "immutable_unaccent"(text) RETURNS text AS $$
-  SELECT unaccent('unaccent', $1)
+  SELECT public.unaccent('public.unaccent'::regdictionary, $1)
 $$ LANGUAGE sql IMMUTABLE PARALLEL SAFE STRICT;
 
-CREATE INDEX "filters_filter_search_idx" ON "filters" USING gin (immutable_unaccent(lower("filter")) gin_trgm_ops);
-CREATE INDEX "sentences_name_search_idx" ON "sentences" USING gin (immutable_unaccent(lower("name")) gin_trgm_ops);
-CREATE INDEX "sentences_code_search_idx" ON "sentences" USING gin (immutable_unaccent(lower("code")) gin_trgm_ops);
-CREATE INDEX "clients_name_search_idx" ON "clients" USING gin (immutable_unaccent(lower("name")) gin_trgm_ops);
-CREATE INDEX "tbcs_name_search_idx" ON "tbcs" USING gin (immutable_unaccent(lower("name")) gin_trgm_ops);
-CREATE INDEX "customers_name_search_idx" ON "customers" USING gin (immutable_unaccent(lower("name")) gin_trgm_ops);
-CREATE INDEX "demands_name_search_idx" ON "demands" USING gin (immutable_unaccent(lower("name")) gin_trgm_ops);
+CREATE INDEX "filters_filter_search_idx" ON "filters" USING gin (immutable_unaccent(lower("filter")) public.gin_trgm_ops);
+CREATE INDEX "sentences_name_search_idx" ON "sentences" USING gin (immutable_unaccent(lower("name")) public.gin_trgm_ops);
+CREATE INDEX "sentences_code_search_idx" ON "sentences" USING gin (immutable_unaccent(lower("code")) public.gin_trgm_ops);
+CREATE INDEX "clients_name_search_idx" ON "clients" USING gin (immutable_unaccent(lower("name")) public.gin_trgm_ops);
+CREATE INDEX "tbcs_name_search_idx" ON "tbcs" USING gin (immutable_unaccent(lower("name")) public.gin_trgm_ops);
+CREATE INDEX "customers_name_search_idx" ON "customers" USING gin (immutable_unaccent(lower("name")) public.gin_trgm_ops);
+CREATE INDEX "demands_name_search_idx" ON "demands" USING gin (immutable_unaccent(lower("name")) public.gin_trgm_ops);

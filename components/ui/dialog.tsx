@@ -43,9 +43,11 @@ function DialogContent({
   className,
   children,
   showCloseButton = true,
+  headerActions,
   ...props
 }: DialogPrimitive.Popup.Props & {
   showCloseButton?: boolean
+  headerActions?: React.ReactNode
 }) {
   return (
     <DialogPortal>
@@ -60,21 +62,19 @@ function DialogContent({
         {...props}
       >
         {children}
-        {showCloseButton && (
-          <DialogPrimitive.Close
-            data-slot="dialog-close"
-            render={
-              <Button
-                variant="ghost"
-                className="absolute top-2 right-2 z-10"
-                size="icon-sm"
-              />
-            }
-          >
-            <XIcon
-            />
-            <span className="sr-only">Close</span>
-          </DialogPrimitive.Close>
+        {(headerActions || showCloseButton) && (
+          <div className="absolute top-2 right-2 z-10 flex items-center gap-1">
+            {headerActions}
+            {showCloseButton && (
+              <DialogPrimitive.Close
+                data-slot="dialog-close"
+                render={<Button variant="ghost" size="icon-sm" />}
+              >
+                <XIcon />
+                <span className="sr-only">Close</span>
+              </DialogPrimitive.Close>
+            )}
+          </div>
         )}
       </DialogPrimitive.Popup>
     </DialogPortal>
@@ -85,7 +85,7 @@ function DialogHeader({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       data-slot="dialog-header"
-      className={cn("flex shrink-0 flex-col gap-2 border-b p-4 pr-10", className)}
+      className={cn("flex shrink-0 flex-col gap-2 border-b p-4 pr-20", className)}
       {...props}
     />
   )

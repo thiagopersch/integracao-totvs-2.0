@@ -348,12 +348,6 @@ async function main() {
       },
       {
         organizationId: orgId,
-        code: "EduPSRecursoData",
-        name: "Recurso",
-        nameAlternative: "EduPSRecurso",
-      },
-      {
-        organizationId: orgId,
         code: "EduPSAgendamentosData",
         name: "Agendamentos (Processo Seletivo)",
         nameAlternative: "EduPSAgendamentos",

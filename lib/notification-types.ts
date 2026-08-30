@@ -60,6 +60,8 @@ export function buildSoapCallFailedNotification(params: {
   tbcName?: string;
   logId?: string;
   url?: string;
+  entityType?: "dataserver" | "process";
+  entityName?: string;
 }): BuiltNotification {
   return {
     type: NOTIFICATION_TYPES.SOAP_CALL_FAILED,
@@ -78,6 +80,8 @@ export function buildSoapCallFailedNotification(params: {
       errorKind: params.errorKind,
       logId: params.logId,
       url: params.url,
+      entityType: params.entityType,
+      entityName: params.entityName,
     },
   };
 }

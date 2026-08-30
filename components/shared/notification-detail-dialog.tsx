@@ -35,6 +35,8 @@ type NotificationData = {
   wsName?: string
   url?: string
   logId?: string
+  entityType?: "dataserver" | "process"
+  entityName?: string
 } | null
 
 interface NotificationDetailDialogProps {
@@ -127,6 +129,14 @@ export function NotificationDetailDialog({ open, onOpenChange, notification }: N
               <div>
                 <p className="text-xs text-muted-foreground">Método SOAP</p>
                 <p>{data.method}{data.wsName ? ` (${data.wsName})` : ""}</p>
+              </div>
+            )}
+            {data?.entityName && (
+              <div>
+                <p className="text-xs text-muted-foreground">
+                  {data.entityType === "process" ? "Processo executado" : "Dataserver executado"}
+                </p>
+                <p className="font-mono">{data.entityName}</p>
               </div>
             )}
             {data?.url && (

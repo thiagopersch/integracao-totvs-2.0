@@ -20,7 +20,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { CodeEditor, type CodeEditorLanguage } from "@/components/shared/code-editor"
 import { Button } from "@/components/ui/button"
 import { formatDate, formatDuration } from "@/utils/format"
-import { safeFormatXmlDeep } from "@/utils/xml"
+import { safeFormatXmlDeep, extractEntityName } from "@/utils/xml"
 import { ENTITY_LABELS, formatBlockingReferences, type BlockingReference } from "@/lib/entity-relations"
 import { reexecuteSoapLog } from "@/actions/soap"
 import { cn } from "@/utils/cn"
@@ -32,6 +32,7 @@ import type { AuditLog, SoapLog, EmailLog, ApiLog, Client, Dataserver, Process }
 import type { PaginationMeta } from "@/types/common"
 import type { TbcRow } from "@/services/tbc.service"
 import type { SoapEndpointTypeWithMethods } from "@/services/soap-endpoint.service"
+import { WS_NAME_LABELS, type WsName } from "@/lib/ws-names"
 
 interface TipoOption {
   value: string
@@ -643,9 +644,22 @@ function DeletionDetail({ raw }: { raw: AuditLog }) {
 }
 
 function SoapDetail({ raw }: { raw: SoapLog }) {
+  const wsName = raw.process as WsName | null
+  const entity = raw.xmlRequest ? extractEntityName(raw.xmlRequest) : null
+
   return (
     <div className="space-y-3">
       <div className="grid grid-cols-2 gap-3 text-sm">
+        <div>
+          <p className="text-xs text-muted-foreground">Serviço</p>
+          <p>{wsName ? (WS_NAME_LABELS[wsName] ?? wsName) : "-"}</p>
+        </div>
+        {entity && (
+          <div>
+            <p className="text-xs text-muted-foreground">{entity.type === "dataserver" ? "Dataserver executado" : "Processo executado"}</p>
+            <p className="font-mono text-xs break-all">{entity.name}</p>
+          </div>
+        )}
         <div>
           <p className="text-xs text-muted-foreground">Endpoint (TBC)</p>
           <p className="font-mono text-xs break-all">{raw.dataserver || "-"}</p>

@@ -7,20 +7,11 @@ import { buildSoapEnvelope, METHOD_OPERATION, type SoapContext } from "@/utils/s
 import { notificationService } from "@/services/notification.service";
 import { buildSoapCallFailedNotification } from "@/lib/notification-types";
 import { classifyError, type ErrorKind } from "@/lib/error-kind";
+import { extractEntityName } from "@/utils/xml";
+import { WS_NAME_LABELS, type WsName } from "@/lib/ws-names";
 import { Prisma, type SoapMethod } from "@prisma/client";
 
-/** The 5 real TOTVS RM webservice "folders" confirmed live against a TBC (wsConsultaSQL/wsDataServer/wsProcess/wsFormulaVisual/wsReport MEX WSDLs). */
-export type WsName = "wsDataServer" | "wsConsultaSQL" | "wsProcess" | "wsFormulaVisual" | "wsReport";
-
-/** Friendly label per ws "folder" — used to tell the user which kind of TOTVS call (dataserver,
- *  processo, consulta SQL, relatório, fórmula visual) a failed notification came from. */
-export const WS_NAME_LABELS: Record<WsName, string> = {
-  wsDataServer: "Dataserver",
-  wsConsultaSQL: "Consulta SQL",
-  wsProcess: "Processo",
-  wsFormulaVisual: "Fórmula Visual",
-  wsReport: "Relatório",
-};
+export { WS_NAME_LABELS, type WsName };
 
 export type TbcCredentials = {
   id?: string;
@@ -269,6 +260,7 @@ export const soapService = {
     // Only for user-initiated calls — internal/scheduled dispatches (no userId, e.g. backups)
     // are already covered by their own caller's failure notification, avoiding duplicate alerts.
     if (userId) {
+      const entity = extractEntityName(request.xml);
       const notification = buildSoapCallFailedNotification({
         method: request.method,
         wsName: request.wsName,
@@ -280,6 +272,8 @@ export const soapService = {
         tbcName: request.tbc.name,
         logId: logId ?? undefined,
         url,
+        entityType: entity?.type,
+        entityName: entity?.name,
       });
       await notificationService.create({ organizationId, userId, ...notification });
     }

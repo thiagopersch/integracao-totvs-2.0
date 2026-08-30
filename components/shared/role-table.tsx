@@ -13,8 +13,8 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Field, FieldLabel, FieldError } from "@/components/ui/field"
 import { Textarea } from "@/components/ui/textarea"
-import { Checkbox } from "@/components/ui/checkbox"
 import { Badge } from "@/components/ui/badge"
+import { PermissionTree } from "@/components/shared/permission-tree"
 import {
   Dialog,
   DialogBody,
@@ -24,13 +24,13 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import { Plus, Loader2 } from "lucide-react"
+import { Plus, Loader2, Maximize2, Minimize2 } from "lucide-react"
 import { createRole, updateRole, deleteRole } from "@/actions/admin/roles"
 import { createRoleSchema, updateRoleSchema, type CreateRoleInput } from "@/schemas/role.schema"
 import { toast } from "sonner"
 import { useCrudTable } from "@/hooks/use-crud-table"
 
-type PermissionRow = { id: string; resource: string; action: string; name: string; module: string }
+type PermissionRow = { id: string; resource: string; resourceLabel: string; action: string; name: string; module: string }
 type RoleRow = {
   id: string
   name: string
@@ -61,6 +61,7 @@ export function RoleTable({ data, permissions }: RoleTableProps) {
   })
   const [loading, setLoading] = useState(false)
   const [search, setSearch] = useState("")
+  const [expanded, setExpanded] = useState(false)
 
   const filteredData = useMemo(() => {
     const term = search.trim().toLowerCase()
@@ -69,12 +70,6 @@ export function RoleTable({ data, permissions }: RoleTableProps) {
       (role) => role.name.toLowerCase().includes(term) || (role.description || "").toLowerCase().includes(term)
     )
   }, [data, search])
-
-  const permissionsByModule = permissions.reduce<Record<string, PermissionRow[]>>((acc, p) => {
-    acc[p.module] = acc[p.module] || []
-    acc[p.module].push(p)
-    return acc
-  }, {})
 
   const form = useForm<CreateRoleInput>({
     mode: "onChange",
@@ -120,13 +115,20 @@ export function RoleTable({ data, permissions }: RoleTableProps) {
     form.setValue("permissionIds", checked ? [...current, id] : current.filter((p) => p !== id))
   }
 
-  function toggleModule(module: string, checked: boolean) {
-    const moduleIds = permissionsByModule[module].map((p) => p.id)
+  function toggleIds(ids: string[], checked: boolean) {
     const current: string[] = form.getValues("permissionIds") || []
     form.setValue(
       "permissionIds",
-      checked ? Array.from(new Set([...current, ...moduleIds])) : current.filter((p) => !moduleIds.includes(p))
+      checked ? Array.from(new Set([...current, ...ids])) : current.filter((p) => !ids.includes(p))
     )
+  }
+
+  function selectAllPermissions() {
+    form.setValue("permissionIds", permissions.map((p) => p.id))
+  }
+
+  function deselectAllPermissions() {
+    form.setValue("permissionIds", [])
   }
 
   const columns: ColumnDef<RoleRow>[] = [
@@ -171,61 +173,53 @@ export function RoleTable({ data, permissions }: RoleTableProps) {
       open={editDialog.open}
       onOpenChange={(open) => {
         setEditDialog({ open, entity: open ? editDialog.entity : undefined })
-        if (!open) form.reset()
+        if (!open) {
+          form.reset()
+          setExpanded(false)
+        }
       }}
     >
       <DialogTrigger render={<Button><Plus className="h-4 w-4 mr-2" /> Novo Papel</Button>} />
-      <DialogContent>
+      <DialogContent
+        className={expanded ? "w-[90vw] max-w-[90vw] h-[90vh] max-h-[90vh]" : undefined}
+        headerActions={
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            onClick={() => setExpanded((v) => !v)}
+            aria-label={expanded ? "Restaurar tamanho" : "Expandir"}
+          >
+            {expanded ? <Minimize2 /> : <Maximize2 />}
+          </Button>
+        }
+      >
         <DialogHeader>
           <DialogTitle>{editDialog.entity ? "Editar Papel" : "Novo Papel"}</DialogTitle>
         </DialogHeader>
         <form onSubmit={form.handleSubmit(onSubmit)} className="flex min-h-0 flex-1 flex-col overflow-hidden">
         <DialogBody>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Field>
-              <FieldLabel htmlFor="name">Nome</FieldLabel>
-              <Input id="name" className="w-full" {...form.register("name")} placeholder="Ex: suporte" aria-invalid={!!form.formState.errors.name} />
-              <FieldError errors={[form.formState.errors.name]} />
-            </Field>
-            <div className="space-y-2">
-              <Label htmlFor="description">Descrição</Label>
-              <Textarea id="description" className="w-full" {...form.register("description")} placeholder="Descrição do papel" />
-            </div>
+          <Field>
+            <FieldLabel htmlFor="name">Nome</FieldLabel>
+            <Input id="name" className="w-full" {...form.register("name")} placeholder="Ex: suporte" aria-invalid={!!form.formState.errors.name} />
+            <FieldError errors={[form.formState.errors.name]} />
+          </Field>
+
+          <div className="space-y-2">
+            <Label htmlFor="description">Descrição</Label>
+            <Textarea id="description" className="w-full" rows={3} {...form.register("description")} placeholder="Descrição do papel" />
           </div>
 
-          <div className="border rounded-lg p-3 space-y-4">
-            {Object.entries(permissionsByModule).map(([module, items]) => {
-              const moduleIds = items.map((p) => p.id)
-              const allChecked = moduleIds.every((id) => selectedIds.includes(id))
-              return (
-                <div key={module} className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <Checkbox
-                      id={`module-${module}`}
-                      checked={allChecked}
-                      onCheckedChange={(v) => toggleModule(module, !!v)}
-                    />
-                    <Label htmlFor={`module-${module}`} className="font-semibold uppercase text-xs text-muted-foreground">
-                      {module}
-                    </Label>
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 pl-6">
-                    {items.map((p) => (
-                      <div key={p.id} className="flex items-center gap-2">
-                        <Checkbox
-                          id={`perm-${p.id}`}
-                          checked={selectedIds.includes(p.id)}
-                          onCheckedChange={(v) => togglePermission(p.id, !!v)}
-                        />
-                        <Label htmlFor={`perm-${p.id}`} className="text-sm font-normal">
-                          {p.name}
-                        </Label>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )
-            })}
+          <div className="space-y-2">
+            <Label>Permissões</Label>
+            <PermissionTree
+              permissions={permissions}
+              selectedIds={selectedIds}
+              onTogglePermission={togglePermission}
+              onToggleIds={toggleIds}
+              onSelectAll={selectAllPermissions}
+              onDeselectAll={deselectAllPermissions}
+            />
           </div>
         </DialogBody>
         <DialogFooter>

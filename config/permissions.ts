@@ -6,12 +6,17 @@ export type PermissionDef = {
   module: string;
 };
 
-const crud = (resource: string, label: string, module: string): PermissionDef[] => [
-  { resource, action: "read", name: `Listar ${label}`, description: `Visualizar lista de ${label.toLowerCase()}`, module },
-  { resource, action: "create", name: `Criar ${label}`, description: `Criar novos ${label.toLowerCase()}`, module },
-  { resource, action: "update", name: `Atualizar ${label}`, description: `Editar ${label.toLowerCase()}`, module },
-  { resource, action: "delete", name: `Excluir ${label}`, description: `Excluir ${label.toLowerCase()}`, module },
-];
+const resourceLabels: Record<string, string> = {};
+
+const crud = (resource: string, label: string, module: string): PermissionDef[] => {
+  resourceLabels[resource] = label;
+  return [
+    { resource, action: "read", name: `Listar ${label}`, description: `Visualizar lista de ${label.toLowerCase()}`, module },
+    { resource, action: "create", name: `Criar ${label}`, description: `Criar novos ${label.toLowerCase()}`, module },
+    { resource, action: "update", name: `Atualizar ${label}`, description: `Editar ${label.toLowerCase()}`, module },
+    { resource, action: "delete", name: `Excluir ${label}`, description: `Excluir ${label.toLowerCase()}`, module },
+  ];
+};
 
 export const PERMISSIONS: PermissionDef[] = [
   ...crud("users", "Usuários", "users"),
@@ -68,6 +73,21 @@ export const PERMISSIONS: PermissionDef[] = [
     module: "settings",
   },
 ];
+
+Object.assign(resourceLabels, {
+  backups: "Backups",
+  soap: "SOAP",
+  integrations: "Integrações Externas",
+  tbc_reports: "Relatórios TBC",
+  dashboard: "Dashboard",
+  settings: "Configurações",
+  notifications: "Notificações",
+  reports: "Relatórios",
+  deletion_logs: "Logs de Exclusão",
+  activity_logs: "Rastreamento de Atividades",
+});
+
+export const RESOURCE_LABELS: Record<string, string> = resourceLabels;
 
 function toKey(p: Pick<PermissionDef, "resource" | "action">): string {
   return `${p.resource}:${p.action}`;
