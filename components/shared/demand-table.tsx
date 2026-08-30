@@ -16,6 +16,7 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { Field, FieldLabel, FieldError } from "@/components/ui/field"
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip"
 import {
   Select,
   SelectContent,
@@ -32,9 +33,11 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
+import { DatePicker } from "@/components/ui/date-picker"
+import { TimePicker } from "@/components/ui/time-picker"
 import { Plus, Loader2 } from "lucide-react"
 import { deleteDemand, createDemand, updateDemand, bulkDeleteDemands } from "@/actions/demands"
-import { createDemandSchema, updateDemandSchema, type CreateDemandInput } from "@/schemas/demand.schema"
+import { createDemandSchema, updateDemandSchema, timeToMinutes, type CreateDemandInput } from "@/schemas/demand.schema"
 import { toast } from "sonner"
 import { useCrudTable } from "@/hooks/use-crud-table"
 import type { Analyst, Client, Requester, Department, DemandType, Tag } from "@prisma/client"
@@ -45,11 +48,15 @@ type DemandRow = {
   name: string
   description: string
   date: string | Date
+  startTime: string | Date | null
+  endTime: string | Date | null
   durationMinutes: number
   priority: string
   status: string
   analyst: { id: string; name: string; color: string } | null
   client: { id: string; name: string; color: string } | null
+  requester: { id: string; name: string } | null
+  department: { id: string; name: string } | null
   demandType: { id: string; name: string; color: string } | null
   demandTags: { tag: Tag }[]
 }
@@ -72,11 +79,11 @@ const STATUS_LABELS: Record<string, string> = {
   CANCELLED: "Cancelada",
 }
 
-const STATUS_VARIANTS: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
-  PENDING: "secondary",
-  IN_PROGRESS: "default",
-  COMPLETED: "outline",
-  CANCELLED: "destructive",
+const STATUS_COLORS: Record<string, string> = {
+  PENDING: "#f97316",
+  IN_PROGRESS: "#3b82f6",
+  COMPLETED: "#22c55e",
+  CANCELLED: "#ef4444",
 }
 
 const PRIORITY_LABELS: Record<string, string> = {
@@ -86,7 +93,33 @@ const PRIORITY_LABELS: Record<string, string> = {
   URGENT: "Urgente",
 }
 
+const PRIORITY_COLORS: Record<string, string> = {
+  LOW: "#22c55e",
+  MEDIUM: "#3b82f6",
+  HIGH: "#f97316",
+  URGENT: "#ef4444",
+}
+
+function ColorBadge({ label, color }: { label: string; color: string }) {
+  return (
+    <Badge style={{ backgroundColor: `${color}22`, borderColor: color, color }} variant="outline">
+      {label}
+    </Badge>
+  )
+}
+
+function toTimeInputValue(d: string | Date | null): string {
+  if (!d) return ""
+  const date = typeof d === "string" ? new Date(d) : d
+  return date.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "America/Sao_Paulo" })
+}
+
+function formatDurationHours(minutes: number): string {
+  return (minutes / 60).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
+
 const SORTABLE_COLUMNS = ["name", "date", "priority", "status"]
+const VISIBLE_TAGS = 2
 
 export function DemandTable({ data, meta, analysts, clients, requesters, departments, demandTypes, tags }: DemandTableProps) {
   const {
@@ -121,14 +154,15 @@ export function DemandTable({ data, meta, analysts, clients, requesters, departm
           name: editDialog.entity.name,
           description: editDialog.entity.description,
           date: toDateInputValue(editDialog.entity.date),
-          durationMinutes: editDialog.entity.durationMinutes,
+          startTime: toTimeInputValue(editDialog.entity.startTime),
+          endTime: toTimeInputValue(editDialog.entity.endTime),
           priority: editDialog.entity.priority,
           status: editDialog.entity.status,
           notes: "",
           analystId: editDialog.entity.analyst?.id || "",
           clientId: editDialog.entity.client?.id || "",
-          requesterId: "",
-          departmentId: "",
+          requesterId: editDialog.entity.requester?.id || "",
+          departmentId: editDialog.entity.department?.id || "",
           demandTypeId: editDialog.entity.demandType?.id || "",
           tagIds: editDialog.entity.demandTags.map((dt) => dt.tag.id),
         } as CreateDemandInput
@@ -136,7 +170,8 @@ export function DemandTable({ data, meta, analysts, clients, requesters, departm
           name: "",
           description: "",
           date: new Date().toISOString().slice(0, 10),
-          durationMinutes: 60,
+          startTime: "08:00",
+          endTime: "09:00",
           priority: "MEDIUM",
           status: "PENDING",
           notes: "",
@@ -150,6 +185,12 @@ export function DemandTable({ data, meta, analysts, clients, requesters, departm
   })
 
   const selectedTagIds: string[] = form.watch("tagIds") || []
+  const watchedStartTime = form.watch("startTime")
+  const watchedEndTime = form.watch("endTime")
+  const previewMinutes =
+    watchedStartTime && watchedEndTime && timeToMinutes(watchedEndTime) > timeToMinutes(watchedStartTime)
+      ? timeToMinutes(watchedEndTime) - timeToMinutes(watchedStartTime)
+      : 0
 
   function toggleTag(tagId: string) {
     const current: string[] = form.getValues("tagIds") || []
@@ -188,24 +229,80 @@ export function DemandTable({ data, meta, analysts, clients, requesters, departm
   const columns: ColumnDef<DemandRow>[] = [
     createSelectColumn<DemandRow>(),
     { accessorKey: "name", header: "Nome" },
+    {
+      accessorKey: "description",
+      header: "Descrição",
+      cell: ({ row }) => <span className="block max-w-64 truncate" title={row.original.description}>{row.original.description}</span>,
+    },
     { id: "analyst", header: "Analista", cell: ({ row }) => row.original.analyst?.name || "-" },
     { id: "client", header: "Cliente", cell: ({ row }) => row.original.client?.name || "-" },
+    { id: "requester", header: "Solicitante", cell: ({ row }) => row.original.requester?.name || "-" },
+    { id: "department", header: "Departamento", cell: ({ row }) => row.original.department?.name || "-" },
+    {
+      id: "demandType",
+      header: "Tipo",
+      cell: ({ row }) =>
+        row.original.demandType ? <ColorBadge label={row.original.demandType.name} color={row.original.demandType.color} /> : "-",
+    },
     {
       accessorKey: "date",
       header: "Data",
       cell: ({ row }) => new Date(row.getValue("date") as string).toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" }),
     },
     {
+      accessorKey: "durationMinutes",
+      header: "Duração (h)",
+      cell: ({ row }) => `${formatDurationHours(row.getValue("durationMinutes") as number)}h`,
+    },
+    {
       accessorKey: "priority",
       header: "Prioridade",
-      cell: ({ row }) => <Badge variant="outline">{PRIORITY_LABELS[row.getValue("priority") as string]}</Badge>,
+      cell: ({ row }) => {
+        const priority = row.getValue("priority") as string
+        return <ColorBadge label={PRIORITY_LABELS[priority]} color={PRIORITY_COLORS[priority]} />
+      },
     },
     {
       accessorKey: "status",
       header: "Status",
       cell: ({ row }) => {
         const status = row.getValue("status") as string
-        return <Badge variant={STATUS_VARIANTS[status]}>{STATUS_LABELS[status]}</Badge>
+        return <ColorBadge label={STATUS_LABELS[status]} color={STATUS_COLORS[status]} />
+      },
+    },
+    {
+      id: "tags",
+      header: "Tags",
+      cell: ({ row }) => {
+        const demandTags = row.original.demandTags
+        if (demandTags.length === 0) return "-"
+        const visible = demandTags.slice(0, VISIBLE_TAGS)
+        const hidden = demandTags.slice(VISIBLE_TAGS)
+        return (
+          <div className="flex items-center gap-1">
+            {visible.map(({ tag }) => (
+              <ColorBadge key={tag.id} label={tag.name} color={tag.color} />
+            ))}
+            {hidden.length > 0 && (
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <Badge variant="secondary" className="cursor-default">
+                      +{hidden.length}
+                    </Badge>
+                  }
+                />
+                <TooltipContent>
+                  <div className="flex flex-col gap-1">
+                    {hidden.map(({ tag }) => (
+                      <ColorBadge key={tag.id} label={tag.name} color={tag.color} />
+                    ))}
+                  </div>
+                </TooltipContent>
+              </Tooltip>
+            )}
+          </div>
+        )
       },
     },
     {
@@ -229,7 +326,7 @@ export function DemandTable({ data, meta, analysts, clients, requesters, departm
         <form onSubmit={form.handleSubmit(onSubmit)} className="flex min-h-0 flex-1 flex-col overflow-hidden">
         <DialogBody>
           <Field>
-            <FieldLabel htmlFor="name">Nome</FieldLabel>
+            <FieldLabel htmlFor="name">Nome da demanda</FieldLabel>
             <Input id="name" {...form.register("name")} placeholder="Nome da demanda" aria-invalid={!!form.formState.errors.name} />
             <FieldError errors={[form.formState.errors.name]} />
           </Field>
@@ -245,7 +342,7 @@ export function DemandTable({ data, meta, analysts, clients, requesters, departm
               <Select
                 items={analysts.map((a) => ({ value: a.id, label: a.name }))}
                 value={form.watch("analystId") || null}
-                onValueChange={(v) => form.setValue("analystId", v || "")}
+                onValueChange={(v) => form.setValue("analystId", v || "", { shouldValidate: true })}
               >
                 <SelectTrigger className="w-full" aria-invalid={!!form.formState.errors.analystId}>
                   <SelectValue placeholder="Selecione um analista" />
@@ -263,7 +360,7 @@ export function DemandTable({ data, meta, analysts, clients, requesters, departm
               <Select
                 items={clients.map((c) => ({ value: c.id, label: c.name }))}
                 value={form.watch("clientId") || null}
-                onValueChange={(v) => form.setValue("clientId", v || "")}
+                onValueChange={(v) => form.setValue("clientId", v || "", { shouldValidate: true })}
               >
                 <SelectTrigger className="w-full" aria-invalid={!!form.formState.errors.clientId}>
                   <SelectValue placeholder="Selecione um cliente" />
@@ -281,10 +378,10 @@ export function DemandTable({ data, meta, analysts, clients, requesters, departm
               <Select
                 items={requesters.map((r) => ({ value: r.id, label: r.name }))}
                 value={form.watch("requesterId") || null}
-                onValueChange={(v) => form.setValue("requesterId", v || "")}
+                onValueChange={(v) => form.setValue("requesterId", v || "", { shouldValidate: true })}
               >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Selecione (opcional)" />
+                <SelectTrigger className="w-full" aria-invalid={!!form.formState.errors.requesterId}>
+                  <SelectValue placeholder="Selecione um solicitante" />
                 </SelectTrigger>
                 <SelectContent>
                   {requesters.map((r) => (
@@ -292,6 +389,7 @@ export function DemandTable({ data, meta, analysts, clients, requesters, departm
                   ))}
                 </SelectContent>
               </Select>
+              <FieldError errors={[form.formState.errors.requesterId]} />
             </Field>
           </div>
 
@@ -301,10 +399,10 @@ export function DemandTable({ data, meta, analysts, clients, requesters, departm
               <Select
                 items={departments.map((d) => ({ value: d.id, label: d.name }))}
                 value={form.watch("departmentId") || null}
-                onValueChange={(v) => form.setValue("departmentId", v || "")}
+                onValueChange={(v) => form.setValue("departmentId", v || "", { shouldValidate: true })}
               >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Selecione (opcional)" />
+                <SelectTrigger className="w-full" aria-invalid={!!form.formState.errors.departmentId}>
+                  <SelectValue placeholder="Selecione um departamento" />
                 </SelectTrigger>
                 <SelectContent>
                   {departments.map((d) => (
@@ -312,16 +410,17 @@ export function DemandTable({ data, meta, analysts, clients, requesters, departm
                   ))}
                 </SelectContent>
               </Select>
+              <FieldError errors={[form.formState.errors.departmentId]} />
             </Field>
             <Field>
               <FieldLabel htmlFor="demandTypeId">Tipo</FieldLabel>
               <Select
                 items={demandTypes.map((d) => ({ value: d.id, label: d.name }))}
                 value={form.watch("demandTypeId") || null}
-                onValueChange={(v) => form.setValue("demandTypeId", v || "")}
+                onValueChange={(v) => form.setValue("demandTypeId", v || "", { shouldValidate: true })}
               >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Selecione (opcional)" />
+                <SelectTrigger className="w-full" aria-invalid={!!form.formState.errors.demandTypeId}>
+                  <SelectValue placeholder="Selecione um tipo" />
                 </SelectTrigger>
                 <SelectContent>
                   {demandTypes.map((d) => (
@@ -329,19 +428,44 @@ export function DemandTable({ data, meta, analysts, clients, requesters, departm
                   ))}
                 </SelectContent>
               </Select>
+              <FieldError errors={[form.formState.errors.demandTypeId]} />
             </Field>
             <Field>
               <FieldLabel htmlFor="date">Data</FieldLabel>
-              <Input id="date" type="date" {...form.register("date")} aria-invalid={!!form.formState.errors.date} />
+              <DatePicker
+                id="date"
+                value={form.watch("date") || ""}
+                onValueChange={(v) => form.setValue("date", v, { shouldValidate: true })}
+                aria-invalid={!!form.formState.errors.date}
+              />
               <FieldError errors={[form.formState.errors.date]} />
             </Field>
           </div>
 
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
             <Field>
-              <FieldLabel htmlFor="durationMinutes">Duração (minutos)</FieldLabel>
-              <Input id="durationMinutes" type="number" min={1} {...form.register("durationMinutes")} aria-invalid={!!form.formState.errors.durationMinutes} />
-              <FieldError errors={[form.formState.errors.durationMinutes]} />
+              <FieldLabel htmlFor="startTime">Hora de início</FieldLabel>
+              <TimePicker
+                id="startTime"
+                value={form.watch("startTime") || ""}
+                onValueChange={(v) => form.setValue("startTime", v, { shouldValidate: true })}
+                aria-invalid={!!form.formState.errors.startTime}
+              />
+              <FieldError errors={[form.formState.errors.startTime]} />
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="endTime">Hora de término</FieldLabel>
+              <TimePicker
+                id="endTime"
+                value={form.watch("endTime") || ""}
+                onValueChange={(v) => form.setValue("endTime", v, { shouldValidate: true })}
+                aria-invalid={!!form.formState.errors.endTime}
+              />
+              <FieldError errors={[form.formState.errors.endTime]} />
+            </Field>
+            <Field>
+              <FieldLabel>Duração</FieldLabel>
+              <Input readOnly disabled value={previewMinutes > 0 ? `${formatDurationHours(previewMinutes)}h` : "-"} />
             </Field>
             <Field>
               <FieldLabel htmlFor="priority">Prioridade</FieldLabel>
@@ -360,24 +484,25 @@ export function DemandTable({ data, meta, analysts, clients, requesters, departm
                 </SelectContent>
               </Select>
             </Field>
-            <Field>
-              <FieldLabel htmlFor="status">Status</FieldLabel>
-              <Select
-                items={Object.entries(STATUS_LABELS).map(([value, label]) => ({ value, label }))}
-                value={form.watch("status") || "PENDING"}
-                onValueChange={(v) => form.setValue("status", v || "PENDING")}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {Object.entries(STATUS_LABELS).map(([value, label]) => (
-                    <SelectItem key={value} value={value}>{label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </Field>
           </div>
+
+          <Field>
+            <FieldLabel htmlFor="status">Status</FieldLabel>
+            <Select
+              items={Object.entries(STATUS_LABELS).map(([value, label]) => ({ value, label }))}
+              value={form.watch("status") || "PENDING"}
+              onValueChange={(v) => form.setValue("status", v || "PENDING")}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {Object.entries(STATUS_LABELS).map(([value, label]) => (
+                  <SelectItem key={value} value={value}>{label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
 
           <Field>
             <FieldLabel>Tags</FieldLabel>

@@ -672,8 +672,8 @@ model Analyst {
 model ClientContract {
   id              String         @id @default(uuid())
   clientId        String         @map("client_id")
-  contractedHours Int            @map("contracted_hours")
-  hourlyRate      Float          @map("hourly_rate")
+  contractedHours Float          @map("contracted_hours")
+  hourlyRate      Float?         @map("hourly_rate")
   startDate       DateTime       @map("start_date")
   endDate         DateTime?      @map("end_date")
   status          ContractStatus @default(ACTIVE)

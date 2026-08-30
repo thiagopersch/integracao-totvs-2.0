@@ -37,6 +37,10 @@ interface DemandTypeTableProps {
 
 const SORTABLE_COLUMNS = ["name", "description"]
 
+function randomColor() {
+  return `#${Math.floor(Math.random() * 0xffffff).toString(16).padStart(6, "0")}`
+}
+
 export function DemandTypeTable({ data, meta }: DemandTypeTableProps) {
   const {
     router,
@@ -54,13 +58,14 @@ export function DemandTypeTable({ data, meta }: DemandTypeTableProps) {
     defaultSort: { field: "name", direction: "asc" },
   })
   const [loading, setLoading] = useState(false)
+  const [newColor, setNewColor] = useState(randomColor)
 
   const form = useForm<CreateDemandTypeInput>({
     mode: "onChange",
     resolver: zodResolver(editDialog.entity ? updateDemandTypeSchema : createDemandTypeSchema) as Resolver<CreateDemandTypeInput>,
     values: editDialog.entity
       ? { name: editDialog.entity.name, description: editDialog.entity.description || "", color: editDialog.entity.color }
-      : { name: "", description: "", color: "#a855f7" },
+      : { name: "", description: "", color: newColor },
   })
 
   async function onSubmit(data: CreateDemandTypeInput) {
@@ -115,7 +120,14 @@ export function DemandTypeTable({ data, meta }: DemandTypeTableProps) {
   ]
 
   const newDialog = (
-    <Dialog open={editDialog.open} onOpenChange={(open) => { setEditDialog({ open, entity: open ? editDialog.entity : undefined }); if (!open) form.reset() }}>
+    <Dialog
+      open={editDialog.open}
+      onOpenChange={(open) => {
+        setEditDialog({ open, entity: open ? editDialog.entity : undefined })
+        if (open && !editDialog.entity) setNewColor(randomColor())
+        if (!open) form.reset()
+      }}
+    >
       <DialogTrigger render={<Button><Plus className="h-4 w-4 mr-2" /> Novo Tipo</Button>} />
       <DialogContent>
         <DialogHeader>
@@ -134,7 +146,7 @@ export function DemandTypeTable({ data, meta }: DemandTypeTableProps) {
           </Field>
           <Field>
             <FieldLabel htmlFor="color">Cor</FieldLabel>
-            <Input id="color" type="color" className="h-10 w-20 p-1" {...form.register("color")} />
+            <Input id="color" type="color" className="h-10 p-1" style={{ width: "30%" }} {...form.register("color")} />
             <FieldError errors={[form.formState.errors.color]} />
           </Field>
         </DialogBody>

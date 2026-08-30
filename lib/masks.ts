@@ -2,6 +2,24 @@ export function onlyDigits(value: string | null | undefined): string {
   return (value ?? "").replace(/\D/g, "")
 }
 
+/** Formats a raw digit string as a decimal number with a comma separator (e.g. "16000" -> "160,00"). */
+export function formatDecimal(value: string | null | undefined): string {
+  const digits = onlyDigits(value)
+  if (!digits) return ""
+  const cents = digits.replace(/^0+(?=\d)/, "").padStart(3, "0")
+  const whole = cents.slice(0, -2).replace(/\B(?=(\d{3})+(?!\d))/g, ".")
+  const decimals = cents.slice(-2)
+  return `${whole},${decimals}`
+}
+
+/** Parses a comma-decimal string (e.g. "160,00" or "1.234,50") back into a number. */
+export function parseDecimal(value: string | null | undefined): number {
+  if (!value) return 0
+  const normalized = value.replace(/\./g, "").replace(",", ".")
+  const parsed = Number(normalized)
+  return Number.isFinite(parsed) ? parsed : 0
+}
+
 export function formatPhone(value: string | null | undefined): string {
   const digits = onlyDigits(value).slice(0, 11)
 

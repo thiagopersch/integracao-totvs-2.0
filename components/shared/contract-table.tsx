@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import type { ColumnDef } from "@tanstack/react-table"
-import { useForm, type Resolver } from "react-hook-form"
+import { useForm, Controller, type Resolver } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { DataTable } from "@/components/shared/data-table"
 import { DataTableFilterPanel } from "@/components/shared/data-table-filter-panel"
@@ -32,9 +32,11 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
+import { DatePicker } from "@/components/ui/date-picker"
 import { Plus, Loader2 } from "lucide-react"
 import { deleteContract, createContract, updateContract, bulkDeleteContracts } from "@/actions/contracts"
 import { createContractSchema, updateContractSchema, type CreateContractInput } from "@/schemas/contract.schema"
+import { formatDecimal } from "@/lib/masks"
 import { toast } from "sonner"
 import { useCrudTable } from "@/hooks/use-crud-table"
 import type { Client } from "@prisma/client"
@@ -43,7 +45,6 @@ import type { PaginationMeta } from "@/types/common"
 type ContractRow = {
   id: string
   contractedHours: number
-  hourlyRate: number
   startDate: string | Date
   endDate: string | Date | null
   status: string
@@ -71,7 +72,7 @@ const STATUS_VARIANTS: Record<string, "default" | "secondary" | "destructive" | 
   CANCELLED: "destructive",
 }
 
-const SORTABLE_COLUMNS = ["contractedHours", "hourlyRate", "startDate", "endDate", "status"]
+const SORTABLE_COLUMNS = ["contractedHours", "startDate", "endDate", "status"]
 
 export function ContractTable({ data, meta, clients }: ContractTableProps) {
   const {
@@ -105,7 +106,6 @@ export function ContractTable({ data, meta, clients }: ContractTableProps) {
       ? {
           clientId: editDialog.entity.client.id,
           contractedHours: editDialog.entity.contractedHours,
-          hourlyRate: editDialog.entity.hourlyRate,
           startDate: toDateInputValue(editDialog.entity.startDate),
           endDate: editDialog.entity.endDate ? toDateInputValue(editDialog.entity.endDate) : "",
           status: editDialog.entity.status as CreateContractInput["status"],
@@ -114,7 +114,6 @@ export function ContractTable({ data, meta, clients }: ContractTableProps) {
       : {
           clientId: "",
           contractedHours: 40,
-          hourlyRate: 0,
           startDate: new Date().toISOString().slice(0, 10),
           endDate: "",
           status: "ACTIVE",
@@ -161,11 +160,10 @@ export function ContractTable({ data, meta, clients }: ContractTableProps) {
         </div>
       ),
     },
-    { accessorKey: "contractedHours", header: "Horas Contratadas" },
     {
-      accessorKey: "hourlyRate",
-      header: "Valor/hora",
-      cell: ({ row }) => (row.getValue("hourlyRate") as number).toLocaleString("pt-BR", { style: "currency", currency: "BRL" }),
+      accessorKey: "contractedHours",
+      header: "Horas Contratadas",
+      cell: ({ row }) => (row.getValue("contractedHours") as number).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
     },
     {
       accessorKey: "startDate",
@@ -229,44 +227,65 @@ export function ContractTable({ data, meta, clients }: ContractTableProps) {
           <div className="grid grid-cols-2 gap-4">
             <Field>
               <FieldLabel htmlFor="contractedHours">Horas Contratadas</FieldLabel>
-              <Input id="contractedHours" type="number" min={1} {...form.register("contractedHours")} aria-invalid={!!form.formState.errors.contractedHours} />
+              <Controller
+                control={form.control}
+                name="contractedHours"
+                render={({ field }) => (
+                  <Input
+                    id="contractedHours"
+                    inputMode="decimal"
+                    value={formatDecimal(String(Math.round((field.value || 0) * 100)))}
+                    onChange={(e) => {
+                      const digits = e.target.value.replace(/\D/g, "")
+                      field.onChange(digits ? Number(digits) / 100 : 0)
+                    }}
+                    placeholder="0,00"
+                    aria-invalid={!!form.formState.errors.contractedHours}
+                  />
+                )}
+              />
               <FieldError errors={[form.formState.errors.contractedHours]} />
             </Field>
             <Field>
-              <FieldLabel htmlFor="hourlyRate">Valor/hora</FieldLabel>
-              <Input id="hourlyRate" type="number" step="0.01" min={0} {...form.register("hourlyRate")} placeholder="0.00" aria-invalid={!!form.formState.errors.hourlyRate} />
-              <FieldError errors={[form.formState.errors.hourlyRate]} />
+              <FieldLabel htmlFor="status">Status</FieldLabel>
+              <Select
+                items={Object.entries(STATUS_LABELS).map(([value, label]) => ({ value, label }))}
+                value={form.watch("status") || "ACTIVE"}
+                onValueChange={(v) => form.setValue("status", v as CreateContractInput["status"] || "ACTIVE")}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.entries(STATUS_LABELS).map(([value, label]) => (
+                    <SelectItem key={value} value={value}>{label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </Field>
           </div>
           <div className="grid grid-cols-2 gap-4">
             <Field>
               <FieldLabel htmlFor="startDate">Início</FieldLabel>
-              <Input id="startDate" type="date" {...form.register("startDate")} aria-invalid={!!form.formState.errors.startDate} />
+              <DatePicker
+                id="startDate"
+                value={form.watch("startDate") || ""}
+                onValueChange={(v) => form.setValue("startDate", v, { shouldValidate: true })}
+                aria-invalid={!!form.formState.errors.startDate}
+              />
               <FieldError errors={[form.formState.errors.startDate]} />
             </Field>
             <Field>
               <FieldLabel htmlFor="endDate">Término (opcional)</FieldLabel>
-              <Input id="endDate" type="date" {...form.register("endDate")} aria-invalid={!!form.formState.errors.endDate} />
+              <DatePicker
+                id="endDate"
+                value={form.watch("endDate") || ""}
+                onValueChange={(v) => form.setValue("endDate", v)}
+                aria-invalid={!!form.formState.errors.endDate}
+              />
               <FieldError errors={[form.formState.errors.endDate]} />
             </Field>
           </div>
-          <Field>
-            <FieldLabel htmlFor="status">Status</FieldLabel>
-            <Select
-              items={Object.entries(STATUS_LABELS).map(([value, label]) => ({ value, label }))}
-              value={form.watch("status") || "ACTIVE"}
-              onValueChange={(v) => form.setValue("status", v as CreateContractInput["status"] || "ACTIVE")}
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {Object.entries(STATUS_LABELS).map(([value, label]) => (
-                  <SelectItem key={value} value={value}>{label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </Field>
           <Field>
             <FieldLabel htmlFor="notes">Observações</FieldLabel>
             <Textarea id="notes" {...form.register("notes")} placeholder="Observações (opcional)" aria-invalid={!!form.formState.errors.notes} />

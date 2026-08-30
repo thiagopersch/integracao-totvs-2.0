@@ -1,8 +1,15 @@
 import { prisma } from "@/lib/prisma";
 import { BaseRepository } from "@/repositories/base.repository";
-import type { CreateDemandInput, UpdateDemandInput } from "@/schemas/demand.schema";
+import { timeToMinutes, type CreateDemandInput, type UpdateDemandInput } from "@/schemas/demand.schema";
 import type { Demand } from "@prisma/client";
 import type { ListParams } from "@/types/common";
+
+function combineDateAndTime(dateStr: string, time: string): Date {
+  const date = new Date(dateStr);
+  const [hours, minutes] = time.split(":").map(Number);
+  date.setHours(hours, minutes, 0, 0);
+  return date;
+}
 
 class DemandRepository extends BaseRepository<Demand> {
   constructor() {
@@ -44,11 +51,14 @@ export const demandService = {
   },
 
   async create(input: CreateDemandInput, organizationId: string) {
-    const { tagIds, date, ...rest } = input;
+    const { tagIds, date, startTime, endTime, ...rest } = input;
     return prisma.demand.create({
       data: {
         ...rest,
         date: new Date(date),
+        startTime: combineDateAndTime(date, startTime),
+        endTime: combineDateAndTime(date, endTime),
+        durationMinutes: timeToMinutes(endTime) - timeToMinutes(startTime),
         organizationId,
         demandTags: tagIds?.length ? { create: tagIds.map((tagId) => ({ tagId })) } : undefined,
       },
@@ -57,15 +67,20 @@ export const demandService = {
   },
 
   async update(id: string, input: UpdateDemandInput, organizationId: string) {
-    const { tagIds, date, ...rest } = input;
+    const { tagIds, date, startTime, endTime, ...rest } = input;
     if (tagIds) {
       await prisma.demandTag.deleteMany({ where: { demandId: id } });
     }
+    const effectiveDate = date ?? (await prisma.demand.findFirst({ where: { id, organizationId }, select: { date: true } }))?.date.toISOString();
+
     return prisma.demand.update({
       where: { id, organizationId },
       data: {
         ...rest,
         ...(date ? { date: new Date(date) } : {}),
+        ...(startTime && effectiveDate ? { startTime: combineDateAndTime(effectiveDate, startTime) } : {}),
+        ...(endTime && effectiveDate ? { endTime: combineDateAndTime(effectiveDate, endTime) } : {}),
+        ...(startTime && endTime ? { durationMinutes: timeToMinutes(endTime) - timeToMinutes(startTime) } : {}),
         demandTags: tagIds?.length ? { create: tagIds.map((tagId) => ({ tagId })) } : undefined,
       },
       include: includeRelations,

@@ -133,6 +133,16 @@ export function RequesterTable({ data, meta }: RequesterTableProps) {
         </DialogHeader>
         <form onSubmit={form.handleSubmit(onSubmit)} className="flex min-h-0 flex-1 flex-col overflow-hidden">
         <DialogBody>
+          <div className="flex items-center gap-2">
+            <Controller
+              control={form.control}
+              name="status"
+              render={({ field }) => (
+                <Checkbox id="status" checked={field.value ?? true} onCheckedChange={(v) => field.onChange(!!v)} />
+              )}
+            />
+            <Label htmlFor="status">Solicitante ativo</Label>
+          </div>
           <Field>
             <FieldLabel htmlFor="name">Nome</FieldLabel>
             <Input id="name" {...form.register("name")} placeholder="Nome do solicitante" aria-invalid={!!form.formState.errors.name} />
@@ -148,16 +158,6 @@ export function RequesterTable({ data, meta }: RequesterTableProps) {
             <Input id="phone" {...form.register("phone")} placeholder="(00) 00000-0000 (opcional)" aria-invalid={!!form.formState.errors.phone} />
             <FieldError errors={[form.formState.errors.phone]} />
           </Field>
-          <div className="flex items-center gap-2">
-            <Controller
-              control={form.control}
-              name="status"
-              render={({ field }) => (
-                <Checkbox id="status" checked={field.value ?? true} onCheckedChange={(v) => field.onChange(!!v)} />
-              )}
-            />
-            <Label htmlFor="status">Solicitante ativo</Label>
-          </div>
         </DialogBody>
         <DialogFooter>
           <Button type="button" variant="outline" onClick={handleCancel} disabled={loading}>Cancelar</Button>

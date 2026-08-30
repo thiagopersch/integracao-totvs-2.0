@@ -11,9 +11,38 @@ class AnalystRepository extends BaseRepository<Analyst> {
 
 export const analystRepository = new AnalystRepository();
 
+async function withContractsCount<T extends { id: string }>(analysts: T[]) {
+  if (analysts.length === 0) return analysts.map((a) => ({ ...a, contractsCount: 0 }));
+
+  const clientIds = await prisma.demand.findMany({
+    where: { analystId: { in: analysts.map((a) => a.id) }, deletedAt: null },
+    select: { analystId: true, clientId: true },
+    distinct: ["analystId", "clientId"],
+  });
+
+  const contractCountsByClient = await prisma.clientContract.groupBy({
+    by: ["clientId"],
+    where: { clientId: { in: [...new Set(clientIds.map((c) => c.clientId))] } },
+    _count: { id: true },
+  });
+  const countByClient = new Map(contractCountsByClient.map((c) => [c.clientId, c._count.id]));
+
+  const clientsByAnalyst = new Map<string, Set<string>>();
+  for (const { analystId, clientId } of clientIds) {
+    if (!clientsByAnalyst.has(analystId)) clientsByAnalyst.set(analystId, new Set());
+    clientsByAnalyst.get(analystId)!.add(clientId);
+  }
+
+  return analysts.map((a) => ({
+    ...a,
+    contractsCount: [...(clientsByAnalyst.get(a.id) ?? [])].reduce((sum, clientId) => sum + (countByClient.get(clientId) ?? 0), 0),
+  }));
+}
+
 export const analystService = {
   async list(params: Parameters<typeof analystRepository.findAll>[0], organizationId: string) {
-    return analystRepository.findAll(params, organizationId);
+    const result = await analystRepository.findAll(params, organizationId);
+    return { ...result, data: await withContractsCount(result.data) };
   },
 
   async listAll(organizationId: string) {

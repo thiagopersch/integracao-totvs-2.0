@@ -4,18 +4,16 @@ const CONTRACT_STATUSES = ["ACTIVE", "SUSPENDED", "EXPIRED", "CANCELLED"] as con
 
 export const createContractSchema = z.object({
   clientId: z.string().min(1, "Cliente é obrigatório"),
-  contractedHours: z.coerce.number().int().min(1, "Horas contratadas devem ser maiores que zero"),
-  hourlyRate: z.coerce.number().min(0, "Valor/hora inválido"),
+  contractedHours: z.coerce.number().min(0.01, "Horas contratadas devem ser maiores que zero"),
   startDate: z.string().min(1, "Data de início é obrigatória"),
   endDate: z.string().optional(),
-  status: z.enum(CONTRACT_STATUSES).default("ACTIVE"),
+  status: z.enum(CONTRACT_STATUSES),
   notes: z.string().max(2000, "Observações devem ter no máximo 2000 caracteres").optional(),
 });
 
 export const updateContractSchema = createContractSchema.partial({
   clientId: true,
   contractedHours: true,
-  hourlyRate: true,
   startDate: true,
 });
 

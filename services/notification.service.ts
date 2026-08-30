@@ -12,9 +12,13 @@ import type { Notification, NotificationChannel, Prisma, UserRoleLevel } from "@
 async function dispatch(notifications: Notification[]): Promise<void> {
   if (notifications.length === 0) return;
 
-  for (const notification of notifications) {
-    emitToUser(notification.userId, notification);
-  }
+  await Promise.all(
+    notifications.map((notification) =>
+      emitToUser(notification.userId, notification).catch((err) => {
+        console.error("[notification.service] failed to publish live notification:", err);
+      })
+    )
+  );
 
   const userIds = [...new Set(notifications.map((n) => n.userId))];
   const emailSettings = await prisma.notificationSetting.findMany({

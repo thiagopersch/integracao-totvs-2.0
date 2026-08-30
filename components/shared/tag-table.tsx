@@ -37,6 +37,10 @@ interface TagTableProps {
 
 const SORTABLE_COLUMNS = ["name"]
 
+function randomColor() {
+  return `#${Math.floor(Math.random() * 0xffffff).toString(16).padStart(6, "0")}`
+}
+
 export function TagTable({ data, meta }: TagTableProps) {
   const {
     router,
@@ -54,11 +58,12 @@ export function TagTable({ data, meta }: TagTableProps) {
     defaultSort: { field: "name", direction: "asc" },
   })
   const [loading, setLoading] = useState(false)
+  const [newColor, setNewColor] = useState(randomColor)
 
   const form = useForm<CreateTagInput>({
     mode: "onChange",
     resolver: zodResolver(editDialog.entity ? updateTagSchema : createTagSchema) as Resolver<CreateTagInput>,
-    values: editDialog.entity ? { name: editDialog.entity.name, color: editDialog.entity.color } : { name: "", color: "#8b5cf6" },
+    values: editDialog.entity ? { name: editDialog.entity.name, color: editDialog.entity.color } : { name: "", color: newColor },
   })
 
   async function onSubmit(data: CreateTagInput) {
@@ -111,7 +116,11 @@ export function TagTable({ data, meta }: TagTableProps) {
   const newDialog = (
     <Dialog
       open={editDialog.open}
-      onOpenChange={(open) => { setEditDialog({ open, entity: open ? editDialog.entity : undefined }); if (!open) form.reset() }}
+      onOpenChange={(open) => {
+        setEditDialog({ open, entity: open ? editDialog.entity : undefined })
+        if (open && !editDialog.entity) setNewColor(randomColor())
+        if (!open) form.reset()
+      }}
     >
       <DialogTrigger render={<Button><Plus className="h-4 w-4 mr-2" /> Nova Tag</Button>} />
       <DialogContent>
@@ -127,7 +136,7 @@ export function TagTable({ data, meta }: TagTableProps) {
           </Field>
           <Field>
             <FieldLabel htmlFor="color">Cor</FieldLabel>
-            <Input id="color" type="color" className="h-10 w-20 p-1" {...form.register("color")} />
+            <Input id="color" type="color" className="h-10 p-1" style={{ width: "30%" }} {...form.register("color")} />
             <FieldError errors={[form.formState.errors.color]} />
           </Field>
         </DialogBody>

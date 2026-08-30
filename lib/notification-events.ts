@@ -1,26 +1,60 @@
-import { EventEmitter } from "node:events";
+import { Client } from "pg";
+import { prisma } from "@/lib/prisma";
 import type { Notification } from "@prisma/client";
 
 /**
- * In-process pub/sub for live-pushing new notifications to the SSE route. Single Node instance,
- * no horizontal scaling (see docker-compose.yml — one `app` service, no Redis) — so a plain
- * EventEmitter is enough; a multi-instance deployment would need a shared broker (Redis pub/sub)
- * to fan events out across processes.
+ * Cross-instance pub/sub for live-pushing new notifications to the SSE route, backed by
+ * Postgres LISTEN/NOTIFY. A plain in-process EventEmitter only works within a single Node
+ * process — on Vercel (or any horizontally-scaled deployment) the invocation that creates a
+ * notification and the one holding the SSE connection open are typically different isolated
+ * processes, so nothing would ever reach the listener. LISTEN/NOTIFY fans the event out through
+ * Postgres itself instead. The NOTIFY payload carries only the notification id (kept far under
+ * Postgres's 8000-byte payload cap); the SSE side re-fetches the row, which also re-scopes it to
+ * the subscribing user.
  */
-const emitter = new EventEmitter();
-// Many browser tabs/users can subscribe concurrently — raise the default cap to avoid Node's
-// "MaxListenersExceededWarning" noise in normal operation.
-emitter.setMaxListeners(1000);
+const CHANNEL = "app_notifications";
 
-function channel(userId: string): string {
-  return `notification:${userId}`;
-}
-
-export function emitToUser(userId: string, notification: Notification): void {
-  emitter.emit(channel(userId), notification);
+export async function emitToUser(userId: string, notification: Notification): Promise<void> {
+  await prisma.$executeRaw`SELECT pg_notify(${CHANNEL}, ${JSON.stringify({ userId, id: notification.id })})`;
 }
 
 export function subscribe(userId: string, listener: (notification: Notification) => void): () => void {
-  emitter.on(channel(userId), listener);
-  return () => emitter.off(channel(userId), listener);
+  const client = new Client({ connectionString: process.env.DATABASE_URL });
+  let closed = false;
+
+  client.on("notification", async (msg) => {
+    if (!msg.payload) return;
+    try {
+      const payload = JSON.parse(msg.payload) as { userId: string; id: string };
+      if (payload.userId !== userId) return;
+      const notification = await prisma.notification.findUnique({ where: { id: payload.id } });
+      if (notification) listener(notification);
+    } catch (err) {
+      console.error("[notification-events] failed to handle NOTIFY payload:", err);
+    }
+  });
+
+  client.on("error", (err) => {
+    console.error("[notification-events] LISTEN connection error:", err);
+  });
+
+  const ready = client
+    .connect()
+    .then(async () => {
+      if (closed) {
+        await client.end().catch(() => {});
+        return;
+      }
+      await client.query(`LISTEN ${CHANNEL}`);
+    })
+    .catch((err) => {
+      console.error("[notification-events] failed to establish LISTEN connection:", err);
+    });
+
+  return () => {
+    closed = true;
+    ready.finally(() => {
+      client.end().catch(() => {});
+    });
+  };
 }

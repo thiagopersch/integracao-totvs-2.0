@@ -11,6 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import {
   Dialog,
@@ -264,7 +265,9 @@ export function SoapBuilderClient({
       (sentenceParams.length > 0 && sentenceParams.some((p) => (sentenceParamValues[p] ?? "") === "")))
   // Both the process ExecuteWithXmlParams(Async) flow and the dataserver SaveRecord/DeleteRecord
   // flow need one automatic GetSchema round-trip before the request can be filled in or sent.
-  const needsGuidedSchema = isXmlParamMethod || isDataserverPkMethod
+  // ReadView also gets one, purely informational — it identifies which table(s) the dataserver's
+  // filter condition actually runs against, without touching the Filtro/request XML itself.
+  const needsGuidedSchema = isXmlParamMethod || isDataserverPkMethod || isReadViewMethod
   const guidedEntityId = selectedType?.type === "process" ? selectedProcessId : selectedDataserverId
   const guidedParamsKey = needsGuidedSchema
     ? `${selectedType?.type}:${selectedMethod}:${guidedEntityId}:${selectedTbcId}`
@@ -590,6 +593,16 @@ export function SoapBuilderClient({
               `<${operation}>\n  <DataServerName>${escapeXml(entityCode)}</DataServerName>\n  <PrimaryKey>${pkFields.map((f) => f.name).join(";")}</PrimaryKey>\n</${operation}>`
             )
             toast.success("Chave primária carregada — preencha os valores antes de executar")
+          } else if (isReadViewMethod) {
+            // Purely informational — the Filtro box already builds its own request XML
+            // (handleFiltroChange), so this only tells the user which table(s) the dataserver
+            // reads from (and their column names) for writing the SQL condition.
+            setDataserverSchemaTables(allTables)
+            toast.success(
+              allTables.length === 1
+                ? `Tabela identificada: ${allTables[0].name}`
+                : `Tabelas identificadas (${allTables.length}): ${allTables.map((t) => t.name).join(", ")}`
+            )
           } else {
             const skeleton = `<${mainTable.name}>\n${mainTable.fields.map((f) => `  <${f.name}></${f.name}>`).join("\n")}\n</${mainTable.name}>`
             setRequestXml(skeleton)
@@ -1170,6 +1183,36 @@ export function SoapBuilderClient({
 
               {isReadViewMethod && (
                 <div className="space-y-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Label className="mb-0">Tabela(s) do dataserver</Label>
+                    {guidedParamsLoading ? (
+                      <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                        <Loader2 className="h-3 w-3 animate-spin" /> Identificando...
+                      </span>
+                    ) : dataserverSchemaTables && dataserverSchemaTables.length ? (
+                      dataserverSchemaTables.map((table) => (
+                        <Tooltip key={table.name}>
+                          <TooltipTrigger
+                            render={
+                              <Badge variant="outline" className="cursor-default font-mono text-xs">
+                                <Table2 className="h-3 w-3 mr-1" />
+                                {table.name}
+                              </Badge>
+                            }
+                          />
+                          <TooltipContent className="max-w-xs">
+                            {table.fields.length
+                              ? `Campos: ${table.fields.map((f) => f.name).join(", ")}`
+                              : "Sem campos"}
+                          </TooltipContent>
+                        </Tooltip>
+                      ))
+                    ) : (
+                      <span className="text-xs text-muted-foreground">
+                        Selecione o dataserver e o TBC para identificar automaticamente.
+                      </span>
+                    )}
+                  </div>
                   <Label>
                     Filtro (apenas a condição SQL — sem SELECT, ex.: CODCOLIGADA = 1 AND RA = &apos;123&apos;)
                   </Label>
