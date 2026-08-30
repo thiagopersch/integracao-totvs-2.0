@@ -12,7 +12,7 @@ import { getNotificationCategory } from "@/lib/notification-category"
 import { ERROR_KIND_LABELS, type ErrorKind } from "@/lib/error-kind"
 import { formatRelativeTime } from "@/utils/format"
 import { cn } from "@/lib/utils"
-import type { Notification } from "@prisma/client"
+import type { Notification } from "@/generated/prisma/client"
 
 const POPOVER_NOTIFICATION_LIMIT = 4
 

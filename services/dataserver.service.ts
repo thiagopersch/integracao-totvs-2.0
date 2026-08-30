@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { BaseRepository } from "@/repositories/base.repository";
 import type { CreateDataserverInput, UpdateDataserverInput } from "@/schemas/dataserver.schema";
-import type { Dataserver } from "@prisma/client";
+import type { Dataserver } from "@/generated/prisma/client";
 
 class DataserverRepository extends BaseRepository<Dataserver> {
   constructor() {

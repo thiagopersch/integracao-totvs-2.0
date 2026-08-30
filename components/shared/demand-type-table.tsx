@@ -27,7 +27,7 @@ import { deleteDemandType, createDemandType, updateDemandType, bulkDeleteDemandT
 import { createDemandTypeSchema, updateDemandTypeSchema, type CreateDemandTypeInput } from "@/schemas/demand-type.schema"
 import { toast } from "sonner"
 import { useCrudTable } from "@/hooks/use-crud-table"
-import type { DemandType } from "@prisma/client"
+import type { DemandType } from "@/generated/prisma/client"
 import type { PaginationMeta } from "@/types/common"
 
 interface DemandTypeTableProps {

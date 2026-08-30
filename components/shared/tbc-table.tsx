@@ -29,7 +29,7 @@ import { createTbcSchema, updateTbcSchema, type CreateTbcInput } from "@/schemas
 import type { TbcRow } from "@/services/tbc.service"
 import type { PaginationMeta } from "@/types/common"
 import { zodResolver } from "@hookform/resolvers/zod"
-import type { Client } from "@prisma/client"
+import type { Client } from "@/generated/prisma/client"
 import type { ColumnDef } from "@tanstack/react-table"
 import { Loader2, Plus } from "lucide-react"
 import { useState } from "react"

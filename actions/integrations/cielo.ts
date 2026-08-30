@@ -7,7 +7,7 @@ import { buildIntegrationTestFailedNotification } from "@/lib/notification-types
 import { classifyError } from "@/lib/error-kind";
 import { prisma } from "@/lib/prisma";
 import { redactObject } from "@/lib/redact";
-import type { Prisma } from "@prisma/client";
+import type { Prisma } from "@/generated/prisma/client";
 
 const CIELO_URLS = {
   sandbox: "https://apisandbox.cieloecommerce.cielo.com.br/1/sales",

@@ -43,7 +43,7 @@ import {
 } from "@/schemas/soap-endpoint.schema"
 import { toast } from "sonner"
 import { useCrudTable } from "@/hooks/use-crud-table"
-import type { SoapEndpointType, SoapEndpointMethod } from "@prisma/client"
+import type { SoapEndpointType, SoapEndpointMethod } from "@/generated/prisma/client"
 import type { PaginationMeta } from "@/types/common"
 
 type SoapEndpointTypeWithMethods = SoapEndpointType & { methods: SoapEndpointMethod[] }

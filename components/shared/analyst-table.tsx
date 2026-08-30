@@ -32,7 +32,7 @@ import { createAnalystSchema, updateAnalystSchema, type CreateAnalystInput } fro
 import { formatPhone, formatDecimal } from "@/lib/masks"
 import { toast } from "sonner"
 import { useCrudTable } from "@/hooks/use-crud-table"
-import type { Analyst } from "@prisma/client"
+import type { Analyst } from "@/generated/prisma/client"
 import type { PaginationMeta } from "@/types/common"
 
 type AnalystRow = Analyst & { contractsCount: number }

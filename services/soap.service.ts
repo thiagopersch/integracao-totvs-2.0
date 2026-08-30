@@ -9,7 +9,7 @@ import { buildSoapCallFailedNotification } from "@/lib/notification-types";
 import { classifyError, type ErrorKind } from "@/lib/error-kind";
 import { extractEntityName } from "@/utils/xml";
 import { WS_NAME_LABELS, type WsName } from "@/lib/ws-names";
-import { Prisma, type SoapMethod } from "@prisma/client";
+import { Prisma, type SoapMethod } from "@/generated/prisma/client";
 
 export { WS_NAME_LABELS, type WsName };
 

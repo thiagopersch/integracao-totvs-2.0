@@ -5,7 +5,7 @@ import type {
   CreateSoapEndpointMethodInput,
   UpdateSoapEndpointMethodInput,
 } from "@/schemas/soap-endpoint.schema";
-import type { SoapEndpointType, SoapEndpointMethod } from "@prisma/client";
+import type { SoapEndpointType, SoapEndpointMethod } from "@/generated/prisma/client";
 import type { ListParams, PaginationMeta } from "@/types/common";
 
 export type SoapEndpointTypeWithMethods = SoapEndpointType & { methods: SoapEndpointMethod[] };

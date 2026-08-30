@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { BaseRepository } from "@/repositories/base.repository";
 import type { CreateSistemaInput, UpdateSistemaInput } from "@/schemas/sistema.schema";
-import type { TotvsSystem } from "@prisma/client";
+import type { TotvsSystem } from "@/generated/prisma/client";
 
 class SistemaRepository extends BaseRepository<TotvsSystem> {
   constructor() {

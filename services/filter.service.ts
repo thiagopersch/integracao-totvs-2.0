@@ -4,7 +4,7 @@ import { computeNextRunAt } from "@/lib/backup-schedule";
 import { assertClientAllowed } from "@/lib/client-access";
 import type { CreateFilterInput, UpdateFilterInput } from "@/schemas/filter.schema";
 import type { ListParams } from "@/types/common";
-import type { Filter } from "@prisma/client";
+import type { Filter } from "@/generated/prisma/client";
 
 class FilterRepository extends BaseRepository<Filter> {
   constructor() {

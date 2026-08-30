@@ -17,7 +17,7 @@ import { hasPermission } from "@/lib/permissions"
 import { soapEndpointService } from "@/services/soap-endpoint.service"
 import { tbcService } from "@/services/tbc.service"
 import { clientService } from "@/services/client.service"
-import { SoapMethod } from "@prisma/client"
+import { SoapMethod } from "@/generated/prisma/client"
 import type { ActivitySource } from "@/services/activity-log.service"
 
 export default function ActivityLogPage({ searchParams }: { searchParams: Promise<Record<string, string>> }) {

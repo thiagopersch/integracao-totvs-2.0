@@ -1,4 +1,4 @@
-import { UserRoleLevel } from "@prisma/client";
+import { UserRoleLevel } from "@/generated/prisma/client";
 
 export const ROLES = {
   ADMIN: UserRoleLevel.ADMIN,

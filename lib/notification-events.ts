@@ -1,6 +1,6 @@
 import { Client } from "pg";
 import { prisma } from "@/lib/prisma";
-import type { Notification } from "@prisma/client";
+import type { Notification } from "@/generated/prisma/client";
 
 /**
  * Cross-instance pub/sub for live-pushing new notifications to the SSE route, backed by

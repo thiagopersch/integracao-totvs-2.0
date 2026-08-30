@@ -5,7 +5,7 @@ import { ENTITY_LABELS, type BlockingReference } from "@/lib/entity-relations";
 import { notificationService } from "@/services/notification.service";
 import { redactObject } from "@/lib/redact";
 import { ACTION_LABELS } from "@/lib/audit-labels";
-import type { Prisma } from "@prisma/client";
+import type { Prisma } from "@/generated/prisma/client";
 
 /** Best-effort human label for the affected record — most call sites pass a name/code/title-ish
  *  string field in newData or oldData; falls back to the raw id when none is found. */

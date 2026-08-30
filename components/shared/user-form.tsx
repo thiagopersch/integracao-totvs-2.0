@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { toast } from "sonner"
 import { Loader2 } from "lucide-react"
 import { useState } from "react"
-import type { User } from "@prisma/client"
+import type { User } from "@/generated/prisma/client"
 
 interface UserFormProps {
   user?: User

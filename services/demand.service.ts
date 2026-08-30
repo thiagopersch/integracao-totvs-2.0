@@ -2,7 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { BaseRepository } from "@/repositories/base.repository";
 import { assertClientAllowed } from "@/lib/client-access";
 import { timeToMinutes, type CreateDemandInput, type UpdateDemandInput } from "@/schemas/demand.schema";
-import type { Demand } from "@prisma/client";
+import type { Demand } from "@/generated/prisma/client";
 import type { ListParams } from "@/types/common";
 
 function combineDateAndTime(dateStr: string, time: string): Date {

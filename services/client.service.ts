@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { BaseRepository } from "@/repositories/base.repository";
 import type { CreateClientInput, UpdateClientInput } from "@/schemas/client.schema";
-import type { Client } from "@prisma/client";
+import type { Client } from "@/generated/prisma/client";
 import type { ListParams } from "@/types/common";
 
 class ClientRepository extends BaseRepository<Client> {

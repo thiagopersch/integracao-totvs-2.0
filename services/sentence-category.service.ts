@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { BaseRepository } from "@/repositories/base.repository";
 import type { CreateSentenceCategoryInput, UpdateSentenceCategoryInput } from "@/schemas/sentence-category.schema";
-import type { SentenceCategory } from "@prisma/client";
+import type { SentenceCategory } from "@/generated/prisma/client";
 
 class SentenceCategoryRepository extends BaseRepository<SentenceCategory> {
   constructor() {

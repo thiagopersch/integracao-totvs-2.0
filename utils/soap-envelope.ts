@@ -1,4 +1,4 @@
-import type { SoapMethod } from "@prisma/client";
+import type { SoapMethod } from "@/generated/prisma/client";
 
 export type SoapContext = {
   coligate?: number;

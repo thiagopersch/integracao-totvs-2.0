@@ -26,7 +26,7 @@ import { deleteSistema, restoreSistema, createSistema, updateSistema, bulkDelete
 import { createSistemaSchema, updateSistemaSchema, type CreateSistemaInput } from "@/schemas/sistema.schema"
 import { toast } from "sonner"
 import { useCrudTable } from "@/hooks/use-crud-table"
-import type { TotvsSystem } from "@prisma/client"
+import type { TotvsSystem } from "@/generated/prisma/client"
 import type { PaginationMeta } from "@/types/common"
 
 interface SistemaTableProps {

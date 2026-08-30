@@ -1,4 +1,4 @@
-import { SoapMethod } from "@prisma/client";
+import { SoapMethod } from "@/generated/prisma/client";
 
 export type SoapExecuteRequest = {
   dataserver: string;

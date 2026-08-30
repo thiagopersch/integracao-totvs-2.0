@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { BaseRepository } from "@/repositories/base.repository";
 import type { CreateProcessInput, UpdateProcessInput } from "@/schemas/process.schema";
-import type { Process } from "@prisma/client";
+import type { Process } from "@/generated/prisma/client";
 
 class ProcessRepository extends BaseRepository<Process> {
   constructor() {

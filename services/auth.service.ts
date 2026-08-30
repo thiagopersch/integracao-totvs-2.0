@@ -5,7 +5,7 @@ import { checkRateLimit } from "@/lib/rate-limiter";
 import { notificationService } from "@/services/notification.service";
 import { buildLoginSuspiciousNotification } from "@/lib/notification-types";
 import type { AuthUser, LoginInput } from "@/types/auth";
-import type { User } from "@prisma/client";
+import type { User } from "@/generated/prisma/client";
 
 const LOGIN_FAILURE_WINDOW_MS = 15 * 60 * 1000;
 const LOGIN_FAILURE_THRESHOLD = 3;

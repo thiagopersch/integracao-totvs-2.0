@@ -2,7 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { hashPassword } from "@/lib/encryption";
 import { BaseRepository } from "@/repositories/base.repository";
 import type { CreateUserInput, UpdateUserInput } from "@/schemas/user.schema";
-import type { User } from "@prisma/client";
+import type { User } from "@/generated/prisma/client";
 
 class UserRepository extends BaseRepository<User> {
   constructor() {

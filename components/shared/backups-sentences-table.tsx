@@ -22,7 +22,7 @@ import { ViewBackupSentenceDialog } from "@/components/shared/view-backup-senten
 import { BackupCodeHistoryDialog } from "@/components/shared/backup-code-history-dialog"
 import { getLatestBackupForCode } from "@/actions/admin/backups"
 import { toast } from "sonner"
-import type { Backup } from "@prisma/client"
+import type { Backup } from "@/generated/prisma/client"
 import type { PaginationMeta } from "@/types/common"
 
 const SORTABLE_COLUMNS = ["codeSentence", "codColigada", "codSystem", "nameSentence", "createdAt", "restoreStatus"]

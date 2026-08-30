@@ -26,7 +26,7 @@ import { deleteProcess, restoreProcess, createProcess, updateProcess, bulkDelete
 import { createProcessSchema, updateProcessSchema, type CreateProcessInput } from "@/schemas/process.schema"
 import { toast } from "sonner"
 import { useCrudTable } from "@/hooks/use-crud-table"
-import type { Process } from "@prisma/client"
+import type { Process } from "@/generated/prisma/client"
 import type { PaginationMeta } from "@/types/common"
 
 interface ProcessTableProps {

@@ -27,7 +27,7 @@ import { deleteTag, createTag, updateTag, bulkDeleteTags } from "@/actions/tags"
 import { createTagSchema, updateTagSchema, type CreateTagInput } from "@/schemas/tag.schema"
 import { toast } from "sonner"
 import { useCrudTable } from "@/hooks/use-crud-table"
-import type { Tag } from "@prisma/client"
+import type { Tag } from "@/generated/prisma/client"
 import type { PaginationMeta } from "@/types/common"
 
 interface TagTableProps {

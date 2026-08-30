@@ -27,7 +27,7 @@ import { deleteDepartment, createDepartment, updateDepartment, bulkDeleteDepartm
 import { createDepartmentSchema, updateDepartmentSchema, type CreateDepartmentInput } from "@/schemas/department.schema"
 import { toast } from "sonner"
 import { useCrudTable } from "@/hooks/use-crud-table"
-import type { Department } from "@prisma/client"
+import type { Department } from "@/generated/prisma/client"
 import type { PaginationMeta } from "@/types/common"
 
 interface DepartmentTableProps {

@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { BaseRepository } from "@/repositories/base.repository";
 import type { CreateAnalystInput, UpdateAnalystInput } from "@/schemas/analyst.schema";
-import type { Analyst } from "@prisma/client";
+import type { Analyst } from "@/generated/prisma/client";
 
 class AnalystRepository extends BaseRepository<Analyst> {
   constructor() {

@@ -41,7 +41,7 @@ import { deleteUser, restoreUser, bulkDeleteUsers, setUserStatus, setUserClients
 import { UserForm } from "./user-form"
 import { useCrudTable } from "@/hooks/use-crud-table"
 import { toast } from "sonner"
-import type { User, Client } from "@prisma/client"
+import type { User, Client } from "@/generated/prisma/client"
 import type { PaginationMeta } from "@/types/common"
 
 interface UserRow extends User {

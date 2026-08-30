@@ -3,7 +3,7 @@
 import { updateTag } from "next/cache";
 import { notificationService } from "@/services/notification.service";
 import { getRequestContext } from "@/lib/tenant";
-import type { NotificationChannel } from "@prisma/client";
+import type { NotificationChannel } from "@/generated/prisma/client";
 
 export async function listNotifications(
   page = 1,

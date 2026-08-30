@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { emitToUser } from "@/lib/notification-events";
 import { sendEmail } from "@/lib/mailer";
-import type { Notification, NotificationChannel, Prisma, UserRoleLevel } from "@prisma/client";
+import type { Notification, NotificationChannel, Prisma, UserRoleLevel } from "@/generated/prisma/client";
 
 /**
  * Live-pushes each new row over SSE (see app/api/notifications/stream/route.ts) and, for

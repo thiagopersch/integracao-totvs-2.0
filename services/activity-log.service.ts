@@ -3,7 +3,7 @@ import { ENTITY_LABELS, formatBlockingReferences, type BlockingReference } from 
 import { ACTION_LABELS } from "@/lib/audit-labels";
 import { BULK_DELETE_BLOCKED_ACTION } from "@/services/audit.service";
 import { STATUS_SYMBOLS } from "@/lib/activity-status";
-import { SoapMethod, type AuditLog, type SoapLog, type EmailLog, type ApiLog, type Prisma } from "@prisma/client";
+import { SoapMethod, type AuditLog, type SoapLog, type EmailLog, type ApiLog, type Prisma } from "@/generated/prisma/client";
 
 export type ActivitySource = "CRUD" | "SOAP" | "EMAIL" | "API" | "DELETION";
 export type ActivityStatus = "OK" | "ERROR" | "SKIPPED";

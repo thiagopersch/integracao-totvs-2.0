@@ -43,8 +43,8 @@ import { BACKUP_SCHEDULE_LABELS, SCHEDULES_WITH_TIME_OF_DAY } from "@/lib/backup
 import { createFilterSchema, updateFilterSchema, type CreateFilterInput } from "@/schemas/filter.schema"
 import { toast } from "sonner"
 import { useCrudTable } from "@/hooks/use-crud-table"
-import type { Filter, TotvsSystem, SentenceCategory } from "@prisma/client"
-import type { Client } from "@prisma/client"
+import type { Filter, TotvsSystem, SentenceCategory } from "@/generated/prisma/client"
+import type { Client } from "@/generated/prisma/client"
 import type { TbcRow } from "@/services/tbc.service"
 import type { PaginationMeta } from "@/types/common"
 

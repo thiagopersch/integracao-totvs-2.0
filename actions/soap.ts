@@ -9,7 +9,7 @@ import { getRequestContext } from "@/lib/tenant";
 import { requirePermission } from "@/lib/rbac";
 import { auditService } from "@/services/audit.service";
 import type { SoapContext } from "@/types/soap";
-import type { SoapMethod } from "@prisma/client";
+import type { SoapMethod } from "@/generated/prisma/client";
 
 export async function listSoapFavorites() {
   const { organizationId, userId } = await getRequestContext();

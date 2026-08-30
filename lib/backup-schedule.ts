@@ -1,4 +1,4 @@
-import type { BackupSchedule } from "@prisma/client";
+import type { BackupSchedule } from "@/generated/prisma/client";
 
 export const BACKUP_SCHEDULE_LABELS: Record<BackupSchedule, string> = {
   NONE: "Sem execução programada",

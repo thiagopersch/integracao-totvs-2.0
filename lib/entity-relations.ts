@@ -1,84 +1,16 @@
-import { Prisma } from "@prisma/client";
+import { SCHEMA_RELATIONS } from "@/generated/prisma-relations";
 import { prisma } from "@/lib/prisma";
+import { ENTITY_LABELS, type BlockingReference } from "@/lib/entity-labels";
+
+export { ENTITY_LABELS, formatBlockingReferences, type BlockingReference } from "@/lib/entity-labels";
 
 /**
- * Human labels for Prisma model names, reused both for "who is blocking this
- * delete" messages (referencing model) and for the entity column on the
- * centralized deletion-error log (target model).
+ * Looks up every model with a foreign key pointing at `targetModelName`, from
+ * the manifest scripts/generate-relations.ts derives from schema.prisma at
+ * build time — no manual relation map to keep in sync as the schema grows.
  */
-export const ENTITY_LABELS: Record<string, string> = {
-  Dataserver: "Dataservers",
-  Process: "Processos",
-  Client: "Clientes",
-  Tbc: "TBCs",
-  Filter: "Filtros",
-  Backup: "Backups",
-  BackupRun: "Execuções de Backup",
-  SentenceCategory: "Categorias de Sentença",
-  Sentence: "Sentenças",
-  TotvsSystem: "Sistemas TOTVS",
-  User: "Usuários",
-  Role: "Papéis",
-  Analyst: "Analistas",
-  ClientContract: "Contratos",
-  Requester: "Solicitantes",
-  Department: "Departamentos",
-  DemandType: "Tipos de Demanda",
-  Demand: "Demandas",
-  Tag: "Tags",
-  DemandTag: "Tags de Demanda",
-  Comment: "Comentários",
-  Attachment: "Anexos",
-  Notification: "Notificações",
-  SoapLog: "Logs SOAP",
-  SoapTemplate: "Templates SOAP",
-  SoapFavorite: "Favoritos SOAP",
-  AuditLog: "Logs de Auditoria",
-  EmailSettings: "Configurações de E-mail",
-};
-
-export interface BlockingReference {
-  model: string;
-  label: string;
-  field: string;
-  count: number;
-}
-
-type ReferencingField = {
-  modelName: string;
-  delegateName: string;
-  fkField: string;
-  hasDeletedAt: boolean;
-};
-
-const referencingFieldsCache = new Map<string, ReferencingField[]>();
-
-/**
- * Walks the Prisma DMMF (generated from schema.prisma) to find every model
- * with a foreign key pointing at `targetModelName` — no manual relation map
- * to keep in sync as the schema grows.
- */
-function findReferencingFields(targetModelName: string): ReferencingField[] {
-  const cached = referencingFieldsCache.get(targetModelName);
-  if (cached) return cached;
-
-  const refs: ReferencingField[] = [];
-  for (const model of Prisma.dmmf.datamodel.models) {
-    for (const field of model.fields) {
-      if (field.kind !== "object" || field.type !== targetModelName) continue;
-      if (!field.relationFromFields?.length) continue;
-
-      refs.push({
-        modelName: model.name,
-        delegateName: model.name.charAt(0).toLowerCase() + model.name.slice(1),
-        fkField: field.relationFromFields[0],
-        hasDeletedAt: model.fields.some((f) => f.name === "deletedAt"),
-      });
-    }
-  }
-
-  referencingFieldsCache.set(targetModelName, refs);
-  return refs;
+function findReferencingFields(targetModelName: string) {
+  return SCHEMA_RELATIONS.filter((relation) => relation.targetModel === targetModelName);
 }
 
 type CountDelegate = { count(args: { where: Record<string, unknown> }): Promise<number> };
@@ -105,8 +37,4 @@ export async function findBlockingReferences(targetModelName: string, id: string
   }
 
   return results;
-}
-
-export function formatBlockingReferences(refs: BlockingReference[]): string {
-  return refs.map((r) => `${r.label} (${r.count})`).join(", ");
 }

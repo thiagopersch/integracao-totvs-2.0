@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { BaseRepository } from "@/repositories/base.repository";
 import type { CreateRequesterInput, UpdateRequesterInput } from "@/schemas/requester.schema";
-import type { Requester } from "@prisma/client";
+import type { Requester } from "@/generated/prisma/client";
 
 class RequesterRepository extends BaseRepository<Requester> {
   constructor() {

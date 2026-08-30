@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { BaseRepository } from "@/repositories/base.repository";
 import type { CreateSentenceInput, UpdateSentenceInput } from "@/schemas/sentence.schema";
-import type { Sentence } from "@prisma/client";
+import type { Sentence } from "@/generated/prisma/client";
 
 class SentenceRepository extends BaseRepository<Sentence> {
   constructor() {

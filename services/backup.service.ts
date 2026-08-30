@@ -13,7 +13,7 @@ import { soapService, type WsName } from "@/services/soap.service";
 import { soapEndpointService } from "@/services/soap-endpoint.service";
 import type { CreateBackupInput, UpdateBackupInput } from "@/schemas/backup.schema";
 import type { ListParams } from "@/types/common";
-import type { Backup, Prisma } from "@prisma/client";
+import type { Backup, Prisma } from "@/generated/prisma/client";
 
 class BackupRepository extends BaseRepository<Backup> {
   constructor() {

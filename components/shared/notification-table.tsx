@@ -13,7 +13,7 @@ import { formatDate } from "@/utils/format"
 import { getNotificationCategory } from "@/lib/notification-category"
 import { markNotificationAsRead, markAllNotificationsAsRead } from "@/actions/notifications"
 import { toast } from "sonner"
-import type { Notification } from "@prisma/client"
+import type { Notification } from "@/generated/prisma/client"
 import type { PaginationMeta } from "@/types/common"
 
 interface NotificationTableProps {

@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { BaseRepository } from "@/repositories/base.repository";
 import type { CreateDemandTypeInput, UpdateDemandTypeInput } from "@/schemas/demand-type.schema";
-import type { DemandType } from "@prisma/client";
+import type { DemandType } from "@/generated/prisma/client";
 
 class DemandTypeRepository extends BaseRepository<DemandType> {
   constructor() {

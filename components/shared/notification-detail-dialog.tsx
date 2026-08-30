@@ -8,11 +8,11 @@ import { Badge } from "@/components/ui/badge"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { formatDate } from "@/utils/format"
 import { getNotificationCategory } from "@/lib/notification-category"
-import { ENTITY_LABELS } from "@/lib/entity-relations"
+import { ENTITY_LABELS } from "@/lib/entity-labels"
 import { ACTION_LABELS } from "@/lib/audit-labels"
 import { ERROR_KIND_LABELS, ERROR_KIND_BADGE_VARIANT, type ErrorKind } from "@/lib/error-kind"
 import { cn } from "@/lib/utils"
-import type { Notification } from "@prisma/client"
+import type { Notification } from "@/generated/prisma/client"
 
 type ChangeEntry = { field: string; from?: unknown; to?: unknown }
 

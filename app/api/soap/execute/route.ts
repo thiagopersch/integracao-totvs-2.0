@@ -5,7 +5,7 @@ import { tbcService } from "@/services/tbc.service";
 import { soapEndpointService } from "@/services/soap-endpoint.service";
 import { logger } from "@/lib/logger";
 import { getRequestContext } from "@/lib/tenant";
-import type { SoapMethod } from "@prisma/client";
+import type { SoapMethod } from "@/generated/prisma/client";
 
 export async function POST(request: NextRequest) {
   try {

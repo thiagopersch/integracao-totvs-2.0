@@ -1,4 +1,4 @@
-import type { UserRoleLevel } from "@prisma/client";
+import type { UserRoleLevel } from "@/generated/prisma/client";
 
 declare module "@auth/core/types" {
   interface Session {

@@ -39,7 +39,7 @@ import { createContractSchema, updateContractSchema, type CreateContractInput } 
 import { formatDecimal } from "@/lib/masks"
 import { toast } from "sonner"
 import { useCrudTable } from "@/hooks/use-crud-table"
-import type { Client } from "@prisma/client"
+import type { Client } from "@/generated/prisma/client"
 import type { PaginationMeta } from "@/types/common"
 
 type ContractRow = {

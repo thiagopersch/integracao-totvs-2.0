@@ -39,8 +39,8 @@ import { deleteSentence, restoreSentence, createSentence, updateSentence, bulkDe
 import { createSentenceSchema, updateSentenceSchema, type CreateSentenceInput } from "@/schemas/sentence.schema"
 import { toast } from "sonner"
 import { useCrudTable } from "@/hooks/use-crud-table"
-import type { Sentence } from "@prisma/client"
-import type { SentenceCategory } from "@prisma/client"
+import type { Sentence } from "@/generated/prisma/client"
+import type { SentenceCategory } from "@/generated/prisma/client"
 import type { PaginationMeta } from "@/types/common"
 
 interface SentenceRow extends Sentence {

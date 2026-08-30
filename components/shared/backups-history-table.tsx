@@ -12,7 +12,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { BackupRunSentencesDialog } from "@/components/shared/backup-run-sentences-dialog"
-import type { BackupRun } from "@prisma/client"
+import type { BackupRun } from "@/generated/prisma/client"
 import type { PaginationMeta } from "@/types/common"
 
 interface BackupsHistoryTableProps {

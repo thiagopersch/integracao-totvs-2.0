@@ -31,7 +31,7 @@ import { deleteRequester, createRequester, updateRequester, bulkDeleteRequesters
 import { createRequesterSchema, updateRequesterSchema, type CreateRequesterInput } from "@/schemas/requester.schema"
 import { toast } from "sonner"
 import { useCrudTable } from "@/hooks/use-crud-table"
-import type { Requester } from "@prisma/client"
+import type { Requester } from "@/generated/prisma/client"
 import type { PaginationMeta } from "@/types/common"
 
 interface RequesterTableProps {

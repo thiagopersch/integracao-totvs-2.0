@@ -4,7 +4,7 @@ import { assertClientAllowed } from "@/lib/client-access";
 import type { CreateTbcInput, UpdateTbcInput } from "@/schemas/tbc.schema";
 import type { PaginationMeta } from "@/types/common";
 import type { TbcCredentials } from "@/services/soap.service";
-import type { Tbc } from "@prisma/client";
+import type { Tbc } from "@/generated/prisma/client";
 
 export type TbcRow = Omit<Tbc, "password"> & { hasPassword: boolean; client?: { id: string; name: string } | null };
 type TbcWithMaybeClient = Tbc & { client?: { id: string; name: string } | null };

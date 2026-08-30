@@ -8,7 +8,7 @@ import { buildIntegrationTestFailedNotification } from "@/lib/notification-types
 import { classifyError } from "@/lib/error-kind";
 import { prisma } from "@/lib/prisma";
 import { redactObject } from "@/lib/redact";
-import type { Prisma } from "@prisma/client";
+import type { Prisma } from "@/generated/prisma/client";
 
 /** Fixed relative to the customer's own "portal do aluno" link — only the base link is per-client. */
 const TPI_LOGIN_PATH = "/RM/API/TOTVSProcessoSeletivo/Login";

@@ -13,7 +13,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { formatDate } from "@/utils/format"
-import type { Backup } from "@prisma/client"
+import type { Backup } from "@/generated/prisma/client"
 
 interface ViewBackupSentenceDialogProps {
   open: boolean

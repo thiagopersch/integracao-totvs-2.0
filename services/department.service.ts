@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { BaseRepository } from "@/repositories/base.repository";
 import type { CreateDepartmentInput, UpdateDepartmentInput } from "@/schemas/department.schema";
-import type { Department } from "@prisma/client";
+import type { Department } from "@/generated/prisma/client";
 
 class DepartmentRepository extends BaseRepository<Department> {
   constructor() {

@@ -40,7 +40,7 @@ import { deleteDemand, createDemand, updateDemand, bulkDeleteDemands } from "@/a
 import { createDemandSchema, updateDemandSchema, timeToMinutes, type CreateDemandInput } from "@/schemas/demand.schema"
 import { toast } from "sonner"
 import { useCrudTable } from "@/hooks/use-crud-table"
-import type { Analyst, Client, Requester, Department, DemandType, Tag } from "@prisma/client"
+import type { Analyst, Client, Requester, Department, DemandType, Tag } from "@/generated/prisma/client"
 import type { PaginationMeta } from "@/types/common"
 
 type DemandRow = {

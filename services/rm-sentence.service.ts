@@ -2,7 +2,7 @@ import { env } from "@/config/app.config";
 import { soapService, cdata, type WsName } from "@/services/soap.service";
 import { soapEndpointService } from "@/services/soap-endpoint.service";
 import type { SoapContext } from "@/utils/soap-envelope";
-import type { Filter, Tbc, SoapMethod } from "@prisma/client";
+import type { Filter, Tbc, SoapMethod } from "@/generated/prisma/client";
 
 export type RmSentenceRecord = {
   codeSentence: string;
