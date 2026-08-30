@@ -29,7 +29,7 @@ import {
 import { Plus, Loader2 } from "lucide-react"
 import { deleteAnalyst, createAnalyst, updateAnalyst, bulkDeleteAnalysts, setAnalystStatus } from "@/actions/analysts"
 import { createAnalystSchema, updateAnalystSchema, type CreateAnalystInput } from "@/schemas/analyst.schema"
-import { formatPhone } from "@/lib/masks"
+import { formatPhone, formatDecimal } from "@/lib/masks"
 import { toast } from "sonner"
 import { useCrudTable } from "@/hooks/use-crud-table"
 import type { Analyst } from "@prisma/client"
@@ -223,7 +223,23 @@ export function AnalystTable({ data, meta }: AnalystTableProps) {
           <div className="grid grid-cols-3 gap-4">
             <Field>
               <FieldLabel htmlFor="hourlyRate">Valor/hora</FieldLabel>
-              <Input id="hourlyRate" type="number" step="0.01" {...form.register("hourlyRate")} placeholder="0.00" aria-invalid={!!form.formState.errors.hourlyRate} />
+              <Controller
+                control={form.control}
+                name="hourlyRate"
+                render={({ field }) => (
+                  <Input
+                    id="hourlyRate"
+                    inputMode="decimal"
+                    value={formatDecimal(String(Math.round((field.value || 0) * 100)))}
+                    onChange={(e) => {
+                      const digits = e.target.value.replace(/\D/g, "")
+                      field.onChange(digits ? Number(digits) / 100 : 0)
+                    }}
+                    placeholder="0,00"
+                    aria-invalid={!!form.formState.errors.hourlyRate}
+                  />
+                )}
+              />
               <FieldError errors={[form.formState.errors.hourlyRate]} />
             </Field>
             <Field>

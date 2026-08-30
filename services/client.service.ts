@@ -25,22 +25,36 @@ class ClientRepository extends BaseRepository<Client> {
 export const clientRepository = new ClientRepository();
 
 export const clientService = {
-  async list(params: Parameters<typeof clientRepository.findAll>[0], organizationId: string) {
-    return clientRepository.findAll(params, organizationId);
+  async list(params: Parameters<typeof clientRepository.findAll>[0], organizationId: string, allowedClientIds: string[]) {
+    return clientRepository.findAll(params, organizationId, { id: { in: allowedClientIds } });
   },
 
-  async listAll(organizationId: string) {
-    return clientRepository.listAll(organizationId);
+  async listAll(organizationId: string, allowedClientIds: string[]) {
+    const allowedSet = new Set(allowedClientIds);
+    const clients = await this.listAllUnrestricted(organizationId);
+    return clients.filter((c) => allowedSet.has(c.id));
   },
 
-  async listActiveWithTbc(organizationId: string) {
+  /**
+   * Bypasses the caller's own client scope — only for the "assign clients to a user" picker,
+   * gated by the "users:update" permission instead. A user restricted to 2 clients must still be
+   * able to grant OTHER users access to any client in the org, not just their own.
+   */
+  async listAllUnrestricted(organizationId: string) {
+    const clients = await clientRepository.listAll(organizationId);
+    // DB collation ordering isn't guaranteed case-insensitive — sort here so "abc" and "ABC" interleave.
+    return clients.sort((a, b) => a.name.localeCompare(b.name, "pt-BR", { sensitivity: "base" }));
+  },
+
+  async listActiveWithTbc(organizationId: string, allowedClientIds: string[]) {
     return prisma.client.findMany({
-      where: { deletedAt: null, status: true, organizationId, tbcs: { some: { deletedAt: null } } },
+      where: { deletedAt: null, status: true, organizationId, id: { in: allowedClientIds }, tbcs: { some: { deletedAt: null } } },
       orderBy: { name: "asc" },
     });
   },
 
-  async getById(id: string, organizationId: string) {
+  async getById(id: string, organizationId: string, allowedClientIds: string[]) {
+    if (!allowedClientIds.includes(id)) return null;
     return clientRepository.findById(id, organizationId);
   },
 
@@ -54,7 +68,8 @@ export const clientService = {
     return clientRepository.create({ ...input, organizationId });
   },
 
-  async update(id: string, input: UpdateClientInput, organizationId: string) {
+  async update(id: string, input: UpdateClientInput, organizationId: string, allowedClientIds: string[]) {
+    if (!allowedClientIds.includes(id)) throw new Error("Cliente não encontrado ou fora do seu escopo de acesso");
     if (input.linkCrm) {
       const existing = await prisma.client.findFirst({
         where: { linkCrm: input.linkCrm, organizationId, id: { not: id } },
@@ -66,23 +81,28 @@ export const clientService = {
     return clientRepository.update(id, input, organizationId);
   },
 
-  async softDelete(id: string, organizationId: string) {
+  async softDelete(id: string, organizationId: string, allowedClientIds: string[]) {
+    if (!allowedClientIds.includes(id)) throw new Error("Cliente não encontrado ou fora do seu escopo de acesso");
     return clientRepository.softDelete(id, organizationId);
   },
 
-  async setStatus(id: string, status: boolean, organizationId: string) {
+  async setStatus(id: string, status: boolean, organizationId: string, allowedClientIds: string[]) {
+    if (!allowedClientIds.includes(id)) throw new Error("Cliente não encontrado ou fora do seu escopo de acesso");
     return clientRepository.setStatus(id, status, organizationId);
   },
 
-  async restore(id: string, organizationId: string) {
+  async restore(id: string, organizationId: string, allowedClientIds: string[]) {
+    if (!allowedClientIds.includes(id)) throw new Error("Cliente não encontrado ou fora do seu escopo de acesso");
     return clientRepository.restore(id, organizationId);
   },
 
-  async bulkSoftDelete(ids: string[], organizationId: string) {
-    return clientRepository.bulkSoftDelete(ids, organizationId);
+  async bulkSoftDelete(ids: string[], organizationId: string, allowedClientIds: string[]) {
+    const allowedSet = new Set(allowedClientIds);
+    return clientRepository.bulkSoftDelete(ids.filter((id) => allowedSet.has(id)), organizationId);
   },
 
-  async bulkRestore(ids: string[], organizationId: string) {
-    return clientRepository.bulkRestore(ids, organizationId);
+  async bulkRestore(ids: string[], organizationId: string, allowedClientIds: string[]) {
+    const allowedSet = new Set(allowedClientIds);
+    return clientRepository.bulkRestore(ids.filter((id) => allowedSet.has(id)), organizationId);
   },
 };

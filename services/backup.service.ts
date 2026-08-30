@@ -207,12 +207,12 @@ export const backupService = {
         schedule: { not: "NONE" },
         nextRunAt: { lte: new Date() },
       },
-      select: { id: true, organizationId: true, schedule: true },
+      select: { id: true, organizationId: true, schedule: true, scheduleTime: true, scheduleCategoryId: true },
     });
 
     for (const filter of due) {
       try {
-        await this.createFromFilter(filter.id, filter.organizationId, undefined, undefined);
+        await this.createFromFilter(filter.id, filter.organizationId, filter.scheduleCategoryId ?? undefined, undefined);
         await auditService.log({
           action: "CREATE",
           entity: "BackupRun",
@@ -222,7 +222,7 @@ export const backupService = {
       } catch (error) {
         logger.error(`Backup agendado falhou para o filtro ${filter.id}`, { error: (error as Error).message });
       } finally {
-        const nextRunAt = computeNextRunAt(filter.schedule, new Date());
+        const nextRunAt = computeNextRunAt(filter.schedule, new Date(), filter.scheduleTime);
         await prisma.filter.update({ where: { id: filter.id }, data: { nextRunAt } });
       }
     }

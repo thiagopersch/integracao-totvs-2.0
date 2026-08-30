@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { BaseRepository } from "@/repositories/base.repository";
+import { assertClientAllowed } from "@/lib/client-access";
 import { timeToMinutes, type CreateDemandInput, type UpdateDemandInput } from "@/schemas/demand.schema";
 import type { Demand } from "@prisma/client";
 import type { ListParams } from "@/types/common";
@@ -29,13 +30,14 @@ const includeRelations = {
 } as const;
 
 export const demandService = {
-  async list(params: ListParams & { status?: boolean }, organizationId: string, analystScope?: string) {
+  async list(params: ListParams & { status?: boolean }, organizationId: string, allowedClientIds: string[], analystScope?: string) {
     const page = params.page || 1;
     const pageSize = params.pageSize || 10;
     const where = await demandRepository.buildWhere(params, organizationId);
     // Demand.status is a DemandStatus enum, not the boolean BaseRepository assumes for "status" filters.
     if (params.filters?.status) (where as Record<string, unknown>).status = params.filters.status;
     if (analystScope) (where as Record<string, unknown>).analystId = analystScope;
+    (where as Record<string, unknown>).clientId = { in: allowedClientIds };
     const orderBy = params.sort ? { [params.sort.field]: params.sort.direction } : { date: "desc" as const };
 
     const [data, total] = await Promise.all([
@@ -46,11 +48,15 @@ export const demandService = {
     return { data, meta: { page, pageSize, total, totalPages: Math.ceil(total / pageSize) } };
   },
 
-  async getById(id: string, organizationId: string) {
-    return prisma.demand.findFirst({ where: { id, organizationId, deletedAt: null }, include: includeRelations });
+  async getById(id: string, organizationId: string, allowedClientIds: string[]) {
+    return prisma.demand.findFirst({
+      where: { id, organizationId, deletedAt: null, clientId: { in: allowedClientIds } },
+      include: includeRelations,
+    });
   },
 
-  async create(input: CreateDemandInput, organizationId: string) {
+  async create(input: CreateDemandInput, organizationId: string, allowedClientIds: string[]) {
+    assertClientAllowed(input.clientId, allowedClientIds);
     const { tagIds, date, startTime, endTime, ...rest } = input;
     return prisma.demand.create({
       data: {
@@ -66,12 +72,16 @@ export const demandService = {
     });
   },
 
-  async update(id: string, input: UpdateDemandInput, organizationId: string) {
+  async update(id: string, input: UpdateDemandInput, organizationId: string, allowedClientIds: string[]) {
+    if (input.clientId) assertClientAllowed(input.clientId, allowedClientIds);
+    const existing = await prisma.demand.findFirst({ where: { id, organizationId, clientId: { in: allowedClientIds } } });
+    if (!existing) throw new Error("Demanda não encontrada ou fora do seu escopo de acesso");
+
     const { tagIds, date, startTime, endTime, ...rest } = input;
     if (tagIds) {
       await prisma.demandTag.deleteMany({ where: { demandId: id } });
     }
-    const effectiveDate = date ?? (await prisma.demand.findFirst({ where: { id, organizationId }, select: { date: true } }))?.date.toISOString();
+    const effectiveDate = date ?? existing.date.toISOString();
 
     return prisma.demand.update({
       where: { id, organizationId },
@@ -87,19 +97,19 @@ export const demandService = {
     });
   },
 
-  async softDelete(id: string, organizationId: string) {
-    return demandRepository.softDelete(id, organizationId);
+  async softDelete(id: string, organizationId: string, allowedClientIds: string[]) {
+    return demandRepository.softDelete(id, organizationId, { clientId: { in: allowedClientIds } });
   },
 
-  async restore(id: string, organizationId: string) {
-    return demandRepository.restore(id, organizationId);
+  async restore(id: string, organizationId: string, allowedClientIds: string[]) {
+    return demandRepository.restore(id, organizationId, { clientId: { in: allowedClientIds } });
   },
 
-  async bulkSoftDelete(ids: string[], organizationId: string) {
-    return demandRepository.bulkSoftDelete(ids, organizationId);
+  async bulkSoftDelete(ids: string[], organizationId: string, allowedClientIds: string[]) {
+    return demandRepository.bulkSoftDelete(ids, organizationId, { clientId: { in: allowedClientIds } });
   },
 
-  async bulkRestore(ids: string[], organizationId: string) {
-    return demandRepository.bulkRestore(ids, organizationId);
+  async bulkRestore(ids: string[], organizationId: string, allowedClientIds: string[]) {
+    return demandRepository.bulkRestore(ids, organizationId, { clientId: { in: allowedClientIds } });
   },
 };

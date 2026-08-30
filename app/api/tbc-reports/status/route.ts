@@ -6,14 +6,14 @@ import { logger } from "@/lib/logger";
 
 export async function POST(request: NextRequest) {
   try {
-    const { organizationId, userId } = await requirePermission("tbc_reports", "execute");
+    const { organizationId, userId, allowedClientIds } = await requirePermission("tbc_reports", "execute");
     const { tbcId, guid, timeout } = await request.json();
 
     if (!tbcId || !guid) {
       return NextResponse.json({ error: "tbcId e guid são obrigatórios" }, { status: 400 });
     }
 
-    const tbc = await tbcService.getCredentialsForRequest(tbcId, organizationId);
+    const tbc = await tbcService.getCredentialsForRequest(tbcId, organizationId, allowedClientIds);
     const status = await tbcReportService.pollStatus(tbc, organizationId, guid, Number(timeout) || 10_000, userId);
 
     return NextResponse.json(status);

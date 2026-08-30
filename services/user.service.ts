@@ -17,6 +17,39 @@ export const userService = {
     return userRepository.findAll(params, organizationId);
   },
 
+  /** Groups the assigned clients per user, for annotating a list of users with their access scope. */
+  async getAllowedClientsForUsers(userIds: string[]) {
+    if (userIds.length === 0) return {} as Record<string, { id: string; name: string }[]>;
+    const rows = await prisma.userClient.findMany({
+      where: { userId: { in: userIds } },
+      include: { client: { select: { id: true, name: true } } },
+    });
+    const map: Record<string, { id: string; name: string }[]> = {};
+    for (const row of rows) {
+      (map[row.userId] ??= []).push(row.client);
+    }
+    return map;
+  },
+
+  async getAllowedClientIds(userId: string) {
+    const rows = await prisma.userClient.findMany({ where: { userId }, select: { clientId: true } });
+    return rows.map((r) => r.clientId);
+  },
+
+  async setAllowedClients(userId: string, clientIds: string[], organizationId: string) {
+    const validClients = await prisma.client.findMany({
+      where: { id: { in: clientIds }, organizationId },
+      select: { id: true },
+    });
+    const validIds = validClients.map((c) => c.id);
+
+    await prisma.$transaction([
+      prisma.userClient.deleteMany({ where: { userId } }),
+      prisma.userClient.createMany({ data: validIds.map((clientId) => ({ userId, clientId })) }),
+    ]);
+    return validIds;
+  },
+
   async getById(id: string, organizationId: string) {
     return userRepository.findById(id, organizationId);
   },

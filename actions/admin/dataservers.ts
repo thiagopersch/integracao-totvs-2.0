@@ -157,13 +157,13 @@ export async function bulkDeleteDataservers(ids: string[]) {
  * first, so this single call already carries the full required handshake.
  */
 export async function validateDataserverCode(tbcId: string, code: string) {
-  const { organizationId } = await requirePermission("dataservers", "create");
+  const { organizationId, allowedClientIds } = await requirePermission("dataservers", "create");
 
   if (!tbcId) return { success: false, valid: false, error: "Selecione um TBC para validar" };
   if (!code?.trim()) return { success: false, valid: false, error: "Informe o código do dataserver" };
 
   try {
-    const tbc = await tbcService.getCredentialsForRequest(tbcId, organizationId);
+    const tbc = await tbcService.getCredentialsForRequest(tbcId, organizationId, allowedClientIds);
     const endpointType = await soapEndpointService.getActiveTypeByKey("dataserver");
     const endpointMethod = await soapEndpointService.getActiveMethodByKey(endpointType.id, "ISVALIDDATASERVER");
 

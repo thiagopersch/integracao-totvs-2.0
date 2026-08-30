@@ -11,13 +11,42 @@ import type { ListParams } from "@/types/common";
 export async function listUsers(params: ListParams, organizationId: string) {
   "use cache";
   cacheTag("users");
-  return userService.list(params, organizationId);
+  const result = await userService.list(params, organizationId);
+  const allowedClientsByUser = await userService.getAllowedClientsForUsers(result.data.map((u) => u.id));
+  return {
+    ...result,
+    data: result.data.map((u) => ({ ...u, allowedClients: allowedClientsByUser[u.id] ?? [] })),
+  };
 }
 
 export async function getUserById(id: string, organizationId: string) {
   "use cache";
   cacheTag(`user-${id}`);
   return userService.getById(id, organizationId);
+}
+
+export async function getUserClientIds(userId: string) {
+  "use cache";
+  cacheTag(`user-clients-${userId}`);
+  return userService.getAllowedClientIds(userId);
+}
+
+export async function setUserClients(userId: string, clientIds: string[]) {
+  const { organizationId } = await requirePermission("users", "update");
+  try {
+    const validIds = await userService.setAllowedClients(userId, clientIds, organizationId);
+    await auditService.log({
+      action: "UPDATE",
+      entity: "UserClient",
+      entityId: userId,
+      newData: { clientIds: validIds },
+    });
+    updateTag("users");
+    updateTag(`user-clients-${userId}`);
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: (error as Error).message };
+  }
 }
 
 export async function createUser(formData: FormData) {

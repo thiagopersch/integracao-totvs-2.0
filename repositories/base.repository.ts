@@ -107,10 +107,11 @@ export class BaseRepository<T extends { id: string; deletedAt: Date | null }> {
     return { createdAt: "desc" as const };
   }
 
-  async findAll(params: ListParams & { status?: boolean }, organizationId?: string) {
+  async findAll(params: ListParams & { status?: boolean }, organizationId?: string, extraWhere?: Record<string, unknown>) {
     const page = params.page || 1;
     const pageSize = params.pageSize || 10;
     const where = await this.buildWhere(params, organizationId);
+    if (extraWhere) Object.assign(where, extraWhere);
     const orderBy = params.sort
       ? { [params.sort.field]: params.sort.direction }
       : this.defaultOrderBy();
@@ -136,9 +137,9 @@ export class BaseRepository<T extends { id: string; deletedAt: Date | null }> {
     };
   }
 
-  async findById(id: string, organizationId?: string): Promise<T | null> {
+  async findById(id: string, organizationId?: string, extraWhere?: Record<string, unknown>): Promise<T | null> {
     return this.model.findFirst({
-      where: { id, deletedAt: null, ...(organizationId ? { organizationId } : {}) },
+      where: { id, deletedAt: null, ...(organizationId ? { organizationId } : {}), ...extraWhere },
     }) as Promise<T | null>;
   }
 
@@ -146,14 +147,14 @@ export class BaseRepository<T extends { id: string; deletedAt: Date | null }> {
     return this.model.create({ data }) as Promise<T>;
   }
 
-  async update(id: string, data: Partial<T>, organizationId?: string): Promise<T> {
+  async update(id: string, data: Partial<T>, organizationId?: string, extraWhere?: Record<string, unknown>): Promise<T> {
     return this.model.update({
-      where: { id, ...(organizationId ? { organizationId } : {}) },
+      where: { id, ...(organizationId ? { organizationId } : {}), ...extraWhere },
       data,
     }) as Promise<T>;
   }
 
-  async softDelete(id: string, organizationId?: string): Promise<T> {
+  async softDelete(id: string, organizationId?: string, extraWhere?: Record<string, unknown>): Promise<T> {
     if (this.modelName) {
       const reasons = await findBlockingReferences(this.modelName, id);
       if (reasons.length > 0) {
@@ -161,20 +162,20 @@ export class BaseRepository<T extends { id: string; deletedAt: Date | null }> {
       }
     }
     return this.model.update({
-      where: { id, ...(organizationId ? { organizationId } : {}) },
+      where: { id, ...(organizationId ? { organizationId } : {}), ...extraWhere },
       data: { deletedAt: new Date() },
     }) as Promise<T>;
   }
 
-  async restore(id: string, organizationId?: string): Promise<T> {
+  async restore(id: string, organizationId?: string, extraWhere?: Record<string, unknown>): Promise<T> {
     return this.model.update({
-      where: { id, ...(organizationId ? { organizationId } : {}) },
+      where: { id, ...(organizationId ? { organizationId } : {}), ...extraWhere },
       data: { deletedAt: null },
     }) as Promise<T>;
   }
 
   /** Flips the `status` (Ativado/Desativado) flag directly from the table row — blocked, like delete, when another registry still references this record. */
-  async setStatus(id: string, status: boolean, organizationId?: string): Promise<T> {
+  async setStatus(id: string, status: boolean, organizationId?: string, extraWhere?: Record<string, unknown>): Promise<T> {
     if (!status && this.modelName) {
       const reasons = await findBlockingReferences(this.modelName, id);
       if (reasons.length > 0) {
@@ -182,15 +183,15 @@ export class BaseRepository<T extends { id: string; deletedAt: Date | null }> {
       }
     }
     return this.model.update({
-      where: { id, ...(organizationId ? { organizationId } : {}) },
+      where: { id, ...(organizationId ? { organizationId } : {}), ...extraWhere },
       data: { status },
     }) as Promise<T>;
   }
 
-  async bulkSoftDelete(ids: string[], organizationId?: string): Promise<BulkDeleteResult> {
+  async bulkSoftDelete(ids: string[], organizationId?: string, extraWhere?: Record<string, unknown>): Promise<BulkDeleteResult> {
     if (!this.modelName) {
       const result = await this.model.updateMany({
-        where: { id: { in: ids }, ...(organizationId ? { organizationId } : {}) },
+        where: { id: { in: ids }, ...(organizationId ? { organizationId } : {}), ...extraWhere },
         data: { deletedAt: new Date() },
       });
       return { deletedCount: result.count, deletedIds: ids, blocked: [] };
@@ -207,7 +208,7 @@ export class BaseRepository<T extends { id: string; deletedAt: Date | null }> {
 
     if (deletableIds.length > 0) {
       await this.model.updateMany({
-        where: { id: { in: deletableIds }, ...(organizationId ? { organizationId } : {}) },
+        where: { id: { in: deletableIds }, ...(organizationId ? { organizationId } : {}), ...extraWhere },
         data: { deletedAt: new Date() },
       });
     }
@@ -215,9 +216,9 @@ export class BaseRepository<T extends { id: string; deletedAt: Date | null }> {
     return { deletedCount: deletableIds.length, deletedIds: deletableIds, blocked };
   }
 
-  async bulkRestore(ids: string[], organizationId?: string): Promise<number> {
+  async bulkRestore(ids: string[], organizationId?: string, extraWhere?: Record<string, unknown>): Promise<number> {
     const result = await this.model.updateMany({
-      where: { id: { in: ids }, ...(organizationId ? { organizationId } : {}) },
+      where: { id: { in: ids }, ...(organizationId ? { organizationId } : {}), ...extraWhere },
       data: { deletedAt: null },
     });
     return result.count;

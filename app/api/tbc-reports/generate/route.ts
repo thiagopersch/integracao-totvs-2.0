@@ -6,14 +6,14 @@ import { logger } from "@/lib/logger";
 
 export async function POST(request: NextRequest) {
   try {
-    const { organizationId, userId } = await requirePermission("tbc_reports", "execute");
+    const { organizationId, userId, allowedClientIds } = await requirePermission("tbc_reports", "execute");
     const { tbcId, codColigada, codSistema, codReport, fileName, filters, parameters, timeout } = await request.json();
 
     if (!tbcId || codColigada === undefined || !codReport || !fileName) {
       return NextResponse.json({ error: "Dados incompletos para gerar o relatório" }, { status: 400 });
     }
 
-    const tbc = await tbcService.getCredentialsForRequest(tbcId, organizationId);
+    const tbc = await tbcService.getCredentialsForRequest(tbcId, organizationId, allowedClientIds);
     const input: ReportGenerationInput = {
       codColigada: Number(codColigada),
       codSistema: codSistema || "",

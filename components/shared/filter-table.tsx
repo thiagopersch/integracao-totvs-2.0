@@ -17,6 +17,7 @@ import { Label } from "@/components/ui/label"
 import { Field, FieldLabel, FieldError } from "@/components/ui/field"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Combobox } from "@/components/ui/combobox"
+import { TimePicker } from "@/components/ui/time-picker"
 import {
   Select,
   SelectContent,
@@ -38,7 +39,7 @@ import { Plus, RotateCcw, History, Loader2, Download } from "lucide-react"
 import { RestoreBackupDialog, type RestoreScope } from "@/components/shared/restore-backup-dialog"
 import { RestorePasswordConfirmDialog } from "@/components/shared/restore-password-confirm-dialog"
 import { deleteFilter, restoreFilter, createFilter, updateFilter, createBackupFromFilter, bulkDeleteFilters, setFilterStatus, importStandardSentencesToTbc } from "@/actions/admin/filters"
-import { BACKUP_SCHEDULE_LABELS } from "@/lib/backup-schedule"
+import { BACKUP_SCHEDULE_LABELS, SCHEDULES_WITH_TIME_OF_DAY } from "@/lib/backup-schedule"
 import { createFilterSchema, updateFilterSchema, type CreateFilterInput } from "@/schemas/filter.schema"
 import { toast } from "sonner"
 import { useCrudTable } from "@/hooks/use-crud-table"
@@ -59,6 +60,7 @@ interface FilterRow extends Filter {
   tbc: { id: string; name: string } | null
   client: { id: string; name: string } | null
   lastBackupBy: { id: string; name: string } | null
+  scheduleCategory: { id: string; name: string } | null
 }
 
 interface FilterTableProps {
@@ -164,6 +166,8 @@ export function FilterTable({ data, meta, clients, tbcs, sistemas, categories, f
           codSistemaSentenca: editDialog.entity.codSistemaSentenca || "",
           status: editDialog.entity.status,
           schedule: editDialog.entity.schedule,
+          scheduleTime: editDialog.entity.scheduleTime || "",
+          scheduleCategoryId: editDialog.entity.scheduleCategoryId || "",
         } as CreateFilterInput
       : {
           clientId: "",
@@ -178,11 +182,14 @@ export function FilterTable({ data, meta, clients, tbcs, sistemas, categories, f
           codSistemaSentenca: "",
           status: true,
           schedule: "NONE",
+          scheduleTime: "",
+          scheduleCategoryId: "",
         },
   })
 
   const selectedClientId = form.watch("clientId")
   const availableTbcs = tbcs.filter((t) => t.clientId === selectedClientId)
+  const selectedSchedule = form.watch("schedule")
 
   async function onSubmit(data: CreateFilterInput) {
     setLoading(true)
@@ -253,10 +260,19 @@ export function FilterTable({ data, meta, clients, tbcs, sistemas, categories, f
       header: "Agendamento",
       cell: ({ row }) => {
         const schedule = row.getValue("schedule") as keyof typeof BACKUP_SCHEDULE_LABELS
-        return schedule === "NONE" ? (
-          <span className="text-muted-foreground text-sm">{BACKUP_SCHEDULE_LABELS.NONE}</span>
-        ) : (
-          <Badge variant="outline">{BACKUP_SCHEDULE_LABELS[schedule]}</Badge>
+        if (schedule === "NONE") {
+          return <span className="text-muted-foreground text-sm">{BACKUP_SCHEDULE_LABELS.NONE}</span>
+        }
+        return (
+          <div className="flex flex-col gap-1">
+            <Badge variant="outline">
+              {BACKUP_SCHEDULE_LABELS[schedule]}
+              {row.original.scheduleTime ? ` às ${row.original.scheduleTime}` : ""}
+            </Badge>
+            {row.original.scheduleCategory && (
+              <span className="text-muted-foreground text-xs">{row.original.scheduleCategory.name}</span>
+            )}
+          </div>
         )
       },
     },
@@ -431,23 +447,65 @@ export function FilterTable({ data, meta, clients, tbcs, sistemas, categories, f
             </Field>
           </div>
 
-          <Field>
-            <FieldLabel htmlFor="schedule">Agendamento</FieldLabel>
-            <Select
-              items={Object.entries(BACKUP_SCHEDULE_LABELS).map(([value, label]) => ({ value, label }))}
-              value={form.watch("schedule") || "NONE"}
-              onValueChange={(v) => form.setValue("schedule", (v || "NONE") as CreateFilterInput["schedule"])}
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {Object.entries(BACKUP_SCHEDULE_LABELS).map(([value, label]) => (
-                  <SelectItem key={value} value={value}>{label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </Field>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+            <Field>
+              <FieldLabel htmlFor="schedule">Agendamento</FieldLabel>
+              <Select
+                items={Object.entries(BACKUP_SCHEDULE_LABELS).map(([value, label]) => ({ value, label }))}
+                value={selectedSchedule || "NONE"}
+                onValueChange={(v) => {
+                  const next = (v || "NONE") as CreateFilterInput["schedule"]
+                  form.setValue("schedule", next, { shouldValidate: true })
+                  if (next === "NONE") {
+                    form.setValue("scheduleTime", "")
+                    form.setValue("scheduleCategoryId", "")
+                  }
+                }}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.entries(BACKUP_SCHEDULE_LABELS).map(([value, label]) => (
+                    <SelectItem key={value} value={value}>{label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Field>
+            {selectedSchedule !== "NONE" && (
+              <Field>
+                <FieldLabel htmlFor="scheduleCategoryId">Categoria</FieldLabel>
+                <Select
+                  items={categories.map((c) => ({ value: c.id, label: c.name }))}
+                  value={form.watch("scheduleCategoryId") || null}
+                  onValueChange={(v) => form.setValue("scheduleCategoryId", v || "", { shouldValidate: true })}
+                >
+                  <SelectTrigger className="w-full" aria-invalid={!!form.formState.errors.scheduleCategoryId}>
+                    <SelectValue placeholder="Selecione uma categoria" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {categories.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <FieldError errors={[form.formState.errors.scheduleCategoryId]} />
+              </Field>
+            )}
+            {selectedSchedule !== "NONE" && SCHEDULES_WITH_TIME_OF_DAY.has(selectedSchedule) && (
+              <Field>
+                <FieldLabel htmlFor="scheduleTime">Horário da execução</FieldLabel>
+                <TimePicker
+                  id="scheduleTime"
+                  className="w-full"
+                  value={form.watch("scheduleTime") || ""}
+                  onValueChange={(v) => form.setValue("scheduleTime", v, { shouldValidate: true })}
+                  aria-invalid={!!form.formState.errors.scheduleTime}
+                />
+                <FieldError errors={[form.formState.errors.scheduleTime]} />
+              </Field>
+            )}
+          </div>
 
           <fieldset className="space-y-3 rounded-lg border border-input p-3">
             <legend className="px-1 text-sm font-medium text-muted-foreground">Contexto</legend>

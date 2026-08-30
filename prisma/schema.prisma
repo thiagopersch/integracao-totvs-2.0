@@ -195,8 +195,21 @@ model User {
   backupRuns            BackupRun[]
   filtersLastBackedUp   Filter[]
   backupsRestored       Backup[]
+  allowedClients        UserClient[]
 
   @@map("users")
+}
+
+/** Restricts which clients a user can see data for — enforced on Filters, Contracts, TBCs and Backups. */
+model UserClient {
+  userId   String @map("user_id")
+  clientId String @map("client_id")
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@id([userId, clientId])
+  @@map("user_clients")
 }
 
 model Dataserver {
@@ -256,6 +269,7 @@ model Client {
   filters      Filter[]
   contracts    ClientContract[]
   demands      Demand[]
+  userClients  UserClient[]
 
   @@unique([organizationId, linkCrm])
   @@map("clients")
@@ -303,17 +317,20 @@ model Filter {
   lastBackupAt          DateTime? @map("last_backup_at")
   lastBackupByUserId    String?   @map("last_backup_by_user_id")
   schedule              BackupSchedule @default(NONE)
+  scheduleTime          String?   @map("schedule_time")
+  scheduleCategoryId    String?   @map("schedule_category_id")
   nextRunAt             DateTime? @map("next_run_at")
   createdAt             DateTime  @default(now()) @map("created_at")
   updatedAt             DateTime  @updatedAt @map("updated_at")
   deletedAt             DateTime? @map("deleted_at")
 
-  organization  Organization @relation(fields: [organizationId], references: [id])
-  tbc           Tbc          @relation(fields: [tbcId], references: [id])
-  client        Client       @relation(fields: [clientId], references: [id])
-  lastBackupBy  User?        @relation(fields: [lastBackupByUserId], references: [id])
-  backups       Backup[]
-  backupRuns    BackupRun[]
+  organization      Organization      @relation(fields: [organizationId], references: [id])
+  tbc               Tbc               @relation(fields: [tbcId], references: [id])
+  client            Client            @relation(fields: [clientId], references: [id])
+  lastBackupBy      User?             @relation(fields: [lastBackupByUserId], references: [id])
+  scheduleCategory  SentenceCategory? @relation(fields: [scheduleCategoryId], references: [id])
+  backups           Backup[]
+  backupRuns        BackupRun[]
 
   @@map("filters")
 }
@@ -385,6 +402,7 @@ model SentenceCategory {
   organization Organization @relation(fields: [organizationId], references: [id])
   sentences    Sentence[]
   backups      Backup[]
+  filters      Filter[]
 
   @@unique([organizationId, code])
   @@map("sentence_categories")

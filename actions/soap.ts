@@ -64,7 +64,7 @@ export async function deleteSoapTemplate(id: string) {
  * (SoapLog.process), then resolves the method from /admin/soap-endpoints like every other call.
  */
 export async function reexecuteSoapLog(logId: string) {
-  const { organizationId, userId } = await requirePermission("soap", "execute");
+  const { organizationId, userId, allowedClientIds } = await requirePermission("soap", "execute");
   try {
     const log = await prisma.soapLog.findFirst({ where: { id: logId, organizationId } });
     if (!log) return { success: false, error: "Registro de histórico não encontrado" };
@@ -75,7 +75,7 @@ export async function reexecuteSoapLog(logId: string) {
     const tbcRow = await prisma.tbc.findFirst({ where: { link: log.dataserver, organizationId, deletedAt: null } });
     if (!tbcRow) return { success: false, error: `Nenhum TBC cadastrado com o link "${log.dataserver}"` };
 
-    const tbc = await tbcService.getCredentialsForRequest(tbcRow.id, organizationId);
+    const tbc = await tbcService.getCredentialsForRequest(tbcRow.id, organizationId, allowedClientIds);
     const endpointType = await soapEndpointService.getActiveTypeBySuffix(log.process);
     const endpointMethod = await soapEndpointService.getActiveMethodByKey(endpointType.id, log.method);
 

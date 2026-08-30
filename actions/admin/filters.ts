@@ -13,10 +13,10 @@ import { getRequestContext } from "@/lib/tenant";
 import { formatBlockingReferences } from "@/lib/entity-relations";
 import type { ListParams } from "@/types/common";
 
-export async function listFilters(params: ListParams, organizationId: string) {
+export async function listFilters(params: ListParams, organizationId: string, allowedClientIds: string[]) {
   "use cache";
   cacheTag("filters");
-  return filterService.list(params, organizationId);
+  return filterService.list(params, organizationId, allowedClientIds);
 }
 
 export async function listDistinctSentenceCodes() {
@@ -24,20 +24,20 @@ export async function listDistinctSentenceCodes() {
   return filterService.listDistinctSentenceCodes(organizationId);
 }
 
-export async function getFilterById(id: string, organizationId: string) {
+export async function getFilterById(id: string, organizationId: string, allowedClientIds: string[]) {
   "use cache";
   cacheTag(`filter-${id}`);
-  return filterService.getById(id, organizationId);
+  return filterService.getById(id, organizationId, allowedClientIds);
 }
 
-export async function getFilterByIdWithRelations(id: string, organizationId: string) {
+export async function getFilterByIdWithRelations(id: string, organizationId: string, allowedClientIds: string[]) {
   "use cache";
   cacheTag(`filter-${id}`);
-  return filterService.getByIdWithRelations(id, organizationId);
+  return filterService.getByIdWithRelations(id, organizationId, allowedClientIds);
 }
 
 export async function createFilter(formData: FormData) {
-  const { organizationId } = await requirePermission("filters", "create");
+  const { organizationId, allowedClientIds } = await requirePermission("filters", "create");
   const data = {
     tbcId: formData.get("tbcId") as string,
     clientId: formData.get("clientId") as string,
@@ -51,6 +51,8 @@ export async function createFilter(formData: FormData) {
     codSistemaSentenca: (formData.get("codSistemaSentenca") as string) || "",
     status: formData.get("status") === "true",
     schedule: (formData.get("schedule") as string) || "NONE",
+    scheduleTime: (formData.get("scheduleTime") as string) || "",
+    scheduleCategoryId: (formData.get("scheduleCategoryId") as string) || "",
   };
 
   const parsed = createFilterSchema.safeParse(data);
@@ -59,7 +61,7 @@ export async function createFilter(formData: FormData) {
   }
 
   try {
-    const entity = await filterService.create(parsed.data, organizationId);
+    const entity = await filterService.create(parsed.data, organizationId, allowedClientIds);
     await auditService.log({
       action: "CREATE",
       entity: "Filter",
@@ -74,7 +76,7 @@ export async function createFilter(formData: FormData) {
 }
 
 export async function updateFilter(id: string, formData: FormData) {
-  const { organizationId } = await requirePermission("filters", "update");
+  const { organizationId, allowedClientIds } = await requirePermission("filters", "update");
   const data = {
     tbcId: formData.get("tbcId") as string,
     clientId: formData.get("clientId") as string,
@@ -88,6 +90,8 @@ export async function updateFilter(id: string, formData: FormData) {
     codSistemaSentenca: (formData.get("codSistemaSentenca") as string) || "",
     status: formData.get("status") === "true",
     schedule: (formData.get("schedule") as string) || "NONE",
+    scheduleTime: (formData.get("scheduleTime") as string) || "",
+    scheduleCategoryId: (formData.get("scheduleCategoryId") as string) || "",
   };
 
   const parsed = updateFilterSchema.safeParse(data);
@@ -96,13 +100,14 @@ export async function updateFilter(id: string, formData: FormData) {
   }
 
   try {
-    const old = await filterService.getById(id, organizationId);
-    const entity = await filterService.update(id, parsed.data, organizationId);
+    const old = await filterService.getById(id, organizationId, allowedClientIds);
+    if (!old) return { success: false, error: "Filtro não encontrado ou fora do seu escopo de acesso" };
+    const entity = await filterService.update(id, parsed.data, organizationId, allowedClientIds);
     await auditService.log({
       action: "UPDATE",
       entity: "Filter",
       entityId: id,
-      oldData: old ? { filter: old.filter, clientId: old.clientId } : undefined,
+      oldData: { filter: old.filter, clientId: old.clientId },
       newData: { filter: entity.filter, clientId: entity.clientId },
     });
     updateTag("filters");
@@ -114,15 +119,16 @@ export async function updateFilter(id: string, formData: FormData) {
 }
 
 export async function deleteFilter(id: string) {
-  const { organizationId } = await requirePermission("filters", "delete");
+  const { organizationId, allowedClientIds } = await requirePermission("filters", "delete");
   try {
-    const old = await filterService.getById(id, organizationId);
-    await filterService.softDelete(id, organizationId);
+    const old = await filterService.getById(id, organizationId, allowedClientIds);
+    if (!old) return { success: false, error: "Filtro não encontrado ou fora do seu escopo de acesso" };
+    await filterService.softDelete(id, organizationId, allowedClientIds);
     await auditService.log({
       action: "DELETE",
       entity: "Filter",
       entityId: id,
-      oldData: old ? { filter: old.filter, clientId: old.clientId } : undefined,
+      oldData: { filter: old.filter, clientId: old.clientId },
     });
     updateTag("filters");
     return { success: true };
@@ -132,9 +138,9 @@ export async function deleteFilter(id: string) {
 }
 
 export async function restoreFilter(id: string) {
-  const { organizationId } = await requirePermission("filters", "update");
+  const { organizationId, allowedClientIds } = await requirePermission("filters", "update");
   try {
-    await filterService.restore(id, organizationId);
+    await filterService.restore(id, organizationId, allowedClientIds);
     await auditService.log({ action: "RESTORE", entity: "Filter", entityId: id });
     updateTag("filters");
     return { success: true };
@@ -144,9 +150,9 @@ export async function restoreFilter(id: string) {
 }
 
 export async function setFilterStatus(id: string, status: boolean) {
-  const { organizationId } = await requirePermission("filters", "update");
+  const { organizationId, allowedClientIds } = await requirePermission("filters", "update");
   try {
-    await filterService.setStatus(id, status, organizationId);
+    await filterService.setStatus(id, status, organizationId, allowedClientIds);
     await auditService.log({ action: status ? "ACTIVATE" : "DEACTIVATE", entity: "Filter", entityId: id });
     updateTag("filters");
     return { success: true };
@@ -156,9 +162,9 @@ export async function setFilterStatus(id: string, status: boolean) {
 }
 
 export async function bulkDeleteFilters(ids: string[]) {
-  const { organizationId, userId } = await requirePermission("filters", "delete");
+  const { organizationId, userId, allowedClientIds } = await requirePermission("filters", "delete");
   try {
-    const result = await filterService.bulkSoftDelete(ids, organizationId);
+    const result = await filterService.bulkSoftDelete(ids, organizationId, allowedClientIds);
     if (result.deletedIds.length) {
       await auditService.log({
         action: "BULK_DELETE",
@@ -185,8 +191,10 @@ export async function bulkDeleteFilters(ids: string[]) {
 
 export async function createBackupFromFilter(filterId: string, sentenceCategoryId?: string) {
   "use server"
-  const { organizationId, userId } = await requirePermission("backups", "create");
+  const { organizationId, userId, allowedClientIds } = await requirePermission("backups", "create");
   try {
+    const filter = await filterService.getById(filterId, organizationId, allowedClientIds);
+    if (!filter) return { success: false, error: "Filtro não encontrado ou fora do seu escopo de acesso" };
     await backupService.createFromFilter(filterId, organizationId, sentenceCategoryId, userId)
     await auditService.log({ action: "CREATE", entity: "BackupRun", entityId: filterId, organizationId, userId })
     updateTag("backups")
@@ -206,9 +214,11 @@ export async function createBackupFromFilter(filterId: string, sentenceCategoryI
  * to GConsSqlData is exercised in exactly one place.
  */
 export async function importStandardSentencesToTbc(tbcId: string, sentenceCategoryId: string) {
-  const { organizationId } = await requirePermission("filters", "update");
+  const { organizationId, allowedClientIds } = await requirePermission("filters", "update");
   try {
-    const credentials = await tbcService.getCredentialsForRequest(tbcId, organizationId);
+    const allowedTbc = await tbcService.getById(tbcId, organizationId, allowedClientIds);
+    if (!allowedTbc) return { success: false, error: "TBC não encontrado ou fora do seu escopo de acesso" };
+    const credentials = await tbcService.getCredentialsForRequest(tbcId, organizationId, allowedClientIds);
     const tbc = { ...credentials, id: tbcId };
     const sentences = await prisma.sentence.findMany({
       where: { sentenceCategoryId, organizationId, status: true, deletedAt: null },
@@ -258,9 +268,9 @@ export async function importStandardSentencesToTbc(tbcId: string, sentenceCatego
 }
 
 export async function bulkRestoreFilters(ids: string[]) {
-  const { organizationId } = await requirePermission("filters", "update");
+  const { organizationId, allowedClientIds } = await requirePermission("filters", "update");
   try {
-    const count = await filterService.bulkRestore(ids, organizationId);
+    const count = await filterService.bulkRestore(ids, organizationId, allowedClientIds);
     await auditService.log({
       action: "BULK_RESTORE",
       entity: "Filter",

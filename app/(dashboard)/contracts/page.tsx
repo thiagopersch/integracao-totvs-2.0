@@ -3,7 +3,7 @@ import { listContracts } from "@/actions/contracts"
 import { listAllClients } from "@/actions/admin/clients"
 import { ContractTable } from "@/components/shared/contract-table"
 import { Skeleton } from "@/components/ui/skeleton"
-import { getCurrentOrganizationId } from "@/lib/tenant"
+import { getRequestContext } from "@/lib/tenant"
 
 export default function ContractsPage({ searchParams }: { searchParams: Promise<Record<string, string>> }) {
   return (
@@ -17,7 +17,7 @@ export default function ContractsPage({ searchParams }: { searchParams: Promise<
 
 async function ContractsContent({ searchParams }: { searchParams: Promise<Record<string, string>> }) {
   const params = await searchParams
-  const organizationId = await getCurrentOrganizationId()
+  const { organizationId, allowedClientIds } = await getRequestContext()
   const [{ data, meta }, clients] = await Promise.all([
     listContracts(
       {
@@ -27,7 +27,8 @@ async function ContractsContent({ searchParams }: { searchParams: Promise<Record
         sort: params.sort ? { field: params.sort.split(":")[0], direction: params.sort.split(":")[1] as "asc" | "desc" } : undefined,
         filters: params.status ? { status: params.status } : undefined,
       },
-      organizationId
+      organizationId,
+      allowedClientIds
     ),
     listAllClients(),
   ])

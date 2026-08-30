@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { BaseRepository } from "@/repositories/base.repository";
+import { assertClientAllowed } from "@/lib/client-access";
 import type { CreateTbcInput, UpdateTbcInput } from "@/schemas/tbc.schema";
 import type { PaginationMeta } from "@/types/common";
 import type { TbcCredentials } from "@/services/soap.service";
@@ -30,10 +31,11 @@ class TbcRepository extends BaseRepository<Tbc> {
 export const tbcRepository = new TbcRepository();
 
 export const tbcService = {
-  async list(params: Parameters<typeof tbcRepository.findAll>[0], organizationId: string) {
+  async list(params: Parameters<typeof tbcRepository.findAll>[0], organizationId: string, allowedClientIds: string[]) {
     const page = params.page || 1;
     const pageSize = params.pageSize || 10;
     const where = await tbcRepository.buildWhere(params, organizationId);
+    where.clientId = { in: allowedClientIds };
     const orderBy = params.sort
       ? { [params.sort.field]: params.sort.direction }
       : [{ client: { favorite: "desc" as const } }, { client: { name: "asc" as const } }, { name: "asc" as const }];
@@ -55,21 +57,22 @@ export const tbcService = {
     };
   },
 
-  async listAll(organizationId: string) {
+  async listAll(organizationId: string, allowedClientIds: string[]) {
     const tbcs = await prisma.tbc.findMany({
-      where: { deletedAt: null, status: true, organizationId },
+      where: { deletedAt: null, status: true, organizationId, clientId: { in: allowedClientIds } },
       orderBy: { name: "asc" },
       include: { client: { select: { id: true, name: true } } },
     });
     return stripPasswordList(tbcs);
   },
 
-  async getById(id: string, organizationId: string) {
-    const tbc = await tbcRepository.findById(id, organizationId);
+  async getById(id: string, organizationId: string, allowedClientIds: string[]) {
+    const tbc = await tbcRepository.findById(id, organizationId, { clientId: { in: allowedClientIds } });
     return stripPassword(tbc);
   },
 
-  async create(input: CreateTbcInput, organizationId: string) {
+  async create(input: CreateTbcInput, organizationId: string, allowedClientIds: string[]) {
+    assertClientAllowed(input.clientId, allowedClientIds);
     const existing = await prisma.tbc.findFirst({ where: { link: input.link, organizationId } });
     if (existing) {
       throw new Error("Link já cadastrado");
@@ -78,7 +81,8 @@ export const tbcService = {
     return stripPassword(tbc)!;
   },
 
-  async update(id: string, input: UpdateTbcInput, organizationId: string) {
+  async update(id: string, input: UpdateTbcInput, organizationId: string, allowedClientIds: string[]) {
+    if (input.clientId) assertClientAllowed(input.clientId, allowedClientIds);
     if (input.link) {
       const existing = await prisma.tbc.findFirst({
         where: { link: input.link, organizationId, id: { not: id } },
@@ -91,41 +95,42 @@ export const tbcService = {
     if (!updateData.password) {
       delete updateData.password;
     }
-    const tbc = await tbcRepository.update(id, updateData, organizationId);
+    const tbc = await tbcRepository.update(id, updateData, organizationId, { clientId: { in: allowedClientIds } });
     return stripPassword(tbc)!;
   },
 
-  async softDelete(id: string, organizationId: string) {
-    const tbc = await tbcRepository.softDelete(id, organizationId);
+  async softDelete(id: string, organizationId: string, allowedClientIds: string[]) {
+    const tbc = await tbcRepository.softDelete(id, organizationId, { clientId: { in: allowedClientIds } });
     return stripPassword(tbc)!;
   },
 
-  async setStatus(id: string, status: boolean, organizationId: string) {
-    const tbc = await tbcRepository.setStatus(id, status, organizationId);
+  async setStatus(id: string, status: boolean, organizationId: string, allowedClientIds: string[]) {
+    const tbc = await tbcRepository.setStatus(id, status, organizationId, { clientId: { in: allowedClientIds } });
     return stripPassword(tbc)!;
   },
 
-  async restore(id: string, organizationId: string) {
-    const tbc = await tbcRepository.restore(id, organizationId);
+  async restore(id: string, organizationId: string, allowedClientIds: string[]) {
+    const tbc = await tbcRepository.restore(id, organizationId, { clientId: { in: allowedClientIds } });
     return stripPassword(tbc)!;
   },
 
-  async bulkSoftDelete(ids: string[], organizationId: string) {
-    return tbcRepository.bulkSoftDelete(ids, organizationId);
+  async bulkSoftDelete(ids: string[], organizationId: string, allowedClientIds: string[]) {
+    return tbcRepository.bulkSoftDelete(ids, organizationId, { clientId: { in: allowedClientIds } });
   },
 
-  async bulkRestore(ids: string[], organizationId: string) {
-    return tbcRepository.bulkRestore(ids, organizationId);
+  async bulkRestore(ids: string[], organizationId: string, allowedClientIds: string[]) {
+    return tbcRepository.bulkRestore(ids, organizationId, { clientId: { in: allowedClientIds } });
   },
 
   /**
    * Every TOTVS request (Report/Fórmula Visual/Dataserver/Processo/Consulta SQL) must be
    * anchored to an active TBC and read its "não consumir licença" flag before dispatching —
-   * this is the single place that enforces that and hands back live SOAP credentials.
+   * this is the single place that enforces that and hands back live SOAP credentials. Also the
+   * single choke point for client-access enforcement across every SOAP/TOTVS entry point.
    */
-  async getCredentialsForRequest(id: string, organizationId: string): Promise<TbcCredentials> {
+  async getCredentialsForRequest(id: string, organizationId: string, allowedClientIds: string[]): Promise<TbcCredentials> {
     const tbc = await prisma.tbc.findFirst({
-      where: { id, organizationId, deletedAt: null },
+      where: { id, organizationId, deletedAt: null, clientId: { in: allowedClientIds } },
       include: { client: { select: { id: true, name: true } } },
     });
     if (!tbc) {

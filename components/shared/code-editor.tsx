@@ -12,17 +12,25 @@ import { html } from "@codemirror/lang-html"
 import { css } from "@codemirror/lang-css"
 import { javascript } from "@codemirror/lang-javascript"
 import { php } from "@codemirror/lang-php"
+import { format as formatSql } from "sql-formatter"
 import { useTheme } from "next-themes"
 import { cn } from "@/utils/cn"
 import { formatXml } from "@/utils/xml"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
+} from "@/components/ui/context-menu"
 import { Copy, Wand2, Maximize2, Minimize2 } from "lucide-react"
 import { toast } from "sonner"
 
 export type CodeEditorLanguage = "sql" | "html" | "css" | "javascript" | "php" | "json" | "xml"
 
-const FORMATTABLE_LANGUAGES = new Set<CodeEditorLanguage>(["json", "xml"])
+const FORMATTABLE_LANGUAGES = new Set<CodeEditorLanguage>(["json", "xml", "sql"])
 
 function languageExtension(language: CodeEditorLanguage): Extension {
   switch (language) {
@@ -55,6 +63,8 @@ interface CodeEditorProps {
   onFullscreenChange?: (fullscreen: boolean) => void
   toolbar?: boolean
   className?: string
+  /** Applied to the outer wrapper — pass "flex-1 min-h-0 flex flex-col" to make the editor fill a flex parent instead of using a fixed `minHeight`. */
+  containerClassName?: string
   minHeight?: string
   /** "auto" (default) follows the app's light/dark toggle; "dark" always renders One Dark Pro regardless of it. */
   theme?: "auto" | "dark"
@@ -70,6 +80,7 @@ export function CodeEditor({
   onFullscreenChange,
   toolbar = true,
   className,
+  containerClassName,
   minHeight = "180px",
   theme = "auto",
 }: CodeEditorProps) {
@@ -113,7 +124,12 @@ export function CodeEditor({
     if (!view || !FORMATTABLE_LANGUAGES.has(language)) return
     const current = view.state.doc.toString()
     try {
-      const formatted = language === "json" ? JSON.stringify(JSON.parse(current), null, 2) : formatXml(current)
+      const formatted =
+        language === "json"
+          ? JSON.stringify(JSON.parse(current), null, 2)
+          : language === "sql"
+            ? formatSql(current, { language: "tsql" })
+            : formatXml(current)
       view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: formatted } })
       onChange?.(formatted)
     } catch {
@@ -129,7 +145,7 @@ export function CodeEditor({
   }
 
   return (
-    <div className="space-y-1">
+    <div className={cn("space-y-1", containerClassName)}>
       {toolbar && (
         <div className="flex items-center justify-between">
           <Badge variant="outline" className="uppercase text-[10px]">{language}</Badge>
@@ -156,14 +172,39 @@ export function CodeEditor({
           </div>
         </div>
       )}
-      <div
-        ref={setEditorEl}
-        className={cn(
-          "w-full rounded-lg border border-input overflow-hidden text-sm [&_.cm-editor.cm-focused]:outline-none [&_.cm-editor]:h-full [&_.cm-editor]:min-h-(--code-editor-min-h)",
-          className
-        )}
-        style={{ minHeight, "--code-editor-min-h": minHeight } as React.CSSProperties}
-      />
+      <ContextMenu>
+        <ContextMenuTrigger
+          render={
+            <div
+              ref={setEditorEl}
+              className={cn(
+                "w-full rounded-lg border border-input overflow-hidden text-sm [&_.cm-editor.cm-focused]:outline-none [&_.cm-editor]:h-full [&_.cm-editor]:min-h-(--code-editor-min-h)",
+                className
+              )}
+              style={{ minHeight, "--code-editor-min-h": minHeight } as React.CSSProperties}
+            />
+          }
+        />
+        <ContextMenuContent>
+          {FORMATTABLE_LANGUAGES.has(language) && !readOnly && (
+            <ContextMenuItem onClick={handleFormat}>
+              <Wand2 className="h-4 w-4" /> Formatar
+            </ContextMenuItem>
+          )}
+          <ContextMenuItem onClick={handleCopy}>
+            <Copy className="h-4 w-4" /> Copiar
+          </ContextMenuItem>
+          {onFullscreenChange && (
+            <>
+              <ContextMenuSeparator />
+              <ContextMenuItem onClick={() => onFullscreenChange(!fullscreen)}>
+                {fullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+                {fullscreen ? "Sair da tela cheia" : "Tela cheia"}
+              </ContextMenuItem>
+            </>
+          )}
+        </ContextMenuContent>
+      </ContextMenu>
     </div>
   )
 }

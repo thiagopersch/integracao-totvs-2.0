@@ -5,7 +5,7 @@ import type { ColumnDef } from "@tanstack/react-table"
 import { useForm, Controller, type Resolver } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { cn } from "@/utils/cn"
-import { CodeEditor, type CodeEditorLanguage } from "@/components/shared/code-editor"
+import { CodeEditor } from "@/components/shared/code-editor"
 import { DataTable } from "@/components/shared/data-table"
 import { DataTableFilterPanel } from "@/components/shared/data-table-filter-panel"
 import { PageHeader } from "@/components/shared/page-header"
@@ -45,12 +45,6 @@ import type { PaginationMeta } from "@/types/common"
 
 interface SentenceRow extends Sentence {
   category: { id: string; name: string } | null
-}
-
-function detectContentLanguage(content: string): CodeEditorLanguage {
-  const trimmed = content.trim()
-  if (trimmed.startsWith("{") || trimmed.startsWith("[")) return "json"
-  return "xml"
 }
 
 interface SentenceTableProps {
@@ -176,7 +170,7 @@ export function SentenceTable({ data, meta, categories }: SentenceTableProps) {
           <DialogTitle>{editDialog.entity ? "Editar Sentença" : "Nova Sentença"}</DialogTitle>
         </DialogHeader>
         <form onSubmit={form.handleSubmit(onSubmit)} className="flex min-h-0 flex-1 flex-col overflow-hidden">
-        <DialogBody>
+        <DialogBody className="flex flex-col overflow-x-hidden overflow-y-hidden">
           <div className="flex items-center gap-2">
             <Controller
               control={form.control}
@@ -212,35 +206,39 @@ export function SentenceTable({ data, meta, categories }: SentenceTableProps) {
           <div className="grid grid-cols-2 gap-4">
             <Field>
               <FieldLabel htmlFor="codColigada">Cód. Coligada</FieldLabel>
-              <Input id="codColigada" className="w-full" {...form.register("codColigada")} placeholder="Código da coligada (opcional)" />
+              <Input id="codColigada" className="w-full" maxLength={5} {...form.register("codColigada")} placeholder="Código da coligada (opcional)" aria-invalid={!!form.formState.errors.codColigada} />
+              <FieldError errors={[form.formState.errors.codColigada]} />
             </Field>
             <Field>
               <FieldLabel htmlFor="codSystem">Cód. Sistema</FieldLabel>
-              <Input id="codSystem" className="w-full" {...form.register("codSystem")} placeholder="Código do sistema (opcional)" />
+              <Input id="codSystem" className="w-full" maxLength={2} {...form.register("codSystem")} placeholder="Código do sistema (opcional)" aria-invalid={!!form.formState.errors.codSystem} />
+              <FieldError errors={[form.formState.errors.codSystem]} />
             </Field>
           </div>
           <div className="grid grid-cols-2 gap-4">
             <Field>
               <FieldLabel htmlFor="code">Código</FieldLabel>
-              <Input id="code" className="w-full" {...form.register("code")} placeholder="Código único" aria-invalid={!!form.formState.errors.code} />
+              <Input id="code" className="w-full" maxLength={16} {...form.register("code")} placeholder="Código único" aria-invalid={!!form.formState.errors.code} />
               <FieldError errors={[form.formState.errors.code]} />
             </Field>
             <Field>
               <FieldLabel htmlFor="name">Nome</FieldLabel>
-              <Input id="name" className="w-full" {...form.register("name")} placeholder="Nome da sentença" aria-invalid={!!form.formState.errors.name} />
+              <Input id="name" className="w-full" maxLength={255} {...form.register("name")} placeholder="Nome da sentença" aria-invalid={!!form.formState.errors.name} />
               <FieldError errors={[form.formState.errors.name]} />
             </Field>
           </div>
-          <Field>
+          <Field className="min-h-0 flex-1">
             <FieldLabel htmlFor="content">Conteúdo</FieldLabel>
             <CodeEditor
               value={editDialog.entity?.content ?? ""}
               onChange={(v) => form.setValue("content", v)}
-              language={detectContentLanguage(editDialog.entity?.content ?? "")}
+              language="sql"
               resetKey={editDialog.entity?.id ?? "new"}
               fullscreen={fullscreen}
               onFullscreenChange={setFullscreen}
-              minHeight={fullscreen ? "60vh" : "180px"}
+              minHeight="160px"
+              containerClassName="flex min-h-0 flex-1 flex-col"
+              className="min-h-0 flex-1"
             />
           </Field>
         </DialogBody>

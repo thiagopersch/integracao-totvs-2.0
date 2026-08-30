@@ -8,10 +8,12 @@ const DEMAND_STATUS_LABELS: Record<string, string> = {
 };
 
 export const dashboardService = {
-  async getStats(organizationId: string) {
+  async getStats(organizationId: string, allowedClientIds: string[]) {
     const now = new Date();
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const last7Days = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const clientScope = { id: { in: allowedClientIds } };
+    const clientIdScope = { clientId: { in: allowedClientIds } };
 
     const [
       totalClients,
@@ -34,9 +36,11 @@ export const dashboardService = {
       contractsByClient,
       demandMinutesByClient,
     ] = await Promise.all([
-      prisma.client.count({ where: { deletedAt: null, status: true, organizationId } }),
-      prisma.tbc.count({ where: { deletedAt: null, status: true, organizationId } }),
+      prisma.client.count({ where: { deletedAt: null, status: true, organizationId, ...clientScope } }),
+      prisma.tbc.count({ where: { deletedAt: null, status: true, organizationId, ...clientIdScope } }),
       prisma.user.count({ where: { deletedAt: null, status: true, organizationId } }),
+      // SoapLog only stores the TBC's link string, not a client FK, so call-volume/health metrics
+      // stay organization-wide rather than per-client scoped.
       prisma.soapLog.count({ where: { createdAt: { gte: todayStart }, organizationId } }),
       prisma.soapLog.count({ where: { createdAt: { gte: todayStart }, error: { not: null }, organizationId } }),
       prisma.soapLog.aggregate({ _avg: { duration: true }, where: { createdAt: { gte: todayStart }, organizationId } }),
@@ -46,17 +50,17 @@ export const dashboardService = {
         orderBy: { createdAt: "desc" },
         include: { user: { select: { name: true } } },
       }),
-      prisma.client.count({ where: { deletedAt: null, organizationId } }),
+      prisma.client.count({ where: { deletedAt: null, organizationId, ...clientScope } }),
       prisma.soapLog.groupBy({
         by: ["createdAt"],
         where: { createdAt: { gte: last7Days }, organizationId },
         _count: { id: true },
         orderBy: { createdAt: "asc" },
       }),
-      prisma.tbc.count({ where: { deletedAt: null, status: true, organizationId } }),
-      prisma.tbc.count({ where: { deletedAt: null, status: false, organizationId } }),
-      prisma.filter.count({ where: { deletedAt: null, status: true, organizationId } }),
-      prisma.filter.count({ where: { deletedAt: null, status: false, organizationId } }),
+      prisma.tbc.count({ where: { deletedAt: null, status: true, organizationId, ...clientIdScope } }),
+      prisma.tbc.count({ where: { deletedAt: null, status: false, organizationId, ...clientIdScope } }),
+      prisma.filter.count({ where: { deletedAt: null, status: true, organizationId, ...clientIdScope } }),
+      prisma.filter.count({ where: { deletedAt: null, status: false, organizationId, ...clientIdScope } }),
       prisma.sentenceCategory.findMany({
         where: { deletedAt: null, organizationId },
         select: { name: true, _count: { select: { sentences: true } } },
@@ -64,31 +68,31 @@ export const dashboardService = {
       }),
       prisma.demand.groupBy({
         by: ["status"],
-        where: { deletedAt: null, organizationId },
+        where: { deletedAt: null, organizationId, ...clientIdScope },
         _count: { id: true },
       }),
       prisma.demand.groupBy({
         by: ["analystId"],
-        where: { deletedAt: null, organizationId },
+        where: { deletedAt: null, organizationId, ...clientIdScope },
         _count: { id: true },
         orderBy: { _count: { id: "desc" } },
         take: 8,
       }),
       prisma.demand.groupBy({
         by: ["clientId"],
-        where: { deletedAt: null, organizationId },
+        where: { deletedAt: null, organizationId, ...clientIdScope },
         _count: { id: true },
         orderBy: { _count: { id: "desc" } },
         take: 8,
       }),
       prisma.clientContract.groupBy({
         by: ["clientId"],
-        where: { status: "ACTIVE", client: { organizationId } },
+        where: { status: "ACTIVE", client: { organizationId }, ...clientIdScope },
         _sum: { contractedHours: true },
       }),
       prisma.demand.groupBy({
         by: ["clientId"],
-        where: { deletedAt: null, organizationId },
+        where: { deletedAt: null, organizationId, ...clientIdScope },
         _sum: { durationMinutes: true },
       }),
     ]);

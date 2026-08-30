@@ -19,4 +19,5 @@ export type LoginInput = {
 export type AuthSession = {
   user: AuthUser;
   permissions: string[];
+  allowedClientIds: string[];
 };

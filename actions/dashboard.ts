@@ -2,15 +2,15 @@
 
 import { cacheTag } from "next/cache";
 import { dashboardService } from "@/services/dashboard.service";
-import { getCurrentOrganizationId } from "@/lib/tenant";
+import { getRequestContext } from "@/lib/tenant";
 
 export async function getDashboardStats() {
-  const organizationId = await getCurrentOrganizationId();
-  return getCachedDashboardStats(organizationId);
+  const { organizationId, allowedClientIds } = await getRequestContext();
+  return getCachedDashboardStats(organizationId, allowedClientIds);
 }
 
-async function getCachedDashboardStats(organizationId: string) {
+async function getCachedDashboardStats(organizationId: string, allowedClientIds: string[]) {
   "use cache";
   cacheTag("dashboard");
-  return dashboardService.getStats(organizationId);
+  return dashboardService.getStats(organizationId, allowedClientIds);
 }

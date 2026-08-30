@@ -34,6 +34,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           role: result.user.role,
           organizationId: result.user.organizationId,
           permissions: result.permissions,
+          allowedClientIds: result.allowedClientIds,
           changePassword: result.user.changePassword,
         };
       },
@@ -46,7 +47,23 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         token.role = user.role;
         token.organizationId = user.organizationId;
         token.permissions = user.permissions;
+        token.allowedClientIds = user.allowedClientIds;
         token.changePassword = user.changePassword;
+        return token;
+      }
+
+      // Not a fresh sign-in — re-read role/permissions/client access from the DB on every request
+      // so an admin editing this user's role, permissions or allowed clients applies immediately,
+      // without the affected user having to log out and back in.
+      if (token.id) {
+        const refreshed = await authService.refreshSession(token.id);
+        if (refreshed) {
+          token.role = refreshed.user.role;
+          token.organizationId = refreshed.user.organizationId;
+          token.permissions = refreshed.permissions;
+          token.allowedClientIds = refreshed.allowedClientIds;
+          token.changePassword = refreshed.user.changePassword;
+        }
       }
       return token;
     },
@@ -55,6 +72,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       session.user.role = token.role;
       session.user.organizationId = token.organizationId;
       session.user.permissions = token.permissions ?? [];
+      session.user.allowedClientIds = token.allowedClientIds ?? [];
       session.user.changePassword = token.changePassword;
       return session;
     },

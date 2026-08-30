@@ -32,7 +32,7 @@ async function DemandsContent({ searchParams }: { searchParams: Promise<Record<s
       search: params.search,
       sort: params.sort ? { field: params.sort.split(":")[0], direction: params.sort.split(":")[1] as "asc" | "desc" } : undefined,
       filters: params.status ? { status: params.status } : undefined,
-    }, ctx.organizationId, analystScope),
+    }, ctx.organizationId, ctx.allowedClientIds, analystScope),
     listAllAnalysts(),
     listAllClients(),
     listAllRequesters(),

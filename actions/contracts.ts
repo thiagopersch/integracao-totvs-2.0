@@ -8,10 +8,10 @@ import { requirePermission } from "@/lib/rbac";
 import { formatBlockingReferences } from "@/lib/entity-relations";
 import type { ListParams } from "@/types/common";
 
-export async function listContracts(params: ListParams, organizationId: string) {
+export async function listContracts(params: ListParams, organizationId: string, allowedClientIds: string[]) {
   "use cache";
   cacheTag("contracts");
-  return contractService.list(params, organizationId);
+  return contractService.list(params, organizationId, allowedClientIds);
 }
 
 function parseContractForm(formData: FormData) {
@@ -26,14 +26,14 @@ function parseContractForm(formData: FormData) {
 }
 
 export async function createContract(formData: FormData) {
-  const { organizationId } = await requirePermission("contracts", "create");
+  const { organizationId, allowedClientIds } = await requirePermission("contracts", "create");
   const parsed = createContractSchema.safeParse(parseContractForm(formData));
   if (!parsed.success) {
     return { success: false, error: "Dados inválidos", errors: parsed.error.flatten().fieldErrors };
   }
 
   try {
-    const entity = await contractService.create(parsed.data, organizationId);
+    const entity = await contractService.create(parsed.data, organizationId, allowedClientIds);
     await auditService.log({ action: "CREATE", entity: "ClientContract", entityId: entity.id, newData: { clientId: entity.clientId } });
     updateTag("contracts");
     return { success: true, data: entity };
@@ -43,14 +43,14 @@ export async function createContract(formData: FormData) {
 }
 
 export async function updateContract(id: string, formData: FormData) {
-  const { organizationId } = await requirePermission("contracts", "update");
+  const { organizationId, allowedClientIds } = await requirePermission("contracts", "update");
   const parsed = updateContractSchema.safeParse(parseContractForm(formData));
   if (!parsed.success) {
     return { success: false, error: "Dados inválidos", errors: parsed.error.flatten().fieldErrors };
   }
 
   try {
-    const entity = await contractService.update(id, parsed.data, organizationId);
+    const entity = await contractService.update(id, parsed.data, organizationId, allowedClientIds);
     await auditService.log({ action: "UPDATE", entity: "ClientContract", entityId: id, newData: { clientId: entity.clientId } });
     updateTag("contracts");
     return { success: true, data: entity };
@@ -60,9 +60,9 @@ export async function updateContract(id: string, formData: FormData) {
 }
 
 export async function deleteContract(id: string) {
-  const { organizationId } = await requirePermission("contracts", "delete");
+  const { organizationId, allowedClientIds } = await requirePermission("contracts", "delete");
   try {
-    await contractService.delete(id, organizationId);
+    await contractService.delete(id, organizationId, allowedClientIds);
     await auditService.log({ action: "DELETE", entity: "ClientContract", entityId: id });
     updateTag("contracts");
     return { success: true };
@@ -72,9 +72,9 @@ export async function deleteContract(id: string) {
 }
 
 export async function bulkDeleteContracts(ids: string[]) {
-  const { organizationId, userId } = await requirePermission("contracts", "delete");
+  const { organizationId, userId, allowedClientIds } = await requirePermission("contracts", "delete");
   try {
-    const result = await contractService.bulkDelete(ids, organizationId);
+    const result = await contractService.bulkDelete(ids, organizationId, allowedClientIds);
     if (result.deletedIds.length) {
       await auditService.log({
         action: "BULK_DELETE",

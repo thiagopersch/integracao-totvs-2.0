@@ -7,6 +7,7 @@ declare module "@auth/core/types" {
       role: UserRoleLevel;
       organizationId: string;
       permissions: string[];
+      allowedClientIds: string[];
       changePassword: boolean;
     } & DefaultSession["user"];
   }
@@ -15,6 +16,7 @@ declare module "@auth/core/types" {
     role: UserRoleLevel;
     organizationId: string;
     permissions: string[];
+    allowedClientIds: string[];
     changePassword: boolean;
   }
 }
@@ -25,6 +27,7 @@ declare module "@auth/core/jwt" {
     role: UserRoleLevel;
     organizationId: string;
     permissions: string[];
+    allowedClientIds: string[];
     changePassword: boolean;
   }
 }

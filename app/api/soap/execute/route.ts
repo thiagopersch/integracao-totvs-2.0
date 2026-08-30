@@ -9,7 +9,7 @@ import type { SoapMethod } from "@prisma/client";
 
 export async function POST(request: NextRequest) {
   try {
-    const { organizationId, userId } = await getRequestContext();
+    const { organizationId, userId, allowedClientIds } = await getRequestContext();
     const body = await request.json();
     const { tbcId, endpointTypeId, methodId, xml, context, timeout } = body;
 
@@ -40,7 +40,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const tbc = await tbcService.getCredentialsForRequest(tbcId, organizationId);
+    const tbc = await tbcService.getCredentialsForRequest(tbcId, organizationId, allowedClientIds);
 
     const result = await soapService.execute(
       {

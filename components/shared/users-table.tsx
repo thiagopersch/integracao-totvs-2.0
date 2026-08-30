@@ -20,26 +20,43 @@ import {
 } from "@/components/ui/select"
 import {
   Dialog,
+  DialogBody,
   DialogContent,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import { Plus } from "lucide-react"
-import { deleteUser, restoreUser, bulkDeleteUsers, setUserStatus } from "@/actions/admin/users"
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command"
+import { Plus, Building2, Loader2 } from "lucide-react"
+import { DropdownMenuItem } from "@/components/ui/dropdown-menu"
+import { deleteUser, restoreUser, bulkDeleteUsers, setUserStatus, setUserClients } from "@/actions/admin/users"
 import { UserForm } from "./user-form"
 import { useCrudTable } from "@/hooks/use-crud-table"
-import type { User } from "@prisma/client"
+import { toast } from "sonner"
+import type { User, Client } from "@prisma/client"
 import type { PaginationMeta } from "@/types/common"
 
+interface UserRow extends User {
+  allowedClients: { id: string; name: string }[]
+}
+
 interface UsersTableProps {
-  data: User[]
+  data: UserRow[]
   meta: PaginationMeta
+  clients: Client[]
 }
 
 const SORTABLE_COLUMNS = ["name", "email", "role", "status"]
 
-export function UsersTable({ data, meta }: UsersTableProps) {
+export function UsersTable({ data, meta, clients }: UsersTableProps) {
   const {
     router,
     searchParams,
@@ -52,7 +69,7 @@ export function UsersTable({ data, meta }: UsersTableProps) {
     handleToggleStatus,
     sort,
     onSortChange,
-  } = useCrudTable<User>({
+  } = useCrudTable<UserRow>({
     deleteAction: deleteUser,
     restoreAction: restoreUser,
     setStatusAction: setUserStatus,
@@ -62,9 +79,41 @@ export function UsersTable({ data, meta }: UsersTableProps) {
   })
   const [roleFilter, setRoleFilter] = useState(searchParams.get("role") || "")
   const [statusFilter, setStatusFilter] = useState(searchParams.get("status") || "")
+  const [clientsDialog, setClientsDialog] = useState<{ open: boolean; userId?: string; userName?: string; selected: Set<string> }>({
+    open: false,
+    selected: new Set(),
+  })
+  const [savingClients, setSavingClients] = useState(false)
 
-  const columns: ColumnDef<User>[] = [
-    createSelectColumn<User>(),
+  function openClientsDialog(user: UserRow) {
+    setClientsDialog({ open: true, userId: user.id, userName: user.name, selected: new Set(user.allowedClients.map((c) => c.id)) })
+  }
+
+  function toggleClient(clientId: string) {
+    setClientsDialog((prev) => {
+      const next = new Set(prev.selected)
+      if (next.has(clientId)) next.delete(clientId)
+      else next.add(clientId)
+      return { ...prev, selected: next }
+    })
+  }
+
+  async function handleSaveClients() {
+    if (!clientsDialog.userId) return
+    setSavingClients(true)
+    const result = await setUserClients(clientsDialog.userId, Array.from(clientsDialog.selected))
+    if (result.success) {
+      toast.success("Clientes atualizados")
+      setClientsDialog({ open: false, selected: new Set() })
+      router.refresh()
+    } else {
+      toast.error(result.error || "Erro ao salvar")
+    }
+    setSavingClients(false)
+  }
+
+  const columns: ColumnDef<UserRow>[] = [
+    createSelectColumn<UserRow>(),
     {
       accessorKey: "name",
       header: "Nome",
@@ -95,6 +144,24 @@ export function UsersTable({ data, meta }: UsersTableProps) {
       },
     },
     {
+      id: "allowedClients",
+      header: "Clientes",
+      cell: ({ row }) => {
+        const allowed = row.original.allowedClients
+        if (allowed.length === 0) return <span className="text-muted-foreground text-sm">Nenhum</span>
+        const shown = allowed.slice(0, 2)
+        const rest = allowed.length - shown.length
+        return (
+          <div className="flex flex-wrap items-center gap-1">
+            {shown.map((c) => (
+              <Badge key={c.id} variant="outline">{c.name}</Badge>
+            ))}
+            {rest > 0 && <Badge variant="outline">+{rest}</Badge>}
+          </div>
+        )
+      },
+    },
+    {
       id: "actions",
       cell: ({ row }) => (
         <EntityActionsCell
@@ -102,6 +169,11 @@ export function UsersTable({ data, meta }: UsersTableProps) {
           onDelete={() => setDeleteDialog({ open: true, id: row.original.id })}
           onToggleStatus={() => handleToggleStatus(row.original.id, row.original.status)}
           isActive={row.original.status}
+          extraItems={
+            <DropdownMenuItem onClick={() => openClientsDialog(row.original)}>
+              <Building2 className="h-4 w-4 mr-2" /> Clientes
+            </DropdownMenuItem>
+          }
         />
       ),
     },
@@ -217,6 +289,49 @@ export function UsersTable({ data, meta }: UsersTableProps) {
         variant="destructive"
         onConfirm={() => deleteDialog.id && handleDelete(deleteDialog.id)}
       />
+
+      <Dialog
+        open={clientsDialog.open}
+        onOpenChange={(open) => setClientsDialog({ open, selected: open ? clientsDialog.selected : new Set() })}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Clientes de {clientsDialog.userName}</DialogTitle>
+          </DialogHeader>
+          <DialogBody>
+            <p className="text-sm text-muted-foreground">
+              Selecione os clientes que este usuário pode acessar. Sem clientes selecionados, o usuário não visualiza filtros, contratos, TBCs ou backups de nenhum cliente.
+            </p>
+            <Command className="rounded-lg border border-input">
+              <CommandInput placeholder="Buscar cliente..." />
+              <CommandList>
+                <CommandEmpty>Nenhum cliente encontrado.</CommandEmpty>
+                <CommandGroup>
+                  {clients.map((client) => (
+                    <CommandItem
+                      key={client.id}
+                      value={client.name}
+                      data-checked={clientsDialog.selected.has(client.id)}
+                      onSelect={() => toggleClient(client.id)}
+                    >
+                      {client.name}
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              </CommandList>
+            </Command>
+          </DialogBody>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setClientsDialog({ open: false, selected: new Set() })} disabled={savingClients}>
+              Cancelar
+            </Button>
+            <Button type="button" onClick={handleSaveClients} disabled={savingClients}>
+              {savingClients && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+              Salvar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   )
 }

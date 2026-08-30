@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { findBlockingReferences, formatBlockingReferences, type BlockingReference } from "@/lib/entity-relations";
+import { assertClientAllowed } from "@/lib/client-access";
 import type { CreateContractInput, UpdateContractInput } from "@/schemas/contract.schema";
 import type { ListParams } from "@/types/common";
 import type { BulkDeleteResult } from "@/repositories/base.repository";
@@ -9,10 +10,11 @@ const includeRelations = {
 } as const;
 
 export const contractService = {
-  async list(params: ListParams, organizationId: string) {
+  async list(params: ListParams, organizationId: string, allowedClientIds: string[]) {
     const page = params.page || 1;
     const pageSize = params.pageSize || 10;
     const where: Record<string, unknown> = {
+      clientId: { in: allowedClientIds },
       client: {
         organizationId,
         ...(params.search ? { name: { contains: params.search, mode: "insensitive" } } : {}),
@@ -30,11 +32,15 @@ export const contractService = {
     return { data, meta: { page, pageSize, total, totalPages: Math.ceil(total / pageSize) } };
   },
 
-  async getById(id: string, organizationId: string) {
-    return prisma.clientContract.findFirst({ where: { id, client: { organizationId } }, include: includeRelations });
+  async getById(id: string, organizationId: string, allowedClientIds: string[]) {
+    return prisma.clientContract.findFirst({
+      where: { id, clientId: { in: allowedClientIds }, client: { organizationId } },
+      include: includeRelations,
+    });
   },
 
-  async create(input: CreateContractInput, organizationId: string) {
+  async create(input: CreateContractInput, organizationId: string, allowedClientIds: string[]) {
+    assertClientAllowed(input.clientId, allowedClientIds);
     const client = await prisma.client.findFirst({ where: { id: input.clientId, organizationId, deletedAt: null } });
     if (!client) throw new Error("Cliente não encontrado");
 
@@ -45,8 +51,10 @@ export const contractService = {
     });
   },
 
-  async update(id: string, input: UpdateContractInput, organizationId: string) {
-    const existing = await prisma.clientContract.findFirst({ where: { id, client: { organizationId } } });
+  async update(id: string, input: UpdateContractInput, organizationId: string, allowedClientIds: string[]) {
+    const existing = await prisma.clientContract.findFirst({
+      where: { id, clientId: { in: allowedClientIds }, client: { organizationId } },
+    });
     if (!existing) throw new Error("Contrato não encontrado");
 
     const { startDate, endDate, ...rest } = input;
@@ -61,8 +69,10 @@ export const contractService = {
     });
   },
 
-  async delete(id: string, organizationId: string) {
-    const existing = await prisma.clientContract.findFirst({ where: { id, client: { organizationId } } });
+  async delete(id: string, organizationId: string, allowedClientIds: string[]) {
+    const existing = await prisma.clientContract.findFirst({
+      where: { id, clientId: { in: allowedClientIds }, client: { organizationId } },
+    });
     if (!existing) throw new Error("Contrato não encontrado");
     const reasons = await findBlockingReferences("ClientContract", id);
     if (reasons.length > 0) {
@@ -71,9 +81,9 @@ export const contractService = {
     return prisma.clientContract.delete({ where: { id } });
   },
 
-  async bulkDelete(ids: string[], organizationId: string): Promise<BulkDeleteResult> {
+  async bulkDelete(ids: string[], organizationId: string, allowedClientIds: string[]): Promise<BulkDeleteResult> {
     const owned = await prisma.clientContract.findMany({
-      where: { id: { in: ids }, client: { organizationId } },
+      where: { id: { in: ids }, clientId: { in: allowedClientIds }, client: { organizationId } },
       select: { id: true },
     });
 

@@ -11,25 +11,31 @@ import { formatBlockingReferences } from "@/lib/entity-relations";
 import type { ListParams } from "@/types/common";
 
 export async function listAllClients() {
-  const { organizationId } = await getRequestContext();
-  return clientService.listAll(organizationId);
+  const { organizationId, allowedClientIds } = await getRequestContext();
+  return clientService.listAll(organizationId, allowedClientIds);
+}
+
+/** For the "assign clients to a user" picker only — see clientService.listAllUnrestricted. */
+export async function listAllClientsForAssignment() {
+  const { organizationId } = await requirePermission("users", "update");
+  return clientService.listAllUnrestricted(organizationId);
 }
 
 export async function listActiveClientsWithTbc() {
-  const { organizationId } = await getRequestContext();
-  return clientService.listActiveWithTbc(organizationId);
+  const { organizationId, allowedClientIds } = await getRequestContext();
+  return clientService.listActiveWithTbc(organizationId, allowedClientIds);
 }
 
-export async function listClients(params: ListParams, organizationId: string) {
+export async function listClients(params: ListParams, organizationId: string, allowedClientIds: string[]) {
   "use cache";
   cacheTag("clients");
-  return clientService.list(params, organizationId);
+  return clientService.list(params, organizationId, allowedClientIds);
 }
 
-export async function getClientById(id: string, organizationId: string) {
+export async function getClientById(id: string, organizationId: string, allowedClientIds: string[]) {
   "use cache";
   cacheTag(`client-${id}`);
-  return clientService.getById(id, organizationId);
+  return clientService.getById(id, organizationId, allowedClientIds);
 }
 
 async function parseClientForm(formData: FormData) {
@@ -79,15 +85,15 @@ export async function createClient(formData: FormData) {
 }
 
 export async function updateClient(id: string, formData: FormData) {
-  const { organizationId } = await requirePermission("clients", "update");
+  const { organizationId, allowedClientIds } = await requirePermission("clients", "update");
   const parsed = updateClientSchema.safeParse(await parseClientForm(formData));
   if (!parsed.success) {
     return { success: false, error: "Dados inválidos", errors: parsed.error.flatten().fieldErrors };
   }
 
   try {
-    const old = await clientService.getById(id, organizationId);
-    const entity = await clientService.update(id, parsed.data, organizationId);
+    const old = await clientService.getById(id, organizationId, allowedClientIds);
+    const entity = await clientService.update(id, parsed.data, organizationId, allowedClientIds);
     await auditService.log({
       action: "UPDATE",
       entity: "Client",
@@ -104,10 +110,10 @@ export async function updateClient(id: string, formData: FormData) {
 }
 
 export async function deleteClient(id: string) {
-  const { organizationId } = await requirePermission("clients", "delete");
+  const { organizationId, allowedClientIds } = await requirePermission("clients", "delete");
   try {
-    const old = await clientService.getById(id, organizationId);
-    await clientService.softDelete(id, organizationId);
+    const old = await clientService.getById(id, organizationId, allowedClientIds);
+    await clientService.softDelete(id, organizationId, allowedClientIds);
     await auditService.log({
       action: "DELETE",
       entity: "Client",
@@ -122,9 +128,9 @@ export async function deleteClient(id: string) {
 }
 
 export async function restoreClient(id: string) {
-  const { organizationId } = await requirePermission("clients", "update");
+  const { organizationId, allowedClientIds } = await requirePermission("clients", "update");
   try {
-    await clientService.restore(id, organizationId);
+    await clientService.restore(id, organizationId, allowedClientIds);
     await auditService.log({ action: "RESTORE", entity: "Client", entityId: id });
     updateTag("clients");
     return { success: true };
@@ -134,9 +140,9 @@ export async function restoreClient(id: string) {
 }
 
 export async function setClientStatus(id: string, status: boolean) {
-  const { organizationId } = await requirePermission("clients", "update");
+  const { organizationId, allowedClientIds } = await requirePermission("clients", "update");
   try {
-    await clientService.setStatus(id, status, organizationId);
+    await clientService.setStatus(id, status, organizationId, allowedClientIds);
     await auditService.log({ action: status ? "ACTIVATE" : "DEACTIVATE", entity: "Client", entityId: id });
     updateTag("clients");
     return { success: true };
@@ -146,9 +152,9 @@ export async function setClientStatus(id: string, status: boolean) {
 }
 
 export async function bulkDeleteClients(ids: string[]) {
-  const { organizationId, userId } = await requirePermission("clients", "delete");
+  const { organizationId, userId, allowedClientIds } = await requirePermission("clients", "delete");
   try {
-    const result = await clientService.bulkSoftDelete(ids, organizationId);
+    const result = await clientService.bulkSoftDelete(ids, organizationId, allowedClientIds);
     if (result.deletedIds.length) {
       await auditService.log({
         action: "BULK_DELETE",
@@ -174,9 +180,9 @@ export async function bulkDeleteClients(ids: string[]) {
 }
 
 export async function bulkRestoreClients(ids: string[]) {
-  const { organizationId } = await requirePermission("clients", "update");
+  const { organizationId, allowedClientIds } = await requirePermission("clients", "update");
   try {
-    const count = await clientService.bulkRestore(ids, organizationId);
+    const count = await clientService.bulkRestore(ids, organizationId, allowedClientIds);
     await auditService.log({
       action: "BULK_RESTORE",
       entity: "Client",

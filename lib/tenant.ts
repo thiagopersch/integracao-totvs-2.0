@@ -6,6 +6,7 @@ export type RequestContext = {
   role: string;
   organizationId: string;
   permissions: string[];
+  allowedClientIds: string[];
 };
 
 export async function getRequestContext(): Promise<RequestContext> {
@@ -20,6 +21,7 @@ export async function getRequestContext(): Promise<RequestContext> {
     role: session.user.role,
     organizationId: session.user.organizationId,
     permissions: session.user.permissions || [],
+    allowedClientIds: session.user.allowedClientIds || [],
   };
 }
 

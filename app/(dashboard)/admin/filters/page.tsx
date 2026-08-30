@@ -6,7 +6,7 @@ import { listAllSistemas } from "@/actions/admin/sistemas"
 import { listAllSentenceCategories } from "@/actions/admin/sentence-categories"
 import { FilterTable } from "@/components/shared/filter-table"
 import { Skeleton } from "@/components/ui/skeleton"
-import { getCurrentOrganizationId } from "@/lib/tenant"
+import { getRequestContext } from "@/lib/tenant"
 
 export default function FiltersPage({ searchParams }: { searchParams: Promise<Record<string, string>> }) {
   return (
@@ -20,7 +20,7 @@ export default function FiltersPage({ searchParams }: { searchParams: Promise<Re
 
 async function FiltersContent({ searchParams }: { searchParams: Promise<Record<string, string>> }) {
   const params = await searchParams
-  const organizationId = await getCurrentOrganizationId()
+  const { organizationId, allowedClientIds } = await getRequestContext()
   const filters: Record<string, string> = {}
   if (params.status) filters.status = params.status
   if (params.clientId) filters.clientId = params.clientId
@@ -35,7 +35,7 @@ async function FiltersContent({ searchParams }: { searchParams: Promise<Record<s
       search: params.search,
       sort: params.sort ? { field: params.sort.split(":")[0], direction: params.sort.split(":")[1] as "asc" | "desc" } : undefined,
       filters: Object.keys(filters).length ? filters : undefined,
-    }, organizationId),
+    }, organizationId, allowedClientIds),
     listAllClients(),
     listAllTbcs(),
     listAllSistemas(),

@@ -3,6 +3,8 @@
 import { updateTag, cacheTag } from "next/cache";
 import { backupService } from "@/services/backup.service";
 import { authService } from "@/services/auth.service";
+import { filterService } from "@/services/filter.service";
+import { tbcService } from "@/services/tbc.service";
 import { auditService } from "@/services/audit.service";
 import { createBackupSchema, updateBackupSchema } from "@/schemas/backup.schema";
 import { requirePermission } from "@/lib/rbac";
@@ -165,30 +167,42 @@ export async function bulkRestoreBackups(ids: string[]) {
   }
 }
 
-export async function listLatestBackupsForFilter(filterId: string, params: ListParams, organizationId: string) {
+export async function listLatestBackupsForFilter(filterId: string, params: ListParams, organizationId: string, allowedClientIds: string[]) {
   "use cache";
   cacheTag(`filter-backups-${filterId}`);
+  const filter = await filterService.getById(filterId, organizationId, allowedClientIds);
+  if (!filter) return { data: [], meta: { page: 1, pageSize: 10, total: 0, totalPages: 0 } };
   return backupService.listLatestByFilter(filterId, params, organizationId);
 }
 
-export async function listBackupRunsForFilter(filterId: string, params: ListParams, organizationId: string) {
+export async function listBackupRunsForFilter(filterId: string, params: ListParams, organizationId: string, allowedClientIds: string[]) {
   "use cache";
   cacheTag(`filter-backup-runs-${filterId}`);
+  const filter = await filterService.getById(filterId, organizationId, allowedClientIds);
+  if (!filter) return { data: [], meta: { page: 1, pageSize: 10, total: 0, totalPages: 0 } };
   return backupService.listRunsByFilter(filterId, params, organizationId);
 }
 
 export async function listBackupHistoryForCode(filterId: string, codeSentence: string) {
-  const { organizationId } = await getRequestContext();
+  const { organizationId, allowedClientIds } = await getRequestContext();
+  const filter = await filterService.getById(filterId, organizationId, allowedClientIds);
+  if (!filter) return [];
   return backupService.listHistoryByCode(filterId, codeSentence, organizationId);
 }
 
 export async function getLatestBackupForCode(filterId: string, codeSentence: string) {
-  const { organizationId } = await getRequestContext();
+  const { organizationId, allowedClientIds } = await getRequestContext();
+  const filter = await filterService.getById(filterId, organizationId, allowedClientIds);
+  if (!filter) return null;
   return backupService.getLatestByCode(filterId, codeSentence, organizationId);
 }
 
 export async function listBackupsForRun(backupRunId: string) {
-  const { organizationId } = await getRequestContext();
+  const { organizationId, allowedClientIds } = await getRequestContext();
+  const run = await prisma.backupRun.findFirst({ where: { id: backupRunId, organizationId } });
+  if (!run) return [];
+  const filter = await filterService.getById(run.filterId, organizationId, allowedClientIds);
+  if (!filter) return [];
   return backupService.listByRun(backupRunId, organizationId);
 }
 
@@ -210,8 +224,12 @@ function invalidateBackupTags(filterId: string) {
 }
 
 export async function restoreLatestBackupsForFilter(filterId: string, targetTbcId: string) {
-  const { organizationId, userId } = await requirePermission("backups", "restore");
+  const { organizationId, userId, allowedClientIds } = await requirePermission("backups", "restore");
   try {
+    const filter = await filterService.getById(filterId, organizationId, allowedClientIds);
+    if (!filter) return { success: false, error: "Filtro não encontrado ou fora do seu escopo de acesso" };
+    const targetTbc = await tbcService.getById(targetTbcId, organizationId, allowedClientIds);
+    if (!targetTbc) return { success: false, error: "TBC de destino não encontrado ou fora do seu escopo de acesso" };
     const result = await backupService.restoreLatestForFilter(filterId, targetTbcId, organizationId, userId);
     await auditService.log({
       action: "RESTORE",
@@ -227,10 +245,14 @@ export async function restoreLatestBackupsForFilter(filterId: string, targetTbcI
 }
 
 export async function restoreBackupsForRun(backupRunId: string, targetTbcId: string) {
-  const { organizationId, userId } = await requirePermission("backups", "restore");
+  const { organizationId, userId, allowedClientIds } = await requirePermission("backups", "restore");
   try {
     const run = await prisma.backupRun.findFirst({ where: { id: backupRunId, organizationId } });
     if (!run) return { success: false, error: "Execução de backup não encontrada" };
+    const filter = await filterService.getById(run.filterId, organizationId, allowedClientIds);
+    if (!filter) return { success: false, error: "Execução fora do seu escopo de acesso" };
+    const targetTbc = await tbcService.getById(targetTbcId, organizationId, allowedClientIds);
+    if (!targetTbc) return { success: false, error: "TBC de destino não encontrado ou fora do seu escopo de acesso" };
 
     const result = await backupService.restoreForRun(backupRunId, targetTbcId, organizationId, userId);
     await auditService.log({
@@ -247,10 +269,14 @@ export async function restoreBackupsForRun(backupRunId: string, targetTbcId: str
 }
 
 export async function restoreSingleBackup(backupId: string, targetTbcId: string) {
-  const { organizationId, userId } = await requirePermission("backups", "restore");
+  const { organizationId, userId, allowedClientIds } = await requirePermission("backups", "restore");
   try {
     const backup = await prisma.backup.findFirst({ where: { id: backupId, organizationId } });
     if (!backup) return { success: false, error: "Backup não encontrado" };
+    const filter = await filterService.getById(backup.filterId, organizationId, allowedClientIds);
+    if (!filter) return { success: false, error: "Backup fora do seu escopo de acesso" };
+    const targetTbc = await tbcService.getById(targetTbcId, organizationId, allowedClientIds);
+    if (!targetTbc) return { success: false, error: "TBC de destino não encontrado ou fora do seu escopo de acesso" };
 
     const result = await backupService.restoreSingle(backupId, targetTbcId, organizationId, userId);
     await auditService.log({

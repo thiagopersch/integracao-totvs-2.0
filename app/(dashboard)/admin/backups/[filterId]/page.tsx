@@ -4,7 +4,7 @@ import { getFilterByIdWithRelations } from "@/actions/admin/filters"
 import { listLatestBackupsForFilter, listBackupRunsForFilter } from "@/actions/admin/backups"
 import { BackupsDetailClient } from "@/components/shared/backups-detail-client"
 import { Skeleton } from "@/components/ui/skeleton"
-import { getCurrentOrganizationId } from "@/lib/tenant"
+import { getRequestContext } from "@/lib/tenant"
 
 export default function BackupsPage({
   params,
@@ -31,9 +31,9 @@ async function BackupsContent({
 }) {
   const { filterId } = await params
   const search = await searchParams
-  const organizationId = await getCurrentOrganizationId()
+  const { organizationId, allowedClientIds } = await getRequestContext()
 
-  const filter = await getFilterByIdWithRelations(filterId, organizationId)
+  const filter = await getFilterByIdWithRelations(filterId, organizationId, allowedClientIds)
   if (!filter) notFound()
 
   const [sentences, runs] = await Promise.all([
@@ -52,7 +52,8 @@ async function BackupsContent({
           dateTo: search.dateTo || undefined,
         },
       },
-      organizationId
+      organizationId,
+      allowedClientIds
     ),
     listBackupRunsForFilter(
       filterId,
@@ -63,7 +64,8 @@ async function BackupsContent({
           ? { field: search.runsSort.split(":")[0], direction: search.runsSort.split(":")[1] as "asc" | "desc" }
           : undefined,
       },
-      organizationId
+      organizationId,
+      allowedClientIds
     ),
   ])
 

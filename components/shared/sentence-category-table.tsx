@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import type { ColumnDef } from "@tanstack/react-table"
-import { useForm, type Resolver } from "react-hook-form"
+import { useForm, Controller, type Resolver } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { DataTable } from "@/components/shared/data-table"
 import { DataTableFilterPanel } from "@/components/shared/data-table-filter-panel"
@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Field, FieldLabel, FieldError } from "@/components/ui/field"
 import { Label } from "@/components/ui/label"
+import { Checkbox } from "@/components/ui/checkbox"
 import {
   Select,
   SelectContent,
@@ -145,7 +146,21 @@ export function SentenceCategoryTable({ data, meta }: SentenceCategoryTableProps
         </DialogHeader>
         <form onSubmit={form.handleSubmit(onSubmit)} className="flex min-h-0 flex-1 flex-col overflow-hidden">
         <DialogBody>
-          <Field>
+          <div className="flex items-center gap-2">
+            <Controller
+              control={form.control}
+              name="status"
+              render={({ field }) => (
+                <Checkbox
+                  id="status"
+                  checked={field.value ?? true}
+                  onCheckedChange={(value) => field.onChange(!!value)}
+                />
+              )}
+            />
+            <Label htmlFor="status">Categoria ativa</Label>
+          </div>
+          <Field className="w-[30%]">
             <FieldLabel htmlFor="code">Código</FieldLabel>
             <Input id="code" {...form.register("code")} placeholder="Código único" aria-invalid={!!form.formState.errors.code} />
             <FieldError errors={[form.formState.errors.code]} />
@@ -155,10 +170,6 @@ export function SentenceCategoryTable({ data, meta }: SentenceCategoryTableProps
             <Input id="name" {...form.register("name")} placeholder="Nome da categoria" aria-invalid={!!form.formState.errors.name} />
             <FieldError errors={[form.formState.errors.name]} />
           </Field>
-          <div className="flex items-center gap-2">
-            <input type="checkbox" id="status" defaultChecked={editDialog.entity?.status ?? true} {...form.register("status")} className="rounded border-gray-300" />
-            <Label htmlFor="status">Categoria ativa</Label>
-          </div>
         </DialogBody>
         <DialogFooter>
           <Button type="button" variant="outline" onClick={handleCancel} disabled={loading}>Cancelar</Button>

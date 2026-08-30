@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { BaseRepository } from "@/repositories/base.repository";
 import { computeNextRunAt } from "@/lib/backup-schedule";
+import { assertClientAllowed } from "@/lib/client-access";
 import type { CreateFilterInput, UpdateFilterInput } from "@/schemas/filter.schema";
 import type { ListParams } from "@/types/common";
 import type { Filter } from "@prisma/client";
@@ -22,10 +23,11 @@ class FilterRepository extends BaseRepository<Filter> {
 export const filterRepository = new FilterRepository();
 
 export const filterService = {
-  async list(params: Parameters<typeof filterRepository.findAll>[0], organizationId: string) {
+  async list(params: Parameters<typeof filterRepository.findAll>[0], organizationId: string, allowedClientIds: string[]) {
     const page = params.page || 1;
     const pageSize = params.pageSize || 10;
     const where = await filterRepository.buildWhere(params, organizationId);
+    where.clientId = { in: allowedClientIds };
     const orderBy = params.sort
       ? { [params.sort.field]: params.sort.direction }
       : [
@@ -44,6 +46,7 @@ export const filterService = {
           tbc: { select: { id: true, name: true } },
           client: { select: { id: true, name: true } },
           lastBackupBy: { select: { id: true, name: true } },
+          scheduleCategory: { select: { id: true, name: true } },
         },
       }),
       prisma.filter.count({ where }),
@@ -52,13 +55,13 @@ export const filterService = {
     return { data, meta: { page, pageSize, total, totalPages: Math.ceil(total / pageSize) } };
   },
 
-  async getById(id: string, organizationId: string) {
-    return filterRepository.findById(id, organizationId);
+  async getById(id: string, organizationId: string, allowedClientIds: string[]) {
+    return filterRepository.findById(id, organizationId, { clientId: { in: allowedClientIds } });
   },
 
-  async getByIdWithRelations(id: string, organizationId: string) {
+  async getByIdWithRelations(id: string, organizationId: string, allowedClientIds: string[]) {
     return prisma.filter.findFirst({
-      where: { id, organizationId, deletedAt: null },
+      where: { id, organizationId, deletedAt: null, clientId: { in: allowedClientIds } },
       include: { client: true, tbc: true },
     });
   },
@@ -84,35 +87,53 @@ export const filterService = {
     };
   },
 
-  async create(input: CreateFilterInput, organizationId: string) {
-    const nextRunAt = computeNextRunAt(input.schedule, new Date());
-    return filterRepository.create({ ...input, organizationId, nextRunAt });
+  async create(input: CreateFilterInput, organizationId: string, allowedClientIds: string[]) {
+    assertClientAllowed(input.clientId, allowedClientIds);
+    const nextRunAt = computeNextRunAt(input.schedule, new Date(), input.scheduleTime);
+    return filterRepository.create({
+      ...input,
+      organizationId,
+      nextRunAt,
+      scheduleTime: input.scheduleTime || null,
+      scheduleCategoryId: input.scheduleCategoryId || null,
+    });
   },
 
-  async update(id: string, input: UpdateFilterInput, organizationId: string) {
+  async update(id: string, input: UpdateFilterInput, organizationId: string, allowedClientIds: string[]) {
+    if (input.clientId) assertClientAllowed(input.clientId, allowedClientIds);
     // Re-anchor the schedule to "now" whenever it's (re)saved, per spec — a weekly/monthly
     // schedule fires from the moment the record was last saved, not from a fixed clock.
-    const nextRunAt = input.schedule ? computeNextRunAt(input.schedule, new Date()) : undefined;
-    return filterRepository.update(id, { ...input, ...(input.schedule ? { nextRunAt } : {}) }, organizationId);
+    const nextRunAt = input.schedule ? computeNextRunAt(input.schedule, new Date(), input.scheduleTime) : undefined;
+    return filterRepository.update(
+      id,
+      {
+        ...input,
+        ...(input.schedule ? { nextRunAt } : {}),
+        ...(input.scheduleTime !== undefined ? { scheduleTime: input.scheduleTime || null } : {}),
+        ...(input.scheduleCategoryId !== undefined ? { scheduleCategoryId: input.scheduleCategoryId || null } : {}),
+      },
+      organizationId,
+      { clientId: { in: allowedClientIds } }
+    );
   },
 
-  async softDelete(id: string, organizationId: string) {
-    return filterRepository.softDelete(id, organizationId);
+  async softDelete(id: string, organizationId: string, allowedClientIds: string[]) {
+    return filterRepository.softDelete(id, organizationId, { clientId: { in: allowedClientIds } });
   },
 
-  async setStatus(id: string, status: boolean, organizationId: string) {
-    return filterRepository.setStatus(id, status, organizationId);
+  async setStatus(id: string, status: boolean, organizationId: string, allowedClientIds: string[]) {
+    return filterRepository.setStatus(id, status, organizationId, { clientId: { in: allowedClientIds } });
   },
 
-  async restore(id: string, organizationId: string) {
-    return filterRepository.restore(id, organizationId);
+  async restore(id: string, organizationId: string, allowedClientIds: string[]) {
+    return filterRepository.restore(id, organizationId, { clientId: { in: allowedClientIds } });
   },
 
-  async bulkSoftDelete(ids: string[], organizationId: string) {
-    return filterRepository.bulkSoftDelete(ids, organizationId);
+  async bulkSoftDelete(ids: string[], organizationId: string, allowedClientIds: string[]) {
+    return filterRepository.bulkSoftDelete(ids, organizationId, { clientId: { in: allowedClientIds } });
   },
 
-  async bulkRestore(ids: string[], organizationId: string) {
-    return filterRepository.bulkRestore(ids, organizationId);
+  async bulkRestore(ids: string[], organizationId: string, allowedClientIds: string[]) {
+    return filterRepository.bulkRestore(ids, organizationId, { clientId: { in: allowedClientIds } });
   },
 };

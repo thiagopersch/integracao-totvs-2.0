@@ -38,6 +38,12 @@ async function loadPermissions(userId: string): Promise<string[]> {
   return Array.from(keys);
 }
 
+/** No row here means no client access at all — there's no "unrestricted" role, admins included. */
+async function loadAllowedClientIds(userId: string): Promise<string[]> {
+  const userClients = await prisma.userClient.findMany({ where: { userId }, select: { clientId: true } });
+  return userClients.map((uc) => uc.clientId);
+}
+
 export const authService = {
   async login(input: LoginInput, ip?: string) {
     const user = await prisma.user.findUnique({
@@ -72,13 +78,17 @@ export const authService = {
       return null;
     }
 
-    const permissions = await loadPermissions(user.id);
+    const [permissions, allowedClientIds] = await Promise.all([
+      loadPermissions(user.id),
+      loadAllowedClientIds(user.id),
+    ]);
 
     logger.info("Login success", { email: input.email, ip });
 
     return {
       user: toAuthUser(user),
       permissions,
+      allowedClientIds,
     };
   },
 
@@ -108,5 +118,22 @@ export const authService = {
     const user = await prisma.user.findUnique({ where: { id } });
     if (!user || user.deletedAt) return null;
     return toAuthUser(user);
+  },
+
+  /**
+   * Re-reads role/permissions/client access from the DB — called from the `jwt` callback on every
+   * request (not just sign-in) so an admin granting/revoking a role, permission or client applies
+   * on the affected user's very next request, no logout required.
+   */
+  async refreshSession(userId: string) {
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user || user.deletedAt) return null;
+
+    const [permissions, allowedClientIds] = await Promise.all([
+      loadPermissions(user.id),
+      loadAllowedClientIds(user.id),
+    ]);
+
+    return { user: toAuthUser(user), permissions, allowedClientIds };
   },
 };

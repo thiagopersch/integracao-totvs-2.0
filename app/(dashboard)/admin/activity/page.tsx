@@ -36,7 +36,7 @@ export default function ActivityLogPage({ searchParams }: { searchParams: Promis
 
 async function ActivityPageBody({ searchParams }: { searchParams: Promise<Record<string, string>> }) {
   const params = await searchParams
-  const { permissions, organizationId } = await getRequestContext()
+  const { permissions, organizationId, allowedClientIds } = await getRequestContext()
 
   if (!hasPermission(permissions, "activity_logs", "read")) {
     redirect("/dashboard")
@@ -64,8 +64,8 @@ async function ActivityPageBody({ searchParams }: { searchParams: Promise<Record
   const [{ data, meta }, clients, tbcs, endpointTypes, tipoOptions, apiMethods, dataservers, processes, statusCodes] =
     await Promise.all([
       listActivityLog(Number(params.page) || 1, Number(params.pageSize) || 10, filters, sort),
-      clientService.listActiveWithTbc(organizationId),
-      tbcService.listAll(organizationId),
+      clientService.listActiveWithTbc(organizationId, allowedClientIds),
+      tbcService.listAll(organizationId, allowedClientIds),
       soapEndpointService.listAllTypes(),
       listActivityTipoOptions(),
       listActivityApiMethods(),

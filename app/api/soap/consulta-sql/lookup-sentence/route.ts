@@ -7,7 +7,7 @@ import { getRequestContext } from "@/lib/tenant";
 
 export async function POST(request: NextRequest) {
   try {
-    const { organizationId } = await getRequestContext();
+    const { organizationId, allowedClientIds } = await getRequestContext();
     const body = await request.json();
     const { tbcId, codColigada, codSistema, codSentenca, context } = body;
 
@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "codSentenca é obrigatório" }, { status: 400 });
     }
 
-    const tbc = await tbcService.getCredentialsForRequest(tbcId, organizationId);
+    const tbc = await tbcService.getCredentialsForRequest(tbcId, organizationId, allowedClientIds);
     const contentSentence = await lookupSentenceContent(
       { codColigada: Number(codColigada), codSistema, codSentenca },
       tbc,

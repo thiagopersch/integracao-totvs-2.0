@@ -9,10 +9,10 @@ import { getDemandAnalystScope } from "@/lib/demand-scope";
 import { formatBlockingReferences } from "@/lib/entity-relations";
 import type { ListParams } from "@/types/common";
 
-export async function listDemands(params: ListParams, organizationId: string, analystScope?: string) {
+export async function listDemands(params: ListParams, organizationId: string, allowedClientIds: string[], analystScope?: string) {
   "use cache";
   cacheTag("demands");
-  return demandService.list(params, organizationId, analystScope);
+  return demandService.list(params, organizationId, allowedClientIds, analystScope);
 }
 
 function parseDemandForm(formData: FormData) {
@@ -47,7 +47,7 @@ export async function createDemand(formData: FormData) {
   }
 
   try {
-    const entity = await demandService.create(parsed.data, ctx.organizationId);
+    const entity = await demandService.create(parsed.data, ctx.organizationId, ctx.allowedClientIds);
     await auditService.log({ action: "CREATE", entity: "Demand", entityId: entity.id, newData: { name: entity.name } });
     updateTag("demands");
     return { success: true, data: entity };
@@ -64,7 +64,7 @@ export async function updateDemand(id: string, formData: FormData) {
   }
 
   try {
-    const entity = await demandService.update(id, parsed.data, ctx.organizationId);
+    const entity = await demandService.update(id, parsed.data, ctx.organizationId, ctx.allowedClientIds);
     await auditService.log({ action: "UPDATE", entity: "Demand", entityId: id, newData: { name: entity.name } });
     updateTag("demands");
     return { success: true, data: entity };
@@ -74,9 +74,9 @@ export async function updateDemand(id: string, formData: FormData) {
 }
 
 export async function deleteDemand(id: string) {
-  const { organizationId } = await requirePermission("demands", "delete");
+  const { organizationId, allowedClientIds } = await requirePermission("demands", "delete");
   try {
-    await demandService.softDelete(id, organizationId);
+    await demandService.softDelete(id, organizationId, allowedClientIds);
     await auditService.log({ action: "DELETE", entity: "Demand", entityId: id });
     updateTag("demands");
     return { success: true };
@@ -86,9 +86,9 @@ export async function deleteDemand(id: string) {
 }
 
 export async function bulkDeleteDemands(ids: string[]) {
-  const { organizationId, userId } = await requirePermission("demands", "delete");
+  const { organizationId, userId, allowedClientIds } = await requirePermission("demands", "delete");
   try {
-    const result = await demandService.bulkSoftDelete(ids, organizationId);
+    const result = await demandService.bulkSoftDelete(ids, organizationId, allowedClientIds);
     if (result.deletedIds.length) {
       await auditService.log({
         action: "BULK_DELETE",
