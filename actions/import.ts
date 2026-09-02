@@ -61,7 +61,10 @@ export async function parseDemandImport(
 
 export async function commitDemandImport(
   input: unknown
-): Promise<{ success: true; createdCount: number } | { success: false; error: string; rowErrors?: { rowNumber: number; message: string }[] }> {
+): Promise<
+  | { success: true; createdCount: number; updatedCount: number }
+  | { success: false; error: string; rowErrors?: { rowNumber: number; message: string }[] }
+> {
   const ctx = await requirePermission("demands", "create");
 
   const parsed = commitDemandImportSchema.safeParse(input);
@@ -78,9 +81,14 @@ export async function commitDemandImport(
 
   try {
     const result = await importService.bulkCreate(parsed.data.rows, ctx.organizationId, ctx.allowedClientIds);
-    await auditService.log({ action: "CREATE", entity: "Demand", entityId: "bulk-import", newData: { count: result.count } });
+    await auditService.log({
+      action: "CREATE",
+      entity: "Demand",
+      entityId: "bulk-import",
+      newData: { createdCount: result.createdCount, updatedCount: result.updatedCount },
+    });
     updateTag("demands");
-    return { success: true, createdCount: result.count };
+    return { success: true, createdCount: result.createdCount, updatedCount: result.updatedCount };
   } catch (error) {
     if (error instanceof ImportPartialFailure) {
       return { success: false, error: error.message, rowErrors: error.rowErrors };

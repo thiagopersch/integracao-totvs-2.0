@@ -272,30 +272,52 @@ export const importService = {
 
   async bulkCreate(rows: CommitDemandImportRow[], organizationId: string, allowedClientIds: string[]) {
     const rowErrors: { rowNumber: number; message: string }[] = [];
-    const created: { id: string }[] = [];
+    let createdCount = 0;
+    let updatedCount = 0;
 
     await prisma.$transaction(async (tx) => {
       for (const row of rows) {
         try {
           assertClientAllowed(row.clientId, allowedClientIds);
-          const demand = await tx.demand.create({
-            data: {
+          const data = {
+            organizationId,
+            name: row.name,
+            description: row.description,
+            date: new Date(row.date),
+            durationMinutes: Math.round(row.hours * 60),
+            priority: row.priority,
+            status: row.status,
+            analystId: row.analystId,
+            clientId: row.clientId,
+            requesterId: row.requesterId || undefined,
+            departmentId: row.departmentId || undefined,
+            demandTypeId: row.demandTypeId,
+          };
+
+          // A demand matching on date + client + analyst + name + hours + requester + department
+          // is treated as the same demand re-imported (e.g. a corrected monthly timesheet) and is
+          // updated in place instead of creating a duplicate.
+          const existing = await tx.demand.findFirst({
+            where: {
               organizationId,
-              name: row.name,
-              description: row.description,
-              date: new Date(row.date),
-              durationMinutes: Math.round(row.hours * 60),
-              priority: row.priority,
-              status: row.status,
-              analystId: row.analystId,
+              deletedAt: null,
+              date: data.date,
               clientId: row.clientId,
-              requesterId: row.requesterId || undefined,
-              departmentId: row.departmentId || undefined,
-              demandTypeId: row.demandTypeId,
+              analystId: row.analystId,
+              name: row.name,
+              durationMinutes: data.durationMinutes,
+              requesterId: row.requesterId || null,
+              departmentId: row.departmentId || null,
             },
-            include: demandIncludeRelations,
           });
-          created.push({ id: demand.id });
+
+          if (existing) {
+            await tx.demand.update({ where: { id: existing.id }, data, include: demandIncludeRelations });
+            updatedCount++;
+          } else {
+            await tx.demand.create({ data, include: demandIncludeRelations });
+            createdCount++;
+          }
         } catch (error) {
           rowErrors.push({ rowNumber: row.rowNumber, message: (error as Error).message });
         }
@@ -308,7 +330,7 @@ export const importService = {
       }
     });
 
-    return { count: created.length };
+    return { createdCount, updatedCount };
   },
 };
 
