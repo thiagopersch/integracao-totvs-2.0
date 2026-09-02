@@ -231,9 +231,12 @@ export function DemandImportReviewDialog({
   function applyFillDown() {
     if (!fillDownRequest) return
     const { field, rowNumber, value } = fillDownRequest
+    const visibleRowNumbers = new Set(filteredRows.map((r) => r.rowNumber))
     setRows((prev) => {
       const originIndex = prev.findIndex((r) => r.rowNumber === rowNumber)
-      return prev.map((r, index) => (index > originIndex ? { ...r, [field]: value } : r))
+      return prev.map((r, index) =>
+        index > originIndex && visibleRowNumbers.has(r.rowNumber) ? { ...r, [field]: value } : r
+      )
     })
     setFillDownRequest(null)
   }
@@ -298,21 +301,25 @@ export function DemandImportReviewDialog({
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className={cn(expanded ? "h-[90vh]! max-h-[90vh]! w-[90vw]! max-w-[90vw]!" : "w-[95vw] max-w-[95vw]")}>
+        <DialogContent
+          className={cn(
+            expanded ? "h-[99vh]! max-h-[99vh]! w-[99vw]! max-w-[99vw]!" : "w-[95vw] max-w-[95vw]",
+            "[&_[data-slot=dialog-close]]:text-red-500 [&_[data-slot=dialog-close]]:hover:text-red-600"
+          )}
+          headerActions={
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              onClick={() => setExpanded((v) => !v)}
+              title={expanded ? "Tamanho normal" : "Expandir"}
+            >
+              {expanded ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+            </Button>
+          }
+        >
           <DialogHeader>
-            <DialogTitle className="flex flex-wrap items-center gap-2">
-              <span>Revisar importação — {fileName}</span>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="ml-auto"
-                onClick={() => setExpanded((v) => !v)}
-                title={expanded ? "Tamanho normal" : "Expandir"}
-              >
-                {expanded ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
-              </Button>
-            </DialogTitle>
+            <DialogTitle>Revisar importação — {fileName}</DialogTitle>
           </DialogHeader>
           <DialogBody className="flex flex-col gap-3">
             <p className="text-sm text-muted-foreground flex items-start gap-1.5">
@@ -400,6 +407,7 @@ export function DemandImportReviewDialog({
                             onValueChange={(v) => updateRow(row.rowNumber, { clientId: v })}
                             placeholder={row.clientHint || "Selecione..."}
                             aria-invalid={!!fields.clientId}
+                            className="flex-1 min-w-0"
                           />
                           {renderFillDownButton("clientId", row)}
                         </div>
@@ -412,6 +420,7 @@ export function DemandImportReviewDialog({
                             onValueChange={(v) => updateRow(row.rowNumber, { analystId: v })}
                             placeholder={row.analystHint || "Selecione..."}
                             aria-invalid={!!fields.analystId}
+                            className="flex-1 min-w-0"
                           />
                           {renderFillDownButton("analystId", row)}
                         </div>
@@ -423,6 +432,7 @@ export function DemandImportReviewDialog({
                             value={row.requesterId}
                             onValueChange={(v) => updateRow(row.rowNumber, { requesterId: v })}
                             placeholder="Nenhum"
+                            className="flex-1 min-w-0"
                           />
                           {renderFillDownButton("requesterId", row)}
                         </div>
@@ -434,6 +444,7 @@ export function DemandImportReviewDialog({
                             value={row.departmentId}
                             onValueChange={(v) => updateRow(row.rowNumber, { departmentId: v })}
                             placeholder="Nenhum"
+                            className="flex-1 min-w-0"
                           />
                           {renderFillDownButton("departmentId", row)}
                         </div>
@@ -472,6 +483,7 @@ export function DemandImportReviewDialog({
                             onValueChange={(v) => updateRow(row.rowNumber, { demandTypeId: v })}
                             placeholder="Selecione..."
                             aria-invalid={!!fields.demandTypeId}
+                            className="flex-1 min-w-0"
                           />
                           {renderFillDownButton("demandTypeId", row)}
                         </div>
@@ -483,7 +495,7 @@ export function DemandImportReviewDialog({
                             value={row.priority}
                             onValueChange={(v) => updateRow(row.rowNumber, { priority: v || row.priority })}
                           >
-                            <SelectTrigger className="w-full">
+                            <SelectTrigger className="flex-1 min-w-0">
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
@@ -504,7 +516,7 @@ export function DemandImportReviewDialog({
                             value={row.status}
                             onValueChange={(v) => updateRow(row.rowNumber, { status: v || row.status })}
                           >
-                            <SelectTrigger className="w-full">
+                            <SelectTrigger className="flex-1 min-w-0">
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
@@ -547,7 +559,9 @@ export function DemandImportReviewDialog({
         title="Aplicar valor às linhas abaixo"
         description={
           fillDownRequest
-            ? `Deseja aplicar o valor "${fillDownRequest.label}" à coluna ${FILL_DOWN_COLUMN_LABELS[fillDownRequest.field]} em todas as linhas abaixo desta? Somente esta coluna será alterada.`
+            ? `Deseja aplicar o valor "${fillDownRequest.label}" à coluna ${FILL_DOWN_COLUMN_LABELS[fillDownRequest.field]} em todas as linhas abaixo desta? Somente esta coluna será alterada.${
+                search.trim() ? " Linhas ocultas pelo filtro de busca não serão alteradas." : ""
+              }`
             : ""
         }
         confirmLabel="Aplicar"
