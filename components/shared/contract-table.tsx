@@ -37,6 +37,7 @@ import { Plus, Loader2 } from "lucide-react"
 import { deleteContract, createContract, updateContract, bulkDeleteContracts } from "@/actions/contracts"
 import { createContractSchema, updateContractSchema, type CreateContractInput } from "@/schemas/contract.schema"
 import { formatDecimal } from "@/lib/masks"
+import { formatDateOnly, toDateInputValue } from "@/utils/format"
 import { toast } from "sonner"
 import { useCrudTable } from "@/hooks/use-crud-table"
 import type { Client } from "@/generated/prisma/client"
@@ -93,11 +94,6 @@ export function ContractTable({ data, meta, clients }: ContractTableProps) {
   })
   const [loading, setLoading] = useState(false)
   const [statusFilter, setStatusFilter] = useState(searchParams.get("status") || "")
-
-  function toDateInputValue(d: string | Date) {
-    const date = typeof d === "string" ? new Date(d) : d
-    return date.toISOString().slice(0, 10)
-  }
 
   const form = useForm<CreateContractInput>({
     mode: "onChange",
@@ -168,14 +164,14 @@ export function ContractTable({ data, meta, clients }: ContractTableProps) {
     {
       accessorKey: "startDate",
       header: "Início",
-      cell: ({ row }) => new Date(row.getValue("startDate")).toLocaleDateString("pt-BR"),
+      cell: ({ row }) => formatDateOnly(row.getValue("startDate") as string),
     },
     {
       accessorKey: "endDate",
       header: "Término",
       cell: ({ row }) => {
         const endDate = row.getValue("endDate") as string | Date | null
-        return endDate ? new Date(endDate).toLocaleDateString("pt-BR") : "-"
+        return endDate ? formatDateOnly(endDate) : "-"
       },
     },
     {

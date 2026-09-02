@@ -55,6 +55,22 @@ export function formatDateShort(date: Date | string): string {
   }).format(new Date(date));
 }
 
+/** For date-only values (always stored at UTC midnight) — never use APP_TIME_ZONE here,
+ *  that would roll the value back to the previous day. Reads the Y-M-D components in UTC,
+ *  which is the actual calendar day stored. */
+export function formatDateOnly(date: Date | string): string {
+  return new Intl.DateTimeFormat("pt-BR", {
+    dateStyle: "short",
+    timeZone: "UTC",
+  }).format(new Date(date));
+}
+
+/** yyyy-MM-dd, mirroring a native `type="date"` input value — safe for date-only values since
+ *  toISOString() always renders in UTC regardless of the caller's local timezone. */
+export function toDateInputValue(date: Date | string): string {
+  return (typeof date === "string" ? new Date(date) : date).toISOString().slice(0, 10);
+}
+
 /** Caps decimals at 2 places (pt-BR grouping/decimal separators) — the app-wide rule for numeric display. */
 export function formatNumber(value: number): string {
   return value.toLocaleString("pt-BR", { maximumFractionDigits: 2 });

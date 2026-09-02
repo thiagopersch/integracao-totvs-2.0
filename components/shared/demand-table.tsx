@@ -38,6 +38,7 @@ import { TimePicker } from "@/components/ui/time-picker"
 import { Plus, Loader2 } from "lucide-react"
 import { deleteDemand, createDemand, updateDemand, bulkDeleteDemands } from "@/actions/demands"
 import { createDemandSchema, updateDemandSchema, timeToMinutes, type CreateDemandInput } from "@/schemas/demand.schema"
+import { formatDateOnly, toDateInputValue } from "@/utils/format"
 import { toast } from "sonner"
 import { useCrudTable } from "@/hooks/use-crud-table"
 import type { Analyst, Client, Requester, Department, DemandType, Tag } from "@/generated/prisma/client"
@@ -143,11 +144,6 @@ export function DemandTable({ data, meta, analysts, clients, requesters, departm
   const [loading, setLoading] = useState(false)
   const [statusFilter, setStatusFilter] = useState(searchParams.get("status") || "")
 
-  function toDateInputValue(d: string | Date) {
-    const date = typeof d === "string" ? new Date(d) : d
-    return date.toISOString().slice(0, 10)
-  }
-
   const form = useForm<CreateDemandInput>({
     mode: "onChange",
     resolver: zodResolver(editDialog.entity ? updateDemandSchema : createDemandSchema) as Resolver<CreateDemandInput>,
@@ -249,7 +245,7 @@ export function DemandTable({ data, meta, analysts, clients, requesters, departm
     {
       accessorKey: "date",
       header: "Data",
-      cell: ({ row }) => new Date(row.getValue("date") as string).toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" }),
+      cell: ({ row }) => formatDateOnly(row.getValue("date") as string),
     },
     {
       accessorKey: "durationMinutes",
