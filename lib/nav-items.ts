@@ -67,7 +67,10 @@ export const navGroups: NavGroup[] = [
   {
     label: "Exportar Demandas",
     icon: "FileDown",
-    items: [{ href: "/demands/export", label: "Exportar Demandas", icon: "FileDown", resource: "reports", action: "read" }],
+    items: [
+      { href: "/demands/export", label: "Exportar Demandas", icon: "FileDown", resource: "reports", action: "read" },
+      { href: "/demands/import", label: "Importar Demandas", icon: "FileUp", resource: "demands", action: "create" },
+    ],
   },
   {
     label: "Administração",

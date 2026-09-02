@@ -31,6 +31,7 @@ import {
   FileBarChart,
   Activity,
   FileDown,
+  FileUp,
   type LucideIcon,
 } from "lucide-react";
 
@@ -67,4 +68,5 @@ export const NAV_ICONS: Record<string, LucideIcon> = {
   FileBarChart,
   Activity,
   FileDown,
+  FileUp,
 };
