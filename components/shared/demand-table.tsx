@@ -111,7 +111,9 @@ function ColorBadge({ label, color }: { label: string; color: string }) {
 function toTimeInputValue(d: string | Date | null): string {
   if (!d) return ""
   const date = typeof d === "string" ? new Date(d) : d
-  return date.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "America/Sao_Paulo" })
+  const hours = String(date.getUTCHours()).padStart(2, "0")
+  const minutes = String(date.getUTCMinutes()).padStart(2, "0")
+  return `${hours}:${minutes}`
 }
 
 function formatDurationHours(minutes: number): string {

@@ -8,8 +8,7 @@ import type { ListParams } from "@/types/common";
 function combineDateAndTime(dateStr: string, time: string): Date {
   const date = new Date(dateStr);
   const [hours, minutes] = time.split(":").map(Number);
-  date.setHours(hours, minutes, 0, 0);
-  return date;
+  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), hours, minutes, 0, 0));
 }
 
 class DemandRepository extends BaseRepository<Demand> {
