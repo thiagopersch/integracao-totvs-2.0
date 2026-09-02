@@ -46,16 +46,13 @@ export async function parseDemandImport(
 
   try {
     const buffer = await file.arrayBuffer();
-    const { headers, rows } = importService.parseWorkbook(buffer);
-    if (!rows.length) return { success: false, error: "A planilha não contém linhas de dados" };
+    const parsedWorkbook = importService.parseWorkbook(buffer);
 
-    const missingHeaders = importService.validateHeaders(headers);
-    if (missingHeaders.length) {
-      return { success: false, error: `Colunas obrigatórias ausentes: ${missingHeaders.join(", ")}` };
-    }
+    const validationError = importService.validateWorkbook(parsedWorkbook);
+    if (validationError) return { success: false, error: validationError };
 
     const candidates = await loadImportCandidates();
-    const parsedRows = importService.matchRows(rows, candidates);
+    const parsedRows = importService.matchRows(parsedWorkbook.rows, candidates);
     return { success: true, fileName: file.name, rows: parsedRows };
   } catch (error) {
     return { success: false, error: (error as Error).message };

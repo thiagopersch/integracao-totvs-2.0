@@ -45,6 +45,8 @@ import { useCrudTable } from "@/hooks/use-crud-table"
 import { usePeriodFilter } from "@/hooks/use-period-filter"
 import { PeriodSelect } from "@/components/shared/period-select"
 import { TotalsByClientSummary } from "@/components/shared/totals-by-client-summary"
+import { DemandExportDialog } from "@/components/shared/demand-export-dialog"
+import { DemandImportDialog } from "@/components/shared/demand-import-dialog"
 import type { Analyst, Client, Requester, Department, DemandType, Tag } from "@/generated/prisma/client"
 import type { PaginationMeta } from "@/types/common"
 import type { Period } from "@/lib/period"
@@ -619,7 +621,19 @@ export function DemandTable({
         onPageSizeChange={(ps) => pushParams({ pageSize: ps, page: 1 })}
         searchPlaceholder="Buscar por nome ou descrição..."
         onSearch={(v) => pushParams({ search: v || undefined, page: 1 })}
-        toolbarActions={newDialog}
+        toolbarActions={
+          <>
+            {newDialog}
+            <DemandExportDialog clients={clients} years={years} monthsByYear={monthsByYear} />
+            <DemandImportDialog
+              clients={clients}
+              analysts={analysts}
+              requesters={requesters}
+              departments={departments}
+              demandTypes={demandTypes}
+            />
+          </>
+        }
         filterPanel={filterPanel}
         sort={sort}
         onSortChange={onSortChange}

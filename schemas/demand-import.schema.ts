@@ -22,6 +22,10 @@ export interface FieldMatch {
 /** One row parsed from the uploaded spreadsheet, annotated with match results — nothing written to DB yet. */
 export interface ParsedDemandRow {
   rowNumber: number;
+  /** Where this row came from in the source workbook (e.g. "Junho26 · linha 10") — spreadsheets
+   *  like multi-tab monthly timesheets combine several sheets into one import, so rows need a way
+   *  to trace back to their origin. */
+  sourceLabel: string;
   date: { raw: string; parsed: string | null };
   client: FieldMatch;
   analyst: FieldMatch;

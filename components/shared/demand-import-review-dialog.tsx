@@ -28,6 +28,7 @@ const STATUS_OPTIONS: ComboboxItem[] = [
 
 interface EditableRow {
   rowNumber: number
+  sourceLabel: string
   date: string // yyyy-mm-dd, for <input type="date">
   clientId: string
   analystId: string
@@ -50,6 +51,7 @@ function toDateInputValue(iso: string | null): string {
 function initialRow(row: ParsedDemandRow): EditableRow {
   return {
     rowNumber: row.rowNumber,
+    sourceLabel: row.sourceLabel,
     date: toDateInputValue(row.date.parsed),
     clientId: row.client.status === "matched" ? (row.client.matchedId ?? "") : "",
     analystId: row.analyst.status === "matched" ? (row.analyst.matchedId ?? "") : "",
@@ -184,6 +186,7 @@ export function DemandImportReviewDialog({
             <TableHeader>
               <TableRow>
                 <TableHead className="w-8"></TableHead>
+                <TableHead className="min-w-32">Origem</TableHead>
                 <TableHead>Data</TableHead>
                 <TableHead className="min-w-48">Cliente</TableHead>
                 <TableHead className="min-w-48">Analista</TableHead>
@@ -210,6 +213,7 @@ export function DemandImportReviewDialog({
                         <CheckCircle2 className="h-4 w-4 text-emerald-600" />
                       )}
                     </TableCell>
+                    <TableCell className="text-xs text-muted-foreground whitespace-nowrap">{row.sourceLabel}</TableCell>
                     <TableCell>
                       <Input
                         type="date"

@@ -14,11 +14,92 @@ export interface ImportCandidates {
   demandTypes: FuzzyCandidate[];
 }
 
-export const REQUIRED_IMPORT_HEADERS = ["Data", "Nome do analista", "Horas executadas", "Nome da demanda", "Descrição da demanda", "Cliente"] as const;
-export const OPTIONAL_IMPORT_HEADERS = ["Solicitante", "Setor", "Tipo de Demanda", "Prioridade", "Status"] as const;
+type CanonicalField =
+  | "date"
+  | "analyst"
+  | "hours"
+  | "name"
+  | "description"
+  | "requester"
+  | "department"
+  | "client"
+  | "demandType"
+  | "priority"
+  | "status";
+
+/**
+ * Real-world spreadsheets (e.g. partner-provided monthly timesheets like the "Rubeus" apontamento
+ * template) don't share a single fixed header label — "DEMANDA" vs "Nome da demanda", "DESCRIÇÃO "
+ * vs "Descrição da demanda" — so every accepted spreadsheet header is normalized (trim + uppercase)
+ * and matched against this alias list rather than requiring an exact column name.
+ */
+const HEADER_ALIASES: Record<CanonicalField, string[]> = {
+  date: ["DATA"],
+  analyst: ["NOME DO ANALISTA", "ANALISTA"],
+  hours: ["HORAS EXECUTADAS", "HORAS"],
+  name: ["NOME DA DEMANDA", "DEMANDA"],
+  description: ["DESCRIÇÃO DA DEMANDA", "DESCRIÇÃO"],
+  requester: ["SOLICITANTE"],
+  department: ["SETOR"],
+  client: ["CLIENTE"],
+  demandType: ["TIPO DE DEMANDA"],
+  priority: ["PRIORIDADE"],
+  status: ["STATUS"],
+};
+
+const REQUIRED_FIELDS: CanonicalField[] = ["date", "analyst", "hours", "name", "description", "client"];
+const REQUIRED_FIELD_LABELS: Record<CanonicalField, string> = {
+  date: "Data",
+  analyst: "Nome do analista / Analista",
+  hours: "Horas executadas / Horas",
+  name: "Nome da demanda / Demanda",
+  description: "Descrição da demanda / Descrição",
+  requester: "Solicitante",
+  department: "Setor",
+  client: "Cliente",
+  demandType: "Tipo de Demanda",
+  priority: "Prioridade",
+  status: "Status",
+};
 
 const PRIORITY_LABELS: Record<string, string> = { LOW: "Baixa", MEDIUM: "Média", HIGH: "Alta", URGENT: "Urgente" };
 const STATUS_LABELS: Record<string, string> = { PENDING: "Pendente", IN_PROGRESS: "Em Andamento", COMPLETED: "Concluída", CANCELLED: "Cancelada" };
+
+/** How many leading rows of a sheet to scan for a header row before giving up on that sheet
+ *  (spreadsheets like the Rubeus template have a title/metadata block above the real header). */
+const HEADER_SCAN_LIMIT = 30;
+
+function normalizeHeaderCell(value: unknown): string {
+  return String(value ?? "").trim().toUpperCase();
+}
+
+function isBlankRow(row: unknown[]): boolean {
+  return row.every((cell) => String(cell ?? "").trim() === "");
+}
+
+/**
+ * Filters out rows that aren't real demand entries — trailing "TOTAL DE HORAS..." footer rows
+ * (common in partner timesheet templates), or stray rows left over from a merged/filled-down
+ * column with no other content. A genuine data row always has name, description and client filled,
+ * so requiring at least one of those to be non-blank is enough to drop footers without risking a
+ * real (if incomplete) row silently disappearing instead of being flagged as an error.
+ */
+function isFillerRow(values: Partial<Record<CanonicalField, unknown>>): boolean {
+  const name = String(values.name ?? "").trim();
+  const description = String(values.description ?? "").trim();
+  const client = String(values.client ?? "").trim();
+  return !name && !description && !client;
+}
+
+function findColumnMap(headerRow: unknown[]): Map<CanonicalField, number> | null {
+  const normalizedCells = headerRow.map(normalizeHeaderCell);
+  const map = new Map<CanonicalField, number>();
+  for (const field of Object.keys(HEADER_ALIASES) as CanonicalField[]) {
+    const idx = normalizedCells.findIndex((cell) => HEADER_ALIASES[field].includes(cell));
+    if (idx !== -1) map.set(field, idx);
+  }
+  return REQUIRED_FIELDS.every((f) => map.has(f)) ? map : null;
+}
 
 function reverseLabel(labels: Record<string, string>, raw: string): string | null {
   const normalized = raw.trim().toLowerCase();
@@ -28,26 +109,36 @@ function reverseLabel(labels: Record<string, string>, raw: string): string | nul
   return byKey ?? null;
 }
 
-/** Accepts DD/MM/YYYY (matching `formatDateOnly`'s output) or a native date cell from Excel. */
+/** Accepts a real Excel date cell (SheetJS `cellDates: true` already converts date-formatted
+ *  serials to `Date`) or DD/MM/YYYY text (a user-retyped cell, matching `formatDateOnly`'s output). */
 function parseImportDate(cell: unknown): string | null {
   if (cell instanceof Date && !Number.isNaN(cell.getTime())) {
-    return new Date(Date.UTC(cell.getFullYear(), cell.getMonth(), cell.getDate())).toISOString();
+    return new Date(Date.UTC(cell.getUTCFullYear(), cell.getUTCMonth(), cell.getUTCDate())).toISOString();
   }
   const raw = String(cell ?? "").trim();
   const match = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
   if (!match) return null;
   const [, day, month, year] = match;
   const date = new Date(Date.UTC(Number(year), Number(month) - 1, Number(day)));
-  if (Number.isNaN(date.getTime())) return null;
-  return date.toISOString();
+  return Number.isNaN(date.getTime()) ? null : date.toISOString();
 }
 
+function formatCellForDisplay(cell: unknown): string {
+  if (cell instanceof Date && !Number.isNaN(cell.getTime())) {
+    const day = String(cell.getUTCDate()).padStart(2, "0");
+    const month = String(cell.getUTCMonth() + 1).padStart(2, "0");
+    return `${day}/${month}/${cell.getUTCFullYear()}`;
+  }
+  return String(cell ?? "").trim();
+}
+
+/** Cells arrive as native numbers (SheetJS default) or, for hand-edited text, comma/period decimals. */
 function parseImportHours(cell: unknown): number | null {
+  if (typeof cell === "number") return cell > 0 ? cell : null;
   const raw = String(cell ?? "").trim().replace(",", ".");
   if (!raw) return null;
   const value = parseFloat(raw);
-  if (Number.isNaN(value) || value <= 0) return null;
-  return value;
+  return Number.isNaN(value) || value <= 0 ? null : value;
 }
 
 function fieldMatch(rawValue: string, candidates: FuzzyCandidate[]): FieldMatch {
@@ -56,60 +147,113 @@ function fieldMatch(rawValue: string, candidates: FuzzyCandidate[]): FieldMatch 
   return { rawValue: raw, matchedId: result.matchedId, status: result.status, candidates: result.candidates };
 }
 
+interface SheetRow {
+  sheetName: string;
+  sheetRowIndex: number;
+  values: Partial<Record<CanonicalField, unknown>>;
+}
+
+export interface ParsedWorkbook {
+  rows: SheetRow[];
+  headerFound: boolean;
+}
+
 export const importService = {
-  parseWorkbook(buffer: ArrayBuffer): { headers: string[]; rows: Record<string, unknown>[] } {
+  /**
+   * Scans every sheet of the workbook for a header row (via `HEADER_ALIASES`) and collects the
+   * data rows below it — supports multi-tab monthly timesheets (one sheet per month) where each
+   * sheet carries its own metadata block before the real column headers, and silently skips any
+   * sheet where no recognizable header row is found (e.g. a summary/cover sheet).
+   */
+  parseWorkbook(buffer: ArrayBuffer): ParsedWorkbook {
     const workbook = XLSX.read(buffer, { type: "array", cellDates: true });
-    const sheet = workbook.Sheets[workbook.SheetNames[0]];
-    const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: "" });
-    const headers = rows.length ? Object.keys(rows[0]) : (XLSX.utils.sheet_to_json(sheet, { header: 1 })[0] as string[] | undefined) || [];
-    return { headers, rows };
+    const rows: SheetRow[] = [];
+    let headerFound = false;
+
+    for (const sheetName of workbook.SheetNames) {
+      const sheet = workbook.Sheets[sheetName];
+      const matrix = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, defval: "" });
+      if (!matrix.length) continue;
+
+      let columnMap: Map<CanonicalField, number> | null = null;
+      let headerRowIndex = -1;
+      const scanLimit = Math.min(matrix.length, HEADER_SCAN_LIMIT);
+      for (let i = 0; i < scanLimit; i++) {
+        const map = findColumnMap(matrix[i]);
+        if (map) {
+          columnMap = map;
+          headerRowIndex = i;
+          break;
+        }
+      }
+      if (!columnMap) continue;
+      headerFound = true;
+
+      for (let i = headerRowIndex + 1; i < matrix.length; i++) {
+        const row = matrix[i];
+        if (isBlankRow(row)) continue;
+        const values: Partial<Record<CanonicalField, unknown>> = {};
+        for (const [field, idx] of columnMap) values[field] = row[idx];
+        if (isFillerRow(values)) continue;
+        rows.push({ sheetName: sheetName.trim(), sheetRowIndex: i + 1, values });
+      }
+    }
+
+    return { rows, headerFound };
   },
 
-  validateHeaders(headers: string[]): string[] {
-    return REQUIRED_IMPORT_HEADERS.filter((h) => !headers.includes(h));
+  validateWorkbook(parsed: ParsedWorkbook): string | null {
+    if (!parsed.headerFound) {
+      const labels = REQUIRED_FIELDS.map((f) => REQUIRED_FIELD_LABELS[f]).join(", ");
+      return `Não foi possível localizar as colunas obrigatórias (${labels}) em nenhuma aba da planilha.`;
+    }
+    if (!parsed.rows.length) return "A planilha não contém linhas de dados para importar.";
+    return null;
   },
 
-  matchRows(rawRows: Record<string, unknown>[], candidates: ImportCandidates): ParsedDemandRow[] {
-    return rawRows.map((raw, index) => {
-      const rowNumber = index + 2; // header is row 1
+  matchRows(sheetRows: SheetRow[], candidates: ImportCandidates): ParsedDemandRow[] {
+    return sheetRows.map((sheetRow, index) => {
+      const rowNumber = index + 1;
+      const v = sheetRow.values;
       const errors: string[] = [];
 
-      const dateRaw = String(raw["Data"] ?? "").trim();
-      const dateParsed = parseImportDate(raw["Data"]);
+      const dateRaw = formatCellForDisplay(v.date);
+      const dateParsed = parseImportDate(v.date);
       if (!dateParsed) errors.push(`Data inválida: "${dateRaw}"`);
 
-      const hoursRaw = String(raw["Horas executadas"] ?? "").trim();
-      const hoursParsed = parseImportHours(raw["Horas executadas"]);
+      const hoursRaw = formatCellForDisplay(v.hours);
+      const hoursParsed = parseImportHours(v.hours);
       if (!hoursParsed) errors.push(`Horas inválidas: "${hoursRaw}"`);
 
-      const name = String(raw["Nome da demanda"] ?? "").trim();
+      const name = String(v.name ?? "").trim();
       if (!name) errors.push("Nome da demanda é obrigatório");
 
-      const description = String(raw["Descrição da demanda"] ?? "").trim();
+      const description = String(v.description ?? "").trim();
       if (!description) errors.push("Descrição da demanda é obrigatória");
 
-      const client = fieldMatch(String(raw["Cliente"] ?? ""), candidates.clients);
+      const client = fieldMatch(String(v.client ?? ""), candidates.clients);
       if (!client.rawValue) errors.push("Cliente é obrigatório");
 
-      const analyst = fieldMatch(String(raw["Nome do analista"] ?? ""), candidates.analysts);
+      const analyst = fieldMatch(String(v.analyst ?? ""), candidates.analysts);
       if (!analyst.rawValue) errors.push("Analista é obrigatório");
 
-      const requester = fieldMatch(String(raw["Solicitante"] ?? ""), candidates.requesters);
-      const department = fieldMatch(String(raw["Setor"] ?? ""), candidates.departments);
+      const requester = fieldMatch(String(v.requester ?? ""), candidates.requesters);
+      const department = fieldMatch(String(v.department ?? ""), candidates.departments);
 
-      const demandTypeRaw = String(raw["Tipo de Demanda"] ?? "");
+      const demandTypeRaw = String(v.demandType ?? "");
       const demandType = demandTypeRaw.trim()
         ? fieldMatch(demandTypeRaw, candidates.demandTypes)
         : { rawValue: "", matchedId: null, status: "unmatched" as const, candidates: [] };
 
-      const priorityRaw = String(raw["Prioridade"] ?? "");
+      const priorityRaw = String(v.priority ?? "");
       const priority = (priorityRaw.trim() ? reverseLabel(PRIORITY_LABELS, priorityRaw) : null) ?? "MEDIUM";
 
-      const statusRaw = String(raw["Status"] ?? "");
+      const statusRaw = String(v.status ?? "");
       const status = (statusRaw.trim() ? reverseLabel(STATUS_LABELS, statusRaw) : null) ?? "PENDING";
 
       return {
         rowNumber,
+        sourceLabel: `${sheetRow.sheetName} · linha ${sheetRow.sheetRowIndex}`,
         date: { raw: dateRaw, parsed: dateParsed },
         client,
         analyst,

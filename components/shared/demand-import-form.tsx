@@ -19,13 +19,16 @@ interface Props {
   requesters: Requester[]
   departments: Department[]
   demandTypes: DemandType[]
+  /** Called after a successful import, in addition to the automatic table refresh — lets a
+   *  wrapping dialog (e.g. the Demands page toolbar) close itself. */
+  onClose?: () => void
 }
 
 function toItems(records: { id: string; name: string }[]): ComboboxItem[] {
   return records.map((r) => ({ value: r.id, label: r.name }))
 }
 
-export function DemandImportForm({ clients, analysts, requesters, departments, demandTypes }: Props) {
+export function DemandImportForm({ clients, analysts, requesters, departments, demandTypes, onClose }: Props) {
   const router = useRouter()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [file, setFile] = useState<File | null>(null)
@@ -66,6 +69,7 @@ export function DemandImportForm({ clients, analysts, requesters, departments, d
     setFile(null)
     if (fileInputRef.current) fileInputRef.current.value = ""
     router.refresh()
+    onClose?.()
   }
 
   return (
@@ -80,8 +84,9 @@ export function DemandImportForm({ clients, analysts, requesters, departments, d
           onChange={(e) => setFile(e.target.files?.[0] ?? null)}
         />
         <p className="text-xs text-muted-foreground">
-          Use o mesmo formato gerado pela exportação de demandas (colunas: Data, Cliente, Nome do analista, Solicitante, Setor,
-          Nome da demanda, Descrição da demanda, Horas executadas).
+          Aceita o formato da exportação de demandas ou planilhas de apontamento de horas (ex: modelo de parceiros), com colunas
+          Data, Cliente, Analista, Solicitante, Setor, Demanda, Descrição e Horas. Planilhas com várias abas (uma por mês) são
+          combinadas automaticamente.
         </p>
       </div>
 
