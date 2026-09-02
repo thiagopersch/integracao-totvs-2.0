@@ -113,9 +113,22 @@ const PRIORITY_COLORS: Record<string, string> = {
   URGENT: "#ef4444",
 }
 
-function ColorBadge({ label, color }: { label: string; color: string }) {
+function getContrastTextColor(hexColor: string): string {
+  const hex = hexColor.replace("#", "")
+  const r = parseInt(hex.substring(0, 2), 16)
+  const g = parseInt(hex.substring(2, 4), 16)
+  const b = parseInt(hex.substring(4, 6), 16)
+  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255
+  return luminance > 0.6 ? "#1f2937" : "#ffffff"
+}
+
+function ColorBadge({ label, color, solid = false }: { label: string; color: string; solid?: boolean }) {
+  const style = solid
+    ? { backgroundColor: color, borderColor: color, color: getContrastTextColor(color) }
+    : { backgroundColor: `${color}22`, borderColor: color, color }
+
   return (
-    <Badge style={{ backgroundColor: `${color}22`, borderColor: color, color }} variant="outline">
+    <Badge style={style} variant="outline">
       {label}
     </Badge>
   )
@@ -258,7 +271,16 @@ export function DemandTable({
       cell: ({ row }) => <TruncatedText text={row.original.description} />,
     },
     { id: "analyst", header: "Analista", cell: ({ row }) => row.original.analyst?.name || "-" },
-    { id: "client", header: "Cliente", cell: ({ row }) => row.original.client?.name || "-" },
+    {
+      id: "client",
+      header: "Cliente",
+      cell: ({ row }) =>
+        row.original.client ? (
+          <ColorBadge label={row.original.client.name} color={row.original.client.color} solid />
+        ) : (
+          "-"
+        ),
+    },
     { id: "requester", header: "Solicitante", cell: ({ row }) => row.original.requester?.name || "-" },
     { id: "department", header: "Departamento", cell: ({ row }) => row.original.department?.name || "-" },
     {
