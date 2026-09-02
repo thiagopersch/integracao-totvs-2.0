@@ -1,4 +1,7 @@
+import { fromZonedTime, toZonedTime } from "date-fns-tz";
+
 import type { BackupSchedule } from "@/generated/prisma/client";
+import { APP_TIME_ZONE } from "@/utils/format";
 
 export const BACKUP_SCHEDULE_LABELS: Record<BackupSchedule, string> = {
   NONE: "Sem execução programada",
@@ -13,39 +16,53 @@ export const BACKUP_SCHEDULE_LABELS: Record<BackupSchedule, string> = {
 /**
  * Anchored to `from` (the moment the schedule was saved / last ran), not to midnight or any fixed
  * clock. `time` ("HH:mm") only applies to DAILY/WEEKLY/MONTHLY — it pins the hour of day each of
- * those cycles fires at; EVERY_3H/6H/12H are pure intervals and ignore it.
+ * those cycles fires at, interpreted in `APP_TIME_ZONE` (the timezone the "Horário da execução"
+ * field is filled in, regardless of the process's own `TZ`); EVERY_3H/6H/12H are pure intervals
+ * and ignore it.
  */
 export function computeNextRunAt(schedule: BackupSchedule, from: Date, time?: string | null): Date | null {
-  const next = new Date(from);
   switch (schedule) {
     case "NONE":
       return null;
-    case "EVERY_3H":
+    case "EVERY_3H": {
+      const next = new Date(from);
       next.setHours(next.getHours() + 3);
       return next;
-    case "EVERY_6H":
+    }
+    case "EVERY_6H": {
+      const next = new Date(from);
       next.setHours(next.getHours() + 6);
       return next;
-    case "EVERY_12H":
+    }
+    case "EVERY_12H": {
+      const next = new Date(from);
       next.setHours(next.getHours() + 12);
       return next;
-    case "DAILY":
-      next.setDate(next.getDate() + 1);
-      applyTimeOfDay(next, time);
-      return next;
-    case "WEEKLY":
-      next.setDate(next.getDate() + 7);
-      applyTimeOfDay(next, time);
-      return next;
-    case "MONTHLY":
-      next.setMonth(next.getMonth() + 1);
-      applyTimeOfDay(next, time);
-      return next;
+    }
+    case "DAILY": {
+      const zoned = toZonedTime(from, APP_TIME_ZONE);
+      zoned.setDate(zoned.getDate() + 1);
+      applyTimeOfDay(zoned, time);
+      return fromZonedTime(zoned, APP_TIME_ZONE);
+    }
+    case "WEEKLY": {
+      const zoned = toZonedTime(from, APP_TIME_ZONE);
+      zoned.setDate(zoned.getDate() + 7);
+      applyTimeOfDay(zoned, time);
+      return fromZonedTime(zoned, APP_TIME_ZONE);
+    }
+    case "MONTHLY": {
+      const zoned = toZonedTime(from, APP_TIME_ZONE);
+      zoned.setMonth(zoned.getMonth() + 1);
+      applyTimeOfDay(zoned, time);
+      return fromZonedTime(zoned, APP_TIME_ZONE);
+    }
     default:
       return null;
   }
 }
 
+/** `date` must already be a zoned representation (see `toZonedTime` above) — mutates it in place. */
 function applyTimeOfDay(date: Date, time?: string | null) {
   if (!time) return;
   const [hours, minutes] = time.split(":").map(Number);
