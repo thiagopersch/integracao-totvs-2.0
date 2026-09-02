@@ -7,6 +7,7 @@ import { DataTableFilterPanel } from "@/components/shared/data-table-filter-pane
 import { EntityActionsCell } from "@/components/shared/entity-actions-cell"
 import { PageHeader } from "@/components/shared/page-header"
 import { createSelectColumn } from "@/components/shared/select-column"
+import { TruncatedText } from "@/components/shared/truncated-text"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
@@ -190,8 +191,8 @@ export function ClientTable({ data, meta }: ClientTableProps) {
       header: "Nome",
       cell: ({ row }) => (
         <div className="flex items-center gap-2">
-          {row.original.favorite && <Star className="h-3.5 w-3.5 fill-yellow-400 text-yellow-400" />}
-          {row.original.name}
+          {row.original.favorite && <Star className="h-3.5 w-3.5 shrink-0 fill-yellow-400 text-yellow-400" />}
+          <TruncatedText text={row.original.name} />
         </div>
       ),
     },

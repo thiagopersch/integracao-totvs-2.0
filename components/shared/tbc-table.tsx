@@ -7,6 +7,7 @@ import { DataTableFilterPanel } from "@/components/shared/data-table-filter-pane
 import { EntityActionsCell } from "@/components/shared/entity-actions-cell"
 import { PageHeader } from "@/components/shared/page-header"
 import { createSelectColumn } from "@/components/shared/select-column"
+import { TruncatedText } from "@/components/shared/truncated-text"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -116,6 +117,7 @@ export function TbcTable({ data, meta, clients, filterClients }: TbcTableProps) 
     {
       accessorKey: "name",
       header: "Nome",
+      cell: ({ row }) => <TruncatedText text={row.original.name} />,
     },
     {
       accessorKey: "link",

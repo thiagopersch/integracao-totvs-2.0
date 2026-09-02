@@ -9,6 +9,7 @@ import { PageHeader } from "@/components/shared/page-header"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
 import { EntityActionsCell } from "@/components/shared/entity-actions-cell"
 import { createSelectColumn } from "@/components/shared/select-column"
+import { TruncatedText } from "@/components/shared/truncated-text"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Field, FieldLabel, FieldError } from "@/components/ui/field"
@@ -98,7 +99,7 @@ export function TagTable({ data, meta }: TagTableProps) {
       header: "Nome",
       cell: ({ row }) => (
         <Badge style={{ backgroundColor: `${row.original.color}22`, borderColor: row.original.color, color: row.original.color }} variant="outline">
-          {row.original.name}
+          <TruncatedText text={row.original.name} />
         </Badge>
       ),
     },

@@ -9,6 +9,7 @@ import { PageHeader } from "@/components/shared/page-header"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
 import { EntityActionsCell } from "@/components/shared/entity-actions-cell"
 import { createSelectColumn } from "@/components/shared/select-column"
+import { TruncatedText } from "@/components/shared/truncated-text"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -103,11 +104,15 @@ export function DemandTypeTable({ data, meta }: DemandTypeTableProps) {
       cell: ({ row }) => (
         <div className="flex items-center gap-2">
           <span className="h-3 w-3 rounded-full shrink-0" style={{ backgroundColor: row.original.color }} />
-          {row.original.name}
+          <TruncatedText text={row.original.name} />
         </div>
       ),
     },
-    { accessorKey: "description", header: "Descrição", cell: ({ row }) => row.getValue("description") || "-" },
+    {
+      accessorKey: "description",
+      header: "Descrição",
+      cell: ({ row }) => <TruncatedText text={(row.getValue("description") as string) || "-"} />,
+    },
     {
       id: "actions",
       cell: ({ row }) => (

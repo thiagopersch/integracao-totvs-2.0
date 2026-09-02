@@ -10,6 +10,7 @@ import { PageHeader } from "@/components/shared/page-header"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
 import { EntityActionsCell } from "@/components/shared/entity-actions-cell"
 import { createSelectColumn } from "@/components/shared/select-column"
+import { TruncatedText } from "@/components/shared/truncated-text"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -126,7 +127,7 @@ export function AnalystTable({ data, meta }: AnalystTableProps) {
       cell: ({ row }) => (
         <div className="flex items-center gap-2">
           <span className="h-3 w-3 rounded-full shrink-0" style={{ backgroundColor: row.original.color }} />
-          {row.original.name}
+          <TruncatedText text={row.original.name} />
         </div>
       ),
     },

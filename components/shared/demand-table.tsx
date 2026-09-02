@@ -39,6 +39,7 @@ import { Plus, Loader2 } from "lucide-react"
 import { deleteDemand, createDemand, updateDemand, bulkDeleteDemands } from "@/actions/demands"
 import { createDemandSchema, updateDemandSchema, timeToMinutes, type CreateDemandInput } from "@/schemas/demand.schema"
 import { formatDateOnly, toDateInputValue } from "@/utils/format"
+import { TruncatedText } from "@/components/shared/truncated-text"
 import { toast } from "sonner"
 import { useCrudTable } from "@/hooks/use-crud-table"
 import type { Analyst, Client, Requester, Department, DemandType, Tag } from "@/generated/prisma/client"
@@ -226,11 +227,15 @@ export function DemandTable({ data, meta, analysts, clients, requesters, departm
 
   const columns: ColumnDef<DemandRow>[] = [
     createSelectColumn<DemandRow>(),
-    { accessorKey: "name", header: "Nome" },
+    {
+      accessorKey: "name",
+      header: "Nome",
+      cell: ({ row }) => <TruncatedText text={row.original.name} />,
+    },
     {
       accessorKey: "description",
       header: "Descrição",
-      cell: ({ row }) => <span className="block max-w-64 truncate" title={row.original.description}>{row.original.description}</span>,
+      cell: ({ row }) => <TruncatedText text={row.original.description} />,
     },
     { id: "analyst", header: "Analista", cell: ({ row }) => row.original.analyst?.name || "-" },
     { id: "client", header: "Cliente", cell: ({ row }) => row.original.client?.name || "-" },

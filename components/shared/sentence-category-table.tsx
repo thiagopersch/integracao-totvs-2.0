@@ -10,6 +10,7 @@ import { PageHeader } from "@/components/shared/page-header"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
 import { EntityActionsCell } from "@/components/shared/entity-actions-cell"
 import { createSelectColumn } from "@/components/shared/select-column"
+import { TruncatedText } from "@/components/shared/truncated-text"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -115,6 +116,7 @@ export function SentenceCategoryTable({ data, meta }: SentenceCategoryTableProps
     {
       accessorKey: "name",
       header: "Nome",
+      cell: ({ row }) => <TruncatedText text={row.original.name} />,
     },
     {
       accessorKey: "status",

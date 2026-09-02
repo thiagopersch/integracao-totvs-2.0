@@ -15,6 +15,7 @@ import { Field, FieldLabel, FieldError } from "@/components/ui/field"
 import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
 import { PermissionTree } from "@/components/shared/permission-tree"
+import { TruncatedText } from "@/components/shared/truncated-text"
 import {
   Dialog,
   DialogBody,
@@ -137,15 +138,15 @@ export function RoleTable({ data, permissions }: RoleTableProps) {
       header: "Nome",
       cell: ({ row }) => (
         <div className="flex items-center gap-2 font-medium">
-          {row.original.name}
-          {row.original.isSystem && <Badge variant="secondary">sistema</Badge>}
+          <TruncatedText text={row.original.name} />
+          {row.original.isSystem && <Badge variant="secondary" className="shrink-0">sistema</Badge>}
         </div>
       ),
     },
     {
       accessorKey: "description",
       header: "Descrição",
-      cell: ({ row }) => <span className="text-muted-foreground">{row.original.description || "-"}</span>,
+      cell: ({ row }) => <TruncatedText text={row.original.description || "-"} className="text-muted-foreground" />,
     },
     {
       id: "permissionsCount",
