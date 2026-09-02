@@ -599,16 +599,14 @@ export function DemandTable({
           </SelectContent>
         </Select>
       </div>
-      <div className="space-y-2">
-        <Label>Período</Label>
-        <PeriodSelect years={years} monthsByYear={monthsByYear} value={period} onChange={setPeriod} />
-      </div>
     </DataTableFilterPanel>
   )
 
   return (
     <>
-      <PageHeader title="Demandas" description="Gerenciar demandas" />
+      <PageHeader title="Demandas" description="Gerenciar demandas">
+        <PeriodSelect years={years} monthsByYear={monthsByYear} value={period} onChange={setPeriod} />
+      </PageHeader>
 
       <DataTable
         columns={columns}

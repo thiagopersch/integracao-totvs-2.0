@@ -82,11 +82,17 @@ export const demandService = {
         WHERE deleted_at IS NULL AND organization_id = ${organizationId}
           AND client_id IN (${Prisma.join(allowedClientIds)})
           ${analystClause}
-        ORDER BY year DESC, month DESC
+        ORDER BY year DESC, month ASC
       `
     );
 
+    // The current year is always offered first — even with no demands logged for it yet — so it's
+    // one click away instead of requiring scrolling to find it once older years accumulate.
+    const currentYear = new Date().getFullYear();
     const years = [...new Set(rows.map((r) => r.year))];
+    if (!years.includes(currentYear)) years.push(currentYear);
+    years.sort((a, b) => (a === currentYear ? -1 : b === currentYear ? 1 : b - a));
+
     const monthsByYear = rows.reduce<Record<number, number[]>>((acc, r) => {
       (acc[r.year] ??= []).push(r.month);
       return acc;
