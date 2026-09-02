@@ -2,7 +2,6 @@ import * as XLSX from "xlsx";
 import { prisma } from "@/lib/prisma";
 import { assertClientAllowed } from "@/lib/client-access";
 import { matchName, type FuzzyCandidate } from "@/lib/fuzzy-match";
-import { demandIncludeRelations } from "@/services/demand.service";
 import type { FieldMatch, ParsedDemandRow } from "@/schemas/demand-import.schema";
 import type { CommitDemandImportRow } from "@/schemas/demand-import.schema";
 
@@ -158,6 +157,37 @@ export interface ParsedWorkbook {
   headerFound: boolean;
 }
 
+/** Keeps each bulk-import transaction short enough to stay well under Prisma's interactive
+ *  transaction timeout regardless of how large the imported spreadsheet is. */
+const BULK_IMPORT_BATCH_SIZE = 40;
+
+function chunk<T>(items: T[], size: number): T[][] {
+  const chunks: T[][] = [];
+  for (let i = 0; i < items.length; i += size) chunks.push(items.slice(i, i + size));
+  return chunks;
+}
+
+/** Identifies "the same demand" for import duplicate detection/overwrite — see `bulkCreate`. */
+function duplicateKey(fields: {
+  date: Date;
+  clientId: string;
+  analystId: string;
+  name: string;
+  durationMinutes: number;
+  requesterId: string | null;
+  departmentId: string | null;
+}): string {
+  return [
+    fields.date.toISOString(),
+    fields.clientId,
+    fields.analystId,
+    fields.name,
+    fields.durationMinutes,
+    fields.requesterId ?? "",
+    fields.departmentId ?? "",
+  ].join("|");
+}
+
 export const importService = {
   /**
    * Scans every sheet of the workbook for a header row (via `HEADER_ALIASES`) and collects the
@@ -275,60 +305,91 @@ export const importService = {
     let createdCount = 0;
     let updatedCount = 0;
 
-    await prisma.$transaction(async (tx) => {
-      for (const row of rows) {
-        try {
-          assertClientAllowed(row.clientId, allowedClientIds);
-          const data = {
-            organizationId,
-            name: row.name,
-            description: row.description,
-            date: new Date(row.date),
-            durationMinutes: Math.round(row.hours * 60),
-            priority: row.priority,
-            status: row.status,
-            analystId: row.analystId,
-            clientId: row.clientId,
-            requesterId: row.requesterId || undefined,
-            departmentId: row.departmentId || undefined,
-            demandTypeId: row.demandTypeId,
-          };
-
-          // A demand matching on date + client + analyst + name + hours + requester + department
-          // is treated as the same demand re-imported (e.g. a corrected monthly timesheet) and is
-          // updated in place instead of creating a duplicate.
-          const existing = await tx.demand.findFirst({
-            where: {
-              organizationId,
-              deletedAt: null,
-              date: data.date,
-              clientId: row.clientId,
-              analystId: row.analystId,
-              name: row.name,
-              durationMinutes: data.durationMinutes,
-              requesterId: row.requesterId || null,
-              departmentId: row.departmentId || null,
-            },
-          });
-
-          if (existing) {
-            await tx.demand.update({ where: { id: existing.id }, data, include: demandIncludeRelations });
-            updatedCount++;
-          } else {
-            await tx.demand.create({ data, include: demandIncludeRelations });
-            createdCount++;
-          }
-        } catch (error) {
-          rowErrors.push({ rowNumber: row.rowNumber, message: (error as Error).message });
-        }
-      }
-      if (rowErrors.length) {
-        // Abort the whole transaction on any row failure — a partial import silently mixing
-        // committed and rejected rows would be far more confusing to reconcile than re-running
-        // the import after the user fixes the flagged rows.
-        throw new ImportPartialFailure(rowErrors);
-      }
+    // A demand matching on date + client + analyst + name + hours + requester + department is
+    // treated as the same demand re-imported (e.g. a corrected monthly timesheet) and is updated
+    // in place instead of creating a duplicate. Resolved once, up front, instead of one
+    // `findFirst` per row — on a 100+ row import that N+1 alone was enough to blow past Prisma's
+    // 5s interactive-transaction timeout.
+    const dates = rows.map((row) => new Date(row.date));
+    const existingDemands = await prisma.demand.findMany({
+      where: {
+        organizationId,
+        deletedAt: null,
+        date: {
+          gte: new Date(Math.min(...dates.map((d) => d.getTime()))),
+          lte: new Date(Math.max(...dates.map((d) => d.getTime()))),
+        },
+      },
+      select: {
+        id: true,
+        date: true,
+        clientId: true,
+        analystId: true,
+        name: true,
+        durationMinutes: true,
+        requesterId: true,
+        departmentId: true,
+      },
     });
+    const existingIdByKey = new Map(existingDemands.map((d) => [duplicateKey(d), d.id]));
+
+    // Committed in batches, each its own transaction, so one import can't hold a single
+    // interactive transaction (and a DB connection) open for as long as the whole file takes to
+    // process. Rows succeed or fail independently — a bad row is reported in `rowErrors` without
+    // rolling back the rows around it, since the duplicate check above also makes re-running the
+    // import after fixing a flagged row safe (already-imported rows just get updated in place).
+    for (const batch of chunk(rows, BULK_IMPORT_BATCH_SIZE)) {
+      await prisma.$transaction(
+        async (tx) => {
+          for (const row of batch) {
+            try {
+              assertClientAllowed(row.clientId, allowedClientIds);
+              const data = {
+                organizationId,
+                name: row.name,
+                description: row.description,
+                date: new Date(row.date),
+                durationMinutes: Math.round(row.hours * 60),
+                priority: row.priority,
+                status: row.status,
+                analystId: row.analystId,
+                clientId: row.clientId,
+                requesterId: row.requesterId || undefined,
+                departmentId: row.departmentId || undefined,
+                demandTypeId: row.demandTypeId,
+              };
+
+              const key = duplicateKey({
+                date: data.date,
+                clientId: row.clientId,
+                analystId: row.analystId,
+                name: row.name,
+                durationMinutes: data.durationMinutes,
+                requesterId: row.requesterId || null,
+                departmentId: row.departmentId || null,
+              });
+              const existingId = existingIdByKey.get(key);
+
+              if (existingId) {
+                await tx.demand.update({ where: { id: existingId }, data });
+                updatedCount++;
+              } else {
+                const created = await tx.demand.create({ data, select: { id: true } });
+                existingIdByKey.set(key, created.id);
+                createdCount++;
+              }
+            } catch (error) {
+              rowErrors.push({ rowNumber: row.rowNumber, message: (error as Error).message });
+            }
+          }
+        },
+        { timeout: 15000 }
+      );
+    }
+
+    if (rowErrors.length) {
+      throw new ImportPartialFailure(rowErrors);
+    }
 
     return { createdCount, updatedCount };
   },

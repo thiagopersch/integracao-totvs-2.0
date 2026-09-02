@@ -13,6 +13,11 @@ import { getRequestContext } from "@/lib/tenant"
 import { getDemandAnalystScope } from "@/lib/demand-scope"
 import { PERIOD_COOKIE_NAME, resolvePeriod } from "@/lib/period"
 
+// Demand import can process 100+ rows in batched transactions (see import.service.ts bulkCreate)
+// — raise the Server Action timeout for this page beyond the platform default so large imports
+// have time to finish.
+export const maxDuration = 60
+
 export default function DemandsPage({ searchParams }: { searchParams: Promise<Record<string, string>> }) {
   return (
     <div className="p-6">
