@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { PasswordInput } from "@/components/ui/password-input"
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Field, FieldLabel } from "@/components/ui/field"
@@ -106,11 +107,10 @@ export function EmailSettingsClient({ initialSettings }: EmailSettingsClientProp
               </Field>
               <Field>
                 <FieldLabel htmlFor="password">{initialSettings ? "Nova senha" : "Senha"}</FieldLabel>
-                <Input
+                <PasswordInput
                   id="password"
-                  type="password"
                   value={form.password}
-                  onChange={(e) => update("password", e.target.value)}
+                  onChange={(value) => update("password", value)}
                   placeholder={initialSettings ? "Deixe em branco para manter a senha atual" : "Senha"}
                 />
               </Field>

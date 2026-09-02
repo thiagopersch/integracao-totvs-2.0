@@ -2,12 +2,13 @@
 
 import { useRouter } from "next/navigation"
 import { useState } from "react"
-import { useForm } from "react-hook-form"
+import { useForm, Controller } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { loginAction } from "@/actions/auth/login"
 import { loginSchema, type LoginInput } from "@/schemas/auth.schema"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { PasswordInput } from "@/components/ui/password-input"
 import { Field, FieldLabel, FieldError } from "@/components/ui/field"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { toast } from "sonner"
@@ -19,6 +20,7 @@ export default function LoginPage() {
 
   const {
     register,
+    control,
     handleSubmit,
     formState: { errors },
   } = useForm<LoginInput>({
@@ -68,13 +70,20 @@ export default function LoginPage() {
             </Field>
             <Field>
               <FieldLabel htmlFor="password">Senha</FieldLabel>
-              <Input
-                id="password"
-                type="password"
-                placeholder="••••••••"
-                autoComplete="current-password"
-                aria-invalid={!!errors.password}
-                {...register("password")}
+              <Controller
+                control={control}
+                name="password"
+                render={({ field }) => (
+                  <PasswordInput
+                    id="password"
+                    value={field.value}
+                    onChange={field.onChange}
+                    onBlur={field.onBlur}
+                    placeholder="••••••••"
+                    autoComplete="current-password"
+                    aria-invalid={!!errors.password}
+                  />
+                )}
               />
               <FieldError errors={[errors.password]} />
             </Field>

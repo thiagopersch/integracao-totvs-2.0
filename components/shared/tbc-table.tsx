@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/dialog"
 import { Field, FieldError, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
+import { PasswordInput } from "@/components/ui/password-input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useCrudTable } from "@/hooks/use-crud-table"
@@ -270,13 +271,20 @@ export function TbcTable({ data, meta, clients, filterClients }: TbcTableProps) 
             ) : (
               <Field>
                 <FieldLabel htmlFor="password">{editDialog.entity ? "Nova Senha" : "Senha"}</FieldLabel>
-                <Input
-                  id="password"
-                  className="w-full"
-                  type="password"
-                  {...form.register("password")}
-                  placeholder={editDialog.entity ? "Digite a nova senha" : "Senha de acesso"}
-                  aria-invalid={!!form.formState.errors.password}
+                <Controller
+                  control={form.control}
+                  name="password"
+                  render={({ field }) => (
+                    <PasswordInput
+                      id="password"
+                      className="w-full"
+                      value={field.value}
+                      onChange={field.onChange}
+                      onBlur={field.onBlur}
+                      placeholder={editDialog.entity ? "Digite a nova senha" : "Senha de acesso"}
+                      aria-invalid={!!form.formState.errors.password}
+                    />
+                  )}
                 />
                 <FieldError errors={[form.formState.errors.password]} />
               </Field>

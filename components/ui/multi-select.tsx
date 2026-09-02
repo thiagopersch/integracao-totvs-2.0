@@ -1,11 +1,12 @@
 "use client"
 
 import * as React from "react"
-import { Check, ChevronsUpDown, X } from "lucide-react"
+import { ChevronsUpDown, X } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
 import {
   Command,
   CommandEmpty,
@@ -21,6 +22,12 @@ export interface MultiSelectItem {
   label: string
   /** Overrides how the item renders in the dropdown list (e.g. a colored badge next to the value); `label` still drives search matching and the selected-chip text. */
   render?: React.ReactNode
+  /** Tints the dropdown item and the selected chip like `ColorBadge` (e.g. a tag's color). Ignored when `render` is set. */
+  color?: string
+}
+
+function colorBadgeStyle(color: string): React.CSSProperties {
+  return { backgroundColor: `${color}22`, borderColor: color, color }
 }
 
 interface MultiSelectProps {
@@ -74,7 +81,8 @@ export function MultiSelect({
             selected.map((item) => (
               <Badge
                 key={item.value}
-                variant="secondary"
+                variant={item.color ? "outline" : "secondary"}
+                style={item.color ? colorBadgeStyle(item.color) : undefined}
                 className="h-auto max-w-full gap-1 overflow-visible whitespace-normal break-words"
                 onClick={(e) => {
                   e.stopPropagation()
@@ -103,8 +111,8 @@ export function MultiSelect({
                     value={item.label}
                     onSelect={() => toggle(item.value)}
                   >
-                    <Check className={cn("mr-2 h-4 w-4", isSelected ? "opacity-100" : "opacity-0")} />
-                    {item.render ?? item.label}
+                    <Checkbox checked={isSelected} className="pointer-events-none mr-2" />
+                    {item.render ?? (item.color ? <Badge variant="outline" style={colorBadgeStyle(item.color)}>{item.label}</Badge> : item.label)}
                   </CommandItem>
                 )
               })}

@@ -7,12 +7,14 @@ import { cn } from "@/lib/utils"
 import { passwordRequirements } from "@/lib/validators"
 
 type PasswordInputProps = {
+  id?: string
   value?: string
   onChange: (value: string) => void
   onBlur?: () => void
   disabled?: boolean
   placeholder?: string
   className?: string
+  autoComplete?: string
   "aria-invalid"?: boolean
   showStrength?: boolean
 }
@@ -38,12 +40,14 @@ function getStrength(value: string): { label: string; level: 0 | 1 | 2 | 3; colo
 }
 
 export function PasswordInput({
+  id,
   value = "",
   onChange,
   onBlur,
   disabled,
   placeholder,
   className,
+  autoComplete,
   "aria-invalid": ariaInvalid,
   showStrength = false,
 }: PasswordInputProps) {
@@ -54,6 +58,7 @@ export function PasswordInput({
     <div className="space-y-2">
       <InputGroup className={className}>
         <InputGroupInput
+          id={id}
           aria-invalid={ariaInvalid}
           type={visible ? "text" : "password"}
           value={value}
@@ -61,7 +66,8 @@ export function PasswordInput({
           onBlur={onBlur}
           disabled={disabled}
           placeholder={placeholder}
-          maxLength={passwordRequirements.maxLength}
+          autoComplete={autoComplete}
+          maxLength={showStrength ? passwordRequirements.maxLength : undefined}
         />
         <InputGroupAddon align="inline-end">
           <InputGroupButton

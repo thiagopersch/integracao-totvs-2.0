@@ -1,11 +1,12 @@
 "use client"
 
-import { useForm, type Resolver } from "react-hook-form"
+import { useForm, Controller, type Resolver } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { createUserSchema, updateUserSchema, type CreateUserInput } from "@/schemas/user.schema"
 import { createUser, updateUser } from "@/actions/admin/users"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { PasswordInput } from "@/components/ui/password-input"
 import { Label } from "@/components/ui/label"
 import { Field, FieldLabel, FieldError } from "@/components/ui/field"
 import { DialogBody, DialogFooter } from "@/components/ui/dialog"
@@ -26,6 +27,7 @@ export function UserForm({ user, onSuccess, onCancel }: UserFormProps) {
 
   const {
     register,
+    control,
     handleSubmit,
     setValue,
     reset,
@@ -78,7 +80,20 @@ export function UserForm({ user, onSuccess, onCancel }: UserFormProps) {
         {!user && (
           <Field>
             <FieldLabel htmlFor="password">Senha</FieldLabel>
-            <Input id="password" type="password" {...register("password")} placeholder="Mínimo 6 caracteres" aria-invalid={!!errors.password} />
+            <Controller
+              control={control}
+              name="password"
+              render={({ field }) => (
+                <PasswordInput
+                  id="password"
+                  value={field.value}
+                  onChange={field.onChange}
+                  onBlur={field.onBlur}
+                  placeholder="Mínimo 6 caracteres"
+                  aria-invalid={!!errors.password}
+                />
+              )}
+            />
             <FieldError errors={[errors.password]} />
           </Field>
         )}

@@ -33,6 +33,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
+import { MultiSelect } from "@/components/ui/multi-select"
 import { DatePicker } from "@/components/ui/date-picker"
 import { TimePicker } from "@/components/ui/time-picker"
 import { Plus, Loader2 } from "lucide-react"
@@ -214,11 +215,6 @@ export function DemandTable({
     watchedStartTime && watchedEndTime && timeToMinutes(watchedEndTime) > timeToMinutes(watchedStartTime)
       ? timeToMinutes(watchedEndTime) - timeToMinutes(watchedStartTime)
       : 0
-
-  function toggleTag(tagId: string) {
-    const current: string[] = form.getValues("tagIds") || []
-    form.setValue("tagIds", current.includes(tagId) ? current.filter((t) => t !== tagId) : [...current, tagId])
-  }
 
   async function onSubmit(data: CreateDemandInput) {
     setLoading(true)
@@ -469,7 +465,7 @@ export function DemandTable({
             </Field>
           </div>
 
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
             <Field>
               <FieldLabel htmlFor="startTime">Hora de início</FieldLabel>
               <TimePicker
@@ -494,6 +490,9 @@ export function DemandTable({
               <FieldLabel>Duração</FieldLabel>
               <Input readOnly disabled value={previewMinutes > 0 ? `${formatDurationHours(previewMinutes)}h` : "-"} />
             </Field>
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
             <Field>
               <FieldLabel htmlFor="priority">Prioridade</FieldLabel>
               <Select
@@ -502,59 +501,59 @@ export function DemandTable({
                 onValueChange={(v) => form.setValue("priority", v || "MEDIUM")}
               >
                 <SelectTrigger className="w-full">
-                  <SelectValue />
+                  <SelectValue>
+                    {(value: string) =>
+                      value ? <ColorBadge label={PRIORITY_LABELS[value]} color={PRIORITY_COLORS[value]} /> : "Selecione"
+                    }
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {Object.entries(PRIORITY_LABELS).map(([value, label]) => (
-                    <SelectItem key={value} value={value}>{label}</SelectItem>
+                    <SelectItem key={value} value={value}>
+                      <ColorBadge label={label} color={PRIORITY_COLORS[value]} />
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </Field>
-          </div>
 
-          <Field>
-            <FieldLabel htmlFor="status">Status</FieldLabel>
-            <Select
-              items={Object.entries(STATUS_LABELS).map(([value, label]) => ({ value, label }))}
-              value={form.watch("status") || "PENDING"}
-              onValueChange={(v) => form.setValue("status", v || "PENDING")}
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {Object.entries(STATUS_LABELS).map(([value, label]) => (
-                  <SelectItem key={value} value={value}>{label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </Field>
-
-          <Field>
-            <FieldLabel>Tags</FieldLabel>
-            <div className="flex flex-wrap gap-2">
-              {tags.map((tag) => {
-                const active = selectedTagIds.includes(tag.id)
-                return (
-                  <button
-                    key={tag.id}
-                    type="button"
-                    onClick={() => toggleTag(tag.id)}
-                    className="rounded-full border px-3 py-1 text-xs transition-colors"
-                    style={
-                      active
-                        ? { backgroundColor: `${tag.color}22`, borderColor: tag.color, color: tag.color }
-                        : { borderColor: "var(--border)" }
+            <Field>
+              <FieldLabel htmlFor="status">Status</FieldLabel>
+              <Select
+                items={Object.entries(STATUS_LABELS).map(([value, label]) => ({ value, label }))}
+                value={form.watch("status") || "PENDING"}
+                onValueChange={(v) => form.setValue("status", v || "PENDING")}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue>
+                    {(value: string) =>
+                      value ? <ColorBadge label={STATUS_LABELS[value]} color={STATUS_COLORS[value]} /> : "Selecione"
                     }
-                  >
-                    {tag.name}
-                  </button>
-                )
-              })}
-              {tags.length === 0 && <p className="text-sm text-muted-foreground">Nenhuma tag cadastrada.</p>}
-            </div>
-          </Field>
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.entries(STATUS_LABELS).map(([value, label]) => (
+                    <SelectItem key={value} value={value}>
+                      <ColorBadge label={label} color={STATUS_COLORS[value]} />
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Field>
+
+            <Field>
+              <FieldLabel htmlFor="tagIds">Tags</FieldLabel>
+              <MultiSelect
+                items={tags.map((tag) => ({ value: tag.id, label: tag.name, color: tag.color }))}
+                value={selectedTagIds}
+                onValueChange={(v) => form.setValue("tagIds", v)}
+                placeholder="Selecione as tags"
+                searchPlaceholder="Buscar tag..."
+                emptyText="Nenhuma tag encontrada."
+                disabled={tags.length === 0}
+              />
+            </Field>
+          </div>
 
           <Field>
             <FieldLabel htmlFor="notes">Notas</FieldLabel>
