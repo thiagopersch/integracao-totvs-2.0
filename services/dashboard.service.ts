@@ -8,10 +8,18 @@ const DEMAND_STATUS_LABELS: Record<string, string> = {
 };
 
 export const dashboardService = {
-  async getStats(organizationId: string, allowedClientIds: string[]) {
+  async getStats(organizationId: string, allowedClientIds: string[], period?: { gte: Date; lt: Date }) {
     const now = new Date();
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const last7Days = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    // SOAP metrics stay org-wide (no client FK on SoapLog, see below), but do respect the chosen
+    // period; without one they default to "today"/"last 7 days" exactly as before.
+    const soapRangeLower = period?.gte ?? todayStart;
+    const soapRangeUpper = period?.lt;
+    const soapCreatedAt = soapRangeUpper ? { gte: soapRangeLower, lt: soapRangeUpper } : { gte: soapRangeLower };
+    const dailyStatsLower = period?.gte ?? last7Days;
+    const dailyStatsCreatedAt = period?.lt ? { gte: dailyStatsLower, lt: period.lt } : { gte: dailyStatsLower };
+    const demandDateFilter = period ? { date: period } : {};
     const clientScope = { id: { in: allowedClientIds } };
     const clientIdScope = { clientId: { in: allowedClientIds } };
 
@@ -41,19 +49,19 @@ export const dashboardService = {
       prisma.user.count({ where: { deletedAt: null, status: true, organizationId } }),
       // SoapLog only stores the TBC's link string, not a client FK, so call-volume/health metrics
       // stay organization-wide rather than per-client scoped.
-      prisma.soapLog.count({ where: { createdAt: { gte: todayStart }, organizationId } }),
-      prisma.soapLog.count({ where: { createdAt: { gte: todayStart }, error: { not: null }, organizationId } }),
-      prisma.soapLog.aggregate({ _avg: { duration: true }, where: { createdAt: { gte: todayStart }, organizationId } }),
+      prisma.soapLog.count({ where: { createdAt: soapCreatedAt, organizationId } }),
+      prisma.soapLog.count({ where: { createdAt: soapCreatedAt, error: { not: null }, organizationId } }),
+      prisma.soapLog.aggregate({ _avg: { duration: true }, where: { createdAt: soapCreatedAt, organizationId } }),
       prisma.soapLog.findMany({
         take: 10,
-        where: { organizationId },
+        where: { organizationId, ...(period ? { createdAt: soapCreatedAt } : {}) },
         orderBy: { createdAt: "desc" },
         include: { user: { select: { name: true } } },
       }),
       prisma.client.count({ where: { deletedAt: null, organizationId, ...clientScope } }),
       prisma.soapLog.groupBy({
         by: ["createdAt"],
-        where: { createdAt: { gte: last7Days }, organizationId },
+        where: { createdAt: dailyStatsCreatedAt, organizationId },
         _count: { id: true },
         orderBy: { createdAt: "asc" },
       }),
@@ -68,23 +76,25 @@ export const dashboardService = {
       }),
       prisma.demand.groupBy({
         by: ["status"],
-        where: { deletedAt: null, organizationId, ...clientIdScope },
+        where: { deletedAt: null, organizationId, ...clientIdScope, ...demandDateFilter },
         _count: { id: true },
       }),
       prisma.demand.groupBy({
         by: ["analystId"],
-        where: { deletedAt: null, organizationId, ...clientIdScope },
+        where: { deletedAt: null, organizationId, ...clientIdScope, ...demandDateFilter },
         _count: { id: true },
         orderBy: { _count: { id: "desc" } },
         take: 8,
       }),
       prisma.demand.groupBy({
         by: ["clientId"],
-        where: { deletedAt: null, organizationId, ...clientIdScope },
+        where: { deletedAt: null, organizationId, ...clientIdScope, ...demandDateFilter },
         _count: { id: true },
         orderBy: { _count: { id: "desc" } },
         take: 8,
       }),
+      // Contracted hours reflect currently-active contracts, not a time-bucketed measure —
+      // intentionally NOT period-filtered (a past month shouldn't hide the contract's current total).
       prisma.clientContract.groupBy({
         by: ["clientId"],
         where: { status: "ACTIVE", client: { organizationId }, ...clientIdScope },
@@ -92,7 +102,7 @@ export const dashboardService = {
       }),
       prisma.demand.groupBy({
         by: ["clientId"],
-        where: { deletedAt: null, organizationId, ...clientIdScope },
+        where: { deletedAt: null, organizationId, ...clientIdScope, ...demandDateFilter },
         _sum: { durationMinutes: true },
       }),
     ]);

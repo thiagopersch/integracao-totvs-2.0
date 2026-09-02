@@ -77,6 +77,8 @@ interface DataTableProps<TData, TValue> {
   bulkDelete?: BulkDeleteConfig<TData>
   /** Renders an accordion-style detail row below a given row (e.g. child records). */
   expandable?: ExpandableConfig<TData>
+  /** Optional slot rendered below the table and above pagination (e.g. totals/summary). */
+  footer?: React.ReactNode
 }
 
 export function DataTable<TData, TValue>({
@@ -102,6 +104,7 @@ export function DataTable<TData, TValue>({
   sortableColumns,
   bulkDelete,
   expandable,
+  footer,
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = useState<SortingState>([])
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
@@ -283,7 +286,7 @@ export function DataTable<TData, TValue>({
               Array.from({ length: 5 }).map((_, i) => (
                 <TableRow key={i}>
                   {columns.map((col, j) => (
-                    <TableCell key={j} className={col.id === "actions" ? "sticky right-0 z-10 border-l bg-inherit" : undefined}>
+                    <TableCell key={j} className={col.id === "actions" ? "sticky right-0 z-10 border-l bg-background" : undefined}>
                       <Skeleton className="h-4 w-full" />
                     </TableCell>
                   ))}
@@ -300,7 +303,11 @@ export function DataTable<TData, TValue>({
                     {row.getVisibleCells().map((cell) => (
                       <TableCell
                         key={cell.id}
-                        className={cell.column.id === "actions" ? "sticky right-0 z-10 border-l bg-inherit" : undefined}
+                        className={
+                          cell.column.id === "actions"
+                            ? "sticky right-0 z-10 border-l bg-background group-hover:bg-muted/50 group-data-[state=selected]:bg-muted"
+                            : undefined
+                        }
                       >
                         {flexRender(cell.column.columnDef.cell, cell.getContext())}
                       </TableCell>
@@ -325,6 +332,7 @@ export function DataTable<TData, TValue>({
           </TableBody>
         </Table>
       </div>
+      {footer}
       {manual ? (
         <DataTablePagination
           page={page}

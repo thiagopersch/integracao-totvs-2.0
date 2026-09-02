@@ -1,5 +1,6 @@
 import { Suspense } from "react"
-import { listDemands } from "@/actions/demands"
+import { cookies } from "next/headers"
+import { listDemands, getDemandPeriodOptions } from "@/actions/demands"
 import { listAllAnalysts } from "@/actions/analysts"
 import { listAllClients } from "@/actions/admin/clients"
 import { listAllRequesters } from "@/actions/requesters"
@@ -10,6 +11,7 @@ import { DemandTable } from "@/components/shared/demand-table"
 import { Skeleton } from "@/components/ui/skeleton"
 import { getRequestContext } from "@/lib/tenant"
 import { getDemandAnalystScope } from "@/lib/demand-scope"
+import { PERIOD_COOKIE_NAME, resolvePeriod } from "@/lib/period"
 
 export default function DemandsPage({ searchParams }: { searchParams: Promise<Record<string, string>> }) {
   return (
@@ -25,20 +27,24 @@ async function DemandsContent({ searchParams }: { searchParams: Promise<Record<s
   const params = await searchParams
   const ctx = await getRequestContext()
   const analystScope = await getDemandAnalystScope(ctx)
-  const [{ data, meta }, analysts, clients, requesters, departments, demandTypes, tags] = await Promise.all([
+  const cookieStore = await cookies()
+  const period = resolvePeriod(params, cookieStore.get(PERIOD_COOKIE_NAME)?.value)
+
+  const [{ data, meta, totalsByClient }, analysts, clients, requesters, departments, demandTypes, tags, periodOptions] = await Promise.all([
     listDemands({
       page: Number(params.page) || 1,
       pageSize: Number(params.pageSize) || 10,
       search: params.search,
       sort: params.sort ? { field: params.sort.split(":")[0], direction: params.sort.split(":")[1] as "asc" | "desc" } : undefined,
       filters: params.status ? { status: params.status } : undefined,
-    }, ctx.organizationId, ctx.allowedClientIds, analystScope),
+    }, ctx.organizationId, ctx.allowedClientIds, analystScope, period),
     listAllAnalysts(),
     listAllClients(),
     listAllRequesters(),
     listAllDepartments(),
     listAllDemandTypes(),
     listAllTags(),
+    getDemandPeriodOptions(),
   ])
 
   return (
@@ -51,6 +57,10 @@ async function DemandsContent({ searchParams }: { searchParams: Promise<Record<s
       departments={departments}
       demandTypes={demandTypes}
       tags={tags}
+      totalsByClient={totalsByClient}
+      period={period}
+      years={periodOptions.years}
+      monthsByYear={periodOptions.monthsByYear}
     />
   )
 }

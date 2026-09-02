@@ -42,8 +42,12 @@ import { formatDateOnly, toDateInputValue } from "@/utils/format"
 import { TruncatedText } from "@/components/shared/truncated-text"
 import { toast } from "sonner"
 import { useCrudTable } from "@/hooks/use-crud-table"
+import { usePeriodFilter } from "@/hooks/use-period-filter"
+import { PeriodSelect } from "@/components/shared/period-select"
+import { TotalsByClientSummary } from "@/components/shared/totals-by-client-summary"
 import type { Analyst, Client, Requester, Department, DemandType, Tag } from "@/generated/prisma/client"
 import type { PaginationMeta } from "@/types/common"
+import type { Period } from "@/lib/period"
 
 type DemandRow = {
   id: string
@@ -72,6 +76,10 @@ interface DemandTableProps {
   departments: Department[]
   demandTypes: DemandType[]
   tags: Tag[]
+  totalsByClient: { clientId: string; clientName: string; hours: number }[]
+  period: Period | null
+  years: number[]
+  monthsByYear: Record<number, number[]>
 }
 
 const STATUS_LABELS: Record<string, string> = {
@@ -125,7 +133,20 @@ function formatDurationHours(minutes: number): string {
 const SORTABLE_COLUMNS = ["name", "date", "priority", "status"]
 const VISIBLE_TAGS = 2
 
-export function DemandTable({ data, meta, analysts, clients, requesters, departments, demandTypes, tags }: DemandTableProps) {
+export function DemandTable({
+  data,
+  meta,
+  analysts,
+  clients,
+  requesters,
+  departments,
+  demandTypes,
+  tags,
+  totalsByClient,
+  period: initialPeriod,
+  years,
+  monthsByYear,
+}: DemandTableProps) {
   const {
     router,
     searchParams,
@@ -144,6 +165,7 @@ export function DemandTable({ data, meta, analysts, clients, requesters, departm
   })
   const [loading, setLoading] = useState(false)
   const [statusFilter, setStatusFilter] = useState(searchParams.get("status") || "")
+  const { period, setPeriod } = usePeriodFilter(initialPeriod)
 
   const form = useForm<CreateDemandInput>({
     mode: "onChange",
@@ -575,6 +597,10 @@ export function DemandTable({ data, meta, analysts, clients, requesters, departm
           </SelectContent>
         </Select>
       </div>
+      <div className="space-y-2">
+        <Label>Período</Label>
+        <PeriodSelect years={years} monthsByYear={monthsByYear} value={period} onChange={setPeriod} />
+      </div>
     </DataTableFilterPanel>
   )
 
@@ -598,6 +624,7 @@ export function DemandTable({ data, meta, analysts, clients, requesters, departm
         sort={sort}
         onSortChange={onSortChange}
         sortableColumns={SORTABLE_COLUMNS}
+        footer={<TotalsByClientSummary totals={totalsByClient} />}
         bulkDelete={{
           getId: (row) => row.id,
           getRowLabel: (row) => row.name,
