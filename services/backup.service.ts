@@ -243,6 +243,11 @@ export const backupService = {
         ...(f.dateTo ? { lte: endOfDay(new Date(f.dateTo as string)) } : {}),
       };
     }
+    if (params.search) {
+      where.OR = ["codeSentence", "codColigada", "codSystem", "nameSentence"].map((field) => ({
+        [field]: { contains: params.search, mode: "insensitive" as const },
+      }));
+    }
     const orderBy = params.sort
       ? { [params.sort.field]: params.sort.direction }
       : { codeSentence: "asc" as const };

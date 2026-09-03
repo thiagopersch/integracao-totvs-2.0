@@ -54,6 +54,13 @@ export const PERMISSIONS: PermissionDef[] = [
     description: "Gerar e baixar relatórios TOTVS via TBC Web Services Reports",
     module: "integrations",
   },
+  {
+    resource: "ps_docs",
+    action: "execute",
+    name: "Gerar Documentação de Processo Seletivo",
+    description: "Ler a estrutura de um processo seletivo (Token PS + ID PS) e gerar a documentação técnica",
+    module: "integrations",
+  },
   { resource: "dashboard", action: "view", name: "Ver Dashboard", description: "Visualizar dashboard", module: "dashboard" },
   { resource: "settings", action: "manage", name: "Gerenciar Configurações", description: "Gerenciar configurações do sistema", module: "settings" },
   { resource: "notifications", action: "read", name: "Ver Notificações", description: "Visualizar próprias notificações", module: "notifications" },
@@ -79,6 +86,7 @@ Object.assign(resourceLabels, {
   soap: "SOAP",
   integrations: "Integrações Externas",
   tbc_reports: "Relatórios TBC",
+  ps_docs: "Documentação PS",
   dashboard: "Dashboard",
   settings: "Configurações",
   notifications: "Notificações",
@@ -100,7 +108,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<"ADMIN" | "MANAGER" | "USER", stri
       ? p.action !== "delete"
       : ["dataservers", "processes"].includes(p.resource)
         ? p.action === "read"
-        : ["soap", "integrations", "tbc_reports", "dashboard", "notifications", "reports", "deletion_logs", "activity_logs"].includes(p.resource)
+        : ["soap", "integrations", "tbc_reports", "ps_docs", "dashboard", "notifications", "reports", "deletion_logs", "activity_logs"].includes(p.resource)
           ? true
           : ["analysts", "contracts", "requesters", "departments", "demand_types", "tags", "demands"].includes(p.resource)
             ? p.action !== "delete"

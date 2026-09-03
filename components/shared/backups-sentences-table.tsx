@@ -171,7 +171,9 @@ export function BackupsSentencesTable({ filterId, data, meta, onRestoreSingle }:
         pageCount={meta.totalPages}
         onPageChange={(p) => pushSentenceParams({ page: p })}
         onPageSizeChange={(ps) => pushSentenceParams({ pageSize: ps, page: 1 })}
-        searchPlaceholder="Buscar por código ou nome..."
+        searchPlaceholder="Buscar por código, coligada, sistema ou nome..."
+        searchDefaultValue={searchParams.get("search") || ""}
+        onSearch={(v) => pushSentenceParams({ search: v || undefined, page: 1 })}
         sort={sort}
         onSortChange={(s) => pushSentenceParams({ sort: `${s.field}:${s.direction}`, page: 1 })}
         sortableColumns={SORTABLE_COLUMNS}

@@ -45,6 +45,7 @@ async function BackupsContent({
         sort: search.sort
           ? { field: search.sort.split(":")[0], direction: search.sort.split(":")[1] as "asc" | "desc" }
           : undefined,
+        search: search.search || undefined,
         filters: {
           codColigada: search.codColigada || undefined,
           codSystem: search.codSystem || undefined,
