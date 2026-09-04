@@ -144,19 +144,21 @@ export default function PsDocsPage() {
       <Card>
         <CardContent className="pt-6">
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div className="space-y-4">
               <Field>
                 <FieldLabel htmlFor="tokenPs">Token PS</FieldLabel>
                 <PasswordInput id="tokenPs" value={tokenPs} onChange={setTokenPs} placeholder="Copiado do localStorage do portal admin" />
               </Field>
-              <Field>
-                <FieldLabel htmlFor="idPs">ID PS</FieldLabel>
-                <Input id="idPs" value={idPs} onChange={(e) => setIdPs(e.target.value)} placeholder="Ex: 5537" />
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="crmDomain">Link do CRM (opcional)</FieldLabel>
-                <Input id="crmDomain" value={crmDomain} onChange={(e) => setCrmDomain(e.target.value)} placeholder="Ex: https://crmtoledo.apprubeus.com.br/" />
-              </Field>
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <Field>
+                  <FieldLabel htmlFor="idPs">ID PS</FieldLabel>
+                  <Input id="idPs" value={idPs} onChange={(e) => setIdPs(e.target.value)} placeholder="Ex: 5537" />
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor="crmDomain">Link do CRM (opcional)</FieldLabel>
+                  <Input id="crmDomain" value={crmDomain} onChange={(e) => setCrmDomain(e.target.value)} placeholder="Ex: https://crmtoledo.apprubeus.com.br/" />
+                </Field>
+              </div>
             </div>
 
             <div className="flex flex-col items-center gap-2">

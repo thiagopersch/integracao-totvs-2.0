@@ -35,24 +35,33 @@ function authHeaders(tokenPs: string) {
   return { Authorization: `Bearer ${tokenPs}`, "Content-Type": "application/json" };
 }
 
-/** `GET /api/settings/fields` returns a smaller/wrong catalog (764 items, missing ids like 316191
- *  "IDPS") when called with only `Authorization: Bearer` — confirmed NOT a cookie/session issue
- *  (the browser's own request carries no `Cookie` header either) and NOT a cache issue (adding
- *  `Cache-Control`/`Pragma`/`Referer` alone didn't change the result). What's left as the
- *  difference from the browser's real request is the same-origin/CORS fingerprint a WAF or
- *  gateway in front of this route could use to route "browser" traffic differently from a
- *  server-to-server call: `Origin`, `Sec-Fetch-*`, and a real browser `User-Agent`. */
+/** `GET /api/settings/fields` consistently returns a DIFFERENT institution's field catalog (same
+ *  structure/labels, different `field_id`s — e.g. "CODINSCRICAOPS" at 100986 instead of the real
+ *  316187) when called from our server, regardless of headers. Confirmed exhausted, in order: cache
+ *  headers, same-origin/browser fingerprint headers, Client Hints, and — with the user's own valid,
+ *  complete `branch`+`inscricoes_session`+`client_id` cookie — session auth itself. None changed the
+ *  result. This is not fixable from the request we send; it looks like a caching/routing issue on
+ *  TOTVS's side for this specific route. `standard-fields` is the only source proven reliable from a
+ *  server-to-server call, so `fieldCatalog` is built from it alone (see call site) — `settings/fields`
+ *  is still fetched only to surface the mismatch as a diagnostic warning, never to resolve names,
+ *  since doing so would risk showing a real-looking but WRONG field name (worse than an honest
+ *  "campo #id" placeholder). */
 function settingsFieldsHeaders(tokenPs: string) {
   return {
     ...authHeaders(tokenPs),
     Accept: "application/json, text/plain, */*",
+    "Accept-Language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",
     "Cache-Control": "no-cache",
     Pragma: "no-cache",
+    Priority: "u=1, i",
     Referer: "https://admin.portal.apprbs.com.br/administrativo/definicoes",
     Origin: "https://admin.portal.apprbs.com.br",
     "Sec-Fetch-Site": "same-origin",
     "Sec-Fetch-Mode": "cors",
     "Sec-Fetch-Dest": "empty",
+    "Sec-Ch-Ua": '"Not=A?Brand";v="99", "Google Chrome";v="131", "Chromium";v="131"',
+    "Sec-Ch-Ua-Mobile": "?0",
+    "Sec-Ch-Ua-Platform": '"macOS"',
     "User-Agent":
       "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
   };
@@ -226,9 +235,12 @@ export async function listSelectiveProcessStages(input: { tokenPs: string; idPs:
       label: (s.title as string) ?? "(etapa sem nome)",
     }));
 
-    const standardFieldsCatalog = buildFieldCatalog(standardFieldsRes.data);
-    const settingsFieldsCatalog = settingsFieldsRes.status < 400 ? buildFieldCatalog(settingsFieldsRes.data) : new Map<number, string>();
-    const fieldCatalog = new Map([...standardFieldsCatalog, ...settingsFieldsCatalog]);
+    // `standard-fields` is the only source proven reliable from a server-to-server call —
+    // `settings/fields` consistently returns a DIFFERENT institution's catalog here (confirmed live,
+    // see the comment on `settingsFieldsHeaders` above), so it's excluded from `fieldCatalog` on
+    // purpose: mixing it in would risk showing a real-looking but WRONG field name, which is worse
+    // than the honest "campo #id" placeholder ids not covered by `standard-fields` fall back to.
+    const fieldCatalog = buildFieldCatalog(standardFieldsRes.data);
 
     // The remaining catalogs are only used to enrich the "Ações"/"Encaminhamentos" sections —
     // a failed lookup (expired permission on that route, etc.) shouldn't block the whole document,
@@ -238,27 +250,12 @@ export async function listSelectiveProcessStages(input: { tokenPs: string; idPs:
     // in every debugging session, a status code in the warning list is the only way to tell a
     // real failure apart from "the section just has no popups configured".
     const catalogWarnings: string[] = [];
-    // TEMPORARY diagnostic (round-trip verification): the response shape for settings/fields was
-    // confirmed correct against a real sample, and the fetch reports no error, yet resolved names
-    // still weren't showing up in the generated doc — this line proves how many entries actually
-    // made it into `fieldCatalog` so we can tell a plumbing bug from a data bug without guessing.
-    const settingsFieldsRawCount = asArray(unwrapData(settingsFieldsRes.data)).length;
-    catalogWarnings.push(
-      `[Diagnóstico] settings/fields: HTTP ${settingsFieldsRes.status}, ${settingsFieldsRawCount} itens brutos no array, ${settingsFieldsCatalog.size} no catálogo. standard-fields: ${standardFieldsCatalog.size}. Total únicos: ${fieldCatalog.size}. Campo 316191 resolvido para: "${fieldCatalog.get(316191) ?? "NÃO ENCONTRADO"}".`
-    );
     const checkCatalog = (label: string, res: { status: number }) => {
       if (res.status >= 400) catalogWarnings.push(`Catálogo "${label}" indisponível (HTTP ${res.status}) — os itens correspondentes podem aparecer como "#id" em vez do nome.`);
     };
+    // settings/fields is intentionally not used to resolve names (see `settingsFieldsHeaders`), but a
+    // non-2xx here is still worth flagging in case it ever becomes usable again.
     checkCatalog("Campos do app (settings/fields)", settingsFieldsRes);
-    // The status can be a lying 200 if this route redirects to an HTML login page instead of
-    // returning JSON (e.g. if it needs a session cookie our server-side call can't send, unlike
-    // popups/pages/standard-fields which are confirmed to work with just the Bearer token) — catch
-    // that case too, since `checkCatalog` alone would stay silent about it.
-    if (settingsFieldsRes.status < 400 && settingsFieldsCatalog.size === 0) {
-      catalogWarnings.push(
-        'Catálogo "Campos do app (settings/fields)" retornou HTTP 200 mas 0 campos utilizáveis — provavelmente não é JSON (ex.: página de login), possivelmente por exigir autenticação além do Bearer token. Campos ausentes em standard-fields continuam aparecendo como "campo #id".'
-      );
-    }
     checkCatalog("Tipos de ação TOTVS", actionTypesRes);
     checkCatalog("Tipos de dataserver", dataServerTypesRes);
     checkCatalog("Tipos de processo", processTypesRes);
