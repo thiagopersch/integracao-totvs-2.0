@@ -151,7 +151,7 @@ export default function PsDocsPage() {
               </Field>
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <Field>
-                  <FieldLabel htmlFor="idPs">ID PS</FieldLabel>
+                  <FieldLabel htmlFor="idPs">idPS do I&M</FieldLabel>
                   <Input id="idPs" value={idPs} onChange={(e) => setIdPs(e.target.value)} placeholder="Ex: 5537" />
                 </Field>
                 <Field>

@@ -1,12 +1,26 @@
-import type { AcaoBotaoSpec, CampoDetalhado, ColunaDataserverSpec, DocumentacaoPS, EncaminhamentoSpec, FonteDadosSpec, ItemSpec, ParametroAcaoSpec, RegraLogicaItem, StyleConfig } from "./types";
+import type { AcaoBotaoSpec, CampoDetalhado, ColunaDataserverSpec, ConsultaSqlSpec, DocumentacaoPS, EncaminhamentoSpec, FonteDadosSpec, ItemSpec, LogicaSpec, ParametroAcaoSpec, PopupSpec, RegraLogicaItem, StyleConfig } from "./types";
 
 function esc(text: string): string {
   return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
-function logicaText(logica: RegraLogicaItem[] | undefined): string | undefined {
-  if (!logica || logica.length === 0) return undefined;
-  return logica.map((l) => `${l.campo} ${l.regra}${l.valor !== undefined ? ` "${l.valor}"` : ""}`).join(" E ");
+/** A resolved field ref reads "Label (id)" (`formatFieldRef`) — bolds the whole thing, italicizing
+ *  just the trailing "(id)" when present, e.g. `<strong>Label <em>(id)</em></strong>`, per explicit
+ *  instruction. Falls back to bolding the whole string when there's no trailing "(id)" (unresolved
+ *  fallbacks like "(campo não identificado)"). */
+function fieldRefHtml(campo: string): string {
+  const m = campo.match(/^(.+) (\(\d+\))$/);
+  if (m) return `<strong>${esc(m[1])} <em>${esc(m[2])}</em></strong>`;
+  return `<strong>${esc(campo)}</strong>`;
+}
+
+
+/** One condition, arrow-separated per explicit instruction ("ficha" format): campo → regra →
+ *  valor, all three bold — valor omitted for rule ids that don't take one (É desconhecido/É
+ *  conhecido). */
+function logicaItemHtml(l: RegraLogicaItem): string {
+  const valorHtml = l.valor !== undefined ? ` → <strong>${esc(l.valor)}</strong>` : "";
+  return `${fieldRefHtml(l.campo)} → <strong>${esc(l.regra)}</strong>${valorHtml}`;
 }
 
 const sim = (v: boolean | undefined) => (v ? "Sim" : "Não");
@@ -38,7 +52,7 @@ export function renderDocumentHtml(doc: DocumentacaoPS, style: StyleConfig): str
   const h3Style = `font-family:'${style.bodyFont}',sans-serif;color:${style.subheadingColor};font-size:13pt;font-weight:700;margin-top:20pt;`;
   const h4Style = `font-family:'${style.bodyFont}',sans-serif;color:${style.subheadingColor};font-size:12pt;font-weight:700;margin-top:14pt;`;
   const h5Style = `font-family:'${style.bodyFont}',sans-serif;color:${style.subheadingColor};font-size:11pt;font-weight:700;margin-top:10pt;`;
-  const h6Style = `font-family:'${style.bodyFont}',sans-serif;color:${style.subheadingColor};font-size:10pt;font-weight:600;margin-top:8pt;`;
+  const h6Style = `font-family:'${style.bodyFont}',sans-serif;color:${style.subheadingColor};font-size:10pt;font-weight:700;margin-top:8pt;`;
   const bodyStyle = `font-family:'${style.bodyFont}',sans-serif;color:${style.bodyColor};font-size:11pt;line-height:1.5;`;
   const codeStyle = `font-family:monospace;font-size:9.5pt;background:rgba(127,127,127,0.12);padding:8px;display:block;white-space:pre-wrap;`;
   const inlineCodeStyle = `font-family:monospace;font-size:9.5pt;background:rgba(127,127,127,0.12);padding:1px 4px;`;
@@ -46,6 +60,9 @@ export function renderDocumentHtml(doc: DocumentacaoPS, style: StyleConfig): str
   // and sets `list-style:none` by default, which collapses raw `<ul><li>` markup into flat,
   // unindented text — this is what makes bullets/indentation show up regardless of the page's CSS.
   const ulStyle = `margin:2px 0 8px 0;padding-left:22px;list-style-type:disc;`;
+  const hrStyle = `border:none;border-top:1px solid rgba(127,127,127,0.3);margin:18pt 0;`;
+  const hr = `<hr style="${hrStyle}">`;
+  const h4Tag = `<h4 style="${h4Style}">`;
 
   /** "Label: <strong>value</strong>" — the highlighted-value line format used everywhere. */
   const kv = (label: string, value: string) => `${esc(label)}: <strong>${esc(value)}</strong>`;
@@ -63,10 +80,34 @@ export function renderDocumentHtml(doc: DocumentacaoPS, style: StyleConfig): str
     return `<h6 style="${h6Style}">${esc(title)}</h6>${innerHtml}`;
   }
 
+  /** Every mention of "Lógica"/"Condição" renders in the builder's own "ficha" format, per explicit
+   *  instruction: a header line "Ação: X → Condição: Y" (the logic's own `action_logic_id`/
+   *  `condition_logic_id`), followed by one nested bullet per rule. Returns a fragment meant to be
+   *  used as ONE list item's content (nest it in `subList([...])` when it needs to be its own
+   *  bullet under a heading, e.g. `h6("Lógica", subList([logicaSpecHtml(spec)]))`). */
+  function logicaSpecHtml(spec: LogicaSpec | undefined): string {
+    if (!spec || spec.regras.length === 0) return "";
+    const header = `${esc("Ação")}: <strong>${esc(spec.acao ?? "não identificada")}</strong> → ${esc("Condição")}: <strong>${esc(spec.condicao ?? "não identificada")}</strong>`;
+    return `${header}${subList(spec.regras.map(logicaItemHtml))}`;
+  }
+
+  /** An encaminhamento's "Destino" — a "Campo do sistema"/"Valor fixo" destino (Link externo) only
+   *  bolds its own value, not the "Campo do sistema:"/"Valor fixo:" prefix (per explicit
+   *  instruction: "Destino: Valor fixo: **URL**", not the whole string bold); every other destino
+   *  kind (etapa/página/pop-up name, etc.) keeps the previous fully-bold `kv` rendering. */
+  function destinoHtml(destino: string): string {
+    for (const prefixo of ["Campo do sistema: ", "Valor fixo: "]) {
+      if (destino.startsWith(prefixo)) return `${esc("Destino")}: ${esc(prefixo)}<strong>${esc(destino.slice(prefixo.length))}</strong>`;
+    }
+    return kv("Destino", destino);
+  }
+
   /** codConsulta/codSistema/codColigada + cache/frequência + contexto — never lists the fields a
-   *  query returns, only the query's own configuration (per explicit instruction). */
+   *  query returns, only the query's own configuration. When unconfigured, renders nothing at all
+   *  (per explicit instruction — the "Não há sentença SQL configurada" message is reserved for the
+   *  etapa/passo's own "Fonte de dados" section, via `consultaSqlHtml`, not for a button ação). */
   function fonteDadosHtml(fonte: FonteDadosSpec): string {
-    if (!fonte.configurada) return `<p style="${bodyStyle}">Fonte de dados: <strong>nenhuma consulta vinculada</strong></p>`;
+    if (!fonte.configurada) return "";
     const temContexto = fonte.contexto.length > 0;
     return (
       `<p style="${bodyStyle}"><strong>Fonte de dados</strong></p>` +
@@ -82,8 +123,28 @@ export function renderDocumentHtml(doc: DocumentacaoPS, style: StyleConfig): str
     );
   }
 
-  function parametrosHtml(parametros: ParametroAcaoSpec[]): string {
-    return `${kv("Parâmetros", sim(parametros.length > 0))}${subList(
+  /** The real configured SQL query of an etapa/passo (`get-stage-querys`/`step/querys`) — same
+   *  "Não há sentença SQL configurada" text as `fonteDadosHtml` when unconfigured; otherwise lists
+   *  Coligada/Sistema/Consulta/Cache(+frequência)/Parâmetros, reusing `parametrosHtml`. */
+  function consultaSqlHtml(titulo: string, consulta: ConsultaSqlSpec): string {
+    if (!consulta.configurada) return `<h4 style="${h4Style}">${esc(titulo)}</h4><p style="${bodyStyle}">Não há sentença SQL configurada</p>`;
+    return (
+      `<h4 style="${h4Style}">${esc(titulo)}</h4>` +
+      subList([
+        kv("Coligada", consulta.codColigada),
+        kv("Sistema", consulta.codSistema),
+        kv("Consulta", consulta.codConsulta),
+        kv("Cache", sim(consulta.usaCache)),
+        consulta.usaCache ? kv("Frequência do cache", consulta.frequenciaCache ?? "não informada") : null,
+        parametrosHtml(consulta.parametros),
+      ])
+    );
+  }
+
+  /** `label` is "Contexto" for Dataservers/Processos (Salvar dados/Executar processo) — every
+   *  other action type calls this the same table "Parâmetros", per explicit instruction. */
+  function parametrosHtml(parametros: ParametroAcaoSpec[], label = "Parâmetros"): string {
+    return `${kv(label, sim(parametros.length > 0))}${subList(
       parametros.map(
         (p) =>
           `${esc(p.nome)} - ${esc(p.tipo)}${subList([
@@ -106,7 +167,7 @@ export function renderDocumentHtml(doc: DocumentacaoPS, style: StyleConfig): str
    *  vinculada, no parâmetros table. */
   function acaoHtml(acao: AcaoBotaoSpec): string {
     const header = `[${acao.ordem}] Tipo da ação: <strong>${esc(acao.tipoAcao)}</strong>${acao.ativada ? "" : " <strong>[desativada]</strong>"}`;
-    const condicao = logicaText(acao.logica);
+    const condicao = logicaSpecHtml(acao.logica) || null;
 
     let body: (string | null)[];
     if (acao.tipoAcao === "Realizar consulta") {
@@ -118,7 +179,7 @@ export function renderDocumentHtml(doc: DocumentacaoPS, style: StyleConfig): str
         parametrosHtml(acao.parametros),
       ];
     } else if (acao.tipoAcao === "Salvar dados" || acao.tipoAcao === "Executar processo") {
-      body = [kv("Dataserver", acao.dataserver ?? "não identificado"), acao.colunas ? colunasHtml(acao.colunas) : null, parametrosHtml(acao.parametros)];
+      body = [kv("Dataserver", acao.dataserver ?? "não identificado"), acao.colunas ? colunasHtml(acao.colunas) : null, parametrosHtml(acao.parametros, "Contexto")];
     } else if (acao.tipoAcao === "Ação Rubeus") {
       body = [
         acao.camposConfigurados.length > 0 ? `${esc("Campos configurados")}${subList(acao.camposConfigurados.map((c) => esc(c)))}` : null,
@@ -137,23 +198,32 @@ export function renderDocumentHtml(doc: DocumentacaoPS, style: StyleConfig): str
       body = [acao.camposConfigurados.length > 0 ? `${esc("Campos configurados")}${subList(acao.camposConfigurados.map((c) => esc(c)))}` : null, parametrosHtml(acao.parametros)];
     }
 
-    const children = subList([
-      acao.mensagemErro ? kv("Mensagem de erro", acao.mensagemErro) : null,
-      ...body,
-      condicao ? kv("Condição", condicao) : null,
-    ]);
+    const children = subList([acao.mensagemErro ? kv("Mensagem de erro", acao.mensagemErro) : null, ...body, condicao]);
     const fonte = acao.fonteDados !== undefined ? fonteDadosHtml(acao.fonteDados) : "";
     return `<li style="${bodyStyle}">${header}${children}${fonte}</li>`;
   }
 
+  /** A pop-up's own full config (`GET /api/popups/{id}`) — Nome/Permite fechar/Altura e Largura
+   *  máxima, its own configured SQL query (`GET /api/popups/querys/{id}`, same shape as a
+   *  stage/step's own), then its `content` rendered exactly like a passo's own items (starting
+   *  fresh at depth 0, since a pop-up is a self-contained screen), per explicit instruction. */
+  function popupHtml(popup: PopupSpec): string {
+    const config = subList([
+      kv("Nome", popup.nome),
+      kv("Permite fechar", sim(popup.permiteFechar)),
+      kv("Altura máxima", popup.alturaMaxima ?? "Altura máxima não definida"),
+      kv("Largura máxima", popup.larguraMaxima ?? "Largura máxima não definida"),
+    ]);
+    const fonteDados = consultaSqlHtml("Fonte de dados do pop-up", popup.consultaSql);
+    const conteudo = popup.itens.map((item) => itemHtml(item, 0)).join("");
+    return `${esc("Pop-up")}${config}${fonteDados}${conteudo}`;
+  }
+
   function encaminhamentoHtml(enc: EncaminhamentoSpec): string {
-    const condicao = logicaText(enc.logica);
-    const destino = enc.destino !== enc.tipo ? `${kv("Destino", enc.destino)}${enc.novaAba ? " (nova aba)" : ""}` : enc.novaAba ? kv("Nova aba", "Sim") : "";
-    return `<li style="${bodyStyle}">${kv("Tipo", enc.tipo)}${subList([
-      destino || null,
-      enc.parametros && enc.parametros.length > 0 ? parametrosHtml(enc.parametros) : null,
-      condicao ? kv("Lógica", condicao) : null,
-    ])}</li>`;
+    const condicao = logicaSpecHtml(enc.logica) || null;
+    const destino = enc.destino !== enc.tipo ? `${destinoHtml(enc.destino)}${enc.novaAba ? " (nova aba)" : ""}` : enc.novaAba ? kv("Nova aba", "Sim") : "";
+    const popup = enc.popupDetalhe ? popupHtml(enc.popupDetalhe) : null;
+    return `<li style="${bodyStyle}">${kv("Tipo", enc.tipo)}${subList([destino || null, enc.parametros && enc.parametros.length > 0 ? parametrosHtml(enc.parametros) : null, condicao, popup])}</li>`;
   }
 
   function validacaoHtml(v: CampoDetalhado["validacoes"][number]): string {
@@ -252,13 +322,14 @@ export function renderDocumentHtml(doc: DocumentacaoPS, style: StyleConfig): str
     return `${identidade}${basico}${multivalorado}${validacoes}${dados}${propriedades}${vinculos}`;
   }
 
-  /** Renders one item as its own `<h5>` (campo) or `<h4>` (anything else — role-based, not
-   *  depth-based, per explicit instruction), followed by its property groups as `<h6>` sections,
-   *  then — for an agrupamento — its children right after, so a campo's h5 naturally reads as
-   *  "belonging to" the componente h4 before it. */
-  function itemHtml(item: ItemSpec): string {
-    const level = item.categoria === "campo" ? h5Style : h4Style;
-    const tag = item.categoria === "campo" ? "h5" : "h4";
+  /** Renders one item as its own heading — depth-based, per explicit instruction: a top-level item
+   *  (direct child of a passo) is `<h4>`, an item nested one level inside another component (e.g. a
+   *  field/component inside an agrupamento) is `<h5>`, and anything deeper is `<h6>` (the deepest
+   *  level named here — capped there rather than growing past it) — followed by its own property
+   *  groups (still fixed `<h6>` sections, e.g. "Geral"/"Personalização"), then — for an agrupamento
+   *  — its children right after, one depth level deeper. */
+  function itemHtml(item: ItemSpec, depth = 0): string {
+    const [level, tag] = depth <= 0 ? [h4Style, "h4"] : depth === 1 ? [h5Style, "h5"] : [h6Style, "h6"];
     const heading = `<${tag} style="${level}">${esc(CATEGORIA_LABEL[item.categoria])}: ${esc(item.nome)}</${tag}>`;
     const totvs = item.integracaoTotvs && item.categoria !== "campo" ? [item.integracaoTotvs.tabela, item.integracaoTotvs.campo, item.integracaoTotvs.sentenca].filter(Boolean).join(".") : "";
 
@@ -266,28 +337,45 @@ export function renderDocumentHtml(doc: DocumentacaoPS, style: StyleConfig): str
       case "campo":
         return heading + (item.detalhes ? campoDetalhesHtml(item.detalhes) : "");
       case "texto": {
-        const geral = subList([kv("Conteúdo", item.conteudoHtml ?? ""), item.classeCss ? kvCode("Classe CSS", item.classeCss) : null, logicaText(item.logica) ? kv("Lógica", logicaText(item.logica)!) : null]);
+        const geral = subList([
+          kv("Conteúdo", item.conteudoHtml ?? ""),
+          item.classeCss ? kvCode("Classe CSS", item.classeCss) : null,
+          logicaSpecHtml(item.logica) || null,
+        ]);
         return heading + h6("Geral", geral);
       }
       case "agrupamento": {
-        const geral = subList([item.classeCss ? kvCode("Classe CSS", item.classeCss) : null, totvs ? kv("TOTVS", totvs) : null]);
-        const config = item.larguraPorColuna
-          ? `Componente com ${item.larguraPorColuna.length} coluna(s), largura(s): ${esc(item.larguraPorColuna.join(", "))}.`
-          : item.numColunas
-            ? `Componente com ${item.numColunas} elemento(s).`
-            : null;
-        const personalizacao = subList([
-          config ? kv("Configuração", config) : null,
-          item.padding ? kv("Padding", item.padding) : null,
-          item.larguraMaxima ? kv("Largura máxima", item.larguraMaxima) : null,
-          item.temBackground ? kv("Background", item.corBackground ? `cor ${item.corBackground}` : item.temImagemBackground ? "possui imagem" : "configurado") : null,
+        const geral = subList([
+          item.classeCss ? kvCode("Classe CSS", item.classeCss) : null,
+          totvs ? kv("TOTVS", totvs) : null,
           item.cssCodigo ? `${esc("CSS")}<code style="${codeStyle}">${esc(item.cssCodigo)}</code>` : null,
         ]);
-        const alinhamento = item.alinhamento ? subList([kv("Alinhamento", item.alinhamento)]) : "";
-        const logicaVal = logicaText(item.logica);
-        const logica = logicaVal ? subList([kv("Condição", logicaVal)]) : "";
-        const filhos = (item.filhos ?? []).map(itemHtml).join("");
-        return heading + h6("Geral", geral) + h6("Personalização", personalizacao) + h6("Alinhamento", alinhamento) + h6("Lógica", logica) + filhos;
+        const campos =
+          item.camposAgrupados && item.camposAgrupados.length > 0
+            ? subList(
+                item.camposAgrupados.map(
+                  (c) => `${fieldRefHtml(c.nome)}${c.logica ? subList([logicaSpecHtml(c.logica)]) : ""}`
+                )
+              )
+            : "";
+        const background = item.background
+          ? `${esc("Background")}${subList([
+              item.background.tipo ? kv("Tipo", item.background.tipo) : null,
+              item.background.cor ? kv("Cor", item.background.cor) : null,
+              item.background.possuiImagemVinculada ? kv("Possui imagem vinculada", "Sim") : null,
+            ])}`
+          : null;
+        const personalizacao = subList([item.padding ? kv("Padding", item.padding) : null, item.larguraMaxima ? kv("Largura máxima", item.larguraMaxima) : null, background]);
+        const alinhamento = item.alinhamento
+          ? subList([
+              item.alinhamento.direcao ? kv("Direção", item.alinhamento.direcao) : null,
+              item.alinhamento.horizontal ? kv("Alinhamento horizontal", item.alinhamento.horizontal) : null,
+              item.alinhamento.vertical ? kv("Alinhamento vertical", item.alinhamento.vertical) : null,
+            ])
+          : "";
+        const logica = item.logica ? subList([logicaSpecHtml(item.logica)]) : "";
+        const filhos = (item.filhos ?? []).map((child) => itemHtml(child, depth + 1)).join("");
+        return heading + h6("Geral", geral) + h6("Conteúdo", campos) + h6("Personalização", personalizacao) + h6("Alinhamento", alinhamento) + h6("Lógica", logica) + filhos;
       }
       case "botao": {
         const geral = subList([item.nomeComponente ? kv("Nome do componente", item.nomeComponente) : null, item.classeCss ? kvCode("Classe CSS", item.classeCss) : null]);
@@ -341,17 +429,15 @@ export function renderDocumentHtml(doc: DocumentacaoPS, style: StyleConfig): str
   for (const etapa of doc.etapas) {
     parts.push(`<h2 style="${stageStyle}">Etapa: ${esc(etapa.nome)}</h2>`);
     parts.push(`<h4 style="${h4Style}">Lógica de exibição</h4>`);
-    parts.push(`<p style="${bodyStyle}">${esc(etapa.logicaExibicao)}</p>`);
+    parts.push(etapa.logicaExibicao.regras.length > 0 ? subList([logicaSpecHtml(etapa.logicaExibicao)]) : `<p style="${bodyStyle}">Nenhuma restrição de exibição identificada.</p>`);
     parts.push(`<h4 style="${h4Style}">Descrição</h4>`);
     parts.push(`<p style="${bodyStyle}">${esc(etapa.descricao)}</p>`);
 
-    if (etapa.fontesDados.length > 0) {
-      parts.push(`<h4 style="${h4Style}">Fontes de dados</h4>`);
-      parts.push(`<p style="${bodyStyle}">TOTVS/Rubeus: ${esc(etapa.fontesDados.join(", "))}</p>`);
-    }
+    parts.push(consultaSqlHtml("Fonte de dados da etapa", etapa.consultaSql));
 
     etapa.passos.forEach((passo) => {
       parts.push(`<h3 style="${h3Style}">Passo: ${esc(passo.nome)}</h3>`);
+      parts.push(consultaSqlHtml("Fonte de dados do passo", passo.consultaSql));
       for (const item of passo.itens) parts.push(itemHtml(item));
     });
 
@@ -364,5 +450,15 @@ export function renderDocumentHtml(doc: DocumentacaoPS, style: StyleConfig): str
     }
   }
 
-  return parts.join("\n");
+  // Divide between h4-level blocks with a horizontal rule, per explicit instruction — inserted as
+  // a post-processing pass (every h4 in the document shares this exact opening tag, regardless of
+  // which section produced it) rather than at each individual push site, since h4 headings are
+  // emitted from several different places (etapa fields, `consultaSqlHtml`, item headings). Not
+  // shown directly under a title (h1/h2/h3) or at the very start of the document — only between two
+  // actual h4 blocks.
+  let html = parts.join("\n");
+  html = html.split(h4Tag).join(`${hr}${h4Tag}`);
+  for (const closer of ["</h1>", "</h2>", "</h3>"]) html = html.split(`${closer}\n${hr}`).join(closer);
+  if (html.startsWith(hr)) html = html.slice(hr.length);
+  return html;
 }

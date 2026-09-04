@@ -6,7 +6,19 @@ import { notificationService } from "@/services/notification.service";
 import { buildIntegrationTestFailedNotification } from "@/lib/notification-types";
 import { classifyError } from "@/lib/error-kind";
 import { prisma } from "@/lib/prisma";
-import { buildFieldCatalog, buildIdTitleCatalog, buildStringKeyedCatalog, parseEtapa, extractTituloPortal, type ActionCatalogs, type StageRef } from "@/lib/ps-docs/parse-structure";
+import {
+  buildFieldCatalog,
+  buildIdTitleCatalog,
+  buildStringKeyedCatalog,
+  collectPopupReferences,
+  harvestFieldLabels,
+  parseEtapa,
+  parsePopup,
+  extractTituloPortal,
+  EMPTY_CATALOGS,
+  type ActionCatalogs,
+  type StageRef,
+} from "@/lib/ps-docs/parse-structure";
 import type { EtapaSpec } from "@/lib/ps-docs/types";
 import type { Prisma } from "@/generated/prisma/client";
 
@@ -35,17 +47,20 @@ function authHeaders(tokenPs: string) {
   return { Authorization: `Bearer ${tokenPs}`, "Content-Type": "application/json" };
 }
 
-/** `GET /api/settings/fields` consistently returns a DIFFERENT institution's field catalog (same
- *  structure/labels, different `field_id`s — e.g. "CODINSCRICAOPS" at 100986 instead of the real
- *  316187) when called from our server, regardless of headers. Confirmed exhausted, in order: cache
- *  headers, same-origin/browser fingerprint headers, Client Hints, and — with the user's own valid,
- *  complete `branch`+`inscricoes_session`+`client_id` cookie — session auth itself. None changed the
- *  result. This is not fixable from the request we send; it looks like a caching/routing issue on
- *  TOTVS's side for this specific route. `standard-fields` is the only source proven reliable from a
- *  server-to-server call, so `fieldCatalog` is built from it alone (see call site) — `settings/fields`
- *  is still fetched only to surface the mismatch as a diagnostic warning, never to resolve names,
- *  since doing so would risk showing a real-looking but WRONG field name (worse than an honest
- *  "campo #id" placeholder). */
+/** `GET /api/settings/fields` returns a field catalog scoped to the calling token's OWN
+ *  institution (its JWT `baseInstituicao` claim) — confirmed live: called with a token from an
+ *  institution other than the one that owns the `idPs` being documented, it consistently returns
+ *  that OTHER institution's catalog (same shape, different ids/labels entirely — e.g. 764 fields
+ *  with none of the target process's custom fields) regardless of headers, cache-busting, or a
+ *  matching `branch`+`inscricoes_session`+`client_id` cookie. Not fixable from the request we
+ *  send — the token itself has to belong to the right institution. When it does, this endpoint's
+ *  catalog is confirmed IDENTICAL to `standard-fields`' (no label ever disagreed, live-tested).
+ *  Given that, and per explicit instruction, it's now used as a third, LAST-RESORT fallback for
+ *  `fieldCatalog` (see call site) — after `standard-fields` and the per-stage harvest, both of
+ *  which are checked first and never overwritten by it. Worst case (wrong-institution token): it
+ *  simply contributes nothing new, same as before this fallback existed. Best case (right
+ *  institution, `standard-fields` just missing an id `settings/fields` happens to have): it
+ *  closes a residual gap that would otherwise render as "campo #id". */
 function settingsFieldsHeaders(tokenPs: string) {
   return {
     ...authHeaders(tokenPs),
@@ -235,12 +250,43 @@ export async function listSelectiveProcessStages(input: { tokenPs: string; idPs:
       label: (s.title as string) ?? "(etapa sem nome)",
     }));
 
-    // `standard-fields` is the only source proven reliable from a server-to-server call —
-    // `settings/fields` consistently returns a DIFFERENT institution's catalog here (confirmed live,
-    // see the comment on `settingsFieldsHeaders` above), so it's excluded from `fieldCatalog` on
-    // purpose: mixing it in would risk showing a real-looking but WRONG field name, which is worse
-    // than the honest "campo #id" placeholder ids not covered by `standard-fields` fall back to.
+    // `standard-fields` is the highest-priority source — confirmed most reliable from a
+    // server-to-server call when the token's own institution matches the `idPs` being documented
+    // (see the comment on `settingsFieldsHeaders` for the institution-mismatch caveat that applies
+    // to this endpoint too, not just `settings/fields`). The two fallback layers below only ever
+    // fill gaps this catalog doesn't cover — never overwrite an id already resolved here.
     const fieldCatalog = buildFieldCatalog(standardFieldsRes.data);
+
+    // `standard-fields` only covers a SUBSET of the fields actually used across the process —
+    // confirmed live (user report): several system fields referenced by button actions/dataserver
+    // columns/display logic (e.g. "Profissão" 288150, "Permite realizar inscrição" 288068) are
+    // entirely absent from `standard-fields` but ARE present, with their real label, inline on the
+    // field's own record inside `selected-stage`'s `content`/`standard_fields`. Fetched for EVERY
+    // stage (not just active ones) since a field can be defined only inside an INACTIVE stage's own
+    // content while still being referenced by an active stage's display logic/action. This duplicates
+    // the `selected-stage` call `fetchStageDocumentation` makes later for each active stage's own
+    // parse — acceptable, since this pass is what makes cross-stage `field_id` references resolve to
+    // a name instead of "campo #id". Best-effort per stage: a failed fetch here just means that one
+    // stage's fields don't get harvested, never blocks the rest of the document.
+    const stageHarvestResponses = await Promise.all(
+      allStages.map((s) => axios.post(`${BASE_URL}/selected-stage/${idPs}`, { stage_id: String(s.id), editor: true }, { headers, validateStatus: () => true, timeout: 30_000 }).catch(() => undefined))
+    );
+    for (const res of stageHarvestResponses) {
+      if (!res || res.status >= 400) continue;
+      for (const [id, label] of harvestFieldLabels(unwrapData(res.data))) {
+        if (!fieldCatalog.has(id)) fieldCatalog.set(id, label);
+      }
+    }
+
+    // Third and last-resort fallback: `settings/fields` (already fetched below for
+    // `settingsFieldsRes`). Per explicit instruction — see the comment on `settingsFieldsHeaders`
+    // for why this was excluded before and why it's safe to include now: it only ever fills an id
+    // neither `standard-fields` nor the stage harvest above covered, never overwrites either.
+    if (settingsFieldsRes.status < 400) {
+      for (const [id, label] of buildFieldCatalog(settingsFieldsRes.data)) {
+        if (!fieldCatalog.has(id)) fieldCatalog.set(id, label);
+      }
+    }
 
     // The remaining catalogs are only used to enrich the "Ações"/"Encaminhamentos" sections —
     // a failed lookup (expired permission on that route, etc.) shouldn't block the whole document,
@@ -253,8 +299,8 @@ export async function listSelectiveProcessStages(input: { tokenPs: string; idPs:
     const checkCatalog = (label: string, res: { status: number }) => {
       if (res.status >= 400) catalogWarnings.push(`Catálogo "${label}" indisponível (HTTP ${res.status}) — os itens correspondentes podem aparecer como "#id" em vez do nome.`);
     };
-    // settings/fields is intentionally not used to resolve names (see `settingsFieldsHeaders`), but a
-    // non-2xx here is still worth flagging in case it ever becomes usable again.
+    // settings/fields is now also used as a fallback source for `fieldCatalog` (see above), so a
+    // non-2xx here means that third layer silently contributed nothing — worth flagging.
     checkCatalog("Campos do app (settings/fields)", settingsFieldsRes);
     checkCatalog("Tipos de ação TOTVS", actionTypesRes);
     checkCatalog("Tipos de dataserver", dataServerTypesRes);
@@ -327,12 +373,30 @@ export async function fetchStageDocumentation(input: {
   const url = `${BASE_URL}/selected-stage/${idPs}`;
 
   try {
-    const [selectedStageRes, feedbackRes] = await Promise.all([
+    const [selectedStageRes, feedbackRes, stageQueryRes, stepQueryResults] = await Promise.all([
       axios.post(url, { stage_id: stageId, editor: true }, { headers, validateStatus: () => true, timeout: 30_000 }),
       axios.post(`${BASE_URL}/feedback`, { stage_id: stageId, editor: true }, { headers, validateStatus: () => true, timeout: 30_000 }),
+      // The stage's own configured SQL query (Coligada/Sistema/Consulta/Cache/Parâmetros) — best
+      // effort: a failure here just means the etapa renders "Não há sentença SQL configurada"
+      // instead of blocking the rest of the document.
+      axios.get(`${BASE_URL}/get-stage-querys/${stageId}`, { headers, validateStatus: () => true, timeout: 30_000 }).catch(() => undefined),
+      // Same, but one per step (`GET /api/step/querys/{step_id}`) — same best-effort treatment.
+      Promise.all(
+        input.stage.steps.map((st) =>
+          axios
+            .get(`https://admin.portal.apprbs.com.br/api/step/querys/${st.id}`, { headers, validateStatus: () => true, timeout: 30_000 })
+            .then((res) => ({ stepId: st.id, res }))
+            .catch(() => ({ stepId: st.id, res: undefined }))
+        )
+      ),
     ]);
 
     if (selectedStageRes.status >= 400) throw Object.assign(new Error(`HTTP ${selectedStageRes.status} ao consultar selected-stage`), { response: { status: selectedStageRes.status } });
+
+    const stepQueries: Record<number, unknown> = {};
+    for (const { stepId, res } of stepQueryResults) {
+      if (res && res.status < 400) stepQueries[stepId] = res.data;
+    }
 
     // `fieldCatalog` is built solely from `POST /standard-fields` (the only field-name source
     // confirmed correct) — an earlier version also tried a per-id `GET /api/custom-component/{id}`
@@ -343,12 +407,46 @@ export async function fetchStageDocumentation(input: {
     // without confirming live that it returns the *right* component for that id.
     const fieldCatalog = new Map(input.fieldCatalogEntries);
 
+    const catalogs = input.actionCatalogEntries ? toActionCatalogs(input.actionCatalogEntries) : EMPTY_CATALOGS;
+
     const { etapa, warnings } = parseEtapa(
       input.stage,
-      { list: input.stage.list, selectedStage: selectedStageRes.data, feedback: feedbackRes.status < 400 ? feedbackRes.data : undefined },
+      {
+        list: input.stage.list,
+        selectedStage: selectedStageRes.data,
+        feedback: feedbackRes.status < 400 ? feedbackRes.data : undefined,
+        stageQuery: stageQueryRes && stageQueryRes.status < 400 ? stageQueryRes.data : undefined,
+        stepQueries,
+      },
       fieldCatalog,
-      input.actionCatalogEntries ? toActionCatalogs(input.actionCatalogEntries) : undefined
+      catalogs
     );
+
+    // A button's "Abrir pop-up" encaminhamento only carries the raw `popup_id` until here — fetch
+    // each DISTINCT referenced pop-up's own full config (`GET /api/popups/{id}`) and its own
+    // configured SQL query (`GET /api/popups/querys/{id}`, confirmed live to share the exact same
+    // shape as `step/querys/{step_id}`), and attach the parsed result in place
+    // (`enc.popupDetalhe = ...`), per explicit instruction. Best-effort, same as every other
+    // per-id fetch in this pipeline: a failed pop-up fetch just leaves that encaminhamento's
+    // `popupDetalhe` unset instead of blocking the rest of the document.
+    const popupTargets = collectPopupReferences(etapa);
+    const uniquePopupIds = [...new Set(popupTargets.map((enc) => enc.popupId!))];
+    if (uniquePopupIds.length > 0) {
+      const popupResults = await Promise.all(
+        uniquePopupIds.map((id) =>
+          Promise.all([
+            axios.get(`https://admin.portal.apprbs.com.br/api/popups/${id}`, { headers, validateStatus: () => true, timeout: 30_000 }).catch(() => undefined),
+            axios.get(`https://admin.portal.apprbs.com.br/api/popups/querys/${id}`, { headers, validateStatus: () => true, timeout: 30_000 }).catch(() => undefined),
+          ]).then(([res, queryRes]) => ({ id, res, queryRes }))
+        )
+      );
+      const popupById = new Map(
+        popupResults
+          .filter(({ res }) => res && res.status < 400)
+          .map(({ id, res, queryRes }) => [id, parsePopup(res!.data, queryRes && queryRes.status < 400 ? queryRes.data : undefined, fieldCatalog, catalogs)])
+      );
+      for (const enc of popupTargets) if (enc.popupId) enc.popupDetalhe = popupById.get(enc.popupId);
+    }
 
     await logApiCall({
       organizationId,

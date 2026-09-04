@@ -1,7 +1,10 @@
 import type {
   AcaoBotaoSpec,
+  BackgroundAgrupamentoSpec,
+  CampoAgrupadoSpec,
   CampoDetalhado,
   ColunaDataserverSpec,
+  ConsultaSqlSpec,
   DocumentacaoPS,
   EncaminhamentoSpec,
   EtapaSpec,
@@ -10,9 +13,11 @@ import type {
   FonteDadosSpec,
   IntegracaoTotvsSpec,
   ItemSpec,
+  LogicaSpec,
   ParametroAcaoSpec,
   PassoSpec,
   PessoaVinculadaSpec,
+  PopupSpec,
   RegraLogicaItem,
   TipoAcao,
   ValidacaoRegra,
@@ -109,6 +114,8 @@ export interface StagePayload {
   list: Raw; // one entry from GET /opening-page-stages/{idPs}
   selectedStage: unknown; // POST /selected-stage/{idPs} response for this stage
   feedback: unknown; // POST /feedback response for this stage
+  stageQuery?: unknown; // GET /selective-process/get-stage-querys/{stage_id} response for this stage
+  stepQueries?: Record<number, unknown>; // step_id -> GET /step/querys/{step_id} response
 }
 
 export interface ParseResult {
@@ -120,17 +127,39 @@ export interface ParseResult {
  *  reference .docx's plain-language description of the same rules (e.g. "maior que 4 e menor
  *  que 8" <-> rule_logic_id 5 then 6 on the same field). Unknown ids fall back to a literal id. */
 const OPERATOR_LABELS: Record<number, string> = {
-  1: "igual a",
-  2: "diferente de",
-  3: "contém",
-  4: "informado (preenchido)",
-  5: "maior que",
-  6: "menor que",
+  1: "é igual",
+  2: "é diferente",
+  3: "é desconhecido",
+  4: "é conhecido",
+  5: "é maior",
+  6: "é menor",
+  7: "contém",
+  8: "não contém",
+};
+
+/** `rule_logic_id`s 3 ("É desconhecido") and 4 ("É conhecido") check whether the field itself has
+ *  a value at all — they never take one of their own (per explicit instruction), unlike every
+ *  other rule id (1/2/5/6/7/8), which always requires one. */
+const OPERATORS_WITHOUT_VALUE = new Set([3, 4]);
+
+/** `action_logic_id` (1/2) worded per explicit instruction — differently depending on whether the
+ *  logic belongs to an ELEMENT ("Mostrar este elemento"/"Ocultar este elemento") or an ACTION
+ *  ("Executar esta ação"/"Não executar esta ação"). */
+const ACTION_LOGIC_LABELS_ELEMENTO: Record<number, string> = { 1: "Mostrar", 2: "Ocultar" };
+const ACTION_LOGIC_LABELS_ACAO: Record<number, string> = { 1: "Executar", 2: "Não executar" };
+
+/** `condition_logic_id` (1/2) — how a `logics[]` array's rules combine, per explicit instruction:
+ *  1 = OR ("se alguma dessas regras corresponder"), 2 = AND ("se todas as regras corresponderem"). */
+const CONDITION_LOGIC_LABELS: Record<number, string> = {
+  1: "Se alguma dessas regras corresponder",
+  2: "Se todas as regras corresponderem",
 };
 
 /** Portuguese labels for the alignment enums used by `layout_direction`/`*_alignment` — matches
- *  the wording the builder's own UI uses for these dropdowns. */
-const DIRECTION_LABELS: Record<string, string> = { row: "Linha (horizontal)", column: "Coluna (vertical)" };
+ *  the wording the builder's own UI uses for these dropdowns. Rendered as "PT (raw)" — e.g.
+ *  "Espaço entre (space-between)" — per explicit instruction, so the original English enum value
+ *  stays visible/greppable alongside the translation. */
+const DIRECTION_LABELS: Record<string, string> = { row: "Linha", column: "Coluna" };
 const ALIGN_LABELS: Record<string, string> = { start: "Início", center: "Centro", end: "Fim", "space-between": "Espaço entre", "space-around": "Espaço ao redor", stretch: "Esticar" };
 
 /** `type`/`form_build.type` (Form.io component type) -> human label, for "Tipo do campo". */
@@ -157,9 +186,16 @@ function operatorLabel(ruleLogicId: unknown): string {
   return OPERATOR_LABELS[id] ?? `regra ${String(ruleLogicId)}`;
 }
 
-function alignLabel(value: string | undefined): string | undefined {
+/** "PT (raw)" — e.g. `labelWithRaw(DIRECTION_LABELS, "row")` -> "Linha (row)" — falls back to just
+ *  the raw value when it's not in the map (nothing to translate). */
+function labelWithRaw(map: Record<string, string>, value: string | undefined): string | undefined {
   if (!value) return undefined;
-  return ALIGN_LABELS[value] ?? value;
+  const label = map[value];
+  return label ? `${label} (${value})` : value;
+}
+
+function alignLabel(value: string | undefined): string | undefined {
+  return labelWithRaw(ALIGN_LABELS, value);
 }
 
 function asArray(value: unknown): Raw[] {
@@ -226,16 +262,31 @@ export function buildFieldCatalog(payload: unknown): Map<number, string> {
   return catalog;
 }
 
-function resolveFieldLabel(fieldId: unknown, fieldCatalog: Map<number, string>): string | undefined {
+/** Canonical "field reference" formatter — every place that resolves a `field_id` through the
+ *  catalog shows it as `"Nome do campo (field_id)"`, per explicit instruction, so the id stays
+ *  visible/greppable (to cross-check against the builder) even once the label is known. Falls
+ *  back to `campo #<id>` when the catalog doesn't have that id, and to `unresolvedFallback` when
+ *  there's no id at all. */
+function formatFieldRef(fieldId: unknown, fieldCatalog: Map<number, string>, unresolvedFallback = "(campo não identificado)"): string {
   const id = Number(fieldId);
-  return id ? fieldCatalog.get(id) : undefined;
+  if (!id) return unresolvedFallback;
+  const label = fieldCatalog.get(id);
+  return label ? `${label} (${id})` : `campo #${id}`;
+}
+
+/** Same as `formatFieldRef`, but for the optional call sites that previously used
+ *  `resolveFieldLabel` (no id at all -> `undefined`, so the caller can omit the field entirely
+ *  instead of showing a placeholder). */
+function formatFieldRefOptional(fieldId: unknown, fieldCatalog: Map<number, string>): string | undefined {
+  const id = Number(fieldId);
+  if (!id) return undefined;
+  return formatFieldRef(id, fieldCatalog);
 }
 
 function ruleToItem(rule: Raw, fieldCatalog: Map<number, string>): RegraLogicaItem {
-  const fieldId = Number(rule.field_compare_id);
-  const campo = fieldCatalog.get(fieldId) ?? (fieldId ? `campo #${fieldId}` : "(campo não identificado)");
+  const campo = formatFieldRef(rule.field_compare_id, fieldCatalog);
   const regra = operatorLabel(rule.rule_logic_id);
-  const valor = rule.fixed_value === null || rule.fixed_value === undefined || rule.fixed_value === "" ? undefined : String(rule.fixed_value);
+  const valor = OPERATORS_WITHOUT_VALUE.has(Number(rule.rule_logic_id)) || rule.fixed_value === null || rule.fixed_value === undefined || rule.fixed_value === "" ? undefined : String(rule.fixed_value);
   return { campo, regra, valor };
 }
 
@@ -251,6 +302,24 @@ function describeLogicsStructured(logics: unknown, fieldCatalog: Map<number, str
 function logicsToText(items: RegraLogicaItem[] | undefined): string | undefined {
   if (!items || items.length === 0) return undefined;
   return items.map((i) => `${i.campo} ${i.regra}${i.valor !== undefined ? ` "${i.valor}"` : ""}`).join(" E ");
+}
+
+/** The full `LogicaSpec` (regras + their own `action_logic_id`/`condition_logic_id` header) for any
+ *  raw record that carries a `logics` array — reads `action_logic_id`/`condition_logic_id` off the
+ *  SAME raw object `logics` came from (confirmed live: sibling fields on the same record, e.g. a
+ *  stage's own `get-stage-querys` object). `wording` picks which of the two `action_logic_id`
+ *  phrasings applies: "elemento" (Mostrar/Ocultar) for a displayed component, "acao" (Executar/Não
+ *  executar) for a button action or encaminhamento. Returns `undefined` when there are no rules,
+ *  same as `describeLogicsStructured` — nothing to show either way. */
+function describeLogica(raw: Raw, fieldCatalog: Map<number, string>, wording: "elemento" | "acao"): LogicaSpec | undefined {
+  const regras = describeLogicsStructured(raw.logics, fieldCatalog);
+  if (!regras || regras.length === 0) return undefined;
+  const actionLabels = wording === "acao" ? ACTION_LOGIC_LABELS_ACAO : ACTION_LOGIC_LABELS_ELEMENTO;
+  return {
+    acao: actionLabels[Number(raw.action_logic_id)],
+    condicao: CONDITION_LOGIC_LABELS[Number(raw.condition_logic_id)],
+    regras,
+  };
 }
 
 function describeTotvsIntegration(item: Raw): IntegracaoTotvsSpec | undefined {
@@ -275,7 +344,7 @@ function buildFonteDados(raw: Raw, fieldCatalog: Map<number, string>): FonteDado
 
   const contexto = asArray(raw.parameters).map((p) => ({
     nome: firstString(p, ["name"]) ?? "(parâmetro)",
-    campoVinculado: resolveFieldLabel(p.field_id, fieldCatalog),
+    campoVinculado: formatFieldRefOptional(p.field_id, fieldCatalog),
   }));
 
   return {
@@ -289,15 +358,73 @@ function buildFonteDados(raw: Raw, fieldCatalog: Map<number, string>): FonteDado
   };
 }
 
-function describeAlignment(item: Raw): string | undefined {
-  const parts: string[] = [];
+/** Pulls every candidate query record out of a `get-stage-querys`/`step/querys` response —
+ *  unwraps a `{data: ...}` envelope first. The two endpoints disagree on shape, confirmed live:
+ *  `get-stage-querys/{stage_id}`'s `data` is the STAGE object itself, with the query nested under
+ *  its own `query` key; `step/querys/{step_id}`'s `data` is an ARRAY of query records directly (no
+ *  `query` wrapper — each array entry already has `colligate`/`system`/`code`/... on it). Handled
+ *  generically here so either shape (or a single flat object) yields the right candidate list. */
+function extractQueryCandidates(payload: unknown): Raw[] {
+  const unwrapped = unwrapData(payload);
+  const nodes = Array.isArray(unwrapped) ? unwrapped : [unwrapped];
+  const candidates: Raw[] = [];
+  for (const node of nodes) {
+    if (!node || typeof node !== "object") continue;
+    const obj = node as Raw;
+    if (obj.query && typeof obj.query === "object" && !Array.isArray(obj.query)) candidates.push(obj.query as Raw);
+    else candidates.push(obj);
+  }
+  return candidates;
+}
+
+/** `configurada: true` requires `colligate` + `system` + `code` ALL present — confirmed live field
+ *  names (`colligate`, not `collidate`) against a real `get-stage-querys`/`step/querys` response. */
+function isQueryConfigured(raw: Raw): boolean {
+  const colligate = raw.colligate;
+  return !(colligate === null || colligate === undefined || colligate === "") && !!raw.system && !!raw.code;
+}
+
+/** The real configured SQL query for a stage/step (`get-stage-querys`/`step/querys`) — unlike
+ *  `buildFonteDados` (an action's own query config), this one's `parameters[]` entries carry
+ *  `parameter_type_id` (1 = campo do sistema, 2 = valor fixo) instead of `fixed_param`, and there's
+ *  no `contexto` concept here, only `parametros`. When a response carries more than one candidate
+ *  (the step endpoint's array), the first CONFIGURED one wins; falls back to the first candidate
+ *  (which will read as unconfigured) when none are. `usaCache` reads the record's own `use_cache`
+ *  boolean — confirmed live as a real, separate field from `cache_interval_type_id` (the frequency). */
+function buildConsultaSql(payload: unknown, fieldCatalog: Map<number, string>): ConsultaSqlSpec {
+  const candidates = extractQueryCandidates(payload);
+  const raw = candidates.find(isQueryConfigured) ?? candidates[0];
+  if (!raw || !isQueryConfigured(raw)) return { configurada: false };
+
+  const parametros: ParametroAcaoSpec[] = asArray(raw.parameters).map((p) => {
+    const nome = firstString(p, ["name"]) ?? "(parâmetro)";
+    if (Number(p.parameter_type_id) === 2) {
+      return { nome, tipo: "Valor fixo", valorFixo: p.fixed_value !== null && p.fixed_value !== undefined ? String(p.fixed_value) : undefined };
+    }
+    return { nome, tipo: "Campo do sistema", campoSistema: formatFieldRefOptional(p.field_id, fieldCatalog) };
+  });
+
+  return {
+    configurada: true,
+    codColigada: String(raw.colligate),
+    codSistema: String(raw.system),
+    codConsulta: String(raw.code),
+    usaCache: raw.use_cache === true || raw.use_cache === 1,
+    frequenciaCache: raw.cache_interval_type_id != null ? String(raw.cache_interval_type_id) : undefined,
+    parametros,
+  };
+}
+
+function describeAlignment(item: Raw): { direcao?: string; horizontal?: string; vertical?: string } | undefined {
   const direction = firstString(item, ["layout_direction"]);
   const horizontal = firstString(item, ["layout_direction_alignment"]);
   const vertical = firstString(item, ["layout_perpendicular_alignment"]);
-  if (direction) parts.push(`direção: ${DIRECTION_LABELS[direction] ?? direction}`);
-  if (horizontal) parts.push(`alinhamento horizontal: ${alignLabel(horizontal)}`);
-  if (vertical) parts.push(`alinhamento vertical: ${alignLabel(vertical)}`);
-  return parts.length > 0 ? parts.join(", ") : undefined;
+  if (!direction && !horizontal && !vertical) return undefined;
+  return {
+    direcao: labelWithRaw(DIRECTION_LABELS, direction),
+    horizontal: alignLabel(horizontal),
+    vertical: alignLabel(vertical),
+  };
 }
 
 /** One action "campo configurado" — prefers the fully-qualified TOTVS name (`title`, e.g.
@@ -362,8 +489,7 @@ function buildParametros(action: Raw, fieldCatalog: Map<number, string>): Parame
     if (p.fixed_param === 1) {
       return { nome, tipo: "Valor fixo", valorFixo: p.fixed_value !== null && p.fixed_value !== undefined ? String(p.fixed_value) : undefined };
     }
-    const fieldId = Number(p.field_id);
-    return { nome, tipo: "Campo do sistema", campoSistema: fieldCatalog.get(fieldId) ?? (fieldId ? `campo #${fieldId}` : undefined) };
+    return { nome, tipo: "Campo do sistema", campoSistema: formatFieldRefOptional(p.field_id, fieldCatalog) };
   });
 }
 
@@ -379,8 +505,7 @@ function buildColunas(action: Raw, fieldCatalog: Map<number, string>): ColunaDat
     if (f.fixed_value !== null && f.fixed_value !== undefined && f.fixed_value !== "") {
       correspondente = `Valor fixo: ${String(f.fixed_value)}`;
     } else {
-      const fieldId = Number(f.field_id);
-      correspondente = fieldCatalog.get(fieldId) ?? (fieldId ? `campo #${fieldId}` : "(não identificado)");
+      correspondente = formatFieldRef(f.field_id, fieldCatalog, "(não identificado)");
     }
     return { coluna, tabela, correspondente };
   });
@@ -408,9 +533,7 @@ function buildPessoaVinculada(action: Raw, fieldCatalog: Map<number, string>, pe
   if (!related && !saveContactFieldId) return undefined;
 
   const relatedFieldId = related ? Number(related.field_id ?? related.contact_field_id) : undefined;
-  const identificadorContato =
-    (relatedFieldId ? (fieldCatalog.get(relatedFieldId) ?? `campo #${relatedFieldId}`) : undefined) ??
-    (saveContactFieldId ? (fieldCatalog.get(saveContactFieldId) ?? `campo #${saveContactFieldId}`) : undefined);
+  const identificadorContato = formatFieldRefOptional(relatedFieldId, fieldCatalog) ?? formatFieldRefOptional(saveContactFieldId, fieldCatalog);
 
   const tipoContatoId = related ? firstString(related, ["person_type_id", "contact_type_id", "type_id"]) : undefined;
   const tipoContatoLabel = tipoContatoId ? personTypes.get(tipoContatoId) : undefined;
@@ -461,7 +584,7 @@ function mapButtonActionGroups(item: Raw, fieldCatalog: Map<number, string>, cat
         parametros: buildParametros(action, fieldCatalog),
         eventos: isRubeus ? buildEventos(action, catalogs.rubeusEvents) : undefined,
         pessoaVinculada: isRubeus ? buildPessoaVinculada(action, fieldCatalog, catalogs.personTypes) : undefined,
-        logica: describeLogicsStructured(action.logics, fieldCatalog),
+        logica: describeLogica(action, fieldCatalog, "acao"),
         ativada,
         fonteDados: isConsulta ? undefined : buildFonteDados(action, fieldCatalog),
       });
@@ -488,8 +611,11 @@ const REDIRECT_TYPE_LABELS: Record<number, string> = {
  *  at a different kind of destination (confirmed live: type 7 carries `popup_id`, type 1 carries
  *  neither `popup_id` nor `page_id` nor `link` — it's just "próximo passo"). `popups`/`pages` are
  *  resolved via their catalogs (`GET /api/popups`/`GET /api/pages`, both `{id, name}`); "Link
- *  externo" (type 5) is either a fixed `link` or a `link_field_id` bound to a system field
- *  (`link_field_type_id`: 1 = fixo, 2 = campo do sistema — mirrors `fixed_param` elsewhere). */
+ *  externo" (type 5) is either a `link_field_id` bound to a system field or a fixed `link`
+ *  (`link_field_type_id`: 1 = campo do sistema, 2 = valor fixo — confirmed live against a real
+ *  `GET /api/custom-component/{id}` response: `link_field_type_id: 2` with a real `link` and
+ *  `link_field_id: null`; this was previously inverted, which showed a configured fixed link as an
+ *  unresolved "campo do sistema" with no link at all). */
 function describeForwardTarget(fd: Raw, catalogs: ActionCatalogs, fieldCatalog: Map<number, string>): string {
   const type = Number(fd.redirect_type_id);
   switch (type) {
@@ -503,11 +629,15 @@ function describeForwardTarget(fd: Raw, catalogs: ActionCatalogs, fieldCatalog: 
     case 4:
       return "Portal";
     case 5: {
-      if (fd.link_field_type_id === 2) {
-        const fieldId = Number(fd.link_field_id);
-        return fieldId ? `Link externo — campo: ${fieldCatalog.get(fieldId) ?? `campo #${fieldId}`}` : "Link externo — campo do sistema";
+      // "Link externo" is already conveyed by `tipo` (REDIRECT_TYPE_LABELS[5]) — `destino` here
+      // only needs the value's own kind ("Campo do sistema"/"Valor fixo") + its value, per
+      // explicit instruction, not a repeated "Link externo" prefix.
+      if (fd.link_field_type_id === 1) {
+        const fieldRef = formatFieldRefOptional(fd.link_field_id, fieldCatalog);
+        return fieldRef ? `Campo do sistema: ${fieldRef}` : "Campo do sistema";
       }
-      return firstString(fd, ["link"]) ? `Link externo: ${firstString(fd, ["link"])}` : "Link externo";
+      const link = firstString(fd, ["link"]);
+      return link ? `Valor fixo: ${link}` : "Valor fixo";
     }
     case 6:
       return fd.page_id ? (catalogs.pages.get(Number(fd.page_id)) ?? `Página #${fd.page_id}`) : "Página";
@@ -520,20 +650,70 @@ function describeForwardTarget(fd: Raw, catalogs: ActionCatalogs, fieldCatalog: 
   }
 }
 
+/** `use_parameters`/`logic_enabled` (0/1) gate whether `parameters[]`/`logics[]` are actually in
+ *  effect for this encaminhamento — confirmed live: a real `forwardData` entry carries empty
+ *  `parameters`/`logics` arrays alongside these flags regardless of whether they're set, so the
+ *  flag (not just array length) decides whether the section is shown at all. */
 function mapForwardData(item: Raw, fieldCatalog: Map<number, string>, catalogs: ActionCatalogs): EncaminhamentoSpec[] {
   return asArray(item.forwardData)
     .sort((a, b) => Number(a.position ?? 0) - Number(b.position ?? 0))
     .map((fd) => {
       const type = Number(fd.redirect_type_id);
-      const parametros = buildParametros(fd, fieldCatalog);
+      const usaParametros = fd.use_parameters === 1 || fd.use_parameters === true;
+      const parametros = usaParametros ? buildParametros(fd, fieldCatalog) : [];
+      const logicaAtiva = fd.logic_enabled === 1 || fd.logic_enabled === true;
       return {
         tipo: REDIRECT_TYPE_LABELS[type] ?? `tipo ${type || "desconhecido"}`,
         destino: describeForwardTarget(fd, catalogs, fieldCatalog),
         novaAba: fd.new_tab === 1 || fd.new_tab === true,
         parametros: parametros.length > 0 ? parametros : undefined,
-        logica: describeLogicsStructured(fd.logics, fieldCatalog),
+        logica: logicaAtiva ? describeLogica(fd, fieldCatalog, "acao") : undefined,
+        // Type 7 = "Abrir pop-up" — `popupId` is threaded through so the fetch layer
+        // (actions/integrations/ps-docs.ts) knows which `GET /api/popups/{id}` calls to make and
+        // where to attach the result (`popupDetalhe`, filled in after this parse returns).
+        popupId: type === 7 && fd.popup_id ? Number(fd.popup_id) : undefined,
       };
     });
+}
+
+/** A raw value that may come back as a string or a number ("altura"/"largura" fields on a pop-up)
+ *  — stringified when present, `undefined` when null/empty (so the caller can show its own
+ *  "não definida" fallback text). */
+function numericOrStringField(raw: Raw, key: string): string | undefined {
+  const value = raw[key];
+  return value === null || value === undefined || value === "" ? undefined : String(value);
+}
+
+/** A pop-up's own full config — `GET /api/popups/{popup_id}`, per explicit instruction. `content`
+ *  is a flat item list, parsed exactly like a passo's own `content` (same `mapItem` tree — a
+ *  pop-up is a single self-contained screen, not multiple steps). `rawPopupQuery` is the separate
+ *  `GET /api/popups/querys/{popup_id}` response — confirmed live to be the exact same shape as
+ *  `step/querys/{step_id}` (an array of query records), so it's handed straight to the same
+ *  `buildConsultaSql` used for a stage/step's own query. */
+export function parsePopup(rawPopup: unknown, rawPopupQuery: unknown, fieldCatalog: Map<number, string>, catalogs: ActionCatalogs): PopupSpec {
+  const data = (unwrapData(rawPopup) as Raw) ?? {};
+  return {
+    nome: firstString(data, ["name"]) ?? "(pop-up sem nome)",
+    permiteFechar: data.allow_close_popup === 1 || data.allow_close_popup === true,
+    alturaMaxima: numericOrStringField(data, "maximum_height"),
+    larguraMaxima: numericOrStringField(data, "maximum_width"),
+    itens: asArray(data.content).map((item) => mapItem(item, fieldCatalog, catalogs)),
+    consultaSql: buildConsultaSql(rawPopupQuery, fieldCatalog),
+  };
+}
+
+/** Walks an already-parsed etapa's item tree collecting every encaminhamento that references a
+ *  pop-up (`popupId` set) — used by the fetch layer to know which `GET /api/popups/{id}` calls to
+ *  make, and as the exact list of objects to mutate (`popupDetalhe = ...`) once each fetch
+ *  resolves, without needing to re-walk or rebuild the tree. */
+export function collectPopupReferences(etapa: EtapaSpec): EncaminhamentoSpec[] {
+  const found: EncaminhamentoSpec[] = [];
+  const visitItem = (item: ItemSpec) => {
+    if (item.encaminhamentos) for (const enc of item.encaminhamentos) if (enc.popupId) found.push(enc);
+    if (item.filhos) item.filhos.forEach(visitItem);
+  };
+  for (const passo of etapa.passos) passo.itens.forEach(visitItem);
+  return found;
 }
 
 function resolveUploadTargets(item: Raw, fieldCatalog: Map<number, string>): { papel: string; campo: string }[] {
@@ -553,7 +733,7 @@ function resolveUploadTargets(item: Raw, fieldCatalog: Map<number, string>): { p
   for (const [key, papel] of roles) {
     const fieldId = Number(item[key]);
     if (!fieldId) continue;
-    targets.push({ papel, campo: fieldCatalog.get(fieldId) ?? `campo #${fieldId}` });
+    targets.push({ papel, campo: formatFieldRef(fieldId, fieldCatalog) });
   }
   return targets;
 }
@@ -602,7 +782,7 @@ function buildCampoDados(item: Raw, fieldCatalog: Map<number, string>): CampoDet
         parametros: asArray(externalSource.parameters).map((p) => ({
           nome: firstString(p, ["name"]) ?? "(parâmetro)",
           regra: p.fixed_param === 1 ? "valor fixo" : undefined,
-          campoVinculado: resolveFieldLabel(p.field_id, fieldCatalog),
+          campoVinculado: formatFieldRefOptional(p.field_id, fieldCatalog),
         })),
       }
     : undefined;
@@ -693,6 +873,33 @@ function describeButtonStyle(style: string | undefined): string | undefined {
   return label ? `${label} (${style})` : style;
 }
 
+/** An agrupamento's own `name`/`label` — confirmed live (`POST /selected-stage`): `label` is the
+ *  generic component-TYPE label (almost always literally "Agrupamento", regardless of how the
+ *  container was actually configured), while `name` is the one the builder user actually typed for
+ *  THIS instance (e.g. "Campos", "LGPD", "Dados do candidato"). Showing `label` alone (the old
+ *  behavior) made every agrupamento in a stage read as the same bare "Agrupamento" with nothing to
+ *  tell them apart — per explicit instruction, always show **name (label)** instead. */
+function describeAgrupamentoNome(raw: Raw, fallback: string): string {
+  const label = firstString(raw, ["label"]);
+  const name = firstString(raw, ["name"]);
+  if (name && label) return `${name} (${label})`;
+  return name ?? label ?? fallback;
+}
+
+/** An agrupamento's background — `container_background_type` (0 = cor sólida, 1 = imagem),
+ *  `container_background_color`, `container_background_image` (a storage path — never shown
+ *  directly, only "possui imagem vinculada", per explicit instruction). Each of the three is
+ *  included only when its own raw value isn't null; returns `undefined` entirely when none are set,
+ *  so the caller can skip the whole "Background" line instead of showing an empty one. */
+function describeBackground(item: Raw): BackgroundAgrupamentoSpec | undefined {
+  const rawTipo = item.container_background_type;
+  const tipo = rawTipo === 0 ? "Cor sólida" : rawTipo === 1 ? "Imagem" : undefined;
+  const cor = firstString(item, ["container_background_color"]);
+  const possuiImagemVinculada = item.container_background_image !== null && item.container_background_image !== undefined && item.container_background_image !== "" ? true : undefined;
+  if (!tipo && !cor && !possuiImagemVinculada) return undefined;
+  return { tipo, cor, possuiImagemVinculada };
+}
+
 function mapItem(item: Raw, fieldCatalog: Map<number, string>, catalogs: ActionCatalogs): ItemSpec {
   const formBuild = parseFormBuild(item.form_build);
   const outerType = firstString(item, ["type"]) ?? "desconhecido";
@@ -707,14 +914,11 @@ function mapItem(item: Raw, fieldCatalog: Map<number, string>, catalogs: ActionC
     padding: firstString(item, ["padding"]) ?? undefined,
     larguraMaxima: firstString(item, ["max_width"]) ?? undefined,
     alinhamento: describeAlignment(item),
-    temBackground: !!item.container_background_type,
-    corBackground: firstString(item, ["container_background_color"]),
-    temImagemBackground: !!item.container_background_image,
+    background: describeBackground(item),
     cssCodigo: firstString(item, ["container_css"]),
-    logica: describeLogicsStructured(item.logics, fieldCatalog),
+    logica: describeLogica(item, fieldCatalog, "elemento"),
     integracaoTotvs: describeTotvsIntegration(item),
   };
-  base.logicaTexto = logicsToText(base.logica);
 
   if (outerType === "button") {
     const allActions = mapButtonActionGroups(item, fieldCatalog, catalogs);
@@ -760,14 +964,31 @@ function mapItem(item: Raw, fieldCatalog: Map<number, string>, catalogs: ActionC
   if (outerType === "container" || formioType === "fieldset") {
     const children = asArray(item.container_content);
     const filhos = children.map((child) => mapItem(child, fieldCatalog, catalogs));
-    const larguraPorColuna = children.map((c) => firstString(c, ["column_size"])).filter((v): v is string => !!v);
-    const distinctWidths = new Set(larguraPorColuna);
+    // Per explicit instruction: instead of describing the container's column layout (widths,
+    // counts — unreliable to recover from `container_content`'s flat, stacked-fields shape), just
+    // list the "Label (id)" of every direct child field, same "Label (id)" convention used
+    // everywhere else (`formatFieldRef`) — falls back to the child's own raw label when it isn't a
+    // resolvable system field (e.g. a nested button/text block). A nested agrupamento child has no
+    // `field_id` and defaults its own `name` to the generic "Agrupamento" when never renamed in the
+    // builder (confirmed live: several sibling agrupamentos all showing bare "Agrupamento" with
+    // nothing to tell them apart) — its own `logics` (display condition) is what actually
+    // distinguishes it, so it's carried along per explicit instruction.
+    const camposAgrupados: CampoAgrupadoSpec[] = children.map((c) => {
+      const fieldId = Number(c.field_id);
+      let nome: string;
+      if (fieldId) {
+        nome = formatFieldRef(fieldId, fieldCatalog);
+      } else {
+        const childFormBuild = parseFormBuild(c.form_build);
+        nome = describeAgrupamentoNome(c, firstString(childFormBuild, ["label", "name"]) ?? "(sem nome)");
+      }
+      return { nome, logica: describeLogica(c, fieldCatalog, "elemento") };
+    });
     return {
       ...base,
+      nome: describeAgrupamentoNome(item, nome),
       categoria: "agrupamento",
-      numColunas: children.length > 0 ? children.length : undefined,
-      larguraColuna: distinctWidths.size === 1 ? [...distinctWidths][0] : undefined,
-      larguraPorColuna: larguraPorColuna.length > 0 ? larguraPorColuna : undefined,
+      camposAgrupados: camposAgrupados.length > 0 ? camposAgrupados : undefined,
       filhos,
     };
   }
@@ -776,7 +997,7 @@ function mapItem(item: Raw, fieldCatalog: Map<number, string>, catalogs: ActionC
     return {
       ...base,
       categoria: "cep",
-      campoCepVinculado: fieldCatalog.get(Number(item.field_id_to_save_cep)) ?? `campo #${item.field_id_to_save_cep}`,
+      campoCepVinculado: formatFieldRef(item.field_id_to_save_cep, fieldCatalog),
       editavel: item.read_only !== 1,
     };
   }
@@ -799,20 +1020,8 @@ function mapItem(item: Raw, fieldCatalog: Map<number, string>, catalogs: ActionC
   };
 }
 
-function flattenItems(items: ItemSpec[]): ItemSpec[] {
-  return items.flatMap((item) => [item, ...(item.filhos ? flattenItems(item.filhos) : [])]);
-}
-
-function collectDataSources(items: ItemSpec[]): string[] {
-  const sources = new Set<string>();
-  for (const item of flattenItems(items)) {
-    if (item.integracaoTotvs?.tabela) sources.add(item.integracaoTotvs.tabela);
-  }
-  return [...sources];
-}
-
-function mapPasso(nome: string, content: Raw[], fieldCatalog: Map<number, string>, catalogs: ActionCatalogs): PassoSpec {
-  return { nome, itens: content.map((item) => mapItem(item, fieldCatalog, catalogs)) };
+function mapPasso(nome: string, content: Raw[], fieldCatalog: Map<number, string>, catalogs: ActionCatalogs, consultaSql: ConsultaSqlSpec): PassoSpec {
+  return { nome, itens: content.map((item) => mapItem(item, fieldCatalog, catalogs)), consultaSql };
 }
 
 function mapFeedbacks(feedbackPayload: unknown, fieldCatalog: Map<number, string>): FeedbackSpec[] {
@@ -842,6 +1051,35 @@ export interface EtapaParseResult {
   warnings: string[];
 }
 
+/** Walks a stage's raw `content`/`standard_fields` tree — recursing into every array/object it
+ *  finds, since a field can sit behind any depth of `container_content` nesting (agrupamentos
+ *  inside agrupamentos, columns inside columns) — collecting every `{field_id, label}` pair it
+ *  sees along the way. Confirmed live: each field/component record in `selected-stage` already
+ *  carries its OWN `field_id` + `label` inline (the same shape as `GET /api/settings/field/{id}`,
+ *  per the comment on `parseSelectiveProcessStructure` above), which is how `field_compare_id`s
+ *  like a container's display logic get resolved even when `POST /standard-fields` (the base
+ *  catalog) never mentions that id — that endpoint only covers a subset of the fields actually
+ *  used across a process's stages. */
+export function harvestFieldLabels(nodes: unknown): Map<number, string> {
+  const harvested = new Map<number, string>();
+  const visit = (node: unknown) => {
+    if (Array.isArray(node)) {
+      for (const child of node) visit(child);
+      return;
+    }
+    if (!node || typeof node !== "object") return;
+    const obj = node as Raw;
+    const id = Number(obj.field_id);
+    const label = firstString(obj, ["label"]);
+    if (id && label && !harvested.has(id)) harvested.set(id, label);
+    for (const value of Object.values(obj)) {
+      if (value && typeof value === "object") visit(value);
+    }
+  };
+  visit(nodes);
+  return harvested;
+}
+
 /** Parses ONE stage into one `EtapaSpec` — split out from the full-process parser so the caller
  *  (the "Documentação PS" page) can fetch and render etapas one at a time as they come back,
  *  instead of waiting for every stage before showing anything. */
@@ -849,25 +1087,33 @@ export function parseEtapa(stage: StageRef, payload: StagePayload, fieldCatalog:
   const warnings: string[] = [];
   const stepsWithContent = asArray(unwrapData(payload?.selectedStage));
 
-  const passos: PassoSpec[] = stepsWithContent.map((step) => {
+  // Base catalog (`POST /standard-fields`) enriched with every `field_id -> label` pair harvested
+  // from this stage's own payload, so a `field_compare_id`/`field_id_to_save_*` reference that
+  // points at a field defined only inside this stage (not in the base catalog) still resolves to
+  // a real name instead of falling back to "campo #id". The base catalog wins on overlap — it's
+  // the confirmed-reliable source; harvested entries only fill the gaps it doesn't cover.
+  const harvested = harvestFieldLabels(stepsWithContent);
+  const enrichedCatalog = harvested.size > 0 ? new Map([...harvested, ...fieldCatalog]) : fieldCatalog;
+
+  const passos: PassoSpec[] = stepsWithContent.map((step, index) => {
     const stepName = firstString(step, ["name"]) ?? "(passo sem nome)";
     const content = asArray(step.content);
     if (content.length === 0) warnings.push(`Passo "${stepName}" da etapa "${stage.name}" não retornou campos/componentes.`);
-    return mapPasso(stepName, content, fieldCatalog, catalogs);
+    const stepId = Number(step.id) || stage.steps[index]?.id;
+    const consultaSqlPasso = buildConsultaSql(stepId ? payload?.stepQueries?.[stepId] : undefined, enrichedCatalog);
+    return mapPasso(stepName, content, enrichedCatalog, catalogs, consultaSqlPasso);
   });
 
   if (passos.length === 0) warnings.push(`Etapa "${stage.name}" não retornou passos com conteúdo — verifique se o Token PS ainda é válido.`);
 
-  const allItens = passos.flatMap((p) => p.itens);
-
   const etapa: EtapaSpec = {
     nome: stage.name,
     ativa: stage.ativa,
-    logicaExibicao: logicsToText(describeLogicsStructured(stage.logics, fieldCatalog)) ?? "Nenhuma restrição de exibição identificada.",
+    logicaExibicao: describeLogica(stage.list, enrichedCatalog, "elemento") ?? { regras: [] },
     descricao: passos.length > 0 ? `Etapa composta por ${passos.length} passo(s): ${passos.map((p) => p.nome).join(", ")}.` : "(sem passos identificados)",
-    fontesDados: collectDataSources(allItens),
+    consultaSql: buildConsultaSql(payload?.stageQuery, enrichedCatalog),
     passos,
-    feedbacks: mapFeedbacks(payload?.feedback, fieldCatalog),
+    feedbacks: mapFeedbacks(payload?.feedback, enrichedCatalog),
   };
 
   return { etapa, warnings };

@@ -1,4 +1,4 @@
-import type { AcaoBotaoSpec, CampoDetalhado, ColunaDataserverSpec, DocumentacaoPS, EncaminhamentoSpec, FonteDadosSpec, ItemSpec, ParametroAcaoSpec, RegraLogicaItem } from "./types";
+import type { AcaoBotaoSpec, CampoDetalhado, ColunaDataserverSpec, ConsultaSqlSpec, DocumentacaoPS, EncaminhamentoSpec, FonteDadosSpec, ItemSpec, LogicaSpec, ParametroAcaoSpec, PopupSpec, RegraLogicaItem } from "./types";
 
 const sim = (v: boolean | undefined) => (v ? "Sim" : "Não");
 
@@ -11,16 +11,50 @@ const BASE = "  ";
 const kv = (indent: string, label: string, value: string) => `${indent}- ${label}: **${value}**`;
 const kvCode = (indent: string, label: string, value: string) => `${indent}- ${label}: \`${value}\``;
 
-function logicaText(logica: RegraLogicaItem[] | undefined): string | undefined {
-  if (!logica || logica.length === 0) return undefined;
-  return logica.map((l) => `${l.campo} ${l.regra}${l.valor !== undefined ? ` "${l.valor}"` : ""}`).join(" E ");
+/** A resolved field ref reads "Label (id)" (`formatFieldRef`) — bolds the whole thing, italicizing
+ *  just the trailing "(id)" when present, e.g. `**Label *(id)***`, per explicit instruction. Falls
+ *  back to bolding the whole string when there's no trailing "(id)" (unresolved fallbacks like
+ *  "(campo não identificado)"). */
+function fieldRefMd(campo: string): string {
+  const m = campo.match(/^(.+) (\(\d+\))$/);
+  if (m) return `**${m[1]} *${m[2]}***`;
+  return `**${campo}**`;
+}
+
+/** One condition, arrow-separated per explicit instruction ("ficha" format): campo → regra →
+ *  valor, all three bold — valor omitted for rule ids that don't take one (É desconhecido/É
+ *  conhecido). */
+function logicaItemText(l: RegraLogicaItem): string {
+  return `${fieldRefMd(l.campo)} → **${l.regra}**${l.valor !== undefined ? ` → **${l.valor}**` : ""}`;
+}
+
+/** Every mention of "Lógica"/"Condição" renders in the builder's own "ficha" format, per explicit
+ *  instruction: a header line "Ação: X → Condição: Y" (the logic's own `action_logic_id`/
+ *  `condition_logic_id`), followed by one nested bullet per rule. */
+function logicaSpecLines(spec: LogicaSpec | undefined, indent: string): string[] {
+  if (!spec || spec.regras.length === 0) return [];
+  return [`${indent}- Ação: **${spec.acao ?? "não identificada"}** → Condição: **${spec.condicao ?? "não identificada"}**`, ...spec.regras.map((l) => `${indent}  - ${logicaItemText(l)}`)];
+}
+
+/** An encaminhamento's "Destino" — a "Campo do sistema"/"Valor fixo" destino (Link externo) only
+ *  bolds its own value, not the "Campo do sistema:"/"Valor fixo:" prefix (per explicit
+ *  instruction); every other destino kind (etapa/página/pop-up name, etc.) keeps the previous
+ *  fully-bold `kv` rendering. */
+function destinoLine(indent: string, destino: string, suffix: string): string {
+  for (const prefixo of ["Campo do sistema: ", "Valor fixo: "]) {
+    if (destino.startsWith(prefixo)) return `${indent}- Destino: ${prefixo}**${destino.slice(prefixo.length)}**${suffix}`;
+  }
+  return kv(indent, "Destino", `${destino}${suffix}`);
 }
 
 /** codConsulta/codSistema/codColigada + cache/frequência + contexto — never lists the fields a
  *  query returns, only the query's own configuration (per explicit instruction). `indent` is the
- *  level this whole block starts at (passed in by the caller, already includes `BASE`). */
+ *  level this whole block starts at (passed in by the caller, already includes `BASE`). When
+ *  unconfigured, renders nothing at all — the "Não há sentença SQL configurada" message is
+ *  reserved for the etapa/passo's own "Fonte de dados" section, via `consultaSqlLines`, not for a
+ *  button ação. */
 function fonteDadosLines(fonte: FonteDadosSpec, indent: string): string[] {
-  if (!fonte.configurada) return [`${indent}- Fonte de dados: **nenhuma consulta vinculada**`];
+  if (!fonte.configurada) return [];
   const temContexto = fonte.contexto.length > 0;
   const lines = [
     `${indent}- Fonte de dados:`,
@@ -38,8 +72,27 @@ function fonteDadosLines(fonte: FonteDadosSpec, indent: string): string[] {
   return lines;
 }
 
-function parametroLines(parametros: ParametroAcaoSpec[], indent: string): string[] {
-  const lines = [kv(indent, "Parâmetros", sim(parametros.length > 0))];
+/** The real configured SQL query of an etapa/passo (`get-stage-querys`/`step/querys`). */
+function consultaSqlLines(titulo: string, consulta: ConsultaSqlSpec): string[] {
+  if (!consulta.configurada) return [`#### ${titulo}`, "", "Não há sentença SQL configurada", ""];
+  const lines = [
+    `#### ${titulo}`,
+    "",
+    kv(BASE, "Coligada", consulta.codColigada),
+    kv(BASE, "Sistema", consulta.codSistema),
+    kv(BASE, "Consulta", consulta.codConsulta),
+    kv(BASE, "Cache", sim(consulta.usaCache)),
+  ];
+  if (consulta.usaCache) lines.push(kv(BASE, "Frequência do cache", consulta.frequenciaCache ?? "não informada"));
+  lines.push(...parametroLines(consulta.parametros, BASE));
+  lines.push("");
+  return lines;
+}
+
+/** `label` is "Contexto" for Dataservers/Processos (Salvar dados/Executar processo) — every other
+ *  action type calls this the same table "Parâmetros", per explicit instruction. */
+function parametroLines(parametros: ParametroAcaoSpec[], indent: string, label = "Parâmetros"): string[] {
+  const lines = [kv(indent, label, sim(parametros.length > 0))];
   for (const p of parametros) {
     lines.push(`${indent}  - ${p.nome} - ${p.tipo}`);
     if (p.tipo === "Campo do sistema" && p.campoSistema) lines.push(kv(indent + "    ", "Campo do sistema", p.campoSistema));
@@ -77,7 +130,7 @@ function acaoLines(acao: AcaoBotaoSpec, indent: string): string[] {
   } else if (acao.tipoAcao === "Salvar dados" || acao.tipoAcao === "Executar processo") {
     lines.push(kv(body, "Dataserver", acao.dataserver ?? "não identificado"));
     if (acao.colunas) lines.push(...colunasLines(acao.colunas, body));
-    lines.push(...parametroLines(acao.parametros, body));
+    lines.push(...parametroLines(acao.parametros, body, "Contexto"));
   } else if (acao.tipoAcao === "Ação Rubeus") {
     if (acao.camposConfigurados.length > 0) {
       lines.push(`${body}- Campos configurados:`);
@@ -101,21 +154,51 @@ function acaoLines(acao: AcaoBotaoSpec, indent: string): string[] {
     lines.push(...parametroLines(acao.parametros, body));
   }
 
-  const condicao = logicaText(acao.logica);
-  if (condicao) lines.push(kv(body, "Condição", condicao));
+  lines.push(...logicaSpecLines(acao.logica, body));
 
   if (acao.fonteDados !== undefined) lines.push(...fonteDadosLines(acao.fonteDados, body));
 
   return lines;
 }
 
+/** A pop-up's own full config (`GET /api/popups/{id}`) — Nome/Permite fechar/Altura e Largura
+ *  máxima, its own configured SQL query (`GET /api/popups/querys/{id}`, same shape as a
+ *  stage/step's own — rendered as nested bullets here, not a `####` heading like
+ *  `consultaSqlLines`, since this whole block already sits nested inside an encaminhamento's own
+ *  indent), then its `content` rendered exactly like a passo's own items (starting fresh at depth
+ *  0, since a pop-up is a self-contained screen), per explicit instruction. */
+function popupLines(popup: PopupSpec, indent: string): string[] {
+  const inner = indent + "  ";
+  const lines = [
+    `${indent}- Pop-up:`,
+    kv(inner, "Nome", popup.nome),
+    kv(inner, "Permite fechar", sim(popup.permiteFechar)),
+    kv(inner, "Altura máxima", popup.alturaMaxima ?? "Altura máxima não definida"),
+    kv(inner, "Largura máxima", popup.larguraMaxima ?? "Largura máxima não definida"),
+  ];
+  const consulta = popup.consultaSql;
+  if (!consulta.configurada) {
+    lines.push(`${inner}- Fonte de dados do pop-up: **Não há sentença SQL configurada**`);
+  } else {
+    lines.push(`${inner}- Fonte de dados do pop-up:`);
+    lines.push(kv(inner + "  ", "Coligada", consulta.codColigada));
+    lines.push(kv(inner + "  ", "Sistema", consulta.codSistema));
+    lines.push(kv(inner + "  ", "Consulta", consulta.codConsulta));
+    lines.push(kv(inner + "  ", "Cache", sim(consulta.usaCache)));
+    if (consulta.usaCache) lines.push(kv(inner + "  ", "Frequência do cache", consulta.frequenciaCache ?? "não informada"));
+    lines.push(...parametroLines(consulta.parametros, inner + "  "));
+  }
+  for (const item of popup.itens) renderItem(item, lines, 0);
+  return lines;
+}
+
 function encaminhamentoLines(enc: EncaminhamentoSpec, indent: string): string[] {
   const lines = [kv(indent, "Tipo", enc.tipo)];
-  if (enc.destino !== enc.tipo) lines.push(kv(indent, "Destino", `${enc.destino}${enc.novaAba ? " (nova aba)" : ""}`));
+  if (enc.destino !== enc.tipo) lines.push(destinoLine(indent, enc.destino, enc.novaAba ? " (nova aba)" : ""));
   else if (enc.novaAba) lines.push(kv(indent, "Nova aba", "Sim"));
   if (enc.parametros && enc.parametros.length > 0) lines.push(...parametroLines(enc.parametros, indent));
-  const condicao = logicaText(enc.logica);
-  if (condicao) lines.push(kv(indent + "  ", "Lógica", condicao));
+  lines.push(...logicaSpecLines(enc.logica, indent + "  "));
+  if (enc.popupDetalhe) lines.push(...popupLines(enc.popupDetalhe, indent));
   return lines;
 }
 
@@ -245,13 +328,14 @@ const CATEGORIA_LABEL: Record<ItemSpec["categoria"], string> = {
   componente: "Componente",
 };
 
-/** Renders one item (heading `#####` for a campo, `####` for anything else — role-based, not
- *  depth-based, per explicit instruction) followed by its property groups as `######` sections,
+/** Renders one item's heading — depth-based, per explicit instruction: a top-level item (direct
+ *  child of a passo) is `####` (h4), an item nested one level inside another component is `#####`
+ *  (h5), and anything deeper is `######` (h6 — the deepest level named here, capped there rather
+ *  than growing past it) — followed by its own property groups (still fixed `######` sections),
  *  every bullet indented (`BASE`) under its heading, then — for an agrupamento — its children
- *  rendered the same way right after, so a campo's h5 heading naturally reads as "belonging to"
- *  the componente h4 heading before it. */
-function renderItem(item: ItemSpec, out: string[]): void {
-  const level = item.categoria === "campo" ? "#####" : "####";
+ *  rendered the same way right after, one depth level deeper. */
+function renderItem(item: ItemSpec, out: string[], depth = 0): void {
+  const level = depth <= 0 ? "####" : depth === 1 ? "#####" : "######";
   out.push(`${level} ${CATEGORIA_LABEL[item.categoria]}: ${item.nome}`, "");
 
   const totvs = item.integracaoTotvs && item.categoria !== "campo" ? [item.integracaoTotvs.tabela, item.integracaoTotvs.campo, item.integracaoTotvs.sentenca].filter(Boolean).join(".") : "";
@@ -265,8 +349,7 @@ function renderItem(item: ItemSpec, out: string[]): void {
       out.push("###### Geral", "");
       out.push(kv(BASE, "Conteúdo", item.conteudoHtml ?? ""));
       if (item.classeCss) out.push(kvCode(BASE, "Classe CSS", item.classeCss));
-      const logica = logicaText(item.logica);
-      if (logica) out.push(kv(BASE, "Lógica", logica));
+      out.push(...logicaSpecLines(item.logica, BASE));
       out.push("");
       break;
     }
@@ -274,22 +357,41 @@ function renderItem(item: ItemSpec, out: string[]): void {
       out.push("###### Geral", "");
       if (item.classeCss) out.push(kvCode(BASE, "Classe CSS", item.classeCss));
       if (totvs) out.push(kv(BASE, "TOTVS", totvs));
+      if (item.cssCodigo) out.push(`${BASE}- CSS:`, `${BASE}  \`\`\``, `${BASE}  ${item.cssCodigo.split("\n").join(`\n${BASE}  `)}`, `${BASE}  \`\`\``);
       out.push("");
 
+      if (item.camposAgrupados && item.camposAgrupados.length > 0) {
+        out.push("###### Conteúdo", "");
+        item.camposAgrupados.forEach((campo) => {
+          out.push(`${BASE}- ${fieldRefMd(campo.nome)}`);
+          out.push(...logicaSpecLines(campo.logica, BASE + "  "));
+        });
+        out.push("");
+      }
+
       const personalizacao: string[] = [];
-      if (item.larguraPorColuna) personalizacao.push(kv(BASE, "Configuração", `componente com ${item.larguraPorColuna.length} coluna(s), largura(s): ${item.larguraPorColuna.join(", ")}`));
       if (item.padding) personalizacao.push(kv(BASE, "Padding", item.padding));
       if (item.larguraMaxima) personalizacao.push(kv(BASE, "Largura máxima", item.larguraMaxima));
-      if (item.temBackground) personalizacao.push(kv(BASE, "Background", item.corBackground ? `cor ${item.corBackground}` : item.temImagemBackground ? "possui imagem" : "configurado"));
-      if (item.cssCodigo) personalizacao.push(`${BASE}- CSS:`, `${BASE}  \`\`\``, `${BASE}  ${item.cssCodigo.split("\n").join(`\n${BASE}  `)}`, `${BASE}  \`\`\``);
+      if (item.background) {
+        personalizacao.push(`${BASE}- Background:`);
+        if (item.background.tipo) personalizacao.push(kv(BASE + "  ", "Tipo", item.background.tipo));
+        if (item.background.cor) personalizacao.push(kv(BASE + "  ", "Cor", item.background.cor));
+        if (item.background.possuiImagemVinculada) personalizacao.push(kv(BASE + "  ", "Possui imagem vinculada", "Sim"));
+      }
       if (personalizacao.length > 0) out.push("###### Personalização", "", ...personalizacao, "");
 
-      if (item.alinhamento) out.push("###### Alinhamento", "", kv(BASE, "Alinhamento", item.alinhamento), "");
+      if (item.alinhamento) {
+        const alinhamentoLines = [
+          item.alinhamento.direcao ? kv(BASE, "Direção", item.alinhamento.direcao) : null,
+          item.alinhamento.horizontal ? kv(BASE, "Alinhamento horizontal", item.alinhamento.horizontal) : null,
+          item.alinhamento.vertical ? kv(BASE, "Alinhamento vertical", item.alinhamento.vertical) : null,
+        ].filter((l): l is string => !!l);
+        if (alinhamentoLines.length > 0) out.push("###### Alinhamento", "", ...alinhamentoLines, "");
+      }
 
-      const logica = logicaText(item.logica);
-      if (logica) out.push("###### Lógica", "", kv(BASE, "Condição", logica), "");
+      if (item.logica) out.push("###### Lógica", "", ...logicaSpecLines(item.logica, BASE), "");
 
-      for (const child of item.filhos ?? []) renderItem(child, out);
+      for (const child of item.filhos ?? []) renderItem(child, out, depth + 1);
       break;
     }
     case "botao": {
@@ -372,14 +474,18 @@ export function documentToMarkdown(doc: DocumentacaoPS): string {
 
   for (const etapa of doc.etapas) {
     lines.push(`## Etapa: ${etapa.nome}`, "");
-    lines.push("#### Lógica de exibição", "", etapa.logicaExibicao, "");
+    lines.push(
+      "#### Lógica de exibição",
+      "",
+      ...(etapa.logicaExibicao.regras.length > 0 ? logicaSpecLines(etapa.logicaExibicao, "") : ["Nenhuma restrição de exibição identificada."]),
+      ""
+    );
     lines.push("#### Descrição", "", etapa.descricao, "");
-    if (etapa.fontesDados.length > 0) {
-      lines.push("#### Fontes de dados", "", `TOTVS/Rubeus: ${etapa.fontesDados.join(", ")}`, "");
-    }
+    lines.push(...consultaSqlLines("Fonte de dados da etapa", etapa.consultaSql));
 
     etapa.passos.forEach((passo) => {
       lines.push(`### Passo: ${passo.nome}`, "");
+      lines.push(...consultaSqlLines("Fonte de dados do passo", passo.consultaSql));
       for (const item of passo.itens) renderItem(item, lines);
     });
 

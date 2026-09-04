@@ -28,10 +28,58 @@ export type FonteDadosSpec =
       contexto: { nome: string; campoVinculado?: string }[];
     };
 
+/** The real configured SQL query for a stage ("etapa") or step ("passo") — from `GET
+ *  /selective-process/get-stage-querys/{stage_id}` and `GET /step/querys/{step_id}` respectively.
+ *  Same "configurada: false unless everything's filled" rule as `FonteDadosSpec`, and reuses
+ *  `ParametroAcaoSpec` for the parameter list since the shape (campo do sistema/valor fixo) is
+ *  identical. */
+export type ConsultaSqlSpec =
+  | { configurada: false }
+  | {
+      configurada: true;
+      codColigada: string;
+      codSistema: string;
+      codConsulta: string;
+      usaCache: boolean;
+      frequenciaCache?: string;
+      parametros: ParametroAcaoSpec[];
+    };
+
 export interface RegraLogicaItem {
   campo: string;
   regra: string;
   valor?: string;
+}
+
+/** The full display-logic config of a stage/step/component/action/encaminhamento — mirrors the
+ *  builder's own "ficha": `acao` is `action_logic_id` (1/2), worded differently depending on
+ *  whether the logic belongs to an element ("Mostrar"/"Ocultar") or an action ("Executar"/"Não
+ *  executar"); `condicao` is `condition_logic_id` (1 = "Se alguma dessas regras corresponder" / OR,
+ *  2 = "Se todas as regras corresponderem" / AND) describing how `regras` combine. */
+export interface LogicaSpec {
+  acao?: string;
+  condicao?: string;
+  regras: RegraLogicaItem[];
+}
+
+/** One direct child of an agrupamento's "Campos" list — `nome` is "Label (id)" for a resolvable
+ *  system field, or the child's own raw label/name otherwise (e.g. a nested agrupamento, which
+ *  defaults to the generic "Agrupamento" when never renamed in the builder — `logica`, the child's
+ *  OWN display logic, is what actually tells two same-named nested agrupamentos apart). */
+export interface CampoAgrupadoSpec {
+  nome: string;
+  logica?: LogicaSpec;
+}
+
+/** An agrupamento's own background config (`container_background_type`/`_color`/`_image`) — only
+ *  built when at least one of the three is actually set, per explicit instruction: each of `tipo`/
+ *  `cor`/`possuiImagemVinculada` is shown only when its own raw value isn't null. `_image` holds the
+ *  file's storage path, which per explicit instruction is never shown directly — only whether one
+ *  is linked. */
+export interface BackgroundAgrupamentoSpec {
+  tipo?: "Cor sólida" | "Imagem";
+  cor?: string;
+  possuiImagemVinculada?: boolean;
 }
 
 export type PlanoExecucao = "primeiro" | "segundo";
@@ -84,7 +132,7 @@ export interface AcaoBotaoSpec {
   parametros: ParametroAcaoSpec[];
   eventos?: EventoRubeusSpec[]; // only for "Ação Rubeus"
   pessoaVinculada?: PessoaVinculadaSpec; // only for "Ação Rubeus"
-  logica?: RegraLogicaItem[];
+  logica?: LogicaSpec;
   ativada: boolean;
   /** Only rendered for action types that aren't themselves already a consulta (a "Realizar
    *  consulta" action's own coligada/sistema/consulta/parâmetros already covers this — showing a
@@ -101,7 +149,28 @@ export interface EncaminhamentoSpec {
   /** Only present for "Link externo" (`redirect_type_id` 5) when `use_parameters` is set — same
    *  Campo do sistema/Valor fixo shape as an action's own parâmetros. */
   parametros?: ParametroAcaoSpec[];
-  logica?: RegraLogicaItem[];
+  logica?: LogicaSpec;
+  /** Only present for "Abrir pop-up" (`redirect_type_id` 7) — `popupId` is the raw `popup_id`
+   *  (used by the fetch layer to know which `GET /api/popups/{id}` calls to make);
+   *  `popupDetalhe` is that pop-up's own full config, fetched and parsed separately, per explicit
+   *  instruction. `popupDetalhe` stays absent if the fetch failed or hasn't happened yet. */
+  popupId?: number;
+  popupDetalhe?: PopupSpec;
+}
+
+/** A pop-up's own full configuration — `GET /api/popups/{popup_id}`, per explicit instruction.
+ *  `alturaMaxima`/`larguraMaxima` are absent when the raw `maximum_height`/`maximum_width` is null
+ *  (rendered as "Altura/Largura máxima não definida" by the caller); `itens` is the pop-up's own
+ *  `content` array, parsed exactly like a passo's own items (same component/campo tree).
+ *  `consultaSql` is the pop-up's own configured SQL query — `GET /api/popups/querys/{popup_id}`,
+ *  same shape as a stage/step's own `ConsultaSqlSpec`. */
+export interface PopupSpec {
+  nome: string;
+  permiteFechar: boolean;
+  alturaMaxima?: string;
+  larguraMaxima?: string;
+  itens: ItemSpec[];
+  consultaSql: ConsultaSqlSpec;
 }
 
 export interface ValidacaoRegra {
@@ -178,13 +247,10 @@ export interface ItemSpec {
   classeCss?: string;
   padding?: string;
   larguraMaxima?: string;
-  alinhamento?: string;
-  temBackground?: boolean;
-  corBackground?: string;
-  temImagemBackground?: boolean;
+  alinhamento?: { direcao?: string; horizontal?: string; vertical?: string };
+  background?: BackgroundAgrupamentoSpec;
   cssCodigo?: string;
-  logicaTexto?: string;
-  logica?: RegraLogicaItem[];
+  logica?: LogicaSpec;
   integracaoTotvs?: IntegracaoTotvsSpec;
 
   // categoria "campo"
@@ -193,9 +259,7 @@ export interface ItemSpec {
   detalhes?: CampoDetalhado;
 
   // categoria "agrupamento"
-  numColunas?: number;
-  larguraColuna?: string;
-  larguraPorColuna?: string[];
+  camposAgrupados?: CampoAgrupadoSpec[]; // one entry per direct child field, per explicit instruction
   filhos?: ItemSpec[];
 
   // categoria "botao"
@@ -231,6 +295,7 @@ export interface ItemSpec {
 export interface PassoSpec {
   nome: string;
   itens: ItemSpec[];
+  consultaSql: ConsultaSqlSpec;
 }
 
 export interface FeedbackSpec {
@@ -242,9 +307,9 @@ export interface FeedbackSpec {
 export interface EtapaSpec {
   nome: string;
   ativa: boolean;
-  logicaExibicao: string;
+  logicaExibicao: LogicaSpec;
   descricao: string;
-  fontesDados: string[];
+  consultaSql: ConsultaSqlSpec;
   passos: PassoSpec[];
   feedbacks: FeedbackSpec[];
 }

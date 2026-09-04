@@ -1,5 +1,5 @@
 import { Document, Packer, Paragraph, TextRun } from "docx";
-import type { AcaoBotaoSpec, CampoDetalhado, ColunaDataserverSpec, DocumentacaoPS, EncaminhamentoSpec, FonteDadosSpec, ItemSpec, ParametroAcaoSpec, RegraLogicaItem, StyleConfig } from "./types";
+import type { AcaoBotaoSpec, CampoDetalhado, ColunaDataserverSpec, ConsultaSqlSpec, DocumentacaoPS, EncaminhamentoSpec, FonteDadosSpec, ItemSpec, LogicaSpec, ParametroAcaoSpec, PopupSpec, RegraLogicaItem, StyleConfig } from "./types";
 
 const hex = (color: string) => color.replace("#", "");
 const sim = (v: boolean | undefined) => (v ? "Sim" : "Não");
@@ -14,11 +14,6 @@ const CATEGORIA_LABEL: Record<ItemSpec["categoria"], string> = {
   upload: "Componente de Upload",
   componente: "Componente",
 };
-
-function logicaText(logica: RegraLogicaItem[] | undefined): string | undefined {
-  if (!logica || logica.length === 0) return undefined;
-  return logica.map((l) => `${l.campo} ${l.regra}${l.valor !== undefined ? ` "${l.valor}"` : ""}`).join(" E ");
-}
 
 /** Builds the .docx following the same heading hierarchy as the HTML/Markdown exports
  *  (role-based, not depth-based): h1 processo seletivo / h2 etapa / h3 passo / h4 componente /
@@ -84,8 +79,63 @@ export async function buildDocx(doc: DocumentacaoPS, style: StyleConfig): Promis
 
   const titledBullet = (text: string, indent = 0) => body(text, { bullet: true, indent });
 
+  const run = (text: string, options: { bold?: boolean; italics?: boolean } = {}) =>
+    new TextRun({ text, font: style.bodyFont, color: hex(style.bodyColor), size: 22, bold: options.bold, italics: options.italics });
+
+  /** A resolved field ref reads "Label (id)" (`formatFieldRef`) — bolds the whole thing,
+   *  italicizing just the trailing "(id)" when present, per explicit instruction. Falls back to
+   *  bolding the whole string when there's no trailing "(id)" (unresolved fallbacks like "(campo
+   *  não identificado)"). */
+  function fieldRefRuns(campo: string): TextRun[] {
+    const m = campo.match(/^(.+) (\(\d+\))$/);
+    if (m) return [run(`${m[1]} `, { bold: true }), run(m[2], { bold: true, italics: true })];
+    return [run(campo, { bold: true })];
+  }
+
+  /** One condition, arrow-separated per explicit instruction ("ficha" format): campo → regra →
+   *  valor, all three bold — valor omitted for rule ids that don't take one (É desconhecido/É
+   *  conhecido). */
+  function logicaItemParagraph(l: RegraLogicaItem, indent = 0): Paragraph {
+    const children = [...fieldRefRuns(l.campo), run(" → "), run(l.regra, { bold: true })];
+    if (l.valor !== undefined) children.push(run(" → "), run(l.valor, { bold: true }));
+    return new Paragraph({ spacing: { after: 80 }, bullet: { level: indent }, children });
+  }
+
+  /** Every mention of "Lógica"/"Condição" renders in the builder's own "ficha" format, per explicit
+   *  instruction: a header paragraph "Ação: X → Condição: Y" (the logic's own `action_logic_id`/
+   *  `condition_logic_id`), followed by one nested bullet per rule. */
+  function logicaSpecParagraphs(spec: LogicaSpec | undefined, indent = 0): Paragraph[] {
+    if (!spec || spec.regras.length === 0) return [];
+    const header = new Paragraph({
+      spacing: { after: 80 },
+      bullet: { level: indent },
+      children: [run("Ação: "), run(spec.acao ?? "não identificada", { bold: true }), run(" → Condição: "), run(spec.condicao ?? "não identificada", { bold: true })],
+    });
+    return [header, ...spec.regras.map((l) => logicaItemParagraph(l, indent + 1))];
+  }
+
+  /** An encaminhamento's "Destino" — a "Campo do sistema"/"Valor fixo" destino (Link externo) only
+   *  bolds its own value, not the "Campo do sistema:"/"Valor fixo:" prefix (per explicit
+   *  instruction); every other destino kind (etapa/página/pop-up name, etc.) keeps the previous
+   *  fully-bold `kv` rendering. */
+  function destinoParagraph(destino: string, suffix: string, indent = 0): Paragraph {
+    for (const prefixo of ["Campo do sistema: ", "Valor fixo: "]) {
+      if (destino.startsWith(prefixo)) {
+        return new Paragraph({
+          spacing: { after: 80 },
+          bullet: { level: indent },
+          children: [run("Destino: "), run(prefixo), run(destino.slice(prefixo.length), { bold: true }), run(suffix)],
+        });
+      }
+    }
+    return kv("Destino", `${destino}${suffix}`, indent);
+  }
+
+  /** When unconfigured, renders nothing at all (per explicit instruction — the "Não há sentença SQL
+   *  configurada" message is reserved for the etapa/passo's own "Fonte de dados" section, via
+   *  `consultaSqlParagraphs`, not for a button ação). */
   function fonteDadosParagraphs(fonte: FonteDadosSpec): Paragraph[] {
-    if (!fonte.configurada) return [kv("Fonte de dados", "nenhuma consulta vinculada")];
+    if (!fonte.configurada) return [];
     const temContexto = fonte.contexto.length > 0;
     const out = [
       body("Fonte de dados", { bold: true }),
@@ -103,8 +153,25 @@ export async function buildDocx(doc: DocumentacaoPS, style: StyleConfig): Promis
     return out;
   }
 
-  function parametrosParagraphs(parametros: ParametroAcaoSpec[], indent: number): Paragraph[] {
-    const out = [kv("Parâmetros", sim(parametros.length > 0), indent)];
+  /** The real configured SQL query of an etapa/passo (`get-stage-querys`/`step/querys`). */
+  function consultaSqlParagraphs(titulo: string, consulta: ConsultaSqlSpec): Paragraph[] {
+    if (!consulta.configurada) return [h4(titulo), body("Não há sentença SQL configurada")];
+    const out = [
+      h4(titulo),
+      kv("Coligada", consulta.codColigada),
+      kv("Sistema", consulta.codSistema),
+      kv("Consulta", consulta.codConsulta),
+      kv("Cache", sim(consulta.usaCache)),
+    ];
+    if (consulta.usaCache) out.push(kv("Frequência do cache", consulta.frequenciaCache ?? "não informada"));
+    out.push(...parametrosParagraphs(consulta.parametros, 0));
+    return out;
+  }
+
+  /** `label` is "Contexto" for Dataservers/Processos (Salvar dados/Executar processo) — every
+   *  other action type calls this the same table "Parâmetros", per explicit instruction. */
+  function parametrosParagraphs(parametros: ParametroAcaoSpec[], indent: number, label = "Parâmetros"): Paragraph[] {
+    const out = [kv(label, sim(parametros.length > 0), indent)];
     for (const p of parametros) {
       out.push(titledBullet(`${p.nome} - ${p.tipo}`, indent + 1));
       if (p.tipo === "Campo do sistema" && p.campoSistema) out.push(kv("Campo do sistema", p.campoSistema, indent + 2));
@@ -150,7 +217,7 @@ export async function buildDocx(doc: DocumentacaoPS, style: StyleConfig): Promis
     } else if (acao.tipoAcao === "Salvar dados" || acao.tipoAcao === "Executar processo") {
       out.push(kv("Dataserver", acao.dataserver ?? "não identificado", 1));
       if (acao.colunas) out.push(...colunasParagraphs(acao.colunas, 1));
-      out.push(...parametrosParagraphs(acao.parametros, 1));
+      out.push(...parametrosParagraphs(acao.parametros, 1, "Contexto"));
     } else if (acao.tipoAcao === "Ação Rubeus") {
       if (acao.camposConfigurados.length > 0) {
         out.push(titledBullet("Campos configurados:", 1));
@@ -174,19 +241,35 @@ export async function buildDocx(doc: DocumentacaoPS, style: StyleConfig): Promis
       out.push(...parametrosParagraphs(acao.parametros, 1));
     }
 
-    const condicao = logicaText(acao.logica);
-    if (condicao) out.push(kv("Condição", condicao, 1));
+    out.push(...logicaSpecParagraphs(acao.logica, 1));
     if (acao.fonteDados !== undefined) out.push(...fonteDadosParagraphs(acao.fonteDados));
+    return out;
+  }
+
+  /** A pop-up's own full config (`GET /api/popups/{id}`) — Nome/Permite fechar/Altura e Largura
+   *  máxima, its own configured SQL query (`GET /api/popups/querys/{id}`, same shape as a
+   *  stage/step's own), then its `content` rendered exactly like a passo's own items (starting
+   *  fresh at depth 0, since a pop-up is a self-contained screen), per explicit instruction. */
+  function popupParagraphs(popup: PopupSpec): Paragraph[] {
+    const out = [
+      titledBullet("Pop-up:"),
+      kv("Nome", popup.nome, 1),
+      kv("Permite fechar", sim(popup.permiteFechar), 1),
+      kv("Altura máxima", popup.alturaMaxima ?? "Altura máxima não definida", 1),
+      kv("Largura máxima", popup.larguraMaxima ?? "Largura máxima não definida", 1),
+    ];
+    out.push(...consultaSqlParagraphs("Fonte de dados do pop-up", popup.consultaSql));
+    for (const item of popup.itens) out.push(...itemParagraphs(item, 0));
     return out;
   }
 
   function encaminhamentoParagraphs(enc: EncaminhamentoSpec): Paragraph[] {
     const out = [kv("Tipo", enc.tipo)];
-    if (enc.destino !== enc.tipo) out.push(kv("Destino", `${enc.destino}${enc.novaAba ? " (nova aba)" : ""}`));
+    if (enc.destino !== enc.tipo) out.push(destinoParagraph(enc.destino, enc.novaAba ? " (nova aba)" : ""));
     else if (enc.novaAba) out.push(kv("Nova aba", "Sim"));
     if (enc.parametros && enc.parametros.length > 0) out.push(...parametrosParagraphs(enc.parametros, 0));
-    const condicao = logicaText(enc.logica);
-    if (condicao) out.push(kv("Lógica", condicao, 1));
+    out.push(...logicaSpecParagraphs(enc.logica, 1));
+    if (enc.popupDetalhe) out.push(...popupParagraphs(enc.popupDetalhe));
     return out;
   }
 
@@ -298,11 +381,13 @@ export async function buildDocx(doc: DocumentacaoPS, style: StyleConfig): Promis
     return out;
   }
 
-  /** Renders one item as its own h5 (campo) or h4 (anything else — role-based, not depth-based,
-   *  per explicit instruction) heading, followed by its property groups as h6 headings, then —
-   *  for an agrupamento — its children right after. */
-  function itemParagraphs(item: ItemSpec): Paragraph[] {
-    const headingFn = item.categoria === "campo" ? h5 : h4;
+  /** Renders one item as its own heading — depth-based, per explicit instruction: a top-level item
+   *  (direct child of a passo) is h4, an item nested one level inside another component is h5, and
+   *  anything deeper is h6 (the deepest level named here — capped there rather than growing past
+   *  it) — followed by its own property groups (still fixed h6 headings), then — for an agrupamento
+   *  — its children right after, one depth level deeper. */
+  function itemParagraphs(item: ItemSpec, depth = 0): Paragraph[] {
+    const headingFn = depth <= 0 ? h4 : depth === 1 ? h5 : h6;
     const out: Paragraph[] = [headingFn(`${CATEGORIA_LABEL[item.categoria]}: ${item.nome}`)];
     const totvs = item.integracaoTotvs && item.categoria !== "campo" ? [item.integracaoTotvs.tabela, item.integracaoTotvs.campo, item.integracaoTotvs.sentenca].filter(Boolean).join(".") : "";
 
@@ -323,32 +408,50 @@ export async function buildDocx(doc: DocumentacaoPS, style: StyleConfig): Promis
           })
         );
         if (item.classeCss) out.push(kvCode("Classe CSS", item.classeCss));
-        const logica = logicaText(item.logica);
-        if (logica) out.push(kv("Lógica", logica));
+        out.push(...logicaSpecParagraphs(item.logica));
         break;
       }
       case "agrupamento": {
         out.push(h6("Geral"));
         if (item.classeCss) out.push(kvCode("Classe CSS", item.classeCss));
         if (totvs) out.push(kv("TOTVS", totvs));
+        if (item.cssCodigo) {
+          out.push(titledBullet("CSS:"));
+          out.push(body(item.cssCodigo, { indent: 1 }));
+        }
+
+        if (item.camposAgrupados && item.camposAgrupados.length > 0) {
+          out.push(h6("Conteúdo"));
+          item.camposAgrupados.forEach((campo) => {
+            out.push(new Paragraph({ spacing: { after: 80 }, bullet: { level: 0 }, children: fieldRefRuns(campo.nome) }));
+            out.push(...logicaSpecParagraphs(campo.logica, 1));
+          });
+        }
 
         const personalizacao: Paragraph[] = [];
-        if (item.larguraPorColuna) personalizacao.push(kv("Configuração", `componente com ${item.larguraPorColuna.length} coluna(s), largura(s): ${item.larguraPorColuna.join(", ")}`));
         if (item.padding) personalizacao.push(kv("Padding", item.padding));
         if (item.larguraMaxima) personalizacao.push(kv("Largura máxima", item.larguraMaxima));
-        if (item.temBackground) personalizacao.push(kv("Background", item.corBackground ? `cor ${item.corBackground}` : item.temImagemBackground ? "possui imagem" : "configurado"));
-        if (item.cssCodigo) {
-          personalizacao.push(titledBullet("CSS:"));
-          personalizacao.push(body(item.cssCodigo, { indent: 1 }));
+        if (item.background) {
+          personalizacao.push(titledBullet("Background:"));
+          if (item.background.tipo) personalizacao.push(kv("Tipo", item.background.tipo, 1));
+          if (item.background.cor) personalizacao.push(kv("Cor", item.background.cor, 1));
+          if (item.background.possuiImagemVinculada) personalizacao.push(kv("Possui imagem vinculada", "Sim", 1));
         }
         if (personalizacao.length > 0) out.push(h6("Personalização"), ...personalizacao);
 
-        if (item.alinhamento) out.push(h6("Alinhamento"), kv("Alinhamento", item.alinhamento));
+        if (item.alinhamento) {
+          out.push(h6("Alinhamento"));
+          if (item.alinhamento.direcao) out.push(kv("Direção", item.alinhamento.direcao));
+          if (item.alinhamento.horizontal) out.push(kv("Alinhamento horizontal", item.alinhamento.horizontal));
+          if (item.alinhamento.vertical) out.push(kv("Alinhamento vertical", item.alinhamento.vertical));
+        }
 
-        const logica = logicaText(item.logica);
-        if (logica) out.push(h6("Lógica"), kv("Condição", logica));
+        if (item.logica) {
+          out.push(h6("Lógica"));
+          out.push(...logicaSpecParagraphs(item.logica));
+        }
 
-        for (const child of item.filhos ?? []) out.push(...itemParagraphs(child));
+        for (const child of item.filhos ?? []) out.push(...itemParagraphs(child, depth + 1));
         break;
       }
       case "botao": {
@@ -417,17 +520,16 @@ export async function buildDocx(doc: DocumentacaoPS, style: StyleConfig): Promis
   for (const etapa of doc.etapas) {
     paragraphs.push(stage(`Etapa: ${etapa.nome}`));
     paragraphs.push(h4("Lógica de exibição"));
-    paragraphs.push(body(etapa.logicaExibicao));
+    if (etapa.logicaExibicao.regras.length > 0) paragraphs.push(...logicaSpecParagraphs(etapa.logicaExibicao));
+    else paragraphs.push(body("Nenhuma restrição de exibição identificada."));
     paragraphs.push(h4("Descrição"));
     paragraphs.push(body(etapa.descricao));
 
-    if (etapa.fontesDados.length > 0) {
-      paragraphs.push(h4("Fontes de dados"));
-      paragraphs.push(body(`TOTVS/Rubeus: ${etapa.fontesDados.join(", ")}`));
-    }
+    paragraphs.push(...consultaSqlParagraphs("Fonte de dados da etapa", etapa.consultaSql));
 
     etapa.passos.forEach((passo) => {
       paragraphs.push(h3(`Passo: ${passo.nome}`));
+      paragraphs.push(...consultaSqlParagraphs("Fonte de dados do passo", passo.consultaSql));
       for (const item of passo.itens) paragraphs.push(...itemParagraphs(item));
     });
 
