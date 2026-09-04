@@ -13,16 +13,20 @@ export interface IntegracaoTotvsSpec {
   sentenca?: string;
 }
 
-/** Only ever populated when codColigada + codSistema + codConsulta are ALL present on the raw
- *  action/field — per explicit instruction, a partially-configured source is not reported. */
-export interface FonteDadosSpec {
-  codColigada: string;
-  codSistema: string;
-  codConsulta: string;
-  usaCache: boolean;
-  frequenciaCache?: string;
-  contexto: { nome: string; campoVinculado?: string }[];
-}
+/** Always present on an action — `configurada: false` (with the other fields absent) whenever
+ *  codColigada/codSistema/codConsulta aren't ALL filled, per explicit instruction: an action
+ *  without a real TOTVS consulta must say so plainly rather than showing a half-empty block. */
+export type FonteDadosSpec =
+  | { configurada: false }
+  | {
+      configurada: true;
+      codColigada: string;
+      codSistema: string;
+      codConsulta: string;
+      usaCache: boolean;
+      frequenciaCache?: string;
+      contexto: { nome: string; campoVinculado?: string }[];
+    };
 
 export interface RegraLogicaItem {
   campo: string;
@@ -30,22 +34,136 @@ export interface RegraLogicaItem {
   valor?: string;
 }
 
+export type PlanoExecucao = "primeiro" | "segundo";
+
+/** One "Nome campo / Tipo do campo / Campo sistema" row from the action's own parameter table —
+ *  `fixed_param` on the raw record decides whether it's bound to a system field or a literal
+ *  fixed value (confirmed live against the builder's own "Enviar parâmetros" UI). */
+export interface ParametroAcaoSpec {
+  nome: string;
+  tipo: "Campo do sistema" | "Valor fixo";
+  campoSistema?: string;
+  valorFixo?: string;
+}
+
+/** One "Coluna / Tabela / Correspondente" row — the field mapping table shown for a Salvar
+ *  Dados/Executar processo action (confirmed live: the action's own `fields[]`). */
+export interface ColunaDataserverSpec {
+  coluna: string;
+  tabela?: string;
+  correspondente: string;
+}
+
+/** "Realizar Consulta" / "Salvar Dados" / "Executar processo" (action_type_id 1/2/3, confirmed
+ *  live against `list-totvs-action-types`) or "Ação Rubeus" (a differently-shaped record — no
+ *  action_type_id from that catalog, identified by its own group type instead). */
+export type TipoAcao = "Realizar consulta" | "Salvar dados" | "Executar processo" | "Ação Rubeus" | "Gerar relatório" | "Integração";
+
+export interface EventoRubeusSpec {
+  codigo: string;
+  descricao?: string;
+}
+
+export interface PessoaVinculadaSpec {
+  identificadorContato?: string;
+  tipoContato?: string;
+  alterarContatoPrincipal: boolean;
+}
+
 export interface AcaoBotaoSpec {
   ordem: number;
-  grupo: string; // e.g. "Ações TOTVS" / "Ações Rubeus"
+  plano: PlanoExecucao;
+  grupo: string; // e.g. "Ações TOTVS" / "Ações Rubeus" / "Integrações" / "Gerar relatório"
+  tipoAcao: TipoAcao;
   descricao: string;
   mensagemErro?: string;
-  acaoParametrizada?: string; // e.g. "RB.PS.IM.007.CST"
-  camposConfigurados: string[];
+  acaoParametrizada?: string; // e.g. "RB.PS.IM.007" — the consulta code, only for "Realizar consulta"
+  dataserver?: string; // resolved name, only for "Salvar dados"/"Executar processo"
+  colunas?: ColunaDataserverSpec[]; // only for "Salvar dados"/"Executar processo"
+  camposConfigurados: string[]; // "Realizar consulta"'s own returned/bound fields
+  parametros: ParametroAcaoSpec[];
+  eventos?: EventoRubeusSpec[]; // only for "Ação Rubeus"
+  pessoaVinculada?: PessoaVinculadaSpec; // only for "Ação Rubeus"
   logica?: RegraLogicaItem[];
   ativada: boolean;
+  /** Only rendered for action types that aren't themselves already a consulta (a "Realizar
+   *  consulta" action's own coligada/sistema/consulta/parâmetros already covers this — showing a
+   *  second "Fonte de dados" block would just repeat it, per explicit instruction). */
   fonteDados?: FonteDadosSpec;
 }
 
 export interface EncaminhamentoSpec {
+  /** `redirect_type_id` (1-9) friendly label, e.g. "Abrir pop-up"/"Link externo" — confirmed live
+   *  against the builder's own "Destino" dropdown. */
+  tipo: string;
   destino: string;
   novaAba: boolean;
+  /** Only present for "Link externo" (`redirect_type_id` 5) when `use_parameters` is set — same
+   *  Campo do sistema/Valor fixo shape as an action's own parâmetros. */
+  parametros?: ParametroAcaoSpec[];
   logica?: RegraLogicaItem[];
+}
+
+export interface ValidacaoRegra {
+  tipo: string;
+  ativado: boolean;
+  mensagem?: string;
+  valor?: string;
+  codigo?: string;
+  inverter?: boolean;
+}
+
+export interface CampoIdentidade {
+  tipoCampo: string;
+  tabelaProcessoSeletivo?: "Pessoa" | "Inscrição";
+  multivalorado: boolean;
+  integracaoRubeus?: { ativada: boolean; tabela?: string; coluna?: string };
+  integracaoTotvs?: { ativada: boolean; tabela?: string; campo?: string; nomeAlternativo?: string };
+}
+
+export interface CampoBasico {
+  rotulo?: string;
+  placeholder?: string;
+  posicaoRotulo?: string;
+  transformarTexto?: string;
+  descricao?: string;
+  dica?: string;
+  mascara?: string;
+  sufixo?: string;
+  prefixo?: string;
+  classeCss?: string;
+  desabilitar: boolean;
+  esconder: boolean;
+  esconderRotulo: boolean;
+}
+
+export interface CampoDados {
+  tipoValorPadrao?: "simples" | "dinamico" | "externa";
+  valorPadrao?: string;
+  fonteExterna?: {
+    tipoEnvio?: string;
+    link?: string;
+    salvaAutomaticamente: boolean;
+    enviaParametros: boolean;
+    parametros: { nome: string; regra?: string; campoVinculado?: string }[];
+  };
+  opcoesPredefinidas?: {
+    ativado: boolean;
+    fonte?: "TOTVS" | "Fonte externa" | "Manual";
+    consultaConfigurada: boolean;
+    opcoesManuais?: { label: string; value: string }[];
+  };
+  somenteLeitura: boolean;
+}
+
+export interface CampoDetalhado {
+  identidade: CampoIdentidade;
+  basico: CampoBasico;
+  multivalorado?: { minOpcoes?: number; maxOpcoes?: number };
+  validacoes: ValidacaoRegra[];
+  dados: CampoDados;
+  propriedades: Record<string, string>;
+  vinculos: string[];
 }
 
 export type ItemCategoria = "campo" | "texto" | "agrupamento" | "botao" | "cep" | "html" | "upload" | "componente";
@@ -68,27 +186,31 @@ export interface ItemSpec {
   logicaTexto?: string;
   logica?: RegraLogicaItem[];
   integracaoTotvs?: IntegracaoTotvsSpec;
-  fonteDados?: FonteDadosSpec;
 
   // categoria "campo"
   obrigatorio?: boolean;
   regras?: string[];
+  detalhes?: CampoDetalhado;
 
   // categoria "agrupamento"
   numColunas?: number;
   larguraColuna?: string;
+  larguraPorColuna?: string[];
   filhos?: ItemSpec[];
 
   // categoria "botao"
-  tema?: string;
+  nomeComponente?: string; // internal reference name (`name`) — distinct from `nome`, which is the visible label
+  tema?: string; // friendly name, e.g. "Elevado (btn-raised)"
   corBotao?: string;
   corTexto?: string;
   usaCorInstitucional?: boolean;
   temIcone?: boolean;
   escondido?: boolean;
   salvaDados?: boolean;
+  fecharPopup?: boolean;
   redirecionaUsuario?: boolean;
-  acoes?: AcaoBotaoSpec[];
+  acoesPrimeiroPlano?: AcaoBotaoSpec[];
+  acoesSegundoPlano?: AcaoBotaoSpec[];
   encaminhamentos?: EncaminhamentoSpec[];
 
   // categoria "cep"

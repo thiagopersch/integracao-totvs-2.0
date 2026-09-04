@@ -39,6 +39,7 @@ function slugify(text: string): string {
 export default function PsDocsPage() {
   const [tokenPs, setTokenPs] = useState("")
   const [idPs, setIdPs] = useState("")
+  const [crmDomain, setCrmDomain] = useState("")
   const [loading, setLoading] = useState(false)
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null)
   const [model, setModel] = useState<DocumentacaoPS | null>(null)
@@ -60,7 +61,7 @@ export default function PsDocsPage() {
     setProgress(null)
 
     try {
-      const listRes = await listSelectiveProcessStages({ tokenPs, idPs })
+      const listRes = await listSelectiveProcessStages({ tokenPs, idPs, crmDomain: crmDomain.trim() || undefined })
       if (!listRes.success || !listRes.stages || !listRes.fieldCatalogEntries) {
         setError(listRes.error || "Erro ao consultar o processo seletivo")
         toast.error(listRes.error || "Erro ao consultar o processo seletivo")
@@ -71,9 +72,15 @@ export default function PsDocsPage() {
       setModel({ tituloPortal: listRes.tituloPortal ?? `Processo Seletivo ${idPs}`, idPs: listRes.idPs ?? idPs, etapas: [] })
       setProgress({ done: 0, total: listRes.stages.length })
 
-      const allWarnings: string[] = []
+      const allWarnings: string[] = [...(listRes.catalogWarnings ?? [])]
       for (const stage of listRes.stages) {
-        const stageRes = await fetchStageDocumentation({ tokenPs, idPs, stage: stage.ref, fieldCatalogEntries: listRes.fieldCatalogEntries })
+        const stageRes = await fetchStageDocumentation({
+          tokenPs,
+          idPs,
+          stage: stage.ref,
+          fieldCatalogEntries: listRes.fieldCatalogEntries,
+          actionCatalogEntries: listRes.actionCatalogEntries,
+        })
         if (stageRes.success && stageRes.etapa) {
           setModel((prev) => (prev ? { ...prev, etapas: [...prev.etapas, stageRes.etapa!] } : prev))
           if (stageRes.warnings) allWarnings.push(...stageRes.warnings)
@@ -145,6 +152,10 @@ export default function PsDocsPage() {
               <Field>
                 <FieldLabel htmlFor="idPs">ID PS</FieldLabel>
                 <Input id="idPs" value={idPs} onChange={(e) => setIdPs(e.target.value)} placeholder="Ex: 5537" />
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="crmDomain">Link do CRM (opcional)</FieldLabel>
+                <Input id="crmDomain" value={crmDomain} onChange={(e) => setCrmDomain(e.target.value)} placeholder="Ex: https://crmtoledo.apprubeus.com.br/" />
               </Field>
             </div>
 
