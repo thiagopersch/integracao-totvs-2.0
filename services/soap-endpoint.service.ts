@@ -42,11 +42,30 @@ function buildWhere(
   return where;
 }
 
+function buildTypesWhere(params: ListParams): Record<string, unknown> {
+  const where: Record<string, unknown> = {};
+  const f = params.filters ?? {};
+
+  if (f.type) where.type = f.type;
+  if (f.suffix) where.suffix = f.suffix;
+  if (f.active === "true" || f.active === true) where.active = true;
+  else if (f.active === "false" || f.active === false) where.active = false;
+  if (f.method) where.methods = { some: { method: { equals: f.method as string, mode: "insensitive" } } };
+
+  if (params.search) {
+    where.OR = ["label", "type", "suffix"].map((field) => ({
+      [field]: { contains: params.search, mode: "insensitive" },
+    }));
+  }
+
+  return where;
+}
+
 export const soapEndpointService = {
   async listTypes(params: ListParams) {
     const page = params.page || 1;
     const pageSize = params.pageSize || 10;
-    const where = buildWhere(params, ["label", "type", "suffix"]);
+    const where = buildTypesWhere(params);
     const orderBy = params.sort
       ? { [params.sort.field]: params.sort.direction }
       : { type: "asc" as const };
@@ -259,5 +278,28 @@ export const soapEndpointService = {
       throw new Error(`Método "${method}" não está cadastrado/ativo em /admin/soap-endpoints para este tipo de endpoint.`);
     }
     return { ...record, method: record.method.toUpperCase() };
+  },
+
+  /** Distinct filter options for the /admin/soap-endpoints filter panel. Methods are deduplicated
+   *  case-insensitively (admins may type "ReadView" in one type and "readview" in another) while
+   *  still surfacing one representative label per unique value for display. */
+  async listDistinctFilters() {
+    const [types, suffixes, methods] = await Promise.all([
+      prisma.soapEndpointType.findMany({ distinct: ["type"], select: { type: true }, orderBy: { type: "asc" } }),
+      prisma.soapEndpointType.findMany({ distinct: ["suffix"], select: { suffix: true }, orderBy: { suffix: "asc" } }),
+      prisma.soapEndpointMethod.findMany({ select: { method: true }, orderBy: { method: "asc" } }),
+    ]);
+
+    const methodByLowerCase = new Map<string, string>();
+    for (const { method } of methods) {
+      const key = method.toLowerCase();
+      if (!methodByLowerCase.has(key)) methodByLowerCase.set(key, method);
+    }
+
+    return {
+      types: types.map((t) => t.type),
+      suffixes: suffixes.map((s) => s.suffix),
+      methods: Array.from(methodByLowerCase.values()).sort((a, b) => a.localeCompare(b)),
+    };
   },
 };

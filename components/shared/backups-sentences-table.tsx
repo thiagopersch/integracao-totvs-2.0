@@ -8,6 +8,7 @@ import type { ColumnDef } from "@tanstack/react-table"
 import { Eye, History, MoreHorizontal } from "lucide-react"
 import { DataTable } from "@/components/shared/data-table"
 import { DataTableFilterPanel } from "@/components/shared/data-table-filter-panel"
+import { DateCell } from "@/components/shared/date-cell"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -95,7 +96,10 @@ export function BackupsSentencesTable({ filterId, data, meta, onRestoreSingle }:
     {
       accessorKey: "createdAt",
       header: "Data da versão mais recente",
-      cell: ({ row }) => new Date(row.getValue("createdAt")).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" }),
+      cell: ({ row }) => {
+        const createdAt = row.getValue("createdAt") as string
+        return <DateCell date={createdAt}>{new Date(createdAt).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}</DateCell>
+      },
     },
     {
       accessorKey: "restoreStatus",

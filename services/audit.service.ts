@@ -8,8 +8,10 @@ import { ACTION_LABELS } from "@/lib/audit-labels";
 import type { Prisma } from "@/generated/prisma/client";
 
 /** Best-effort human label for the affected record — most call sites pass a name/code/title-ish
- *  string field in newData or oldData; falls back to the raw id when none is found. */
-function describeSubject(entityId: string, newData?: Record<string, unknown>, oldData?: Record<string, unknown>): string {
+ *  string field in newData or oldData. Never falls back to the raw id: notifications must never
+ *  show a database id to the user, so when no readable field is found the caller omits the
+ *  subject entirely rather than showing one. */
+function describeSubject(newData?: Record<string, unknown>, oldData?: Record<string, unknown>): string | undefined {
   const candidateKeys = ["name", "filter", "title", "code"];
   for (const source of [newData, oldData]) {
     if (!source) continue;
@@ -18,7 +20,7 @@ function describeSubject(entityId: string, newData?: Record<string, unknown>, ol
       if (typeof value === "string" && value.trim()) return value;
     }
   }
-  return entityId;
+  return undefined;
 }
 
 export type ChangeEntry = { field: string; from?: unknown; to?: unknown };
@@ -117,14 +119,14 @@ export const auditService = {
       try {
         const entityLabel = ENTITY_LABELS[input.entity] ?? input.entity;
         const actionLabel = ACTION_LABELS[input.action] ?? input.action.toLowerCase();
-        const subject = describeSubject(input.entityId, input.newData, input.oldData);
+        const subject = describeSubject(input.newData, input.oldData);
         const actor = userId ? await prisma.user.findUnique({ where: { id: userId }, select: { name: true } }) : null;
         const actorName = actor?.name ?? "Sistema";
         await notificationService.broadcastToOrganization(
           organizationId,
           {
             type: `audit.${input.entity.toLowerCase()}.${input.action.toLowerCase()}`,
-            title: `${entityLabel}: ${subject}`,
+            title: subject ? `${entityLabel}: ${subject}` : entityLabel,
             body: `${actorName} ${actionLabel} um registro em ${entityLabel}.`,
             data: {
               entity: input.entity,

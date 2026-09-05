@@ -1,11 +1,13 @@
 "use client"
 
 import { useState } from "react"
+import dynamic from "next/dynamic"
 import type { ColumnDef } from "@tanstack/react-table"
-import { useForm, type Resolver } from "react-hook-form"
+import { useForm, Controller, type Resolver } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { DataTable } from "@/components/shared/data-table"
 import { DataTableFilterPanel } from "@/components/shared/data-table-filter-panel"
+import { DateCell } from "@/components/shared/date-cell"
 import { PageHeader } from "@/components/shared/page-header"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
 import { EntityActionsCell } from "@/components/shared/entity-actions-cell"
@@ -36,11 +38,14 @@ import {
 import { MultiSelect } from "@/components/ui/multi-select"
 import { DatePicker } from "@/components/ui/date-picker"
 import { TimePicker } from "@/components/ui/time-picker"
-import { Plus, Loader2 } from "lucide-react"
+import { Plus, Loader2, Maximize2, Minimize2 } from "lucide-react"
 import { deleteDemand, createDemand, updateDemand, bulkDeleteDemands } from "@/actions/demands"
 import { createDemandSchema, updateDemandSchema, timeToMinutes, type CreateDemandInput } from "@/schemas/demand.schema"
 import { formatDateOnly, toDateInputValue } from "@/utils/format"
 import { TruncatedText } from "@/components/shared/truncated-text"
+import "@uiw/react-md-editor/markdown-editor.css"
+
+const MDEditor = dynamic(() => import("@uiw/react-md-editor"), { ssr: false })
 import { toast } from "sonner"
 import { useCrudTable } from "@/hooks/use-crud-table"
 import { useHasPermission } from "@/hooks/use-permissions"
@@ -135,6 +140,10 @@ function ColorBadge({ label, color, solid = false }: { label: string; color: str
   )
 }
 
+function ColorDot({ color }: { color: string }) {
+  return <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: color }} />
+}
+
 function toTimeInputValue(d: string | Date | null): string {
   if (!d) return ""
   const date = typeof d === "string" ? new Date(d) : d
@@ -185,6 +194,7 @@ export function DemandTable({
   const canDelete = useHasPermission("demands", "delete")
   const [loading, setLoading] = useState(false)
   const [statusFilter, setStatusFilter] = useState(searchParams.get("status") || "")
+  const [expanded, setExpanded] = useState(false)
   const { period, setPeriod } = usePeriodFilter(initialPeriod)
 
   const form = useForm<CreateDemandInput>({
@@ -296,7 +306,10 @@ export function DemandTable({
     {
       accessorKey: "date",
       header: "Data",
-      cell: ({ row }) => formatDateOnly(row.getValue("date") as string),
+      cell: ({ row }) => {
+        const date = row.getValue("date") as string
+        return <DateCell date={date} timeZone="UTC">{formatDateOnly(date)}</DateCell>
+      },
     },
     {
       accessorKey: "durationMinutes",
@@ -368,9 +381,22 @@ export function DemandTable({
   if (canUpdate || canDelete) columns.push(actionsColumn)
 
   const newDialog = (
-    <Dialog open={editDialog.open} onOpenChange={(open) => { setEditDialog({ open, entity: open ? editDialog.entity : undefined }); if (!open) form.reset() }}>
+    <Dialog open={editDialog.open} onOpenChange={(open) => { setEditDialog({ open, entity: open ? editDialog.entity : undefined }); if (!open) { form.reset(); setExpanded(false) } }}>
       <DialogTrigger render={<Button><Plus className="h-4 w-4 mr-2" /> Nova Demanda</Button>} />
-      <DialogContent>
+      <DialogContent
+        className={expanded ? "h-[99vh]! max-h-[99vh]! w-[99vw]! max-w-[99vw]!" : undefined}
+        headerActions={
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            onClick={() => setExpanded((v) => !v)}
+            title={expanded ? "Tamanho normal" : "Expandir"}
+          >
+            {expanded ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+          </Button>
+        }
+      >
         <DialogHeader>
           <DialogTitle>{editDialog.entity ? "Editar Demanda" : "Nova Demanda"}</DialogTitle>
         </DialogHeader>
@@ -383,7 +409,21 @@ export function DemandTable({
           </Field>
           <Field>
             <FieldLabel htmlFor="description">Descrição</FieldLabel>
-            <Textarea id="description" {...form.register("description")} placeholder="Descrição da demanda" aria-invalid={!!form.formState.errors.description} />
+            <Controller
+              control={form.control}
+              name="description"
+              render={({ field }) => (
+                <div className="max-h-[260px] overflow-y-auto rounded-md border border-input" data-color-mode="auto">
+                  <MDEditor
+                    value={field.value}
+                    onChange={(v) => field.onChange(v || "")}
+                    height={260}
+                    preview="live"
+                    visibleDragbar={false}
+                  />
+                </div>
+              )}
+            />
             <FieldError errors={[form.formState.errors.description]} />
           </Field>
 
@@ -400,7 +440,12 @@ export function DemandTable({
                 </SelectTrigger>
                 <SelectContent>
                   {analysts.map((a) => (
-                    <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>
+                    <SelectItem key={a.id} value={a.id}>
+                      <div className="flex items-center gap-2">
+                        {a.color && <ColorDot color={a.color} />}
+                        {a.name}
+                      </div>
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -418,7 +463,12 @@ export function DemandTable({
                 </SelectTrigger>
                 <SelectContent>
                   {clients.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                    <SelectItem key={c.id} value={c.id}>
+                      <div className="flex items-center gap-2">
+                        {c.color && <ColorDot color={c.color} />}
+                        {c.name}
+                      </div>
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -475,7 +525,12 @@ export function DemandTable({
                 </SelectTrigger>
                 <SelectContent>
                   {demandTypes.map((d) => (
-                    <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
+                    <SelectItem key={d.id} value={d.id}>
+                      <div className="flex items-center gap-2">
+                        {d.color && <ColorDot color={d.color} />}
+                        {d.name}
+                      </div>
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>

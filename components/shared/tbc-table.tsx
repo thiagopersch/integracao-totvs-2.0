@@ -154,6 +154,14 @@ export function TbcTable({ data, meta, clients, filterClients }: TbcTableProps) 
   const columns: ColumnDef<TbcRow>[] = [
     createSelectColumn<TbcRow>(),
     {
+      accessorKey: "status",
+      header: "Status",
+      cell: ({ row }) => {
+        const status = row.getValue("status") as boolean
+        return <Badge variant={status ? "success" : "destructive"}>{status ? "Ativo" : "Inativo"}</Badge>
+      },
+    },
+    {
       id: "clientName",
       header: "Cliente",
       cell: ({ row }) => row.original.client?.name || "-",
@@ -177,14 +185,6 @@ export function TbcTable({ data, meta, clients, filterClients }: TbcTableProps) 
             {value ? "Sim" : "Não"}
           </Badge>
         )
-      },
-    },
-    {
-      accessorKey: "status",
-      header: "Status",
-      cell: ({ row }) => {
-        const status = row.getValue("status") as boolean
-        return <Badge variant={status ? "default" : "secondary"}>{status ? "Ativo" : "Inativo"}</Badge>
       },
     },
   ]

@@ -159,6 +159,14 @@ export function ClientTable({ data, meta }: ClientTableProps) {
   const columns: ColumnDef<Client>[] = [
     createSelectColumn<Client>(),
     {
+      accessorKey: "status",
+      header: "Status",
+      cell: ({ row }) => {
+        const status = row.getValue("status") as boolean
+        return <Badge variant={status ? "success" : "destructive"}>{status ? "Ativo" : "Inativo"}</Badge>
+      },
+    },
+    {
       id: "image",
       header: "Logo",
       cell: ({ row }) => {
@@ -203,14 +211,6 @@ export function ClientTable({ data, meta }: ClientTableProps) {
     { accessorKey: "linkCrm", header: "Link CRM", cell: ({ row }) => row.getValue("linkCrm") || "-" },
     { accessorKey: "document", header: "CPF/CNPJ", cell: ({ row }) => row.getValue("document") || "-" },
     { accessorKey: "email", header: "E-mail", cell: ({ row }) => row.getValue("email") || "-" },
-    {
-      accessorKey: "status",
-      header: "Status",
-      cell: ({ row }) => {
-        const status = row.getValue("status") as boolean
-        return <Badge variant={status ? "default" : "secondary"}>{status ? "Ativo" : "Inativo"}</Badge>
-      },
-    },
   ]
 
   const actionsColumn: ColumnDef<Client> = {

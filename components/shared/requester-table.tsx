@@ -105,17 +105,17 @@ export function RequesterTable({ data, meta }: RequesterTableProps) {
 
   const columns: ColumnDef<Requester>[] = [
     createSelectColumn<Requester>(),
-    { accessorKey: "name", header: "Nome", cell: ({ row }) => <TruncatedText text={row.original.name} /> },
-    { accessorKey: "email", header: "E-mail", cell: ({ row }) => row.getValue("email") || "-" },
-    { accessorKey: "phone", header: "Telefone", cell: ({ row }) => row.getValue("phone") || "-" },
     {
       accessorKey: "status",
       header: "Status",
       cell: ({ row }) => {
         const status = row.getValue("status") as boolean
-        return <Badge variant={status ? "default" : "secondary"}>{status ? "Ativo" : "Inativo"}</Badge>
+        return <Badge variant={status ? "success" : "destructive"}>{status ? "Ativo" : "Inativo"}</Badge>
       },
     },
+    { accessorKey: "name", header: "Nome", cell: ({ row }) => <TruncatedText text={row.original.name} /> },
+    { accessorKey: "email", header: "E-mail", cell: ({ row }) => row.getValue("email") || "-" },
+    { accessorKey: "phone", header: "Telefone", cell: ({ row }) => row.getValue("phone") || "-" },
   ]
 
   const actionsColumn: ColumnDef<Requester> = {

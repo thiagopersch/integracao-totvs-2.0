@@ -70,6 +70,17 @@ export function NotificationDetailDialog({ open, onOpenChange, notification }: N
         className={cn(
           expanded ? "h-[90vh]! max-h-[90vh]! w-[90vw]! max-w-[90vw]!" : "h-[70vh]! max-h-[70vh]! w-[70vw]! max-w-[70vw]!"
         )}
+        headerActions={
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            onClick={() => setExpanded((v) => !v)}
+            title={expanded ? "Tamanho normal" : "Expandir"}
+          >
+            {expanded ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+          </Button>
+        }
       >
         <DialogHeader>
           <DialogTitle className="flex flex-wrap items-center gap-2">
@@ -77,16 +88,6 @@ export function NotificationDetailDialog({ open, onOpenChange, notification }: N
             {notification.title}
             <Badge variant="outline">{category.label}</Badge>
             {!notification.readAt && <Badge>Não lida</Badge>}
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="ml-auto"
-              onClick={() => setExpanded((v) => !v)}
-              title={expanded ? "Tamanho normal" : "Expandir"}
-            >
-              {expanded ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
-            </Button>
           </DialogTitle>
         </DialogHeader>
         <DialogBody className="space-y-4">

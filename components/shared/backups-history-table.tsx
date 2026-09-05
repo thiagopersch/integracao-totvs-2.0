@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation"
 import type { ColumnDef } from "@tanstack/react-table"
 import { Eye, RotateCcw, MoreHorizontal } from "lucide-react"
 import { DataTable } from "@/components/shared/data-table"
+import { DateCell } from "@/components/shared/date-cell"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -52,7 +53,10 @@ export function BackupsHistoryTable({ data, meta, onRestoreRun, onRestoreSingle 
     {
       accessorKey: "startedAt",
       header: "Data do backup",
-      cell: ({ row }) => new Date(row.getValue("startedAt")).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" }),
+      cell: ({ row }) => {
+        const startedAt = row.getValue("startedAt") as string
+        return <DateCell date={startedAt}>{new Date(startedAt).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}</DateCell>
+      },
     },
     {
       id: "actions",

@@ -6,7 +6,7 @@ import { BaseRepository } from "@/repositories/base.repository";
 import { computeNextRunAt } from "@/lib/backup-schedule";
 import { auditService } from "@/services/audit.service";
 import { notificationService } from "@/services/notification.service";
-import { buildBackupRunFailedNotification } from "@/lib/notification-types";
+import { buildBackupRunFailedNotification, buildBackupRunSucceededNotification } from "@/lib/notification-types";
 import { classifyError } from "@/lib/error-kind";
 import { fetchSentencesForFilter, restoreSentenceToTbc } from "@/services/rm-sentence.service";
 import { soapService, type WsName } from "@/services/soap.service";
@@ -166,6 +166,19 @@ export const backupService = {
         data: { lastBackupStatus: "DONE", lastBackupAt: finishedAt, lastBackupByUserId: executedByUserId },
       });
 
+      // Only the scheduler runs unattended — a manual backup already has the triggering user
+      // watching the screen, so notifying them again would just be noise.
+      if (!executedByUserId) {
+        const notification = buildBackupRunSucceededNotification({
+          filterId,
+          filterLabel: filter.filter,
+          tbcName: filter.tbc.name,
+          clientId: filter.client.id,
+          clientName: filter.client.name,
+        });
+        await notificationService.broadcastToOrganization(organizationId, notification);
+      }
+
       return prisma.backupRun.findUniqueOrThrow({ where: { id: backupRun.id } });
     } catch (error) {
       const finishedAt = new Date();
@@ -198,36 +211,55 @@ export const backupService = {
    * Polled by the in-process scheduler (see lib/backup-scheduler.ts) — runs every filter whose
    * `nextRunAt` has passed, then re-anchors `nextRunAt` from "now" regardless of success/failure
    * (a filter stuck failing every run must not fire in a tight retry loop).
+   *
+   * Guarded by a Postgres advisory lock so that if the app is ever deployed with more than one
+   * long-lived Node process (each running its own `setInterval` poller), only one of them actually
+   * processes a given tick — the others see the lock held and return immediately instead of
+   * duplicating the same scheduled backups.
    */
   async runDueScheduledBackups() {
-    const due = await prisma.filter.findMany({
-      where: {
-        deletedAt: null,
-        status: true,
-        schedule: { not: "NONE" },
-        nextRunAt: { lte: new Date() },
-      },
-      select: { id: true, organizationId: true, schedule: true, scheduleTime: true, scheduleCategoryId: true },
-    });
+    const [{ locked }] = await prisma.$queryRaw<{ locked: boolean }[]>`
+      SELECT pg_try_advisory_lock(hashtext('backup-scheduler')::bigint) AS locked
+    `;
+    if (!locked) return { processed: 0, skipped: "locked" as const };
 
-    for (const filter of due) {
-      try {
-        await this.createFromFilter(filter.id, filter.organizationId, filter.scheduleCategoryId ?? undefined, undefined);
-        await auditService.log({
-          action: "CREATE",
-          entity: "BackupRun",
-          entityId: filter.id,
-          organizationId: filter.organizationId,
-        });
-      } catch (error) {
-        logger.error(`Backup agendado falhou para o filtro ${filter.id}`, { error: (error as Error).message });
-      } finally {
-        const nextRunAt = computeNextRunAt(filter.schedule, new Date(), filter.scheduleTime);
-        await prisma.filter.update({ where: { id: filter.id }, data: { nextRunAt } });
-      }
+    try {
+      const due = await prisma.filter.findMany({
+        where: {
+          deletedAt: null,
+          status: true,
+          schedule: { not: "NONE" },
+          nextRunAt: { lte: new Date() },
+        },
+        select: { id: true, filter: true, organizationId: true, schedule: true, scheduleTime: true, scheduleCategoryId: true },
+      });
+
+      await Promise.allSettled(
+        due.map(async (filter) => {
+          try {
+            const run = await this.createFromFilter(filter.id, filter.organizationId, filter.scheduleCategoryId ?? undefined, undefined);
+            await auditService.log({
+              action: "CREATE",
+              entity: "BackupRun",
+              entityId: run.id,
+              organizationId: filter.organizationId,
+              newData: { filter: filter.filter },
+            });
+          } catch (error) {
+            // createFromFilter already builds and broadcasts a detailed failure notification
+            // (with errorMessage/errorKind) — this is just the server-side trail for support.
+            logger.error(`Backup agendado falhou para o filtro ${filter.id}`, { error: (error as Error).message });
+          } finally {
+            const nextRunAt = computeNextRunAt(filter.schedule, new Date(), filter.scheduleTime);
+            await prisma.filter.update({ where: { id: filter.id }, data: { nextRunAt } });
+          }
+        })
+      );
+
+      return { processed: due.length };
+    } finally {
+      await prisma.$queryRaw`SELECT pg_advisory_unlock(hashtext('backup-scheduler')::bigint)`;
     }
-
-    return { processed: due.length };
   },
 
   async listLatestByFilter(filterId: string, params: ListParams, organizationId: string) {

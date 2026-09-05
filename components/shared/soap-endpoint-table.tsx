@@ -5,6 +5,7 @@ import { useForm, type Resolver } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import type { ColumnDef } from "@tanstack/react-table"
 import { DataTable } from "@/components/shared/data-table"
+import { DataTableFilterPanel } from "@/components/shared/data-table-filter-panel"
 import { PageHeader } from "@/components/shared/page-header"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
 import { EntityActionsCell } from "@/components/shared/entity-actions-cell"
@@ -14,6 +15,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { FieldError } from "@/components/ui/field"
 import { Checkbox } from "@/components/ui/checkbox"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
   Dialog,
   DialogBody,
@@ -52,13 +54,15 @@ type SoapEndpointTypeWithMethods = SoapEndpointType & { methods: SoapEndpointMet
 interface SoapEndpointTableProps {
   data: SoapEndpointTypeWithMethods[]
   meta: PaginationMeta
+  filterOptions: { types: string[]; suffixes: string[]; methods: string[] }
 }
 
 const SORTABLE_COLUMNS = ["type", "label", "suffix", "active"]
 
-export function SoapEndpointTable({ data, meta }: SoapEndpointTableProps) {
+export function SoapEndpointTable({ data, meta, filterOptions }: SoapEndpointTableProps) {
   const {
     router,
+    searchParams,
     deleteDialog,
     setDeleteDialog,
     editDialog,
@@ -74,6 +78,10 @@ export function SoapEndpointTable({ data, meta }: SoapEndpointTableProps) {
   })
   const canManage = useHasPermission("settings", "manage")
   const [expandedTypeId, setExpandedTypeId] = useState<string | null>(null)
+  const [typeFilter, setTypeFilter] = useState(searchParams.get("type") || "")
+  const [suffixFilter, setSuffixFilter] = useState(searchParams.get("suffix") || "")
+  const [methodFilter, setMethodFilter] = useState(searchParams.get("method") || "")
+  const [statusFilter, setStatusFilter] = useState(searchParams.get("status") || "")
   const [methodDeleteId, setMethodDeleteId] = useState<string | null>(null)
   const [methodDialog, setMethodDialog] = useState<{
     open: boolean
@@ -195,20 +203,20 @@ export function SoapEndpointTable({ data, meta }: SoapEndpointTableProps) {
         </Button>
       ),
     },
+    {
+      accessorKey: "active",
+      header: "Status",
+      cell: ({ row }) => {
+        const active = row.getValue("active") as boolean
+        return <Badge variant={active ? "success" : "destructive"}>{active ? "Ativo" : "Inativo"}</Badge>
+      },
+    },
     { accessorKey: "type", header: "Tipo" },
     { accessorKey: "label", header: "Label" },
     {
       accessorKey: "suffix",
       header: "Suffix",
       cell: ({ row }) => <code className="rounded bg-muted px-1.5 py-0.5 text-xs">{row.getValue("suffix")}</code>,
-    },
-    {
-      accessorKey: "active",
-      header: "Status",
-      cell: ({ row }) => {
-        const active = row.getValue("active") as boolean
-        return <Badge variant={active ? "default" : "secondary"}>{active ? "Ativo" : "Inativo"}</Badge>
-      },
     },
   ]
 
@@ -270,6 +278,103 @@ export function SoapEndpointTable({ data, meta }: SoapEndpointTableProps) {
     </Dialog>
   )
 
+  const filterPanel = (
+    <DataTableFilterPanel
+      onApply={() =>
+        pushParams({
+          type: typeFilter || undefined,
+          suffix: suffixFilter || undefined,
+          method: methodFilter || undefined,
+          status: statusFilter || undefined,
+          page: 1,
+        })
+      }
+      onClear={() => {
+        setTypeFilter("")
+        setSuffixFilter("")
+        setMethodFilter("")
+        setStatusFilter("")
+        pushParams({ type: undefined, suffix: undefined, method: undefined, status: undefined, page: 1 })
+      }}
+    >
+      <div className="space-y-2">
+        <Label>Tipo</Label>
+        <Select
+          items={[{ value: "all", label: "Todos" }, ...filterOptions.types.map((t) => ({ value: t, label: t }))]}
+          value={typeFilter || "all"}
+          onValueChange={(v) => setTypeFilter(v === "all" || !v ? "" : v)}
+        >
+          <SelectTrigger className="w-full">
+            <SelectValue placeholder="Todos" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos</SelectItem>
+            {filterOptions.types.map((t) => (
+              <SelectItem key={t} value={t}>{t}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="space-y-2">
+        <Label>Suffix</Label>
+        <Select
+          items={[{ value: "all", label: "Todos" }, ...filterOptions.suffixes.map((s) => ({ value: s, label: s }))]}
+          value={suffixFilter || "all"}
+          onValueChange={(v) => setSuffixFilter(v === "all" || !v ? "" : v)}
+        >
+          <SelectTrigger className="w-full">
+            <SelectValue placeholder="Todos" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos</SelectItem>
+            {filterOptions.suffixes.map((s) => (
+              <SelectItem key={s} value={s}>{s}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="space-y-2">
+        <Label>Método</Label>
+        <Select
+          items={[{ value: "all", label: "Todos" }, ...filterOptions.methods.map((m) => ({ value: m, label: m }))]}
+          value={methodFilter || "all"}
+          onValueChange={(v) => setMethodFilter(v === "all" || !v ? "" : v)}
+        >
+          <SelectTrigger className="w-full">
+            <SelectValue placeholder="Todos" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos</SelectItem>
+            {filterOptions.methods.map((m) => (
+              <SelectItem key={m} value={m}>{m}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="space-y-2">
+        <Label>Status</Label>
+        <Select
+          items={[
+            { value: "all", label: "Todos" },
+            { value: "true", label: "Ativo" },
+            { value: "false", label: "Inativo" },
+          ]}
+          value={statusFilter || "all"}
+          onValueChange={(v) => setStatusFilter(v === "all" || !v ? "" : v)}
+        >
+          <SelectTrigger className="w-full">
+            <SelectValue placeholder="Todos" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos</SelectItem>
+            <SelectItem value="true">Ativo</SelectItem>
+            <SelectItem value="false">Inativo</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+    </DataTableFilterPanel>
+  )
+
   return (
     <>
       <PageHeader title="Endpoints SOAP" description="Gerenciar tipos de endpoint e métodos SOAP" />
@@ -286,6 +391,7 @@ export function SoapEndpointTable({ data, meta }: SoapEndpointTableProps) {
         searchPlaceholder="Buscar por label, tipo ou suffix..."
         onSearch={(v) => pushParams({ search: v || undefined, page: 1 })}
         toolbarActions={canManage ? newDialog : undefined}
+        filterPanel={filterPanel}
         sort={sort}
         onSortChange={onSortChange}
         sortableColumns={SORTABLE_COLUMNS}
@@ -325,7 +431,7 @@ export function SoapEndpointTable({ data, meta }: SoapEndpointTableProps) {
                             <TableCell>{method.label}</TableCell>
                             <TableCell>{method.sortOrder}</TableCell>
                             <TableCell>
-                              <Badge variant={method.active ? "default" : "secondary"}>
+                              <Badge variant={method.active ? "success" : "destructive"}>
                                 {method.active ? "Ativo" : "Inativo"}
                               </Badge>
                             </TableCell>

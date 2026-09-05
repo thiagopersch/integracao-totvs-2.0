@@ -24,7 +24,7 @@ export function PageSizeSelect({ pageSize, onPageSizeChange }: PageSizeSelectPro
       value={`${pageSize}`}
       onValueChange={(value) => onPageSizeChange(Number(value))}
     >
-      <SelectTrigger className="h-9 w-[150px]">
+      <SelectTrigger className="h-9 w-[190px]">
         <SelectValue />
       </SelectTrigger>
       <SelectContent side="bottom">

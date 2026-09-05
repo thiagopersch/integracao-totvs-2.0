@@ -23,6 +23,12 @@ export async function listAllSoapEndpointTypes() {
   return soapEndpointService.listAllTypes();
 }
 
+export async function listSoapEndpointFilterOptions() {
+  "use cache";
+  cacheTag("soap-endpoint-types");
+  return soapEndpointService.listDistinctFilters();
+}
+
 export async function getSoapEndpointTypeById(id: string) {
   "use cache";
   cacheTag(`soap-endpoint-type-${id}`);

@@ -144,6 +144,14 @@ export function UsersTable({ data, meta, clients }: UsersTableProps) {
   const columns: ColumnDef<UserRow>[] = [
     createSelectColumn<UserRow>(),
     {
+      accessorKey: "status",
+      header: "Status",
+      cell: ({ row }) => {
+        const status = row.getValue("status") as boolean
+        return <Badge variant={status ? "success" : "destructive"}>{status ? "Ativo" : "Inativo"}</Badge>
+      },
+    },
+    {
       accessorKey: "name",
       header: "Nome",
       cell: ({ row }) => <TruncatedText text={row.original.name} />,
@@ -163,14 +171,6 @@ export function UsersTable({ data, meta, clients }: UsersTableProps) {
           USER: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100",
         }
         return <Badge className={variants[role] || ""}>{role}</Badge>
-      },
-    },
-    {
-      accessorKey: "status",
-      header: "Status",
-      cell: ({ row }) => {
-        const status = row.getValue("status") as boolean
-        return <Badge variant={status ? "default" : "secondary"}>{status ? "Ativo" : "Inativo"}</Badge>
       },
     },
     {

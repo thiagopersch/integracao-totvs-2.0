@@ -10,6 +10,7 @@ import { PageHeader } from "@/components/shared/page-header"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
 import { EntityActionsCell } from "@/components/shared/entity-actions-cell"
 import { createSelectColumn } from "@/components/shared/select-column"
+import { DateCell } from "@/components/shared/date-cell"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -244,7 +245,7 @@ export function FilterTable({ data, meta, clients, tbcs, sistemas, categories, f
       header: "Status",
       cell: ({ row }) => {
         const status = row.getValue("status") as boolean
-        return <Badge variant={status ? "default" : "secondary"}>{status ? "Ativo" : "Inativo"}</Badge>
+        return <Badge variant={status ? "success" : "destructive"}>{status ? "Ativo" : "Inativo"}</Badge>
       },
     },
     {
@@ -298,7 +299,7 @@ export function FilterTable({ data, meta, clients, tbcs, sistemas, categories, f
       cell: ({ row }) => {
         const status = row.original.lastBackupStatus
         if (!status) return <Badge variant="outline">Nunca executado</Badge>
-        const variant = status === "DONE" ? "default" : status === "ERROR" ? "destructive" : "secondary"
+        const variant = status === "DONE" ? "success" : status === "ERROR" ? "destructive" : "secondary"
         return <Badge variant={variant}>{BACKUP_STATUS_LABELS[status] || status}</Badge>
       },
     },
@@ -310,7 +311,7 @@ export function FilterTable({ data, meta, clients, tbcs, sistemas, categories, f
         if (!at) return "-"
         return (
           <div className="flex flex-col text-xs">
-            <span>{new Date(at).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}</span>
+            <DateCell date={at}>{new Date(at).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}</DateCell>
             {row.original.lastBackupBy && (
               <span className="text-muted-foreground">{row.original.lastBackupBy.name}</span>
             )}

@@ -8,6 +8,7 @@ import type { ErrorKind } from "@/lib/error-kind";
  */
 export const NOTIFICATION_TYPES = {
   BACKUP_RUN_FAILED: "backup.run.failed",
+  BACKUP_RUN_SUCCEEDED: "backup.run.succeeded",
   SOAP_CALL_FAILED: "soap.call.failed",
   AUTH_LOGIN_SUSPICIOUS: "auth.login.suspicious",
   INTEGRATION_TEST_FAILED: "integrations.test.failed",
@@ -45,6 +46,29 @@ export function buildBackupRunFailedNotification(params: {
       clientName: params.clientName,
       errorMessage: params.errorMessage,
       errorKind: params.errorKind,
+    },
+  };
+}
+
+export function buildBackupRunSucceededNotification(params: {
+  filterId: string;
+  filterLabel: string;
+  tbcName: string;
+  clientId?: string;
+  clientName?: string;
+}): BuiltNotification {
+  return {
+    type: NOTIFICATION_TYPES.BACKUP_RUN_SUCCEEDED,
+    title: `Backup concluído — ${params.filterLabel}`,
+    body: `O backup agendado do filtro "${params.filterLabel}" (TBC ${params.tbcName}) foi concluído com sucesso.`,
+    data: {
+      filterId: params.filterId,
+      href: `/admin/backups/${params.filterId}`,
+      source: "filter",
+      sourceLabel: "Filtro (Backup)",
+      tbcName: params.tbcName,
+      clientId: params.clientId,
+      clientName: params.clientName,
     },
   };
 }

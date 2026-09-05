@@ -10,6 +10,7 @@ import { PageHeader } from "@/components/shared/page-header"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
 import { EntityActionsCell } from "@/components/shared/entity-actions-cell"
 import { createSelectColumn } from "@/components/shared/select-column"
+import { DateCell } from "@/components/shared/date-cell"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -67,8 +68,8 @@ const STATUS_LABELS: Record<string, string> = {
   CANCELLED: "Cancelado",
 }
 
-const STATUS_VARIANTS: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
-  ACTIVE: "default",
+const STATUS_VARIANTS: Record<string, "success" | "secondary" | "destructive" | "outline"> = {
+  ACTIVE: "success",
   SUSPENDED: "secondary",
   EXPIRED: "outline",
   CANCELLED: "destructive",
@@ -151,6 +152,14 @@ export function ContractTable({ data, meta, clients }: ContractTableProps) {
   const columns: ColumnDef<ContractRow>[] = [
     createSelectColumn<ContractRow>(),
     {
+      accessorKey: "status",
+      header: "Status",
+      cell: ({ row }) => {
+        const status = row.getValue("status") as string
+        return <Badge variant={STATUS_VARIANTS[status] || "secondary"}>{STATUS_LABELS[status] || status}</Badge>
+      },
+    },
+    {
       id: "client",
       header: "Cliente",
       cell: ({ row }) => (
@@ -168,22 +177,18 @@ export function ContractTable({ data, meta, clients }: ContractTableProps) {
     {
       accessorKey: "startDate",
       header: "Início",
-      cell: ({ row }) => formatDateOnly(row.getValue("startDate") as string),
+      cell: ({ row }) => {
+        const startDate = row.getValue("startDate") as string
+        return <DateCell date={startDate} timeZone="UTC">{formatDateOnly(startDate)}</DateCell>
+      },
     },
     {
       accessorKey: "endDate",
       header: "Término",
       cell: ({ row }) => {
         const endDate = row.getValue("endDate") as string | Date | null
-        return endDate ? formatDateOnly(endDate) : "-"
-      },
-    },
-    {
-      accessorKey: "status",
-      header: "Status",
-      cell: ({ row }) => {
-        const status = row.getValue("status") as string
-        return <Badge variant={STATUS_VARIANTS[status] || "secondary"}>{STATUS_LABELS[status] || status}</Badge>
+        if (!endDate) return "-"
+        return <DateCell date={endDate} timeZone="UTC">{formatDateOnly(endDate)}</DateCell>
       },
     },
   ]

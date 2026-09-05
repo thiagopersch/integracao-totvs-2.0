@@ -126,6 +126,14 @@ export function AnalystTable({ data, meta }: AnalystTableProps) {
   const columns: ColumnDef<AnalystRow>[] = [
     createSelectColumn<AnalystRow>(),
     {
+      accessorKey: "status",
+      header: "Status",
+      cell: ({ row }) => {
+        const status = row.getValue("status") as boolean
+        return <Badge variant={status ? "success" : "destructive"}>{status ? "Ativo" : "Inativo"}</Badge>
+      },
+    },
+    {
       accessorKey: "name",
       header: "Nome",
       cell: ({ row }) => (
@@ -139,14 +147,6 @@ export function AnalystTable({ data, meta }: AnalystTableProps) {
     { accessorKey: "team", header: "Time", cell: ({ row }) => row.getValue("team") || "-" },
     { accessorKey: "level", header: "Nível" },
     { accessorKey: "contractsCount", header: "Contratos", cell: ({ row }) => row.original.contractsCount },
-    {
-      accessorKey: "status",
-      header: "Status",
-      cell: ({ row }) => {
-        const status = row.getValue("status") as boolean
-        return <Badge variant={status ? "default" : "secondary"}>{status ? "Ativo" : "Inativo"}</Badge>
-      },
-    },
   ]
 
   const actionsColumn: ColumnDef<AnalystRow> = {

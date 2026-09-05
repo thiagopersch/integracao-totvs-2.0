@@ -124,6 +124,14 @@ export function SentenceTable({ data, meta, categories }: SentenceTableProps) {
   const columns: ColumnDef<SentenceRow>[] = [
     createSelectColumn<SentenceRow>(),
     {
+      accessorKey: "status",
+      header: "Status",
+      cell: ({ row }) => {
+        const status = row.getValue("status") as boolean
+        return <Badge variant={status ? "success" : "destructive"}>{status ? "Ativo" : "Inativo"}</Badge>
+      },
+    },
+    {
       id: "categoryName",
       header: "Categoria",
       cell: ({ row }) => row.original.category?.name || "-",
@@ -141,14 +149,6 @@ export function SentenceTable({ data, meta, categories }: SentenceTableProps) {
       accessorKey: "codSystem",
       header: "Cód. Sistema",
       cell: ({ row }) => row.getValue("codSystem") || "-",
-    },
-    {
-      accessorKey: "status",
-      header: "Status",
-      cell: ({ row }) => {
-        const status = row.getValue("status") as boolean
-        return <Badge variant={status ? "default" : "secondary"}>{status ? "Ativo" : "Inativo"}</Badge>
-      },
     },
   ]
 

@@ -65,6 +65,12 @@ export function formatDateOnly(date: Date | string): string {
   }).format(new Date(date));
 }
 
+/** Full weekday name (pt-BR) for a date/tooltip hint. Pass `timeZone: "UTC"` for date-only values
+ *  (see `formatDateOnly` above) — otherwise defaults to the app's display timezone. */
+export function getWeekdayName(date: Date | string, timeZone: string = APP_TIME_ZONE): string {
+  return new Intl.DateTimeFormat("pt-BR", { weekday: "long", timeZone }).format(new Date(date));
+}
+
 /** yyyy-MM-dd, mirroring a native `type="date"` input value — safe for date-only values since
  *  toISOString() always renders in UTC regardless of the caller's local timezone. */
 export function toDateInputValue(date: Date | string): string {

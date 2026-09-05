@@ -101,14 +101,25 @@ export const filterService = {
 
   async update(id: string, input: UpdateFilterInput, organizationId: string, allowedClientIds: string[]) {
     if (input.clientId) assertClientAllowed(input.clientId, allowedClientIds);
-    // Re-anchor the schedule to "now" whenever it's (re)saved, per spec — a weekly/monthly
-    // schedule fires from the moment the record was last saved, not from a fixed clock.
-    const nextRunAt = input.schedule ? computeNextRunAt(input.schedule, new Date(), input.scheduleTime) : undefined;
+
+    // Re-anchor the schedule to "now" only when the schedule actually changed — not on every save
+    // of the filter (e.g. renaming it), which would otherwise silently push back a pending backup.
+    let nextRunAt: Date | null | undefined;
+    if (input.schedule !== undefined) {
+      const current = await filterRepository.findById(id, organizationId, { clientId: { in: allowedClientIds } });
+      const scheduleChanged =
+        !current ||
+        current.schedule !== input.schedule ||
+        (current.scheduleTime ?? null) !== (input.scheduleTime || null) ||
+        (current.scheduleCategoryId ?? null) !== (input.scheduleCategoryId || null);
+      if (scheduleChanged) nextRunAt = computeNextRunAt(input.schedule, new Date(), input.scheduleTime);
+    }
+
     return filterRepository.update(
       id,
       {
         ...input,
-        ...(input.schedule ? { nextRunAt } : {}),
+        ...(nextRunAt !== undefined ? { nextRunAt } : {}),
         ...(input.scheduleTime !== undefined ? { scheduleTime: input.scheduleTime || null } : {}),
         ...(input.scheduleCategoryId !== undefined ? { scheduleCategoryId: input.scheduleCategoryId || null } : {}),
       },

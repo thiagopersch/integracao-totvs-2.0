@@ -114,6 +114,14 @@ export function SentenceCategoryTable({ data, meta }: SentenceCategoryTableProps
   const columns: ColumnDef<SentenceCategory>[] = [
     createSelectColumn<SentenceCategory>(),
     {
+      accessorKey: "status",
+      header: "Status",
+      cell: ({ row }) => {
+        const status = row.getValue("status") as boolean
+        return <Badge variant={status ? "success" : "destructive"}>{status ? "Ativo" : "Inativo"}</Badge>
+      },
+    },
+    {
       accessorKey: "code",
       header: "Código",
     },
@@ -121,14 +129,6 @@ export function SentenceCategoryTable({ data, meta }: SentenceCategoryTableProps
       accessorKey: "name",
       header: "Nome",
       cell: ({ row }) => <TruncatedText text={row.original.name} />,
-    },
-    {
-      accessorKey: "status",
-      header: "Status",
-      cell: ({ row }) => {
-        const status = row.getValue("status") as boolean
-        return <Badge variant={status ? "default" : "secondary"}>{status ? "Ativo" : "Inativo"}</Badge>
-      },
     },
   ]
 
