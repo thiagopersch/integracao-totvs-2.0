@@ -1,6 +1,6 @@
 "use client"
 
-import { createTbc, deleteTbc, restoreTbc, updateTbc, bulkDeleteTbcs, setTbcStatus } from "@/actions/admin/tbcs"
+import { createTbc, deleteTbc, restoreTbc, updateTbc, bulkDeleteTbcs, setTbcStatus, testTbcConnection, testTbcConnectionById } from "@/actions/admin/tbcs"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
 import { DataTable } from "@/components/shared/data-table"
 import { DataTableFilterPanel } from "@/components/shared/data-table-filter-panel"
@@ -21,19 +21,21 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
+import { DropdownMenuItem } from "@/components/ui/dropdown-menu"
 import { Field, FieldError, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { PasswordInput } from "@/components/ui/password-input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useCrudTable } from "@/hooks/use-crud-table"
+import { useHasPermission } from "@/hooks/use-permissions"
 import { createTbcSchema, updateTbcSchema, type CreateTbcInput } from "@/schemas/tbc.schema"
 import type { TbcRow } from "@/services/tbc.service"
 import type { PaginationMeta } from "@/types/common"
 import { zodResolver } from "@hookform/resolvers/zod"
 import type { Client } from "@/generated/prisma/client"
 import type { ColumnDef } from "@tanstack/react-table"
-import { Loader2, Plus } from "lucide-react"
+import { Loader2, Plus, ShieldCheck } from "lucide-react"
 import { useState } from "react"
 import { Controller, useForm, type Resolver } from "react-hook-form"
 import { toast } from "sonner"
@@ -56,11 +58,27 @@ export function TbcTable({ data, meta, clients, filterClients }: TbcTableProps) 
       deleteSuccessMessage: "TBC excluído com sucesso",
       restoreSuccessMessage: "TBC restaurado com sucesso",
     })
+  const canCreate = useHasPermission("tbcs", "create")
+  const canUpdate = useHasPermission("tbcs", "update")
+  const canDelete = useHasPermission("tbcs", "delete")
   const [loading, setLoading] = useState(false)
   const [clientFilter, setClientFilter] = useState(searchParams.get("clientId") || "")
   const [statusFilter, setStatusFilter] = useState(searchParams.get("status") || "")
   const [noLicenseFilter, setNoLicenseFilter] = useState(searchParams.get("notRequiredLicense") || "")
   const [changePassword, setChangePassword] = useState(false)
+  const [validating, setValidating] = useState(false)
+  const [validatingRowId, setValidatingRowId] = useState<string | null>(null)
+
+  async function handleValidateRow(tbc: TbcRow) {
+    setValidatingRowId(tbc.id)
+    const result = await testTbcConnectionById(tbc.id)
+    if (result.success) {
+      toast.success(`Conexão com "${tbc.name}" validada com sucesso`)
+    } else {
+      toast.error(result.error || `Falha ao validar conexão com "${tbc.name}"`)
+    }
+    setValidatingRowId(null)
+  }
 
   const form = useForm<CreateTbcInput>({
     mode: "onChange",
@@ -108,6 +126,31 @@ export function TbcTable({ data, meta, clients, filterClients }: TbcTableProps) 
     setEditDialog({ open: false })
   }
 
+  async function handleValidate() {
+    const values = form.getValues()
+    setValidating(true)
+    const formData = new FormData()
+    formData.append("link", values.link)
+    formData.append("user", values.user)
+    formData.append("password", values.password)
+    formData.append("notRequiredLicense", String(values.notRequiredLicense ?? false))
+
+    const result = await testTbcConnection(formData)
+    if (result.success) {
+      toast.success("Conexão validada com sucesso")
+    } else {
+      toast.error(result.error || "Falha ao validar conexão")
+    }
+    setValidating(false)
+  }
+
+  const watchedFields = form.watch(["clientId", "name", "link", "user", "password"])
+  const [watchedClientId, watchedName, watchedLink, watchedUser, watchedPassword] = watchedFields
+  const coreFieldsFilled = !!watchedClientId && !!watchedName && !!watchedLink && !!watchedUser
+  const isEditingWithoutPasswordChange = !!editDialog.entity && !changePassword
+  const canSubmit = coreFieldsFilled && (isEditingWithoutPasswordChange || !!watchedPassword)
+  const canValidate = coreFieldsFilled && !!watchedPassword
+
   const columns: ColumnDef<TbcRow>[] = [
     createSelectColumn<TbcRow>(),
     {
@@ -144,18 +187,33 @@ export function TbcTable({ data, meta, clients, filterClients }: TbcTableProps) 
         return <Badge variant={status ? "default" : "secondary"}>{status ? "Ativo" : "Inativo"}</Badge>
       },
     },
-    {
-      id: "actions",
-      cell: ({ row }) => (
-        <EntityActionsCell
-          onEdit={() => setEditDialog({ open: true, entity: row.original })}
-          onDelete={() => setDeleteDialog({ open: true, id: row.original.id })}
-          onToggleStatus={() => handleToggleStatus(row.original.id, row.original.status)}
-          isActive={row.original.status}
-        />
-      ),
-    },
   ]
+
+  const actionsColumn: ColumnDef<TbcRow> = {
+    id: "actions",
+    cell: ({ row }) => (
+      <EntityActionsCell
+        onEdit={canUpdate ? () => setEditDialog({ open: true, entity: row.original }) : undefined}
+        onDelete={canDelete ? () => setDeleteDialog({ open: true, id: row.original.id }) : undefined}
+        onToggleStatus={canUpdate ? () => handleToggleStatus(row.original.id, row.original.status) : undefined}
+        isActive={row.original.status}
+        extraItems={
+            <DropdownMenuItem
+              onClick={() => handleValidateRow(row.original)}
+              disabled={validatingRowId === row.original.id}
+            >
+              {validatingRowId === row.original.id ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <ShieldCheck className="h-4 w-4 mr-2" />
+              )}
+              Validar TBC
+            </DropdownMenuItem>
+        }
+      />
+    ),
+  }
+  columns.push(actionsColumn)
 
   const newDialog = (
     <Dialog
@@ -229,7 +287,7 @@ export function TbcTable({ data, meta, clients, filterClients }: TbcTableProps) 
               <FieldError errors={[form.formState.errors.clientId]} />
             </Field>
             <Field>
-              <FieldLabel htmlFor="name">TBC</FieldLabel>
+              <FieldLabel htmlFor="name">Nome</FieldLabel>
               <Input
                 id="name"
                 className="w-full"
@@ -294,7 +352,11 @@ export function TbcTable({ data, meta, clients, filterClients }: TbcTableProps) 
             <Button type="button" variant="outline" onClick={handleCancel} disabled={loading}>
               Cancelar
             </Button>
-            <Button type="submit" disabled={loading}>
+            <Button type="button" variant="outline" onClick={handleValidate} disabled={validating || !canValidate}>
+              {validating && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+              Validar TBC
+            </Button>
+            <Button type="submit" disabled={loading || !canSubmit}>
               {loading && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
               Salvar
             </Button>
@@ -401,12 +463,12 @@ export function TbcTable({ data, meta, clients, filterClients }: TbcTableProps) 
         onPageSizeChange={(ps) => pushParams({ pageSize: ps, page: 1 })}
         searchPlaceholder="Buscar por nome ou link..."
         onSearch={(v) => pushParams({ search: v || undefined, page: 1 })}
-        toolbarActions={newDialog}
+        toolbarActions={canCreate ? newDialog : undefined}
         filterPanel={filterPanel}
         sort={sort}
         onSortChange={onSortChange}
         sortableColumns={SORTABLE_COLUMNS}
-        bulkDelete={{
+        bulkDelete={!canDelete ? undefined : {
           getId: (row) => row.id,
           getRowLabel: (row) => row.name,
           action: bulkDeleteTbcs,

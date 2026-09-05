@@ -23,7 +23,7 @@ const requirementList = [
   { key: "hasUppercase", label: "Letra maiúscula", check: (v: string) => passwordRequirements.hasUppercase(v) },
   { key: "hasLowercase", label: "Letra minúscula", check: (v: string) => passwordRequirements.hasLowercase(v) },
   { key: "hasNumber", label: "Número", check: (v: string) => passwordRequirements.hasNumber(v) },
-  { key: "hasSpecial", label: "Caractere especial (!@#$%^&*)", check: (v: string) => passwordRequirements.hasSpecial(v) },
+  { key: "hasSpecial", label: "Caractere especial", check: (v: string) => passwordRequirements.hasSpecial(v) },
   { key: "minLength", label: "Mínimo 8 caracteres", check: (v: string) => v.length >= passwordRequirements.minLength },
   { key: "maxLength", label: "Máximo 32 caracteres", check: (v: string) => v.length > 0 && v.length <= passwordRequirements.maxLength },
 ]

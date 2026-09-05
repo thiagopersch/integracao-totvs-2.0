@@ -43,6 +43,7 @@ import { BACKUP_SCHEDULE_LABELS, SCHEDULES_WITH_TIME_OF_DAY } from "@/lib/backup
 import { createFilterSchema, updateFilterSchema, type CreateFilterInput } from "@/schemas/filter.schema"
 import { toast } from "sonner"
 import { useCrudTable } from "@/hooks/use-crud-table"
+import { useHasPermission } from "@/hooks/use-permissions"
 import type { Filter, TotvsSystem, SentenceCategory } from "@/generated/prisma/client"
 import type { Client } from "@/generated/prisma/client"
 import type { TbcRow } from "@/services/tbc.service"
@@ -96,6 +97,12 @@ export function FilterTable({ data, meta, clients, tbcs, sistemas, categories, f
     deleteSuccessMessage: "Filtro excluído com sucesso",
     restoreSuccessMessage: "Filtro restaurado com sucesso",
   })
+  const canCreate = useHasPermission("filters", "create")
+  const canUpdate = useHasPermission("filters", "update")
+  const canDelete = useHasPermission("filters", "delete")
+  const canViewBackups = useHasPermission("backups", "read")
+  const canRunBackup = useHasPermission("backups", "create")
+  const canRestoreBackup = useHasPermission("backups", "restore")
   const [loading, setLoading] = useState(false)
   const [clientFilter, setClientFilter] = useState(searchParams.get("clientId") || "")
   const [statusFilter, setStatusFilter] = useState(searchParams.get("status") || "")
@@ -311,22 +318,29 @@ export function FilterTable({ data, meta, clients, tbcs, sistemas, categories, f
         )
       },
     },
-    {
-      id: "actions",
-      cell: ({ row }) => (
-        <EntityActionsCell
-          onEdit={() => setEditDialog({ open: true, entity: row.original })}
-          onDelete={() => setDeleteDialog({ open: true, id: row.original.id })}
-          onToggleStatus={() => handleToggleStatus(row.original.id, row.original.status)}
-          isActive={row.original.status}
-          extraItems={
-            <>
-              <DropdownMenuItem onClick={() => setBackupDialog({ open: true, filterId: row.original.id })}>
-                <RotateCcw className="h-4 w-4 mr-2" /> Realizar Backup
-              </DropdownMenuItem>
+  ]
+
+  const actionsColumn: ColumnDef<FilterRow> = {
+    id: "actions",
+    cell: ({ row }) => (
+      <EntityActionsCell
+        onEdit={canUpdate ? () => setEditDialog({ open: true, entity: row.original }) : undefined}
+        onDelete={canDelete ? () => setDeleteDialog({ open: true, id: row.original.id }) : undefined}
+        onToggleStatus={canUpdate ? () => handleToggleStatus(row.original.id, row.original.status) : undefined}
+        isActive={row.original.status}
+        beforeEdit={
+          <>
+            {canViewBackups && (
               <DropdownMenuItem onClick={() => router.push(`/admin/backups/${row.original.id}`)}>
                 <History className="h-4 w-4 mr-2" /> Backups
               </DropdownMenuItem>
+            )}
+            {canRunBackup && (
+              <DropdownMenuItem onClick={() => setBackupDialog({ open: true, filterId: row.original.id })}>
+                <RotateCcw className="h-4 w-4 mr-2" /> Realizar Backup
+              </DropdownMenuItem>
+            )}
+            {canRestoreBackup && (
               <DropdownMenuItem
                 onClick={() =>
                   setRestoreDialog({
@@ -341,12 +355,13 @@ export function FilterTable({ data, meta, clients, tbcs, sistemas, categories, f
               >
                 <RotateCcw className="h-4 w-4 mr-2" /> Restaurar Backup
               </DropdownMenuItem>
-            </>
-          }
-        />
-      ),
-    },
-  ]
+            )}
+          </>
+        }
+      />
+    ),
+  }
+  if (canUpdate || canDelete || canViewBackups || canRunBackup || canRestoreBackup) columns.push(actionsColumn)
 
   const newDialog = (
     <Dialog open={editDialog.open} onOpenChange={(open) => { setEditDialog({ open, entity: open ? editDialog.entity : undefined }); if (!open) form.reset() }}>
@@ -742,15 +757,15 @@ export function FilterTable({ data, meta, clients, tbcs, sistemas, categories, f
         onSearch={(v) => pushParams({ search: v || undefined, page: 1 })}
         toolbarActions={
           <div className="flex items-center gap-2">
-            {importDialog}
-            {newDialog}
+            {canCreate && importDialog}
+            {canCreate && newDialog}
           </div>
         }
         filterPanel={filterPanel}
         sort={sort}
         onSortChange={onSortChange}
         sortableColumns={SORTABLE_COLUMNS}
-        bulkDelete={{
+        bulkDelete={!canDelete ? undefined : {
           getId: (row) => row.id,
           getRowLabel: (row) => row.filter,
           action: bulkDeleteFilters,

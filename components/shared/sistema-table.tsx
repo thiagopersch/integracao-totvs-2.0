@@ -26,6 +26,7 @@ import { deleteSistema, restoreSistema, createSistema, updateSistema, bulkDelete
 import { createSistemaSchema, updateSistemaSchema, type CreateSistemaInput } from "@/schemas/sistema.schema"
 import { toast } from "sonner"
 import { useCrudTable } from "@/hooks/use-crud-table"
+import { useHasPermission } from "@/hooks/use-permissions"
 import type { TotvsSystem } from "@/generated/prisma/client"
 import type { PaginationMeta } from "@/types/common"
 
@@ -54,6 +55,9 @@ export function SistemaTable({ data, meta }: SistemaTableProps) {
     restoreSuccessMessage: "Sistema restaurado com sucesso",
     defaultSort: { field: "code", direction: "asc" },
   })
+  const canCreate = useHasPermission("sistemas", "create")
+  const canUpdate = useHasPermission("sistemas", "update")
+  const canDelete = useHasPermission("sistemas", "delete")
   const [loading, setLoading] = useState(false)
 
   const form = useForm<CreateSistemaInput>({
@@ -105,16 +109,18 @@ export function SistemaTable({ data, meta }: SistemaTableProps) {
       accessorKey: "externalName",
       header: "Nome Externo TOTVS",
     },
-    {
-      id: "actions",
-      cell: ({ row }) => (
-        <EntityActionsCell
-          onEdit={() => setEditDialog({ open: true, entity: row.original })}
-          onDelete={() => setDeleteDialog({ open: true, id: row.original.id })}
-        />
-      ),
-    },
   ]
+
+  const actionsColumn: ColumnDef<TotvsSystem> = {
+    id: "actions",
+    cell: ({ row }) => (
+      <EntityActionsCell
+        onEdit={canUpdate ? () => setEditDialog({ open: true, entity: row.original }) : undefined}
+        onDelete={canDelete ? () => setDeleteDialog({ open: true, id: row.original.id }) : undefined}
+      />
+    ),
+  }
+  if (canUpdate || canDelete) columns.push(actionsColumn)
 
   const newDialog = (
     <Dialog open={editDialog.open} onOpenChange={(open) => { setEditDialog({ open, entity: open ? editDialog.entity : undefined }); if (!open) form.reset() }}>
@@ -168,11 +174,11 @@ export function SistemaTable({ data, meta }: SistemaTableProps) {
         onPageSizeChange={(ps) => pushParams({ pageSize: ps, page: 1 })}
         searchPlaceholder="Buscar por código ou nome..."
         onSearch={(v) => pushParams({ search: v || undefined, page: 1 })}
-        toolbarActions={newDialog}
+        toolbarActions={canCreate ? newDialog : undefined}
         sort={sort}
         onSortChange={onSortChange}
         sortableColumns={SORTABLE_COLUMNS}
-        bulkDelete={{
+        bulkDelete={!canDelete ? undefined : {
           getId: (row) => row.id,
           getRowLabel: (row) => row.code,
           action: bulkDeleteSistemas,

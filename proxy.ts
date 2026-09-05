@@ -4,7 +4,7 @@ import { hasPermission } from "@/lib/permissions";
 import { findNavItemByPathname } from "@/lib/nav-items";
 import { checkRateLimit } from "@/lib/rate-limiter";
 
-const PUBLIC_ROUTES = ["/login", "/forgot-password", "/reset-password", "/api/auth"];
+const PUBLIC_ROUTES = ["/login", "/forgot-password", "/api/auth"];
 
 export default auth((request) => {
   const { pathname } = request.nextUrl;
@@ -26,6 +26,16 @@ export default auth((request) => {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
     return NextResponse.redirect(new URL("/login", request.url));
+  }
+
+  // A user flagged for a forced password reset (admin reset, or self-service "must change
+  // password") can only reach /reset-password until they complete it — everything else,
+  // including permission-gated routes, redirects there first.
+  if (session.user.changePassword && pathname !== "/reset-password" && !pathname.startsWith("/api/auth")) {
+    return NextResponse.redirect(new URL("/reset-password", request.url));
+  }
+  if (!session.user.changePassword && pathname === "/reset-password") {
+    return NextResponse.redirect(new URL("/dashboard", request.url));
   }
 
   // Server Actions are posted to whatever URL the browser is on at call time,

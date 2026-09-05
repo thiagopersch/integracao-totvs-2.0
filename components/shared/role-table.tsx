@@ -30,6 +30,7 @@ import { createRole, updateRole, deleteRole } from "@/actions/admin/roles"
 import { createRoleSchema, updateRoleSchema, type CreateRoleInput } from "@/schemas/role.schema"
 import { toast } from "sonner"
 import { useCrudTable } from "@/hooks/use-crud-table"
+import { useHasPermission } from "@/hooks/use-permissions"
 
 type PermissionRow = { id: string; resource: string; resourceLabel: string; action: string; name: string; module: string }
 type RoleRow = {
@@ -60,6 +61,9 @@ export function RoleTable({ data, permissions }: RoleTableProps) {
     deleteAction: deleteRole,
     deleteSuccessMessage: "Papel excluído com sucesso",
   })
+  const canCreate = useHasPermission("roles", "create")
+  const canUpdate = useHasPermission("roles", "update")
+  const canDelete = useHasPermission("roles", "delete")
   const [loading, setLoading] = useState(false)
   const [search, setSearch] = useState("")
   const [expanded, setExpanded] = useState(false)
@@ -158,16 +162,18 @@ export function RoleTable({ data, permissions }: RoleTableProps) {
       accessorFn: (row) => row.userRoles.length,
       header: "Usuários",
     },
-    {
-      id: "actions",
-      cell: ({ row }) => (
-        <EntityActionsCell
-          onEdit={() => setEditDialog({ open: true, entity: row.original })}
-          onDelete={row.original.isSystem ? undefined : () => setDeleteDialog({ open: true, id: row.original.id })}
-        />
-      ),
-    },
   ]
+
+  const actionsColumn: ColumnDef<RoleRow> = {
+    id: "actions",
+    cell: ({ row }) => (
+      <EntityActionsCell
+        onEdit={canUpdate ? () => setEditDialog({ open: true, entity: row.original }) : undefined}
+        onDelete={canDelete && !row.original.isSystem ? () => setDeleteDialog({ open: true, id: row.original.id }) : undefined}
+      />
+    ),
+  }
+  if (canUpdate || canDelete) columns.push(actionsColumn)
 
   const newDialog = (
     <Dialog
@@ -248,7 +254,7 @@ export function RoleTable({ data, permissions }: RoleTableProps) {
           searchPlaceholder="Buscar por nome ou descrição..."
           searchDefaultValue={search}
           onSearch={setSearch}
-          toolbarActions={newDialog}
+          toolbarActions={canCreate ? newDialog : undefined}
           sortableColumns={SORTABLE_COLUMNS}
         />
       </div>

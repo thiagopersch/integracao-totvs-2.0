@@ -98,4 +98,10 @@ export const userService = {
   async bulkRestore(ids: string[], organizationId: string) {
     return userRepository.bulkRestore(ids, organizationId);
   },
+
+  /** Admin-initiated reset: sets a temporary password and forces the user to pick a new one at next login. */
+  async resetPassword(id: string, temporaryPassword: string, organizationId: string) {
+    const hashedPassword = await hashPassword(temporaryPassword);
+    return userRepository.update(id, { password: hashedPassword, changePassword: true }, organizationId);
+  },
 };

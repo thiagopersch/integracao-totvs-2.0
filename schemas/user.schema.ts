@@ -1,11 +1,13 @@
 import { z } from "zod";
+import { passwordSchema } from "@/lib/validators";
 
 export const createUserSchema = z.object({
   name: z.string().min(2, "Nome deve ter no mínimo 2 caracteres"),
   email: z.string().email("E-mail inválido"),
-  password: z.string().min(6, "Senha deve ter no mínimo 6 caracteres"),
+  password: passwordSchema(true),
   role: z.enum(["ADMIN", "MANAGER", "USER"]),
   status: z.boolean().default(true),
+  changePassword: z.boolean().optional(),
 });
 
 export const updateUserSchema = z.object({
@@ -13,6 +15,7 @@ export const updateUserSchema = z.object({
   email: z.string().email("E-mail inválido").optional(),
   role: z.enum(["ADMIN", "MANAGER", "USER"]).optional(),
   status: z.boolean().optional(),
+  changePassword: z.boolean().optional(),
 });
 
 export type CreateUserInput = z.infer<typeof createUserSchema>;

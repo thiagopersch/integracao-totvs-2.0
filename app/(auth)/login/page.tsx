@@ -1,6 +1,5 @@
 "use client"
 
-import { useRouter } from "next/navigation"
 import { useState } from "react"
 import { useForm, Controller } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -15,7 +14,6 @@ import { toast } from "sonner"
 import { Loader2, LogIn } from "lucide-react"
 
 export default function LoginPage() {
-  const router = useRouter()
   const [loading, setLoading] = useState(false)
 
   const {
@@ -37,11 +35,16 @@ export default function LoginPage() {
 
     if (result.success) {
       toast.success("Login realizado com sucesso!")
-      router.push("/dashboard")
+      // A full navigation, not router.push — the session was established server-side (this
+      // page's signIn runs inside a Server Action), so the client's SessionProvider has no way
+      // to know about it without a hard reload; a soft push would leave every permission-gated
+      // component (sidebar, DataTable actions) reading the previous session until something else
+      // happened to trigger a refetch.
+      window.location.href = "/dashboard"
     } else {
       toast.error(result.error ?? "Erro ao fazer login")
+      setLoading(false)
     }
-    setLoading(false)
   }
 
   return (

@@ -28,6 +28,7 @@ import { deleteDepartment, createDepartment, updateDepartment, bulkDeleteDepartm
 import { createDepartmentSchema, updateDepartmentSchema, type CreateDepartmentInput } from "@/schemas/department.schema"
 import { toast } from "sonner"
 import { useCrudTable } from "@/hooks/use-crud-table"
+import { useHasPermission } from "@/hooks/use-permissions"
 import type { Department } from "@/generated/prisma/client"
 import type { PaginationMeta } from "@/types/common"
 
@@ -54,6 +55,9 @@ export function DepartmentTable({ data, meta }: DepartmentTableProps) {
     deleteSuccessMessage: "Departamento excluído com sucesso",
     defaultSort: { field: "name", direction: "asc" },
   })
+  const canCreate = useHasPermission("departments", "create")
+  const canUpdate = useHasPermission("departments", "update")
+  const canDelete = useHasPermission("departments", "delete")
   const [loading, setLoading] = useState(false)
 
   const form = useForm<CreateDepartmentInput>({
@@ -99,16 +103,18 @@ export function DepartmentTable({ data, meta }: DepartmentTableProps) {
       header: "Descrição",
       cell: ({ row }) => <TruncatedText text={(row.getValue("description") as string) || "-"} />,
     },
-    {
-      id: "actions",
-      cell: ({ row }) => (
-        <EntityActionsCell
-          onEdit={() => setEditDialog({ open: true, entity: row.original })}
-          onDelete={() => setDeleteDialog({ open: true, id: row.original.id })}
-        />
-      ),
-    },
   ]
+
+  const actionsColumn: ColumnDef<Department> = {
+    id: "actions",
+    cell: ({ row }) => (
+      <EntityActionsCell
+        onEdit={canUpdate ? () => setEditDialog({ open: true, entity: row.original }) : undefined}
+        onDelete={canDelete ? () => setDeleteDialog({ open: true, id: row.original.id }) : undefined}
+      />
+    ),
+  }
+  if (canUpdate || canDelete) columns.push(actionsColumn)
 
   const newDialog = (
     <Dialog open={editDialog.open} onOpenChange={(open) => { setEditDialog({ open, entity: open ? editDialog.entity : undefined }); if (!open) form.reset() }}>
@@ -156,11 +162,11 @@ export function DepartmentTable({ data, meta }: DepartmentTableProps) {
         onPageSizeChange={(ps) => pushParams({ pageSize: ps, page: 1 })}
         searchPlaceholder="Buscar por nome..."
         onSearch={(v) => pushParams({ search: v || undefined, page: 1 })}
-        toolbarActions={newDialog}
+        toolbarActions={canCreate ? newDialog : undefined}
         sort={sort}
         onSortChange={onSortChange}
         sortableColumns={SORTABLE_COLUMNS}
-        bulkDelete={{
+        bulkDelete={!canDelete ? undefined : {
           getId: (row) => row.id,
           getRowLabel: (row) => row.name,
           action: bulkDeleteDepartments,

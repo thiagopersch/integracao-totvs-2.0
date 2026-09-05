@@ -108,6 +108,17 @@ export const authService = {
     return { success: true };
   },
 
+  /** Used by the forced "must change password" flow — no current-password check, since the
+   *  user got here precisely because their (temporary) password must not be reused. */
+  async completeForcedReset(userId: string, newPassword: string) {
+    const hashed = await hashPassword(newPassword);
+    await prisma.user.update({
+      where: { id: userId },
+      data: { password: hashed, changePassword: false },
+    });
+    return { success: true };
+  },
+
   async verifyPassword(userId: string, password: string): Promise<boolean> {
     const user = await prisma.user.findUnique({ where: { id: userId } });
     if (!user) return false;

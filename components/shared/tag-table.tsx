@@ -28,6 +28,7 @@ import { deleteTag, createTag, updateTag, bulkDeleteTags } from "@/actions/tags"
 import { createTagSchema, updateTagSchema, type CreateTagInput } from "@/schemas/tag.schema"
 import { toast } from "sonner"
 import { useCrudTable } from "@/hooks/use-crud-table"
+import { useHasPermission } from "@/hooks/use-permissions"
 import type { Tag } from "@/generated/prisma/client"
 import type { PaginationMeta } from "@/types/common"
 
@@ -58,6 +59,9 @@ export function TagTable({ data, meta }: TagTableProps) {
     deleteSuccessMessage: "Tag excluída com sucesso",
     defaultSort: { field: "name", direction: "asc" },
   })
+  const canCreate = useHasPermission("tags", "create")
+  const canUpdate = useHasPermission("tags", "update")
+  const canDelete = useHasPermission("tags", "delete")
   const [loading, setLoading] = useState(false)
   const [newColor, setNewColor] = useState(randomColor)
 
@@ -103,16 +107,18 @@ export function TagTable({ data, meta }: TagTableProps) {
         </Badge>
       ),
     },
-    {
-      id: "actions",
-      cell: ({ row }) => (
-        <EntityActionsCell
-          onEdit={() => setEditDialog({ open: true, entity: row.original })}
-          onDelete={() => setDeleteDialog({ open: true, id: row.original.id })}
-        />
-      ),
-    },
   ]
+
+  const actionsColumn: ColumnDef<Tag> = {
+    id: "actions",
+    cell: ({ row }) => (
+      <EntityActionsCell
+        onEdit={canUpdate ? () => setEditDialog({ open: true, entity: row.original }) : undefined}
+        onDelete={canDelete ? () => setDeleteDialog({ open: true, id: row.original.id }) : undefined}
+      />
+    ),
+  }
+  if (canUpdate || canDelete) columns.push(actionsColumn)
 
   const newDialog = (
     <Dialog
@@ -168,11 +174,11 @@ export function TagTable({ data, meta }: TagTableProps) {
         onPageSizeChange={(ps) => pushParams({ pageSize: ps, page: 1 })}
         searchPlaceholder="Buscar por nome..."
         onSearch={(v) => pushParams({ search: v || undefined, page: 1 })}
-        toolbarActions={newDialog}
+        toolbarActions={canCreate ? newDialog : undefined}
         sort={sort}
         onSortChange={onSortChange}
         sortableColumns={SORTABLE_COLUMNS}
-        bulkDelete={{
+        bulkDelete={!canDelete ? undefined : {
           getId: (row) => row.id,
           getRowLabel: (row) => row.name,
           action: bulkDeleteTags,

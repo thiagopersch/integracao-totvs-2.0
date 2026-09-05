@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -656,6 +656,24 @@ export function SoapBuilderClient({
     if (tbc) setContext({ user: tbc.user })
   }
 
+  // Once the user finishes typing the last of the 5 context fields, fire Executar automatically —
+  // saves a click for the repetitive methods this context set was built for. Guarded by a
+  // signature ref so leaving/re-entering a field that hasn't actually changed doesn't re-execute.
+  const lastAutoExecuteSignatureRef = useRef<string | null>(null)
+
+  function maybeAutoExecute() {
+    if (loading) return
+    if (!selectedTypeId || !selectedMethodId || !selectedTbcId) return
+    const contextComplete =
+      context.coligate > 0 && context.branch > 0 && context.levelEducation > 0 && context.codSystem.trim() !== "" && context.user.trim() !== ""
+    if (!contextComplete) return
+
+    const signature = JSON.stringify([selectedTypeId, selectedMethodId, selectedTbcId, context.coligate, context.branch, context.levelEducation, context.codSystem, context.user])
+    if (lastAutoExecuteSignatureRef.current === signature) return
+    lastAutoExecuteSignatureRef.current = signature
+    handleExecute()
+  }
+
   function handleJsonChange(newJson: string) {
     setJsonContent(newJson)
     try {
@@ -1013,6 +1031,7 @@ export function SoapBuilderClient({
                   type="number"
                   value={context.coligate}
                   onChange={(e) => setContext({ coligate: Number(e.target.value) })}
+                  onBlur={maybeAutoExecute}
                   className="w-full"
                 />
               </div>
@@ -1022,6 +1041,7 @@ export function SoapBuilderClient({
                   type="number"
                   value={context.branch}
                   onChange={(e) => setContext({ branch: Number(e.target.value) })}
+                  onBlur={maybeAutoExecute}
                   className="w-full"
                 />
               </div>
@@ -1031,6 +1051,7 @@ export function SoapBuilderClient({
                   type="number"
                   value={context.levelEducation}
                   onChange={(e) => setContext({ levelEducation: Number(e.target.value) })}
+                  onBlur={maybeAutoExecute}
                   className="w-full"
                 />
               </div>
@@ -1039,12 +1060,13 @@ export function SoapBuilderClient({
                 <Input
                   value={context.codSystem}
                   onChange={(e) => setContext({ codSystem: e.target.value })}
+                  onBlur={maybeAutoExecute}
                   className="w-full"
                 />
               </div>
               <div className="space-y-2">
                 <Label>Usuário</Label>
-                <Input value={context.user} onChange={(e) => setContext({ user: e.target.value })} className="w-full" />
+                <Input value={context.user} onChange={(e) => setContext({ user: e.target.value })} onBlur={maybeAutoExecute} className="w-full" />
               </div>
             </div>
           </fieldset>

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { ChevronDown, ChevronLeft, ChevronRight, Radio, Settings } from "lucide-react"
@@ -9,10 +9,10 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Button } from "@/components/ui/button"
 import { NAV_ICONS } from "@/lib/nav-icons"
 import { navGroups, type NavGroup } from "@/lib/nav-items"
+import { hasPermission } from "@/lib/permissions"
+import { usePermissions } from "@/hooks/use-permissions"
 import { useSidebarStore } from "@/store/sidebar.store"
 import { cn } from "@/utils/cn"
-
-const sidebarGroups = navGroups.filter((g) => g.label !== "Conta")
 
 function isItemActive(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(href + "/")
@@ -22,12 +22,24 @@ function isGroupActive(pathname: string, group: NavGroup) {
   return group.items.some((item) => isItemActive(pathname, item.href))
 }
 
-function activeGroupLabel(pathname: string) {
-  return sidebarGroups.find((g) => isGroupActive(pathname, g))?.label ?? null
+function visibleGroups(permissions: string[]): NavGroup[] {
+  return navGroups
+    .filter((g) => g.label !== "Conta")
+    .map((group) => ({
+      ...group,
+      items: group.items.filter((item) => !item.resource || hasPermission(permissions, item.resource, item.action ?? "read")),
+    }))
+    .filter((group) => group.items.length > 0)
 }
 
 export function DashboardSidebar() {
   const pathname = usePathname()
+  const permissions = usePermissions()
+  const sidebarGroups = useMemo(() => visibleGroups(permissions), [permissions])
+  const activeGroupLabel = useMemo(
+    () => (path: string) => sidebarGroups.find((g) => isGroupActive(path, g))?.label ?? null,
+    [sidebarGroups]
+  )
   const collapsed = useSidebarStore((state) => state.collapsed)
   const toggle = useSidebarStore((state) => state.toggle)
   const [openGroup, setOpenGroup] = useState<string | null>(() => activeGroupLabel(pathname))

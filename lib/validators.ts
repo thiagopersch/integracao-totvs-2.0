@@ -81,7 +81,7 @@ export const passwordRequirements = {
   hasUppercase: (value: string) => /[A-Z]/.test(value),
   hasLowercase: (value: string) => /[a-z]/.test(value),
   hasNumber: (value: string) => /\d/.test(value),
-  hasSpecial: (value: string) => /[!@#$%^&*]/.test(value),
+  hasSpecial: (value: string) => /[^A-Za-z0-9]/.test(value),
 }
 
 function passwordBase() {
@@ -92,7 +92,7 @@ function passwordBase() {
     .refine(passwordRequirements.hasUppercase, "Senha deve conter ao menos uma letra maiúscula")
     .refine(passwordRequirements.hasLowercase, "Senha deve conter ao menos uma letra minúscula")
     .refine(passwordRequirements.hasNumber, "Senha deve conter ao menos um número")
-    .refine(passwordRequirements.hasSpecial, "Senha deve conter ao menos um caractere especial (!@#$%^&*)")
+    .refine(passwordRequirements.hasSpecial, "Senha deve conter ao menos um caractere especial")
 }
 function requiredPassword() {
   return passwordBase()

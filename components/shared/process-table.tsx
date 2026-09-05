@@ -27,6 +27,7 @@ import { deleteProcess, restoreProcess, createProcess, updateProcess, bulkDelete
 import { createProcessSchema, updateProcessSchema, type CreateProcessInput } from "@/schemas/process.schema"
 import { toast } from "sonner"
 import { useCrudTable } from "@/hooks/use-crud-table"
+import { useHasPermission } from "@/hooks/use-permissions"
 import type { Process } from "@/generated/prisma/client"
 import type { PaginationMeta } from "@/types/common"
 
@@ -55,6 +56,9 @@ export function ProcessTable({ data, meta }: ProcessTableProps) {
     restoreSuccessMessage: "Processo restaurado com sucesso",
     defaultSort: { field: "code", direction: "asc" },
   })
+  const canCreate = useHasPermission("processes", "create")
+  const canUpdate = useHasPermission("processes", "update")
+  const canDelete = useHasPermission("processes", "delete")
   const [loading, setLoading] = useState(false)
 
   const form = useForm<CreateProcessInput>({
@@ -108,16 +112,18 @@ export function ProcessTable({ data, meta }: ProcessTableProps) {
       header: "Nome Alternativo",
       cell: ({ row }) => row.getValue("nameAlternative") || "-",
     },
-    {
-      id: "actions",
-      cell: ({ row }) => (
-        <EntityActionsCell
-          onEdit={() => setEditDialog({ open: true, entity: row.original })}
-          onDelete={() => setDeleteDialog({ open: true, id: row.original.id })}
-        />
-      ),
-    },
   ]
+
+  const actionsColumn: ColumnDef<Process> = {
+    id: "actions",
+    cell: ({ row }) => (
+      <EntityActionsCell
+        onEdit={canUpdate ? () => setEditDialog({ open: true, entity: row.original }) : undefined}
+        onDelete={canDelete ? () => setDeleteDialog({ open: true, id: row.original.id }) : undefined}
+      />
+    ),
+  }
+  if (canUpdate || canDelete) columns.push(actionsColumn)
 
   const newDialog = (
     <Dialog open={editDialog.open} onOpenChange={(open) => { setEditDialog({ open, entity: open ? editDialog.entity : undefined }); if (!open) form.reset() }}>
@@ -170,11 +176,11 @@ export function ProcessTable({ data, meta }: ProcessTableProps) {
         onPageSizeChange={(ps) => pushParams({ pageSize: ps, page: 1 })}
         searchPlaceholder="Buscar por código ou nome..."
         onSearch={(v) => pushParams({ search: v || undefined, page: 1 })}
-        toolbarActions={newDialog}
+        toolbarActions={canCreate ? newDialog : undefined}
         sort={sort}
         onSortChange={onSortChange}
         sortableColumns={SORTABLE_COLUMNS}
-        bulkDelete={{
+        bulkDelete={!canDelete ? undefined : {
           getId: (row) => row.id,
           getRowLabel: (row) => row.code,
           action: bulkDeleteProcesses,

@@ -3,11 +3,14 @@
 import { updateTag, cacheTag } from "next/cache";
 import { tbcService } from "@/services/tbc.service";
 import { auditService } from "@/services/audit.service";
+import { soapService } from "@/services/soap.service";
+import { soapEndpointService } from "@/services/soap-endpoint.service";
 import { createTbcSchema, updateTbcSchema } from "@/schemas/tbc.schema";
 import { requirePermission } from "@/lib/rbac";
 import { getRequestContext } from "@/lib/tenant";
 import { formatBlockingReferences } from "@/lib/entity-relations";
 import type { ListParams } from "@/types/common";
+import type { WsName } from "@/lib/ws-names";
 
 export async function listAllTbcs() {
   const { organizationId, allowedClientIds } = await getRequestContext();
@@ -24,6 +27,39 @@ export async function getTbcById(id: string, organizationId: string, allowedClie
   "use cache";
   cacheTag(`tbc-${id}`);
   return tbcService.getById(id, organizationId, allowedClientIds);
+}
+
+export async function testTbcConnection(formData: FormData) {
+  const link = formData.get("link") as string;
+  const user = formData.get("user") as string;
+  const password = formData.get("password") as string;
+  const notRequiredLicense = formData.get("notRequiredLicense") === "true";
+
+  try {
+    const { organizationId, userId } = await requirePermission("tbcs", "read");
+    const dataserverType = await soapEndpointService.getActiveTypeByKey("dataserver");
+    await soapService.authenticate(
+      { link, user, password, notRequiredLicense },
+      dataserverType.suffix as WsName,
+      organizationId,
+      userId
+    );
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: (error as Error).message };
+  }
+}
+
+export async function testTbcConnectionById(id: string) {
+  try {
+    const { organizationId, allowedClientIds, userId } = await requirePermission("tbcs", "read");
+    const credentials = await tbcService.getCredentialsForRequest(id, organizationId, allowedClientIds);
+    const dataserverType = await soapEndpointService.getActiveTypeByKey("dataserver");
+    await soapService.authenticate(credentials, dataserverType.suffix as WsName, organizationId, userId);
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: (error as Error).message };
+  }
 }
 
 export async function createTbc(formData: FormData) {

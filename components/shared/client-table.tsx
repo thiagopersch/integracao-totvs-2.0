@@ -29,6 +29,7 @@ import { useEffect, useRef, useState } from "react"
 import { Controller, useForm, type Resolver } from "react-hook-form"
 import { toast } from "sonner"
 import { useCrudTable } from "@/hooks/use-crud-table"
+import { useHasPermission } from "@/hooks/use-permissions"
 
 interface ClientTableProps {
   data: Client[]
@@ -57,6 +58,9 @@ export function ClientTable({ data, meta }: ClientTableProps) {
     deleteSuccessMessage: "Cliente excluído com sucesso",
     restoreSuccessMessage: "Cliente restaurado com sucesso",
   })
+  const canCreate = useHasPermission("clients", "create")
+  const canUpdate = useHasPermission("clients", "update")
+  const canDelete = useHasPermission("clients", "delete")
   const [loading, setLoading] = useState(false)
   const [statusFilter, setStatusFilter] = useState(searchParams.get("status") || "")
   const [favoriteFilter, setFavoriteFilter] = useState(searchParams.get("favorite") || "")
@@ -207,18 +211,20 @@ export function ClientTable({ data, meta }: ClientTableProps) {
         return <Badge variant={status ? "default" : "secondary"}>{status ? "Ativo" : "Inativo"}</Badge>
       },
     },
-    {
-      id: "actions",
-      cell: ({ row }) => (
-        <EntityActionsCell
-          onEdit={() => setEditDialog({ open: true, entity: row.original })}
-          onDelete={() => setDeleteDialog({ open: true, id: row.original.id })}
-          onToggleStatus={() => handleToggleStatus(row.original.id, row.original.status)}
-          isActive={row.original.status}
-        />
-      ),
-    },
   ]
+
+  const actionsColumn: ColumnDef<Client> = {
+    id: "actions",
+    cell: ({ row }) => (
+      <EntityActionsCell
+        onEdit={canUpdate ? () => setEditDialog({ open: true, entity: row.original }) : undefined}
+        onDelete={canDelete ? () => setDeleteDialog({ open: true, id: row.original.id }) : undefined}
+        onToggleStatus={canUpdate ? () => handleToggleStatus(row.original.id, row.original.status) : undefined}
+        isActive={row.original.status}
+      />
+    ),
+  }
+  if (canUpdate || canDelete) columns.push(actionsColumn)
 
   const newDialog = (
     <Dialog
@@ -552,17 +558,21 @@ export function ClientTable({ data, meta }: ClientTableProps) {
         onPageSizeChange={(ps) => pushParams({ pageSize: ps, page: 1 })}
         searchPlaceholder="Buscar por nome, documento, e-mail ou link CRM..."
         onSearch={(v) => pushParams({ search: v || undefined, page: 1 })}
-        toolbarActions={newDialog}
+        toolbarActions={canCreate ? newDialog : undefined}
         filterPanel={filterPanel}
         sort={sort}
         onSortChange={onSortChange}
         sortableColumns={SORTABLE_COLUMNS}
-        bulkDelete={{
-          getId: (row) => row.id,
-          getRowLabel: (row) => row.name,
-          action: bulkDeleteClients,
-          onSuccess: () => router.refresh(),
-        }}
+        bulkDelete={
+          canDelete
+            ? {
+                getId: (row) => row.id,
+                getRowLabel: (row) => row.name,
+                action: bulkDeleteClients,
+                onSuccess: () => router.refresh(),
+              }
+            : undefined
+        }
       />
 
       <ConfirmDialog

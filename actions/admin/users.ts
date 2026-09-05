@@ -6,6 +6,7 @@ import { auditService } from "@/services/audit.service";
 import { createUserSchema, updateUserSchema } from "@/schemas/user.schema";
 import { requirePermission } from "@/lib/rbac";
 import { formatBlockingReferences } from "@/lib/entity-relations";
+import { generateTemporaryPassword } from "@/lib/password-generator";
 import type { ListParams } from "@/types/common";
 
 export async function listUsers(params: ListParams, organizationId: string) {
@@ -57,6 +58,7 @@ export async function createUser(formData: FormData) {
     password: formData.get("password") as string,
     role: formData.get("role") as string,
     status: formData.get("status") === "true",
+    changePassword: formData.get("changePassword") === "true",
   };
 
   const parsed = createUserSchema.safeParse(data);
@@ -86,6 +88,7 @@ export async function updateUser(id: string, formData: FormData) {
     email: formData.get("email") as string,
     role: formData.get("role") as string,
     status: formData.get("status") === "true",
+    changePassword: formData.get("changePassword") === "true",
   };
 
   const parsed = updateUserSchema.safeParse(data);
@@ -176,6 +179,20 @@ export async function bulkDeleteUsers(ids: string[]) {
       deletedCount: result.deletedCount,
       blocked: result.blocked.map((b) => ({ id: b.id, reasons: formatBlockingReferences(b.reasons) })),
     };
+  } catch (error) {
+    return { success: false, error: (error as Error).message };
+  }
+}
+
+export async function resetUserPassword(id: string) {
+  const { organizationId } = await requirePermission("users", "update");
+  try {
+    const temporaryPassword = generateTemporaryPassword();
+    await userService.resetPassword(id, temporaryPassword, organizationId);
+    await auditService.log({ action: "RESET_PASSWORD", entity: "User", entityId: id });
+    updateTag("users");
+    updateTag(`user-${id}`);
+    return { success: true, temporaryPassword };
   } catch (error) {
     return { success: false, error: (error as Error).message };
   }

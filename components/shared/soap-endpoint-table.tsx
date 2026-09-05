@@ -43,6 +43,7 @@ import {
 } from "@/schemas/soap-endpoint.schema"
 import { toast } from "sonner"
 import { useCrudTable } from "@/hooks/use-crud-table"
+import { useHasPermission } from "@/hooks/use-permissions"
 import type { SoapEndpointType, SoapEndpointMethod } from "@/generated/prisma/client"
 import type { PaginationMeta } from "@/types/common"
 
@@ -71,6 +72,7 @@ export function SoapEndpointTable({ data, meta }: SoapEndpointTableProps) {
     deleteSuccessMessage: "Tipo de endpoint excluído com sucesso",
     defaultSort: { field: "type", direction: "asc" },
   })
+  const canManage = useHasPermission("settings", "manage")
   const [expandedTypeId, setExpandedTypeId] = useState<string | null>(null)
   const [methodDeleteId, setMethodDeleteId] = useState<string | null>(null)
   const [methodDialog, setMethodDialog] = useState<{
@@ -208,16 +210,18 @@ export function SoapEndpointTable({ data, meta }: SoapEndpointTableProps) {
         return <Badge variant={active ? "default" : "secondary"}>{active ? "Ativo" : "Inativo"}</Badge>
       },
     },
-    {
-      id: "actions",
-      cell: ({ row }) => (
-        <EntityActionsCell
-          onEdit={() => setEditDialog({ open: true, entity: row.original })}
-          onDelete={() => setDeleteDialog({ open: true, id: row.original.id })}
-        />
-      ),
-    },
   ]
+
+  const actionsColumn: ColumnDef<SoapEndpointTypeWithMethods> = {
+    id: "actions",
+    cell: ({ row }) => (
+      <EntityActionsCell
+        onEdit={canManage ? () => setEditDialog({ open: true, entity: row.original }) : undefined}
+        onDelete={canManage ? () => setDeleteDialog({ open: true, id: row.original.id }) : undefined}
+      />
+    ),
+  }
+  if (canManage) columns.push(actionsColumn)
 
   const newDialog = (
     <Dialog open={editDialog.open} onOpenChange={(open) => { setEditDialog({ open, entity: open ? editDialog.entity : undefined }); if (!open) typeForm.reset() }}>
@@ -281,7 +285,7 @@ export function SoapEndpointTable({ data, meta }: SoapEndpointTableProps) {
         onPageSizeChange={(ps) => pushParams({ pageSize: ps, page: 1 })}
         searchPlaceholder="Buscar por label, tipo ou suffix..."
         onSearch={(v) => pushParams({ search: v || undefined, page: 1 })}
-        toolbarActions={newDialog}
+        toolbarActions={canManage ? newDialog : undefined}
         sort={sort}
         onSortChange={onSortChange}
         sortableColumns={SORTABLE_COLUMNS}
@@ -292,9 +296,11 @@ export function SoapEndpointTable({ data, meta }: SoapEndpointTableProps) {
             <div className="p-4">
               <div className="mb-3 flex items-center justify-between">
                 <h4 className="text-sm font-medium">Métodos</h4>
-                <Button size="sm" variant="outline" onClick={() => openMethodDialog(endpointType.id)}>
-                  <Plus className="h-3 w-3 mr-1" /> Novo Método
-                </Button>
+                {canManage && (
+                  <Button size="sm" variant="outline" onClick={() => openMethodDialog(endpointType.id)}>
+                    <Plus className="h-3 w-3 mr-1" /> Novo Método
+                  </Button>
+                )}
               </div>
               {endpointType.methods.length === 0 ? (
                 <p className="text-sm text-muted-foreground py-2">Nenhum método cadastrado para este tipo.</p>
@@ -307,7 +313,7 @@ export function SoapEndpointTable({ data, meta }: SoapEndpointTableProps) {
                         <TableHead>Label</TableHead>
                         <TableHead>Ordem</TableHead>
                         <TableHead>Status</TableHead>
-                        <TableHead className="w-[100px]">Ações</TableHead>
+                        {canManage && <TableHead className="w-[100px]">Ações</TableHead>}
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -323,12 +329,14 @@ export function SoapEndpointTable({ data, meta }: SoapEndpointTableProps) {
                                 {method.active ? "Ativo" : "Inativo"}
                               </Badge>
                             </TableCell>
-                            <TableCell>
-                              <EntityActionsCell
-                                onEdit={() => openMethodDialog(endpointType.id, method)}
-                                onDelete={() => setMethodDeleteId(method.id)}
-                              />
-                            </TableCell>
+                            {canManage && (
+                              <TableCell>
+                                <EntityActionsCell
+                                  onEdit={() => openMethodDialog(endpointType.id, method)}
+                                  onDelete={() => setMethodDeleteId(method.id)}
+                                />
+                              </TableCell>
+                            )}
                           </TableRow>
                         ))}
                     </TableBody>

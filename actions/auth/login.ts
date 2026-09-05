@@ -1,12 +1,13 @@
 "use server"
 
 import { AuthError } from "next-auth";
-import { signIn, signOut } from "@/auth";
+import { signIn, signOut, auth } from "@/auth";
 import { authService } from "@/services/auth.service";
-import { loginSchema } from "@/schemas/auth.schema";
+import { loginSchema, resetPasswordSchema } from "@/schemas/auth.schema";
 import { AUTH_CONFIG } from "@/config/auth.config";
 import { checkRateLimit } from "@/lib/rate-limiter";
 import { logger } from "@/lib/logger";
+import { getFirstAllowedRoute } from "@/lib/nav-items";
 
 export async function loginAction(formData: FormData) {
   const ip = "internal";
@@ -43,6 +44,33 @@ export async function loginAction(formData: FormData) {
 export async function logoutAction() {
   await signOut({ redirect: false });
   return { success: true };
+}
+
+export async function completeForcedPasswordReset(formData: FormData) {
+  const session = await auth();
+  if (!session?.user) {
+    return { success: false, error: "Sessão inválida" };
+  }
+
+  const data = {
+    newPassword: formData.get("newPassword") as string,
+    confirmPassword: formData.get("confirmPassword") as string,
+  };
+
+  const parsed = resetPasswordSchema.safeParse(data);
+  if (!parsed.success) {
+    return { success: false, error: "Dados inválidos", errors: parsed.error.flatten().fieldErrors };
+  }
+
+  const result = await authService.completeForcedReset(session.user.id, parsed.data.newPassword);
+  if (!result.success) return result;
+
+  // Computed server-side against the session already loaded here — the client's useSession()
+  // right after the middleware's redirect into this page can still be mid-fetch with no
+  // permissions yet, which previously sent everyone to the first resource-less nav item
+  // (Rastreamento de Atividades) instead of somewhere meaningful for their role.
+  const redirectTo = getFirstAllowedRoute(session.user.permissions || []);
+  return { ...result, redirectTo };
 }
 
 export async function changePasswordAction(formData: FormData) {

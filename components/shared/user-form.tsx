@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { PasswordInput } from "@/components/ui/password-input"
 import { Label } from "@/components/ui/label"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Field, FieldLabel, FieldError } from "@/components/ui/field"
 import { DialogBody, DialogFooter } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -36,8 +37,8 @@ export function UserForm({ user, onSuccess, onCancel }: UserFormProps) {
     mode: "onChange",
     resolver: zodResolver(user ? updateUserSchema : createUserSchema) as Resolver<CreateUserInput>,
     defaultValues: user
-      ? { name: user.name, email: user.email, role: user.role, status: user.status }
-      : { status: true, role: "USER" },
+      ? { name: user.name, email: user.email, role: user.role, status: user.status, changePassword: user.changePassword }
+      : { status: true, role: "USER", changePassword: false },
   })
 
   async function onSubmit(data: CreateUserInput) {
@@ -67,6 +68,30 @@ export function UserForm({ user, onSuccess, onCancel }: UserFormProps) {
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="flex min-h-0 flex-1 flex-col overflow-hidden">
       <DialogBody>
+        <div className="flex items-center gap-2">
+          <Controller
+            control={control}
+            name="status"
+            render={({ field }) => (
+              <Checkbox id="status" checked={field.value} onCheckedChange={(v) => field.onChange(v === true)} />
+            )}
+          />
+          <Label htmlFor="status">Usuário ativo</Label>
+        </div>
+        <div className="flex items-center gap-2">
+          <Controller
+            control={control}
+            name="changePassword"
+            render={({ field }) => (
+              <Checkbox
+                id="changePassword"
+                checked={field.value ?? false}
+                onCheckedChange={(v) => field.onChange(v === true)}
+              />
+            )}
+          />
+          <Label htmlFor="changePassword">Forçar redefinição de senha no próximo login</Label>
+        </div>
         <Field>
           <FieldLabel htmlFor="name">Nome</FieldLabel>
           <Input id="name" {...register("name")} placeholder="Nome completo" aria-invalid={!!errors.name} />
@@ -89,15 +114,16 @@ export function UserForm({ user, onSuccess, onCancel }: UserFormProps) {
                   value={field.value}
                   onChange={field.onChange}
                   onBlur={field.onBlur}
-                  placeholder="Mínimo 6 caracteres"
+                  placeholder="Senha de acesso"
                   aria-invalid={!!errors.password}
+                  showStrength
                 />
               )}
             />
             <FieldError errors={[errors.password]} />
           </Field>
         )}
-        <div className="space-y-2">
+        <div className="w-[30%] space-y-2">
           <Label htmlFor="role">Perfil</Label>
           <Select
             items={[
@@ -117,10 +143,6 @@ export function UserForm({ user, onSuccess, onCancel }: UserFormProps) {
               <SelectItem value="USER">Usuário</SelectItem>
             </SelectContent>
           </Select>
-        </div>
-        <div className="flex items-center gap-2">
-          <input type="checkbox" id="status" defaultChecked={user?.status ?? true} {...register("status")} className="rounded border-gray-300" />
-          <Label htmlFor="status">Usuário ativo</Label>
         </div>
       </DialogBody>
       <DialogFooter>

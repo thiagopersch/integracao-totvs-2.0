@@ -43,6 +43,7 @@ import { formatDateOnly, toDateInputValue } from "@/utils/format"
 import { TruncatedText } from "@/components/shared/truncated-text"
 import { toast } from "sonner"
 import { useCrudTable } from "@/hooks/use-crud-table"
+import { useHasPermission } from "@/hooks/use-permissions"
 import { usePeriodFilter } from "@/hooks/use-period-filter"
 import { PeriodSelect } from "@/components/shared/period-select"
 import { TotalsByClientSummary } from "@/components/shared/totals-by-client-summary"
@@ -179,6 +180,9 @@ export function DemandTable({
     deleteSuccessMessage: "Demanda excluída com sucesso",
     defaultSort: { field: "date", direction: "desc" },
   })
+  const canCreate = useHasPermission("demands", "create")
+  const canUpdate = useHasPermission("demands", "update")
+  const canDelete = useHasPermission("demands", "delete")
   const [loading, setLoading] = useState(false)
   const [statusFilter, setStatusFilter] = useState(searchParams.get("status") || "")
   const { period, setPeriod } = usePeriodFilter(initialPeriod)
@@ -350,16 +354,18 @@ export function DemandTable({
         )
       },
     },
-    {
-      id: "actions",
-      cell: ({ row }) => (
-        <EntityActionsCell
-          onEdit={() => setEditDialog({ open: true, entity: row.original })}
-          onDelete={() => setDeleteDialog({ open: true, id: row.original.id })}
-        />
-      ),
-    },
   ]
+
+  const actionsColumn: ColumnDef<DemandRow> = {
+    id: "actions",
+    cell: ({ row }) => (
+      <EntityActionsCell
+        onEdit={canUpdate ? () => setEditDialog({ open: true, entity: row.original }) : undefined}
+        onDelete={canDelete ? () => setDeleteDialog({ open: true, id: row.original.id }) : undefined}
+      />
+    ),
+  }
+  if (canUpdate || canDelete) columns.push(actionsColumn)
 
   const newDialog = (
     <Dialog open={editDialog.open} onOpenChange={(open) => { setEditDialog({ open, entity: open ? editDialog.entity : undefined }); if (!open) form.reset() }}>
@@ -642,15 +648,17 @@ export function DemandTable({
         onSearch={(v) => pushParams({ search: v || undefined, page: 1 })}
         toolbarActions={
           <>
-            {newDialog}
+            {canCreate && newDialog}
             <DemandExportDialog clients={clients} years={years} monthsByYear={monthsByYear} />
-            <DemandImportDialog
-              clients={clients}
-              analysts={analysts}
-              requesters={requesters}
-              departments={departments}
-              demandTypes={demandTypes}
-            />
+            {canCreate && (
+              <DemandImportDialog
+                clients={clients}
+                analysts={analysts}
+                requesters={requesters}
+                departments={departments}
+                demandTypes={demandTypes}
+              />
+            )}
           </>
         }
         filterPanel={filterPanel}
@@ -658,7 +666,7 @@ export function DemandTable({
         onSortChange={onSortChange}
         sortableColumns={SORTABLE_COLUMNS}
         footer={<TotalsByClientSummary totals={totalsByClient} />}
-        bulkDelete={{
+        bulkDelete={!canDelete ? undefined : {
           getId: (row) => row.id,
           getRowLabel: (row) => row.name,
           action: bulkDeleteDemands,

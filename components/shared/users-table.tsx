@@ -36,11 +36,12 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command"
-import { Plus, Building2, Loader2 } from "lucide-react"
+import { Plus, Building2, Loader2, KeyRound, Copy, Check } from "lucide-react"
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu"
-import { deleteUser, restoreUser, bulkDeleteUsers, setUserStatus, setUserClients } from "@/actions/admin/users"
+import { deleteUser, restoreUser, bulkDeleteUsers, setUserStatus, setUserClients, resetUserPassword } from "@/actions/admin/users"
 import { UserForm } from "./user-form"
 import { useCrudTable } from "@/hooks/use-crud-table"
+import { useHasPermission } from "@/hooks/use-permissions"
 import { toast } from "sonner"
 import type { User, Client } from "@/generated/prisma/client"
 import type { PaginationMeta } from "@/types/common"
@@ -78,6 +79,9 @@ export function UsersTable({ data, meta, clients }: UsersTableProps) {
     restoreSuccessMessage: "Usuário restaurado com sucesso",
     defaultSort: { field: "name", direction: "asc" },
   })
+  const canCreate = useHasPermission("users", "create")
+  const canUpdate = useHasPermission("users", "update")
+  const canDelete = useHasPermission("users", "delete")
   const [roleFilter, setRoleFilter] = useState(searchParams.get("role") || "")
   const [statusFilter, setStatusFilter] = useState(searchParams.get("status") || "")
   const [clientsDialog, setClientsDialog] = useState<{ open: boolean; userId?: string; userName?: string; selected: Set<string> }>({
@@ -85,6 +89,30 @@ export function UsersTable({ data, meta, clients }: UsersTableProps) {
     selected: new Set(),
   })
   const [savingClients, setSavingClients] = useState(false)
+  const [resetConfirm, setResetConfirm] = useState<{ open: boolean; id?: string; name?: string }>({ open: false })
+  const [resetResult, setResetResult] = useState<{ open: boolean; tempPassword?: string }>({ open: false })
+  const [resettingPassword, setResettingPassword] = useState(false)
+  const [copied, setCopied] = useState(false)
+
+  async function handleConfirmReset() {
+    if (!resetConfirm.id) return
+    setResettingPassword(true)
+    const result = await resetUserPassword(resetConfirm.id)
+    if (result.success) {
+      setResetConfirm({ open: false })
+      setResetResult({ open: true, tempPassword: result.temporaryPassword })
+    } else {
+      toast.error(result.error || "Erro ao redefinir senha")
+    }
+    setResettingPassword(false)
+  }
+
+  async function handleCopyTempPassword() {
+    if (!resetResult.tempPassword) return
+    await navigator.clipboard.writeText(resetResult.tempPassword)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
 
   function openClientsDialog(user: UserRow) {
     setClientsDialog({ open: true, userId: user.id, userName: user.name, selected: new Set(user.allowedClients.map((c) => c.id)) })
@@ -163,23 +191,32 @@ export function UsersTable({ data, meta, clients }: UsersTableProps) {
         )
       },
     },
-    {
-      id: "actions",
-      cell: ({ row }) => (
-        <EntityActionsCell
-          onEdit={() => setEditDialog({ open: true, entity: row.original })}
-          onDelete={() => setDeleteDialog({ open: true, id: row.original.id })}
-          onToggleStatus={() => handleToggleStatus(row.original.id, row.original.status)}
-          isActive={row.original.status}
-          extraItems={
-            <DropdownMenuItem onClick={() => openClientsDialog(row.original)}>
-              <Building2 className="h-4 w-4 mr-2" /> Clientes
-            </DropdownMenuItem>
-          }
-        />
-      ),
-    },
   ]
+
+  const actionsColumn: ColumnDef<UserRow> = {
+    id: "actions",
+    cell: ({ row }) => (
+      <EntityActionsCell
+        onEdit={canUpdate ? () => setEditDialog({ open: true, entity: row.original }) : undefined}
+        onDelete={canDelete ? () => setDeleteDialog({ open: true, id: row.original.id }) : undefined}
+        onToggleStatus={canUpdate ? () => handleToggleStatus(row.original.id, row.original.status) : undefined}
+        isActive={row.original.status}
+        extraItems={
+          canUpdate && (
+            <>
+              <DropdownMenuItem onClick={() => openClientsDialog(row.original)}>
+                <Building2 className="h-4 w-4 mr-2" /> Clientes
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setResetConfirm({ open: true, id: row.original.id, name: row.original.name })}>
+                <KeyRound className="h-4 w-4 mr-2" /> Redefinir senha
+              </DropdownMenuItem>
+            </>
+          )
+        }
+      />
+    ),
+  }
+  if (canUpdate || canDelete) columns.push(actionsColumn)
 
   const newDialog = (
     <Dialog open={editDialog.open} onOpenChange={(open) => setEditDialog({ open, entity: open ? editDialog.entity : undefined })}>
@@ -269,12 +306,12 @@ export function UsersTable({ data, meta, clients }: UsersTableProps) {
         onPageSizeChange={(ps) => pushParams({ pageSize: ps, page: 1 })}
         searchPlaceholder="Buscar por nome ou e-mail..."
         onSearch={(v) => pushParams({ search: v || undefined, page: 1 })}
-        toolbarActions={newDialog}
+        toolbarActions={canCreate ? newDialog : undefined}
         filterPanel={filterPanel}
         sort={sort}
         onSortChange={onSortChange}
         sortableColumns={SORTABLE_COLUMNS}
-        bulkDelete={{
+        bulkDelete={!canDelete ? undefined : {
           getId: (row) => row.id,
           getRowLabel: (row) => row.name,
           action: bulkDeleteUsers,
@@ -291,6 +328,39 @@ export function UsersTable({ data, meta, clients }: UsersTableProps) {
         variant="destructive"
         onConfirm={() => deleteDialog.id && handleDelete(deleteDialog.id)}
       />
+
+      <ConfirmDialog
+        open={resetConfirm.open}
+        onOpenChange={(open) => setResetConfirm({ open, id: resetConfirm.id, name: resetConfirm.name })}
+        title="Redefinir senha"
+        description={`Uma senha temporária será gerada para ${resetConfirm.name ?? "este usuário"}, que precisará defini-la novamente no próximo login. Continuar?`}
+        confirmLabel="Redefinir"
+        loadingLabel="Redefinindo..."
+        loading={resettingPassword}
+        onConfirm={handleConfirmReset}
+      />
+
+      <Dialog open={resetResult.open} onOpenChange={(open) => setResetResult({ open, tempPassword: open ? resetResult.tempPassword : undefined })}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Senha temporária gerada</DialogTitle>
+          </DialogHeader>
+          <DialogBody>
+            <p className="text-sm text-muted-foreground">
+              Repasse esta senha ao usuário. Ela só é exibida uma vez e precisará ser trocada no próximo login.
+            </p>
+            <div className="flex items-center gap-2">
+              <code className="flex-1 rounded-md border bg-muted px-3 py-2 font-jetbrains text-sm">{resetResult.tempPassword}</code>
+              <Button type="button" variant="outline" size="icon" onClick={handleCopyTempPassword}>
+                {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+              </Button>
+            </div>
+          </DialogBody>
+          <DialogFooter>
+            <Button type="button" onClick={() => setResetResult({ open: false })}>Fechar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog
         open={clientsDialog.open}

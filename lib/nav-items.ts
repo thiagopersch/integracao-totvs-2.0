@@ -1,3 +1,5 @@
+import { hasPermission } from "@/lib/permissions";
+
 export type NavLeaf = {
   href: string;
   label: string;
@@ -93,4 +95,11 @@ export function findNavItemByPathname(pathname: string): NavLeaf | undefined {
   const exact = items.find((i) => i.href === pathname);
   if (exact) return exact;
   return items.filter((i) => pathname.startsWith(i.href + "/")).sort((a, b) => b.href.length - a.href.length)[0];
+}
+
+/** First nav route this permission set can actually open — used to land a user somewhere
+ *  meaningful (e.g. after a forced password reset) instead of assuming `/dashboard`. */
+export function getFirstAllowedRoute(permissions: string[]): string {
+  const allowed = flattenNavItems().find((item) => !item.resource || hasPermission(permissions, item.resource, item.action || "read"));
+  return allowed?.href ?? "/dashboard";
 }

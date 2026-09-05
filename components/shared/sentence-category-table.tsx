@@ -38,6 +38,7 @@ import { deleteSentenceCategory, restoreSentenceCategory, createSentenceCategory
 import { createSentenceCategorySchema, updateSentenceCategorySchema, type CreateSentenceCategoryInput } from "@/schemas/sentence-category.schema"
 import { toast } from "sonner"
 import { useCrudTable } from "@/hooks/use-crud-table"
+import { useHasPermission } from "@/hooks/use-permissions"
 import type { SentenceCategory } from "@/generated/prisma/client"
 import type { PaginationMeta } from "@/types/common"
 
@@ -69,6 +70,9 @@ export function SentenceCategoryTable({ data, meta }: SentenceCategoryTableProps
     restoreSuccessMessage: "Categoria restaurada com sucesso",
     defaultSort: { field: "name", direction: "asc" },
   })
+  const canCreate = useHasPermission("sentence_categories", "create")
+  const canUpdate = useHasPermission("sentence_categories", "update")
+  const canDelete = useHasPermission("sentence_categories", "delete")
   const [loading, setLoading] = useState(false)
   const [statusFilter, setStatusFilter] = useState(searchParams.get("status") || "")
 
@@ -126,18 +130,20 @@ export function SentenceCategoryTable({ data, meta }: SentenceCategoryTableProps
         return <Badge variant={status ? "default" : "secondary"}>{status ? "Ativo" : "Inativo"}</Badge>
       },
     },
-    {
-      id: "actions",
-      cell: ({ row }) => (
-        <EntityActionsCell
-          onEdit={() => setEditDialog({ open: true, entity: row.original })}
-          onDelete={() => setDeleteDialog({ open: true, id: row.original.id })}
-          onToggleStatus={() => handleToggleStatus(row.original.id, row.original.status)}
-          isActive={row.original.status}
-        />
-      ),
-    },
   ]
+
+  const actionsColumn: ColumnDef<SentenceCategory> = {
+    id: "actions",
+    cell: ({ row }) => (
+      <EntityActionsCell
+        onEdit={canUpdate ? () => setEditDialog({ open: true, entity: row.original }) : undefined}
+        onDelete={canDelete ? () => setDeleteDialog({ open: true, id: row.original.id }) : undefined}
+        onToggleStatus={canUpdate ? () => handleToggleStatus(row.original.id, row.original.status) : undefined}
+        isActive={row.original.status}
+      />
+    ),
+  }
+  if (canUpdate || canDelete) columns.push(actionsColumn)
 
   const newDialog = (
     <Dialog open={editDialog.open} onOpenChange={(open) => { setEditDialog({ open, entity: open ? editDialog.entity : undefined }); if (!open) form.reset() }}>
@@ -232,12 +238,12 @@ export function SentenceCategoryTable({ data, meta }: SentenceCategoryTableProps
         onPageSizeChange={(ps) => pushParams({ pageSize: ps, page: 1 })}
         searchPlaceholder="Buscar por código ou nome..."
         onSearch={(v) => pushParams({ search: v || undefined, page: 1 })}
-        toolbarActions={newDialog}
+        toolbarActions={canCreate ? newDialog : undefined}
         filterPanel={filterPanel}
         sort={sort}
         onSortChange={onSortChange}
         sortableColumns={SORTABLE_COLUMNS}
-        bulkDelete={{
+        bulkDelete={!canDelete ? undefined : {
           getId: (row) => row.id,
           getRowLabel: (row) => row.code,
           action: bulkDeleteSentenceCategories,

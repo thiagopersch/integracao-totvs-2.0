@@ -28,6 +28,7 @@ import { deleteDemandType, createDemandType, updateDemandType, bulkDeleteDemandT
 import { createDemandTypeSchema, updateDemandTypeSchema, type CreateDemandTypeInput } from "@/schemas/demand-type.schema"
 import { toast } from "sonner"
 import { useCrudTable } from "@/hooks/use-crud-table"
+import { useHasPermission } from "@/hooks/use-permissions"
 import type { DemandType } from "@/generated/prisma/client"
 import type { PaginationMeta } from "@/types/common"
 
@@ -58,6 +59,9 @@ export function DemandTypeTable({ data, meta }: DemandTypeTableProps) {
     deleteSuccessMessage: "Tipo excluído com sucesso",
     defaultSort: { field: "name", direction: "asc" },
   })
+  const canCreate = useHasPermission("demand_types", "create")
+  const canUpdate = useHasPermission("demand_types", "update")
+  const canDelete = useHasPermission("demand_types", "delete")
   const [loading, setLoading] = useState(false)
   const [newColor, setNewColor] = useState(randomColor)
 
@@ -113,16 +117,18 @@ export function DemandTypeTable({ data, meta }: DemandTypeTableProps) {
       header: "Descrição",
       cell: ({ row }) => <TruncatedText text={(row.getValue("description") as string) || "-"} />,
     },
-    {
-      id: "actions",
-      cell: ({ row }) => (
-        <EntityActionsCell
-          onEdit={() => setEditDialog({ open: true, entity: row.original })}
-          onDelete={() => setDeleteDialog({ open: true, id: row.original.id })}
-        />
-      ),
-    },
   ]
+
+  const actionsColumn: ColumnDef<DemandType> = {
+    id: "actions",
+    cell: ({ row }) => (
+      <EntityActionsCell
+        onEdit={canUpdate ? () => setEditDialog({ open: true, entity: row.original }) : undefined}
+        onDelete={canDelete ? () => setDeleteDialog({ open: true, id: row.original.id }) : undefined}
+      />
+    ),
+  }
+  if (canUpdate || canDelete) columns.push(actionsColumn)
 
   const newDialog = (
     <Dialog
@@ -182,11 +188,11 @@ export function DemandTypeTable({ data, meta }: DemandTypeTableProps) {
         onPageSizeChange={(ps) => pushParams({ pageSize: ps, page: 1 })}
         searchPlaceholder="Buscar por nome..."
         onSearch={(v) => pushParams({ search: v || undefined, page: 1 })}
-        toolbarActions={newDialog}
+        toolbarActions={canCreate ? newDialog : undefined}
         sort={sort}
         onSortChange={onSortChange}
         sortableColumns={SORTABLE_COLUMNS}
-        bulkDelete={{
+        bulkDelete={!canDelete ? undefined : {
           getId: (row) => row.id,
           getRowLabel: (row) => row.name,
           action: bulkDeleteDemandTypes,

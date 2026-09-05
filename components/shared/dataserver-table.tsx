@@ -35,6 +35,7 @@ import {
 import { createDataserverSchema, updateDataserverSchema, type CreateDataserverInput } from "@/schemas/dataserver.schema"
 import { toast } from "sonner"
 import { useCrudTable } from "@/hooks/use-crud-table"
+import { useHasPermission } from "@/hooks/use-permissions"
 import type { Dataserver } from "@/generated/prisma/client"
 import type { PaginationMeta } from "@/types/common"
 
@@ -64,6 +65,9 @@ export function DataserverTable({ data, meta, tbcs }: DataserverTableProps) {
     restoreSuccessMessage: "Dataserver restaurado com sucesso",
     defaultSort: { field: "code", direction: "asc" },
   })
+  const canCreate = useHasPermission("dataservers", "create")
+  const canUpdate = useHasPermission("dataservers", "update")
+  const canDelete = useHasPermission("dataservers", "delete")
   const [loading, setLoading] = useState(false)
   const [validationTbcId, setValidationTbcId] = useState("")
   const [validating, setValidating] = useState(false)
@@ -146,16 +150,18 @@ export function DataserverTable({ data, meta, tbcs }: DataserverTableProps) {
       header: "Nome Alternativo",
       cell: ({ row }) => row.getValue("nameAlternative") || "-",
     },
-    {
-      id: "actions",
-      cell: ({ row }) => (
-        <EntityActionsCell
-          onEdit={() => setEditDialog({ open: true, entity: row.original })}
-          onDelete={() => setDeleteDialog({ open: true, id: row.original.id })}
-        />
-      ),
-    },
   ]
+
+  const actionsColumn: ColumnDef<Dataserver> = {
+    id: "actions",
+    cell: ({ row }) => (
+      <EntityActionsCell
+        onEdit={canUpdate ? () => setEditDialog({ open: true, entity: row.original }) : undefined}
+        onDelete={canDelete ? () => setDeleteDialog({ open: true, id: row.original.id }) : undefined}
+      />
+    ),
+  }
+  if (canUpdate || canDelete) columns.push(actionsColumn)
 
   const newDialog = (
     <Dialog
@@ -242,16 +248,20 @@ export function DataserverTable({ data, meta, tbcs }: DataserverTableProps) {
         onPageSizeChange={(ps) => pushParams({ pageSize: ps, page: 1 })}
         searchPlaceholder="Buscar por código ou nome..."
         onSearch={(v) => pushParams({ search: v || undefined, page: 1 })}
-        toolbarActions={newDialog}
+        toolbarActions={canCreate ? newDialog : undefined}
         sort={sort}
         onSortChange={onSortChange}
         sortableColumns={SORTABLE_COLUMNS}
-        bulkDelete={{
-          getId: (row) => row.id,
-          getRowLabel: (row) => row.code,
-          action: bulkDeleteDataservers,
-          onSuccess: () => router.refresh(),
-        }}
+        bulkDelete={
+          canDelete
+            ? {
+                getId: (row) => row.id,
+                getRowLabel: (row) => row.code,
+                action: bulkDeleteDataservers,
+                onSuccess: () => router.refresh(),
+              }
+            : undefined
+        }
       />
 
       <ConfirmDialog

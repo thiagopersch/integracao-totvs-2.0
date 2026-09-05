@@ -40,6 +40,7 @@ import { formatDecimal } from "@/lib/masks"
 import { formatDateOnly, toDateInputValue } from "@/utils/format"
 import { toast } from "sonner"
 import { useCrudTable } from "@/hooks/use-crud-table"
+import { useHasPermission } from "@/hooks/use-permissions"
 import type { Client } from "@/generated/prisma/client"
 import type { PaginationMeta } from "@/types/common"
 
@@ -92,6 +93,9 @@ export function ContractTable({ data, meta, clients }: ContractTableProps) {
     deleteSuccessMessage: "Contrato excluído com sucesso",
     defaultSort: { field: "startDate", direction: "desc" },
   })
+  const canCreate = useHasPermission("contracts", "create")
+  const canUpdate = useHasPermission("contracts", "update")
+  const canDelete = useHasPermission("contracts", "delete")
   const [loading, setLoading] = useState(false)
   const [statusFilter, setStatusFilter] = useState(searchParams.get("status") || "")
 
@@ -182,16 +186,18 @@ export function ContractTable({ data, meta, clients }: ContractTableProps) {
         return <Badge variant={STATUS_VARIANTS[status] || "secondary"}>{STATUS_LABELS[status] || status}</Badge>
       },
     },
-    {
-      id: "actions",
-      cell: ({ row }) => (
-        <EntityActionsCell
-          onEdit={() => setEditDialog({ open: true, entity: row.original })}
-          onDelete={() => setDeleteDialog({ open: true, id: row.original.id })}
-        />
-      ),
-    },
   ]
+
+  const actionsColumn: ColumnDef<ContractRow> = {
+    id: "actions",
+    cell: ({ row }) => (
+      <EntityActionsCell
+        onEdit={canUpdate ? () => setEditDialog({ open: true, entity: row.original }) : undefined}
+        onDelete={canDelete ? () => setDeleteDialog({ open: true, id: row.original.id }) : undefined}
+      />
+    ),
+  }
+  if (canUpdate || canDelete) columns.push(actionsColumn)
 
   const newDialog = (
     <Dialog open={editDialog.open} onOpenChange={(open) => { setEditDialog({ open, entity: open ? editDialog.entity : undefined }); if (!open) form.reset() }}>
@@ -344,18 +350,22 @@ export function ContractTable({ data, meta, clients }: ContractTableProps) {
         onPageSizeChange={(ps) => pushParams({ pageSize: ps, page: 1 })}
         searchPlaceholder="Buscar por cliente..."
         onSearch={(v) => pushParams({ search: v || undefined, page: 1 })}
-        toolbarActions={newDialog}
+        toolbarActions={canCreate ? newDialog : undefined}
         filterPanel={filterPanel}
         sort={sort}
         onSortChange={onSortChange}
         sortableColumns={SORTABLE_COLUMNS}
-        bulkDelete={{
-          getId: (row) => row.id,
-          getRowLabel: (row) => row.client.name,
-          action: bulkDeleteContracts,
-          confirmDescription: (count) => `Tem certeza que deseja excluir ${count} contrato(s) selecionado(s)? Esta ação não pode ser desfeita.`,
-          onSuccess: () => router.refresh(),
-        }}
+        bulkDelete={
+          canDelete
+            ? {
+                getId: (row) => row.id,
+                getRowLabel: (row) => row.client.name,
+                action: bulkDeleteContracts,
+                confirmDescription: (count) => `Tem certeza que deseja excluir ${count} contrato(s) selecionado(s)? Esta ação não pode ser desfeita.`,
+                onSuccess: () => router.refresh(),
+              }
+            : undefined
+        }
       />
 
       <ConfirmDialog
