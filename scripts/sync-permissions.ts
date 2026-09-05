@@ -1,3 +1,4 @@
+import "dotenv/config";
 import { prisma } from "../lib/prisma";
 import { PERMISSIONS, DEFAULT_ROLE_PERMISSIONS } from "../config/permissions";
 
