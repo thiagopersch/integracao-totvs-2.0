@@ -4,13 +4,13 @@ import { authService } from "@/services/auth.service"
 import { getRequestContext } from "@/lib/tenant"
 import { ProfileForm } from "@/components/shared/profile-form"
 import { PageHeader } from "@/components/shared/page-header"
-import { Skeleton } from "@/components/ui/skeleton"
+import { TableSkeleton } from "@/components/shared/table-skeleton"
 
 export default function ProfilePage() {
   return (
     <div className="p-6">
       <PageHeader title="Perfil" description="Gerencie seus dados e sua senha" />
-      <Suspense fallback={<Skeleton className="h-96 w-full" />}>
+      <Suspense fallback={<TableSkeleton />}>
         <ProfileContent />
       </Suspense>
     </div>

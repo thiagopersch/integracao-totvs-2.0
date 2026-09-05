@@ -1,7 +1,7 @@
 import { Suspense } from "react"
 import { listSoapEndpointTypes } from "@/actions/admin/soap-endpoints"
 import { SoapEndpointTable } from "@/components/shared/soap-endpoint-table"
-import { Skeleton } from "@/components/ui/skeleton"
+import { TableSkeleton } from "@/components/shared/table-skeleton"
 
 export default function SoapEndpointsPage({
   searchParams,
@@ -10,7 +10,7 @@ export default function SoapEndpointsPage({
 }) {
   return (
     <div className="p-6">
-      <Suspense fallback={<Skeleton className="h-96 w-full" />}>
+      <Suspense fallback={<TableSkeleton />}>
         <SoapEndpointsContent searchParams={searchParams} />
       </Suspense>
     </div>

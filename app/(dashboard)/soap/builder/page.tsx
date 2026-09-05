@@ -5,12 +5,12 @@ import { listActiveClientsWithTbc } from "@/actions/admin/clients"
 import { listAllSistemas } from "@/actions/admin/sistemas"
 import { listAllDataservers } from "@/actions/admin/dataservers"
 import { listAllProcesses } from "@/actions/admin/processes"
-import { Skeleton } from "@/components/ui/skeleton"
+import { TableSkeleton } from "@/components/shared/table-skeleton"
 import { SoapBuilderClient } from "./soap-builder-client"
 
 export default function SoapBuilderPage() {
   return (
-    <Suspense fallback={<Skeleton className="h-96 w-full m-6" />}>
+    <Suspense fallback={<TableSkeleton className="m-6" />}>
       <SoapBuilderContent />
     </Suspense>
   )

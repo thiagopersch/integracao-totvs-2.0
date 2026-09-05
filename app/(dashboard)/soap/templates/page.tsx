@@ -1,11 +1,11 @@
 import { Suspense } from "react"
 import { listSoapTemplates } from "@/actions/soap"
-import { Skeleton } from "@/components/ui/skeleton"
+import { TableSkeleton } from "@/components/shared/table-skeleton"
 import { SoapTemplatesClient } from "./soap-templates-client"
 
 export default function SoapTemplatesPage() {
   return (
-    <Suspense fallback={<Skeleton className="h-96 w-full m-6" />}>
+    <Suspense fallback={<TableSkeleton className="m-6" />}>
       <SoapTemplatesContent />
     </Suspense>
   )

@@ -2,10 +2,7 @@
 
 import axios from "axios";
 import { requirePermission } from "@/lib/rbac";
-import { notificationService } from "@/services/notification.service";
-import { buildIntegrationTestFailedNotification } from "@/lib/notification-types";
-import { classifyError } from "@/lib/error-kind";
-import { prisma } from "@/lib/prisma";
+import { authHeaders, unwrapData, asArray, logApiCall, logAndNotifyFailure, type Raw } from "@/lib/ps-docs/api-helpers";
 import {
   buildFieldCatalog,
   buildIdTitleCatalog,
@@ -42,10 +39,6 @@ import type { Prisma } from "@/generated/prisma/client";
  * of waiting for the whole process.
  */
 const BASE_URL = "https://admin.portal.apprbs.com.br/api/selective-process";
-
-function authHeaders(tokenPs: string) {
-  return { Authorization: `Bearer ${tokenPs}`, "Content-Type": "application/json" };
-}
 
 /** `GET /api/settings/fields` returns a field catalog scoped to the calling token's OWN
  *  institution (its JWT `baseInstituicao` claim) — confirmed live: called with a token from an
@@ -98,57 +91,6 @@ function crmDomainFromToken(tokenPs: string): string | undefined {
     return nomeInstituicao ? `https://crm${nomeInstituicao}.apprubeus.com.br/` : undefined;
   } catch {
     return undefined;
-  }
-}
-
-type Raw = Record<string, unknown>;
-
-function unwrapData(payload: unknown): unknown {
-  if (!payload || typeof payload !== "object") return payload;
-  const obj = payload as Raw;
-  return "data" in obj ? obj.data : obj;
-}
-
-function asArray(value: unknown): Raw[] {
-  if (Array.isArray(value)) return value.filter((v): v is Raw => !!v && typeof v === "object");
-  return [];
-}
-
-/** Best-effort: logging/notifying about a failure must never itself become the error the user
- *  sees. Without this guard, a DB issue here (e.g. a stale `organizationId` in a dev/test session
- *  violating the `api_logs_organization_id_fkey` foreign key) throws and replaces the real,
- *  actionable error — the caller's `catch` never gets to `return { success: false, error }`, and
- *  the raw Prisma stack trace leaks to the client instead of telling the user which PS Docs call
- *  actually failed. */
-async function logAndNotifyFailure(params: { organizationId: string; userId: string; url: string; method: string; idPs: string; error: unknown }) {
-  try {
-    const errorMessage = (params.error as Error).message;
-    await prisma.apiLog.create({
-      data: {
-        organizationId: params.organizationId,
-        userId: params.userId,
-        integration: "PS_DOCS",
-        url: params.url,
-        httpMethod: params.method,
-        error: errorMessage,
-        requestSummary: { idPs: params.idPs } as Prisma.InputJsonValue,
-      },
-    });
-    const notification = buildIntegrationTestFailedNotification({ integration: "PS_DOCS", errorMessage, errorKind: classifyError(params.error), url: params.url });
-    await notificationService.create({ organizationId: params.organizationId, userId: params.userId, ...notification });
-  } catch (logError) {
-    console.error("[PS_DOCS] Falha ao registrar log/notificação de erro (não bloqueante):", logError);
-  }
-}
-
-/** Same non-blocking guard as `logAndNotifyFailure`, for the success-path `apiLog` writes — a
- *  logging failure (e.g. the same `organizationId` FK issue) must not turn a successful fetch
- *  into a thrown error. */
-async function logApiCall(data: Prisma.ApiLogUncheckedCreateInput) {
-  try {
-    await prisma.apiLog.create({ data });
-  } catch (logError) {
-    console.error("[PS_DOCS] Falha ao registrar log de sucesso (não bloqueante):", logError);
   }
 }
 

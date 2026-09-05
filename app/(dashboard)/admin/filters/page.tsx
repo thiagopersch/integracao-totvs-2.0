@@ -5,13 +5,13 @@ import { listAllTbcs } from "@/actions/admin/tbcs"
 import { listAllSistemas } from "@/actions/admin/sistemas"
 import { listAllSentenceCategories } from "@/actions/admin/sentence-categories"
 import { FilterTable } from "@/components/shared/filter-table"
-import { Skeleton } from "@/components/ui/skeleton"
+import { TableSkeleton } from "@/components/shared/table-skeleton"
 import { getRequestContext } from "@/lib/tenant"
 
 export default function FiltersPage({ searchParams }: { searchParams: Promise<Record<string, string>> }) {
   return (
     <div className="p-6">
-      <Suspense fallback={<Skeleton className="h-96 w-full" />}>
+      <Suspense fallback={<TableSkeleton />}>
         <FiltersContent searchParams={searchParams} />
       </Suspense>
     </div>

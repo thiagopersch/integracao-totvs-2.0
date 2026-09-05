@@ -1,4 +1,4 @@
-import type { AcaoBotaoSpec, CampoDetalhado, ColunaDataserverSpec, ConsultaSqlSpec, DocumentacaoPS, EncaminhamentoSpec, FonteDadosSpec, ItemSpec, LogicaSpec, ParametroAcaoSpec, PopupSpec, RegraLogicaItem, StyleConfig } from "./types";
+import type { AcaoBotaoSpec, CampoDetalhado, ColunaDataserverSpec, ConsultaSqlSpec, DocumentacaoPS, EncaminhamentoSpec, FonteDadosSpec, ItemSpec, LogicaSpec, ParametroAcaoSpec, PopupSpec, PortalOverviewSpec, RegraLogicaItem, StyleConfig } from "./types";
 
 function esc(text: string): string {
   return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -461,4 +461,257 @@ export function renderDocumentHtml(doc: DocumentacaoPS, style: StyleConfig): str
   for (const closer of ["</h1>", "</h2>", "</h3>"]) html = html.split(`${closer}\n${hr}`).join(closer);
   if (html.startsWith(hr)) html = html.slice(hr.length);
   return html;
+}
+
+/** Standalone version of the campo-detail block used inside `renderDocumentHtml`'s `itemHtml` —
+ *  duplicated (not shared) because that one lives as a closure over `style` inside
+ *  `renderDocumentHtml`; this one is used to describe a single field outside of any etapa/passo
+ *  tree (the portal-level "Geral" section's `campoOfertaCurso`/`campoLocalOferta`), per explicit
+ *  instruction to document those "como já é feita hoje" (same shape as a normal campo). */
+export function renderCampoDetalhadoHtml(detalhes: CampoDetalhado, style: StyleConfig): string {
+  const h6Style = `font-family:'${style.bodyFont}',sans-serif;color:${style.subheadingColor};font-size:10pt;font-weight:700;margin-top:8pt;`;
+  const bodyStyle = `font-family:'${style.bodyFont}',sans-serif;color:${style.bodyColor};font-size:11pt;line-height:1.5;`;
+  const codeStyle = `font-family:monospace;font-size:9.5pt;background:rgba(127,127,127,0.12);padding:8px;display:block;white-space:pre-wrap;`;
+  const inlineCodeStyle = `font-family:monospace;font-size:9.5pt;background:rgba(127,127,127,0.12);padding:1px 4px;`;
+  const ulStyle = `margin:2px 0 8px 0;padding-left:22px;list-style-type:disc;`;
+  const sim = (v: boolean | undefined) => (v ? "Sim" : "Não");
+  const kv = (label: string, value: string) => `${esc(label)}: <strong>${esc(value)}</strong>`;
+  const kvCode = (label: string, value: string) => `${esc(label)}: <code style="${inlineCodeStyle}">${esc(value)}</code>`;
+
+  function subList(items: (string | null | undefined | false)[]): string {
+    const filtered = items.filter((i): i is string => !!i);
+    return filtered.length > 0 ? `<ul style="${ulStyle}">${filtered.map((i) => `<li style="${bodyStyle}">${i}</li>`).join("")}</ul>` : "";
+  }
+  function h6(title: string, innerHtml: string): string {
+    if (!innerHtml) return "";
+    return `<h6 style="${h6Style}">${esc(title)}</h6>${innerHtml}`;
+  }
+  function validacaoHtml(v: CampoDetalhado["validacoes"][number]): string {
+    const isRegex = v.tipo.toLowerCase().includes("regular");
+    const children = subList([
+      v.mensagem ? kv("Mensagem", v.mensagem) : null,
+      v.valor ? (isRegex ? kvCode("Valor", v.valor) : kv("Valor", v.valor)) : null,
+      v.inverter !== undefined ? kv("Inverter", sim(v.inverter)) : null,
+      v.codigo ? `${esc("Código")}<code style="${codeStyle}">${esc(v.codigo)}</code>` : null,
+    ]);
+    return `<li style="${bodyStyle}">${kv(v.tipo, sim(v.ativado))}${children}</li>`;
+  }
+
+  const id = detalhes.identidade;
+  const b = detalhes.basico;
+  const dd = detalhes.dados;
+
+  const identidade = h6(
+    "Identificação",
+    subList([
+      kv("Tipo", id.tipoCampo),
+      id.tabelaProcessoSeletivo ? kv("Tabela do processo seletivo", id.tabelaProcessoSeletivo) : null,
+      kv("Multivalorado", sim(id.multivalorado)),
+      id.integracaoRubeus ? `${kv("Integração Rubeus", sim(id.integracaoRubeus.ativada))}${id.integracaoRubeus.ativada ? subList([kv("Tabela | Coluna", `${id.integracaoRubeus.tabela ?? ""} | ${id.integracaoRubeus.coluna ?? ""}`)]) : ""}` : null,
+      id.integracaoTotvs
+        ? `${kv("Integração TOTVS", sim(id.integracaoTotvs.ativada))}${id.integracaoTotvs.ativada ? subList([kv("Tabela.Campo", `${id.integracaoTotvs.tabela ?? ""}.${id.integracaoTotvs.campo ?? ""}`), id.integracaoTotvs.nomeAlternativo ? kv("Nome alternativo", id.integracaoTotvs.nomeAlternativo) : null]) : ""}`
+        : null,
+    ])
+  );
+
+  const basico = h6(
+    "Básico",
+    subList([
+      b.rotulo ? kv("Rótulo", b.rotulo) : null,
+      b.placeholder ? kv("Placeholder", b.placeholder) : null,
+      b.posicaoRotulo ? kv("Posição do rótulo", b.posicaoRotulo) : null,
+      b.transformarTexto ? kv("Transformar texto", b.transformarTexto) : null,
+      b.descricao ? kv("Descrição", b.descricao) : null,
+      b.dica ? kv("Dica", b.dica) : null,
+      b.mascara ? kv("Máscara", b.mascara) : null,
+      b.sufixo ? kv("Sufixo", b.sufixo) : null,
+      b.prefixo ? kv("Prefixo", b.prefixo) : null,
+      b.classeCss ? kvCode("Classe CSS", b.classeCss) : null,
+      kv("Desabilitar", sim(b.desabilitar)),
+      kv("Esconder", sim(b.esconder)),
+      kv("Esconder rótulo", sim(b.esconderRotulo)),
+    ])
+  );
+
+  const multivalorado = detalhes.multivalorado
+    ? h6(
+        "Multivalorado",
+        subList([
+          detalhes.multivalorado.minOpcoes != null ? kv("Mínimo de opções", String(detalhes.multivalorado.minOpcoes)) : null,
+          detalhes.multivalorado.maxOpcoes != null ? kv("Máximo de opções", String(detalhes.multivalorado.maxOpcoes)) : null,
+        ])
+      )
+    : "";
+
+  const validacoes = detalhes.validacoes.length > 0 ? h6("Validação", `<ul style="${ulStyle}">${detalhes.validacoes.map(validacaoHtml).join("")}</ul>`) : "";
+
+  const dadosItems: string[] = [];
+  if (dd.tipoValorPadrao) dadosItems.push(kv(`Valor padrão (${dd.tipoValorPadrao})`, dd.valorPadrao ?? ""));
+  if (dd.fonteExterna) {
+    dadosItems.push(
+      `${esc("Fonte externa")}${subList([
+        kv("Tipo de envio", dd.fonteExterna.tipoEnvio ?? "não informado"),
+        kv("Link", dd.fonteExterna.link ?? "não informado"),
+        kv("Salva automaticamente", sim(dd.fonteExterna.salvaAutomaticamente)),
+        kv("Envia parâmetros", sim(dd.fonteExterna.enviaParametros)),
+        dd.fonteExterna.parametros.length > 0 ? `${esc("Parâmetros")}${subList(dd.fonteExterna.parametros.map((p) => (p.campoVinculado ? kv(p.nome, p.campoVinculado) : esc(p.nome))))}` : null,
+      ])}`
+    );
+  }
+  if (dd.opcoesPredefinidas?.ativado) {
+    dadosItems.push(
+      `${kv("Opções predefinidas", "Ativado")}${subList([
+        kv("Fonte", dd.opcoesPredefinidas.fonte ?? "não identificada"),
+        kv("Consulta SQL configurada", sim(dd.opcoesPredefinidas.consultaConfigurada)),
+        dd.opcoesPredefinidas.opcoesManuais ? `${esc("Opções manuais")}${subList(dd.opcoesPredefinidas.opcoesManuais.map((o) => kv(o.label, o.value)))}` : null,
+      ])}`
+    );
+  } else {
+    dadosItems.push(kv("Opções predefinidas", "Desativado"));
+  }
+  dadosItems.push(kv("Somente leitura", sim(dd.somenteLeitura)));
+  const dados = h6("Dados", subList(dadosItems));
+
+  const propriedadesEntries = Object.entries(detalhes.propriedades);
+  const propriedades = propriedadesEntries.length > 0 ? h6("Propriedades", subList(propriedadesEntries.map(([k, v]) => kv(k, v)))) : "";
+  const vinculos = detalhes.vinculos.length > 0 ? h6("Vínculos", subList(detalhes.vinculos.map((v) => esc(v)))) : "";
+
+  return `${identidade}${basico}${multivalorado}${validacoes}${dados}${propriedades}${vinculos}`;
+}
+
+/** Renders the "PortalOverview" documentation (Geral/Consultas/Scripts/Integrações/Segurança/
+ *  Domínio/TOTVS) as styled HTML — same styling convention as `renderDocumentHtml`, used for both
+ *  the on-screen preview and the .docx/.md/clipboard exports of the portal-level section. */
+export function renderPortalOverviewHtml(overview: PortalOverviewSpec, style: StyleConfig): string {
+  const titleStyle = `font-family:'${style.titleFont}',sans-serif;color:${style.titleColor};font-size:26pt;font-weight:900;`;
+  const h3Style = `font-family:'${style.bodyFont}',sans-serif;color:${style.subheadingColor};font-size:13pt;font-weight:700;margin-top:20pt;`;
+  const h4Style = `font-family:'${style.bodyFont}',sans-serif;color:${style.subheadingColor};font-size:12pt;font-weight:700;margin-top:14pt;`;
+  const bodyStyle = `font-family:'${style.bodyFont}',sans-serif;color:${style.bodyColor};font-size:11pt;line-height:1.5;`;
+  const codeStyle = `font-family:monospace;font-size:9.5pt;background:rgba(127,127,127,0.12);padding:8px;display:block;white-space:pre-wrap;`;
+  const ulStyle = `margin:2px 0 8px 0;padding-left:22px;list-style-type:disc;`;
+  const sim = (v: boolean | undefined) => (v ? "Sim" : "Não");
+  const kv = (label: string, value: string) => `${esc(label)}: <strong>${esc(value)}</strong>`;
+
+  function subList(items: (string | null | undefined | false)[]): string {
+    const filtered = items.filter((i): i is string => !!i);
+    return filtered.length > 0 ? `<ul style="${ulStyle}">${filtered.map((i) => `<li style="${bodyStyle}">${i}</li>`).join("")}</ul>` : "";
+  }
+
+  const parts: string[] = [];
+  const { geral, consultas, scripts, integracoes, seguranca, dominio, totvs } = overview;
+
+  parts.push(`<h1 style="${titleStyle}">${esc(geral.nome)}</h1>`);
+
+  parts.push(`<h2 style="${h3Style}">Geral</h2>`);
+  parts.push(
+    subList([
+      kv("Título", geral.titulo),
+      kv("Ativo", sim(geral.ativo)),
+      geral.paginaEdicaoInscricao ? kv("Página de edição da inscrição", geral.paginaEdicaoInscricao.nome) : null,
+      geral.paginaDetalhesUsuario ? kv("Página de detalhes do usuário", geral.paginaDetalhesUsuario.nome) : null,
+      kv("Carregamento inteligente", sim(geral.carregamentoInteligente)),
+      kv("VLibras ativo", sim(geral.vlibrasAtivo)),
+      kv("Cabeçalho ativo", sim(geral.cabecalhoAtivo)),
+      geral.cabecalhoAtivo && geral.cabecalhoTexto ? kv("Texto do cabeçalho", geral.cabecalhoTexto) : null,
+      geral.linkLogoff ? kv("Link de logoff", geral.linkLogoff) : null,
+      kv("Título do select de inscrições", geral.tituloSelectInscricoes),
+      kv("Título da barra de etapas", geral.tituloBarraEtapas),
+      kv("Título da barra do portal do inscrito", geral.tituloBarraPortalInscrito),
+    ])
+  );
+
+  if (geral.popupLgpd) {
+    parts.push(`<h4 style="${h4Style}">Pop-up LGPD</h4>`);
+    parts.push(subList([kv("Nome", geral.popupLgpd.nome), kv("Permite fechar", sim(geral.popupLgpd.permiteFechar))]));
+  }
+  if (geral.campoRegistro) {
+    parts.push(`<h4 style="${h4Style}">Campo de código do registro</h4>`);
+    parts.push(subList([kv("Campo", geral.campoRegistro.nome)]));
+  }
+  if (geral.campoOfertaCurso) {
+    parts.push(`<h4 style="${h4Style}">Campo de oferta de curso</h4>`);
+    parts.push(renderCampoDetalhadoHtml(geral.campoOfertaCurso.detalhes, style));
+  }
+  if (geral.campoLocalOferta) {
+    parts.push(`<h4 style="${h4Style}">Campo de local de oferta</h4>`);
+    parts.push(renderCampoDetalhadoHtml(geral.campoLocalOferta.detalhes, style));
+  }
+
+  parts.push(`<h2 style="${h3Style}">Consultas TOTVS</h2>`);
+  if (consultas.length === 0) parts.push(`<p style="${bodyStyle}">Nenhuma consulta configurada.</p>`);
+  for (const c of consultas) {
+    parts.push(`<h4 style="${h4Style}">${esc(c.codigo)} — ${esc(c.descricao)}</h4>`);
+    parts.push(
+      subList([
+        kv("Coligada", c.coligada),
+        kv("Sistema", c.sistema),
+        kv("Ativa", sim(c.ativa)),
+        kv("Cache", sim(c.usaCache)),
+        c.usaCache ? kv("Frequência do cache", c.frequenciaCache ?? "não informada") : null,
+        c.contexto && c.contexto.length > 0 ? `${esc("Contexto")}${subList(c.contexto.map((ctx) => (ctx.campoVinculado ? kv(ctx.nome, ctx.campoVinculado) : esc(ctx.nome))))}` : null,
+        // Mesmo formato de `parametrosHtml` (usado nas Fontes de dados de etapa/passo e na ação
+        // "Realizar consulta" do botão): "Parâmetros: Sim" seguido de um item por parâmetro —
+        // "NOME - Tipo" e, aninhado, "Campo do sistema: **label (id)**"/"Valor fixo: **valor**".
+        `${kv("Parâmetros", sim(c.parametros.length > 0))}${subList(
+          c.parametros.map(
+            (p) =>
+              `${esc(p.nome)} - ${esc(p.tipo)}${subList([
+                p.tipo === "Campo do sistema" && p.campoSistema ? kv("Campo do sistema", p.campoSistema) : null,
+                p.tipo === "Valor fixo" && p.valorFixo !== undefined ? kv("Valor fixo", p.valorFixo) : null,
+              ])}`
+          )
+        )}`,
+      ])
+    );
+  }
+  parts.push(`<h2 style="${h3Style}">Scripts</h2>`);
+  parts.push(
+    subList([
+      scripts.gtagCode ? kv("Tag do Google Analytics", scripts.gtagCode) : null,
+      kv("Script do Head usa cookies", sim(scripts.scriptHeadComCookies)),
+      kv("Script do Body usa cookies", sim(scripts.scriptBodyComCookies)),
+    ])
+  );
+  if (scripts.scriptHead) parts.push(`<p style="${bodyStyle}"><strong>Script (Head)</strong></p><code style="${codeStyle}">${esc(scripts.scriptHead)}</code>`);
+  if (scripts.scriptBody) parts.push(`<p style="${bodyStyle}"><strong>Script (Body)</strong></p><code style="${codeStyle}">${esc(scripts.scriptBody)}</code>`);
+
+  parts.push(`<h2 style="${h3Style}">Integrações</h2>`);
+  parts.push(`<p style="${bodyStyle}">Consultas vinculadas ao portal a partir do app Integração TOTVS, na ordem configurada.</p>`);
+  if (integracoes.length === 0) parts.push(`<p style="${bodyStyle}">Nenhuma integração configurada.</p>`);
+  for (const i of integracoes) {
+    parts.push(`<h4 style="${h4Style}">[${i.posicao}] ${esc(i.query)} — ${esc(i.descricao)}</h4>`);
+    parts.push(subList([kv("Coligada", i.coligada), kv("Sistema", i.sistema), i.tbc ? kv("TBC", i.tbc) : null, kv("Código externo (Integração TOTVS)", i.codigoExterno)]));
+  }
+
+  parts.push(`<h2 style="${h3Style}">Segurança</h2>`);
+  parts.push(seguranca.length > 0 ? subList(seguranca.map((s) => kv(s.label, s.tipo))) : `<p style="${bodyStyle}">Nenhum campo de login configurado.</p>`);
+
+  parts.push(`<h2 style="${h3Style}">Domínio</h2>`);
+  parts.push(
+    dominio
+      ? subList([
+          kv("Tipo", dominio.tipo === "sistema" ? "Domínio fornecido pelo sistema" : "Domínio próprio"),
+          dominio.tipo === "sistema" ? kv("Domínio do sistema", dominio.dominioSistema) : kv("Domínio próprio", dominio.dominioProprio),
+        ])
+      : `<p style="${bodyStyle}">Domínio não configurado.</p>`
+  );
+
+  parts.push(`<h2 style="${h3Style}">TOTVS</h2>`);
+  parts.push(
+    subList([
+      kv("TBC", totvs.tbc),
+      kv("Usuário", totvs.usuario),
+      kv("Coligada", totvs.codColigada),
+      kv("Filial", totvs.codFilial),
+      kv("Sistema", totvs.codSistema),
+      kv("Tipo de curso", totvs.codTipoCurso),
+    ])
+  );
+
+  if (overview.warnings.length > 0) {
+    parts.push(`<h2 style="${h3Style}">Avisos</h2>`);
+    parts.push(subList(overview.warnings));
+  }
+
+  return parts.join("\n");
 }

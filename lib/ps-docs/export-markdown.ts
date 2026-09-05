@@ -1,4 +1,4 @@
-import type { AcaoBotaoSpec, CampoDetalhado, ColunaDataserverSpec, ConsultaSqlSpec, DocumentacaoPS, EncaminhamentoSpec, FonteDadosSpec, ItemSpec, LogicaSpec, ParametroAcaoSpec, PopupSpec, RegraLogicaItem } from "./types";
+import type { AcaoBotaoSpec, CampoDetalhado, ColunaDataserverSpec, ConsultaSqlSpec, DocumentacaoPS, EncaminhamentoSpec, FonteDadosSpec, ItemSpec, LogicaSpec, ParametroAcaoSpec, PopupSpec, PortalOverviewSpec, RegraLogicaItem } from "./types";
 
 const sim = (v: boolean | undefined) => (v ? "Sim" : "Não");
 
@@ -91,7 +91,7 @@ function consultaSqlLines(titulo: string, consulta: ConsultaSqlSpec): string[] {
 
 /** `label` is "Contexto" for Dataservers/Processos (Salvar dados/Executar processo) — every other
  *  action type calls this the same table "Parâmetros", per explicit instruction. */
-function parametroLines(parametros: ParametroAcaoSpec[], indent: string, label = "Parâmetros"): string[] {
+export function parametroLines(parametros: ParametroAcaoSpec[], indent: string, label = "Parâmetros"): string[] {
   const lines = [kv(indent, label, sim(parametros.length > 0))];
   for (const p of parametros) {
     lines.push(`${indent}  - ${p.nome} - ${p.tipo}`);
@@ -223,7 +223,7 @@ function validacaoLines(detalhes: CampoDetalhado): string[] {
 /** A campo's own detail — Identificação/Básico/Multivalorado/Validação/Dados/Propriedades/
  *  Vínculos, each its own `######` (h6) heading, with the key/value bullets indented (`BASE`)
  *  underneath so they read as grouped under that heading. */
-function campoDetalhesBlock(detalhes: CampoDetalhado, out: string[]): void {
+export function campoDetalhesBlock(detalhes: CampoDetalhado, out: string[]): void {
   const id = detalhes.identidade;
   const b = detalhes.basico;
   const dd = detalhes.dados;
@@ -497,6 +497,119 @@ export function documentToMarkdown(doc: DocumentacaoPS): string {
       });
       lines.push("");
     }
+  }
+
+  return lines.join("\n").trim() + "\n";
+}
+
+/** Same idea as `documentToMarkdown`, but for the portal-level "Geral/Consultas/Scripts/
+ *  Integrações/Segurança/Domínio/TOTVS" overview instead of a single processo seletivo. */
+export function portalOverviewToMarkdown(overview: PortalOverviewSpec): string {
+  const sim = (v: boolean | undefined) => (v ? "Sim" : "Não");
+  const lines: string[] = [];
+  const { geral, consultas, scripts, integracoes, seguranca, dominio, totvs } = overview;
+
+  lines.push(`# ${geral.nome}`, "");
+
+  lines.push("## Geral", "");
+  lines.push(kv(BASE, "Título", geral.titulo));
+  lines.push(kv(BASE, "Ativo", sim(geral.ativo)));
+  if (geral.paginaEdicaoInscricao) lines.push(kv(BASE, "Página de edição da inscrição", geral.paginaEdicaoInscricao.nome));
+  if (geral.paginaDetalhesUsuario) lines.push(kv(BASE, "Página de detalhes do usuário", geral.paginaDetalhesUsuario.nome));
+  lines.push(kv(BASE, "Carregamento inteligente", sim(geral.carregamentoInteligente)));
+  lines.push(kv(BASE, "VLibras ativo", sim(geral.vlibrasAtivo)));
+  lines.push(kv(BASE, "Cabeçalho ativo", sim(geral.cabecalhoAtivo)));
+  if (geral.cabecalhoAtivo && geral.cabecalhoTexto) lines.push(kv(BASE, "Texto do cabeçalho", geral.cabecalhoTexto));
+  if (geral.linkLogoff) lines.push(kv(BASE, "Link de logoff", geral.linkLogoff));
+  lines.push(kv(BASE, "Título do select de inscrições", geral.tituloSelectInscricoes));
+  lines.push(kv(BASE, "Título da barra de etapas", geral.tituloBarraEtapas));
+  lines.push(kv(BASE, "Título da barra do portal do inscrito", geral.tituloBarraPortalInscrito));
+  lines.push("");
+
+  if (geral.popupLgpd) {
+    lines.push("#### Pop-up LGPD", "");
+    lines.push(kv(BASE, "Nome", geral.popupLgpd.nome));
+    lines.push(kv(BASE, "Permite fechar", sim(geral.popupLgpd.permiteFechar)));
+    lines.push("");
+  }
+  if (geral.campoRegistro) {
+    lines.push("#### Campo de código do registro", "");
+    lines.push(kv(BASE, "Campo", geral.campoRegistro.nome), "");
+  }
+  if (geral.campoOfertaCurso) {
+    lines.push("#### Campo de oferta de curso", "");
+    campoDetalhesBlock(geral.campoOfertaCurso.detalhes, lines);
+  }
+  if (geral.campoLocalOferta) {
+    lines.push("#### Campo de local de oferta", "");
+    campoDetalhesBlock(geral.campoLocalOferta.detalhes, lines);
+  }
+
+  lines.push("## Consultas TOTVS", "");
+  if (consultas.length === 0) lines.push("Nenhuma consulta configurada.", "");
+  for (const c of consultas) {
+    lines.push(`#### ${c.codigo} — ${c.descricao}`, "");
+    lines.push(kv(BASE, "Coligada", c.coligada));
+    lines.push(kv(BASE, "Sistema", c.sistema));
+    lines.push(kv(BASE, "Ativa", sim(c.ativa)));
+    lines.push(kv(BASE, "Cache", sim(c.usaCache)));
+    if (c.usaCache) lines.push(kv(BASE, "Frequência do cache", c.frequenciaCache ?? "não informada"));
+    if (c.contexto && c.contexto.length > 0) {
+      lines.push(`${BASE}- Contexto:`);
+      for (const ctx of c.contexto) lines.push(ctx.campoVinculado ? kv(BASE + "  ", ctx.nome, ctx.campoVinculado) : `${BASE}  - ${ctx.nome}`);
+    }
+    // Mesmo formato de `parametroLines` (usado nas Fontes de dados de etapa/passo e na ação
+    // "Realizar consulta" do botão).
+    lines.push(...parametroLines(c.parametros, BASE));
+    lines.push("");
+  }
+  lines.push("## Scripts", "");
+  if (scripts.gtagCode) lines.push(kv(BASE, "Tag do Google Analytics", scripts.gtagCode));
+  lines.push(kv(BASE, "Script do Head usa cookies", sim(scripts.scriptHeadComCookies)));
+  lines.push(kv(BASE, "Script do Body usa cookies", sim(scripts.scriptBodyComCookies)));
+  lines.push("");
+  if (scripts.scriptHead) lines.push("**Script (Head)**", "", "```", scripts.scriptHead, "```", "");
+  if (scripts.scriptBody) lines.push("**Script (Body)**", "", "```", scripts.scriptBody, "```", "");
+
+  lines.push("## Integrações", "");
+  lines.push("Consultas vinculadas ao portal a partir do app Integração TOTVS, na ordem configurada.", "");
+  if (integracoes.length === 0) lines.push("Nenhuma integração configurada.", "");
+  for (const i of integracoes) {
+    lines.push(`#### [${i.posicao}] ${i.query} — ${i.descricao}`, "");
+    lines.push(kv(BASE, "Coligada", i.coligada));
+    lines.push(kv(BASE, "Sistema", i.sistema));
+    if (i.tbc) lines.push(kv(BASE, "TBC", i.tbc));
+    lines.push(kv(BASE, "Código externo (Integração TOTVS)", i.codigoExterno));
+    lines.push("");
+  }
+
+  lines.push("## Segurança", "");
+  if (seguranca.length > 0) for (const s of seguranca) lines.push(kv(BASE, s.label, s.tipo));
+  else lines.push("Nenhum campo de login configurado.");
+  lines.push("");
+
+  lines.push("## Domínio", "");
+  if (dominio) {
+    lines.push(kv(BASE, "Tipo", dominio.tipo === "sistema" ? "Domínio fornecido pelo sistema" : "Domínio próprio"));
+    lines.push(dominio.tipo === "sistema" ? kv(BASE, "Domínio do sistema", dominio.dominioSistema) : kv(BASE, "Domínio próprio", dominio.dominioProprio));
+  } else {
+    lines.push("Domínio não configurado.");
+  }
+  lines.push("");
+
+  lines.push("## TOTVS", "");
+  lines.push(kv(BASE, "TBC", totvs.tbc));
+  lines.push(kv(BASE, "Usuário", totvs.usuario));
+  lines.push(kv(BASE, "Coligada", totvs.codColigada));
+  lines.push(kv(BASE, "Filial", totvs.codFilial));
+  lines.push(kv(BASE, "Sistema", totvs.codSistema));
+  lines.push(kv(BASE, "Tipo de curso", totvs.codTipoCurso));
+  lines.push("");
+
+  if (overview.warnings.length > 0) {
+    lines.push("## Avisos", "");
+    for (const w of overview.warnings) lines.push(`- ${w}`);
+    lines.push("");
   }
 
   return lines.join("\n").trim() + "\n";

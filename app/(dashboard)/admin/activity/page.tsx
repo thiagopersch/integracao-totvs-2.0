@@ -11,7 +11,7 @@ import { listAllDataservers } from "@/actions/admin/dataservers"
 import { listAllProcesses } from "@/actions/admin/processes"
 import { ActivityLogTable } from "@/components/shared/activity-log-table"
 import { PageHeader } from "@/components/shared/page-header"
-import { Skeleton } from "@/components/ui/skeleton"
+import { TableSkeleton } from "@/components/shared/table-skeleton"
 import { getRequestContext } from "@/lib/tenant"
 import { hasPermission } from "@/lib/permissions"
 import { soapEndpointService } from "@/services/soap-endpoint.service"
@@ -27,7 +27,7 @@ export default function ActivityLogPage({ searchParams }: { searchParams: Promis
         title="Rastreamento de Atividades"
         description="CRUD, chamadas SOAP, e-mails, integrações externas e exclusões bloqueadas — tudo em uma única grade"
       />
-      <Suspense fallback={<Skeleton className="h-96 w-full" />}>
+      <Suspense fallback={<TableSkeleton />}>
         <ActivityPageBody searchParams={searchParams} />
       </Suspense>
     </div>

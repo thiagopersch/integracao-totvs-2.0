@@ -5,6 +5,7 @@ import Link from "next/link"
 import { Bell } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { Skeleton } from "@/components/ui/skeleton"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { NotificationDetailDialog } from "@/components/shared/notification-detail-dialog"
 import { listNotifications, markNotificationAsRead, markAllNotificationsAsRead } from "@/actions/notifications"
@@ -55,6 +56,7 @@ export function NotificationBell() {
   const [items, setItems] = useState<Notification[]>([])
   const [unreadCount, setUnreadCount] = useState(0)
   const [detail, setDetail] = useState<Notification | null>(null)
+  const [loading, setLoading] = useState(true)
 
   async function load() {
     try {
@@ -65,6 +67,8 @@ export function NotificationBell() {
       setUnreadCount(result.unreadCount)
     } catch (error) {
       console.error("Failed to load notifications", error)
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -140,7 +144,20 @@ export function NotificationBell() {
             )}
           </div>
           <ScrollArea className="max-h-96">
-            {items.length === 0 ? (
+            {loading ? (
+              <div className="divide-y">
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <div key={i} className="flex items-start gap-2 p-3">
+                    <Skeleton className="mt-0.5 h-3.5 w-3.5 shrink-0 rounded-full" />
+                    <div className="min-w-0 flex-1 space-y-1.5">
+                      <Skeleton className="h-3.5 w-2/3" />
+                      <Skeleton className="h-3 w-full" />
+                      <Skeleton className="h-2.5 w-1/3" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : items.length === 0 ? (
               <p className="p-4 text-center text-sm text-muted-foreground">Nenhuma notificação.</p>
             ) : (
               <div className="divide-y">

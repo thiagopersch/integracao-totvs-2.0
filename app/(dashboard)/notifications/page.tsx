@@ -1,12 +1,12 @@
 import { Suspense } from "react"
 import { listNotifications } from "@/actions/notifications"
 import { NotificationTable } from "@/components/shared/notification-table"
-import { Skeleton } from "@/components/ui/skeleton"
+import { TableSkeleton } from "@/components/shared/table-skeleton"
 
 export default function NotificationsPage({ searchParams }: { searchParams: Promise<Record<string, string>> }) {
   return (
     <div className="p-6">
-      <Suspense fallback={<Skeleton className="h-96 w-full" />}>
+      <Suspense fallback={<TableSkeleton />}>
         <NotificationsContent searchParams={searchParams} />
       </Suspense>
     </div>

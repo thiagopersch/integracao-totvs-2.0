@@ -1,11 +1,11 @@
 import { Suspense } from "react"
 import { listSoapFavorites } from "@/actions/soap"
-import { Skeleton } from "@/components/ui/skeleton"
+import { TableSkeleton } from "@/components/shared/table-skeleton"
 import { SoapFavoritesClient } from "./soap-favorites-client"
 
 export default function SoapFavoritesPage() {
   return (
-    <Suspense fallback={<Skeleton className="h-96 w-full m-6" />}>
+    <Suspense fallback={<TableSkeleton className="m-6" />}>
       <SoapFavoritesContent />
     </Suspense>
   )

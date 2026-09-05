@@ -8,7 +8,7 @@ import { listAllDepartments } from "@/actions/departments"
 import { listAllDemandTypes } from "@/actions/demand-types"
 import { listAllTags } from "@/actions/tags"
 import { DemandTable } from "@/components/shared/demand-table"
-import { Skeleton } from "@/components/ui/skeleton"
+import { TableSkeleton } from "@/components/shared/table-skeleton"
 import { getRequestContext } from "@/lib/tenant"
 import { getDemandAnalystScope } from "@/lib/demand-scope"
 import { PERIOD_COOKIE_NAME, resolvePeriod } from "@/lib/period"
@@ -21,7 +21,7 @@ export const maxDuration = 60
 export default function DemandsPage({ searchParams }: { searchParams: Promise<Record<string, string>> }) {
   return (
     <div className="p-6">
-      <Suspense fallback={<Skeleton className="h-96 w-full" />}>
+      <Suspense fallback={<TableSkeleton />}>
         <DemandsContent searchParams={searchParams} />
       </Suspense>
     </div>

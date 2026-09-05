@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Combobox } from "@/components/ui/combobox"
 import { Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Skeleton } from "@/components/ui/skeleton"
 import type { TbcRow } from "@/services/tbc.service"
 
 export type RestoreScope =
@@ -38,10 +39,15 @@ export function RestoreBackupDialog({
   const [target, setTarget] = useState<"own" | "other">("own")
   const [otherTbcId, setOtherTbcId] = useState("")
   const [tbcs, setTbcs] = useState<TbcRow[]>([])
+  const [loadingTbcs, setLoadingTbcs] = useState(false)
   const [wasOpen, setWasOpen] = useState(open)
 
   useEffect(() => {
-    if (open) listAllTbcs().then(setTbcs)
+    if (!open) return
+    setLoadingTbcs(true)
+    listAllTbcs()
+      .then(setTbcs)
+      .finally(() => setLoadingTbcs(false))
   }, [open])
 
   if (open !== wasOpen) {
@@ -88,14 +94,18 @@ export function RestoreBackupDialog({
           </RadioGroup>
 
           {target === "other" && (
-            <Combobox
-              items={otherTbcs.map((t) => ({ value: t.id, label: `${t.client?.name ?? ""} | ${t.name}` }))}
-              value={otherTbcId}
-              onValueChange={setOtherTbcId}
-              placeholder="Selecione um TBC"
-              searchPlaceholder="Buscar TBC..."
-              emptyText="Nenhum TBC encontrado."
-            />
+            loadingTbcs ? (
+              <Skeleton className="h-9 w-full" />
+            ) : (
+              <Combobox
+                items={otherTbcs.map((t) => ({ value: t.id, label: `${t.client?.name ?? ""} | ${t.name}` }))}
+                value={otherTbcId}
+                onValueChange={setOtherTbcId}
+                placeholder="Selecione um TBC"
+                searchPlaceholder="Buscar TBC..."
+                emptyText="Nenhum TBC encontrado."
+              />
+            )
           )}
         </DialogBody>
         <DialogFooter>

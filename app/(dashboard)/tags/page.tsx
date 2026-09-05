@@ -1,13 +1,13 @@
 import { Suspense } from "react"
 import { listTags } from "@/actions/tags"
 import { TagTable } from "@/components/shared/tag-table"
-import { Skeleton } from "@/components/ui/skeleton"
+import { TableSkeleton } from "@/components/shared/table-skeleton"
 import { getCurrentOrganizationId } from "@/lib/tenant"
 
 export default function TagsPage({ searchParams }: { searchParams: Promise<Record<string, string>> }) {
   return (
     <div className="p-6">
-      <Suspense fallback={<Skeleton className="h-96 w-full" />}>
+      <Suspense fallback={<TableSkeleton />}>
         <TagsContent searchParams={searchParams} />
       </Suspense>
     </div>

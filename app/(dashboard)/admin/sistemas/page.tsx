@@ -1,13 +1,13 @@
 import { Suspense } from "react"
 import { listSistemas } from "@/actions/admin/sistemas"
 import { SistemaTable } from "@/components/shared/sistema-table"
-import { Skeleton } from "@/components/ui/skeleton"
+import { TableSkeleton } from "@/components/shared/table-skeleton"
 import { getCurrentOrganizationId } from "@/lib/tenant"
 
 export default function SistemasPage({ searchParams }: { searchParams: Promise<Record<string, string>> }) {
   return (
     <div className="p-6">
-      <Suspense fallback={<Skeleton className="h-96 w-full" />}>
+      <Suspense fallback={<TableSkeleton />}>
         <SistemasContent searchParams={searchParams} />
       </Suspense>
     </div>

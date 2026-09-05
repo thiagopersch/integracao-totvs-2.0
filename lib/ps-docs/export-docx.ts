@@ -1,5 +1,5 @@
 import { Document, Packer, Paragraph, TextRun } from "docx";
-import type { AcaoBotaoSpec, CampoDetalhado, ColunaDataserverSpec, ConsultaSqlSpec, DocumentacaoPS, EncaminhamentoSpec, FonteDadosSpec, ItemSpec, LogicaSpec, ParametroAcaoSpec, PopupSpec, RegraLogicaItem, StyleConfig } from "./types";
+import type { AcaoBotaoSpec, CampoDetalhado, ColunaDataserverSpec, ConsultaSqlSpec, DocumentacaoPS, EncaminhamentoSpec, FonteDadosSpec, ItemSpec, LogicaSpec, ParametroAcaoSpec, PopupSpec, PortalOverviewSpec, RegraLogicaItem, StyleConfig } from "./types";
 
 const hex = (color: string) => color.replace("#", "");
 const sim = (v: boolean | undefined) => (v ? "Sim" : "Não");
@@ -540,6 +540,266 @@ export async function buildDocx(doc: DocumentacaoPS, style: StyleConfig): Promis
         paragraphs.push(kv(`Feedback ${index + 1} (${feedback.nome})${conclusivo}`, feedback.condicao));
       });
     }
+  }
+
+  const document = new Document({ sections: [{ children: paragraphs }] });
+  return Packer.toBlob(document);
+}
+
+/** Standalone version of `buildDocx`'s own `campoDetalhesParagraphs` — duplicated (not shared)
+ *  since that one is a closure over `style` inside `buildDocx`; this one describes a single field
+ *  outside of any etapa/passo tree (the portal-level "Geral" section's `campoOfertaCurso`/
+ *  `campoLocalOferta`), per explicit instruction to document those "como já é feita hoje". */
+function renderCampoDetalhadoDocx(detalhes: CampoDetalhado, style: StyleConfig): Paragraph[] {
+  const sim = (v: boolean | undefined) => (v ? "Sim" : "Não");
+  const h6 = (text: string) => new Paragraph({ spacing: { before: 120, after: 100 }, children: [new TextRun({ text, bold: true, font: style.bodyFont, color: hex(style.subheadingColor), size: 20 })] });
+  const kv = (label: string, value: string, indent = 0) =>
+    new Paragraph({
+      spacing: { after: 80 },
+      bullet: { level: indent },
+      children: [
+        new TextRun({ text: `${label}: `, font: style.bodyFont, color: hex(style.bodyColor), size: 22 }),
+        new TextRun({ text: value, bold: true, font: style.bodyFont, color: hex(style.bodyColor), size: 22 }),
+      ],
+    });
+  const kvCode = (label: string, value: string, indent = 0) =>
+    new Paragraph({
+      spacing: { after: 80 },
+      bullet: { level: indent },
+      children: [
+        new TextRun({ text: `${label}: `, font: style.bodyFont, color: hex(style.bodyColor), size: 22 }),
+        new TextRun({ text: value, font: "Courier New", color: hex(style.bodyColor), size: 20 }),
+      ],
+    });
+  const titledBullet = (text: string, indent = 0) =>
+    new Paragraph({ spacing: { after: 80 }, bullet: { level: indent }, children: [new TextRun({ text, font: style.bodyFont, color: hex(style.bodyColor), size: 22 })] });
+  const body = (text: string, indent = 0) =>
+    new Paragraph({ spacing: { after: 80 }, indent: indent ? { left: indent * 360 } : undefined, children: [new TextRun({ text, font: style.bodyFont, color: hex(style.bodyColor), size: 22 })] });
+
+  const id = detalhes.identidade;
+  const b = detalhes.basico;
+  const dd = detalhes.dados;
+  const out: Paragraph[] = [];
+
+  out.push(h6("Identificação"));
+  out.push(kv("Tipo", id.tipoCampo));
+  if (id.tabelaProcessoSeletivo) out.push(kv("Tabela do processo seletivo", id.tabelaProcessoSeletivo));
+  out.push(kv("Multivalorado", sim(id.multivalorado)));
+  if (id.integracaoRubeus) {
+    out.push(kv("Integração Rubeus", sim(id.integracaoRubeus.ativada)));
+    if (id.integracaoRubeus.ativada) out.push(kv("Tabela | Coluna", `${id.integracaoRubeus.tabela ?? ""} | ${id.integracaoRubeus.coluna ?? ""}`, 1));
+  }
+  if (id.integracaoTotvs) {
+    out.push(kv("Integração TOTVS", sim(id.integracaoTotvs.ativada)));
+    if (id.integracaoTotvs.ativada) {
+      out.push(kv("Tabela.Campo", `${id.integracaoTotvs.tabela ?? ""}.${id.integracaoTotvs.campo ?? ""}`, 1));
+      if (id.integracaoTotvs.nomeAlternativo) out.push(kv("Nome alternativo", id.integracaoTotvs.nomeAlternativo, 1));
+    }
+  }
+
+  out.push(h6("Básico"));
+  const basicoEntries: [string, string | undefined, boolean?][] = [
+    ["Rótulo", b.rotulo],
+    ["Placeholder", b.placeholder],
+    ["Posição do rótulo", b.posicaoRotulo],
+    ["Transformar texto", b.transformarTexto],
+    ["Descrição", b.descricao],
+    ["Dica", b.dica],
+    ["Máscara", b.mascara],
+    ["Sufixo", b.sufixo],
+    ["Prefixo", b.prefixo],
+    ["Classe CSS", b.classeCss, true],
+  ];
+  for (const [label, value, code] of basicoEntries) if (value) out.push(code ? kvCode(label, value) : kv(label, value));
+  out.push(kv("Desabilitar", sim(b.desabilitar)));
+  out.push(kv("Esconder", sim(b.esconder)));
+  out.push(kv("Esconder rótulo", sim(b.esconderRotulo)));
+
+  if (detalhes.multivalorado) {
+    out.push(h6("Multivalorado"));
+    if (detalhes.multivalorado.minOpcoes != null) out.push(kv("Mínimo de opções", String(detalhes.multivalorado.minOpcoes)));
+    if (detalhes.multivalorado.maxOpcoes != null) out.push(kv("Máximo de opções", String(detalhes.multivalorado.maxOpcoes)));
+  }
+
+  if (detalhes.validacoes.length > 0) {
+    out.push(h6("Validação"));
+    for (const v of detalhes.validacoes) {
+      const isRegex = v.tipo.toLowerCase().includes("regular");
+      out.push(kv(v.tipo, sim(v.ativado)));
+      if (v.mensagem) out.push(kv("Mensagem", v.mensagem, 1));
+      if (v.valor) out.push(isRegex ? kvCode("Valor", v.valor, 1) : kv("Valor", v.valor, 1));
+      if (v.inverter !== undefined) out.push(kv("Inverter", sim(v.inverter), 1));
+      if (v.codigo) {
+        out.push(titledBullet("Código:", 1));
+        out.push(body(v.codigo, 2));
+      }
+    }
+  }
+
+  out.push(h6("Dados"));
+  if (dd.tipoValorPadrao) out.push(kv(`Valor padrão (${dd.tipoValorPadrao})`, dd.valorPadrao ?? ""));
+  if (dd.fonteExterna) {
+    out.push(titledBullet("Fonte externa:"));
+    out.push(kv("Tipo de envio", dd.fonteExterna.tipoEnvio ?? "não informado", 1));
+    out.push(kv("Link", dd.fonteExterna.link ?? "não informado", 1));
+    out.push(kv("Salva automaticamente", sim(dd.fonteExterna.salvaAutomaticamente), 1));
+    out.push(kv("Envia parâmetros", sim(dd.fonteExterna.enviaParametros), 1));
+    if (dd.fonteExterna.parametros.length > 0) {
+      out.push(titledBullet("Parâmetros:", 1));
+      for (const p of dd.fonteExterna.parametros) out.push(p.campoVinculado ? kv(p.nome, p.campoVinculado, 2) : titledBullet(p.nome, 2));
+    }
+  }
+  if (dd.opcoesPredefinidas?.ativado) {
+    out.push(kv("Opções predefinidas", "Ativado"));
+    out.push(kv("Fonte", dd.opcoesPredefinidas.fonte ?? "não identificada", 1));
+    out.push(kv("Consulta SQL configurada", sim(dd.opcoesPredefinidas.consultaConfigurada), 1));
+    if (dd.opcoesPredefinidas.opcoesManuais) {
+      out.push(titledBullet("Opções manuais:", 1));
+      for (const o of dd.opcoesPredefinidas.opcoesManuais) out.push(kv(o.label, o.value, 2));
+    }
+  } else {
+    out.push(kv("Opções predefinidas", "Desativado"));
+  }
+  out.push(kv("Somente leitura", sim(dd.somenteLeitura)));
+
+  const propriedadesEntries = Object.entries(detalhes.propriedades);
+  if (propriedadesEntries.length > 0) {
+    out.push(h6("Propriedades"));
+    for (const [k, v] of propriedadesEntries) out.push(kv(k, v));
+  }
+  if (detalhes.vinculos.length > 0) {
+    out.push(h6("Vínculos"));
+    for (const v of detalhes.vinculos) out.push(titledBullet(v));
+  }
+
+  return out;
+}
+
+/** Builds the .docx for the portal-level "Geral/Consultas/Scripts/Integrações/Segurança/Domínio/
+ *  TOTVS" overview — same visual conventions as `buildDocx` (title/h2/h4/kv), one section per
+ *  heading. Runs entirely in the browser via `Packer.toBlob`. */
+export async function buildPortalOverviewDocx(overview: PortalOverviewSpec, style: StyleConfig): Promise<Blob> {
+  const sim = (v: boolean | undefined) => (v ? "Sim" : "Não");
+  const paragraphs: Paragraph[] = [];
+
+  paragraphs.push(new Paragraph({ spacing: { after: 200 }, children: [new TextRun({ text: overview.geral.nome, bold: true, font: style.titleFont, color: hex(style.titleColor), size: 52 })] }));
+
+  const h2 = (text: string) => new Paragraph({ spacing: { before: 400, after: 160 }, children: [new TextRun({ text, bold: true, font: style.bodyFont, color: hex(style.stageColor), size: 30 })] });
+  const h4 = (text: string) => new Paragraph({ spacing: { before: 220, after: 100 }, children: [new TextRun({ text, bold: true, font: style.bodyFont, color: hex(style.subheadingColor), size: 24 })] });
+  const body = (text: string) => new Paragraph({ spacing: { after: 80 }, children: [new TextRun({ text, font: style.bodyFont, color: hex(style.bodyColor), size: 22 })] });
+  const kv = (label: string, value: string, indent = 0) =>
+    new Paragraph({
+      spacing: { after: 80 },
+      bullet: { level: indent },
+      children: [
+        new TextRun({ text: `${label}: `, font: style.bodyFont, color: hex(style.bodyColor), size: 22 }),
+        new TextRun({ text: value, bold: true, font: style.bodyFont, color: hex(style.bodyColor), size: 22 }),
+      ],
+    });
+  const code = (text: string) => new Paragraph({ spacing: { after: 80 }, children: [new TextRun({ text, font: "Courier New", color: hex(style.bodyColor), size: 20 })] });
+  const titledBullet = (text: string, indent = 0) =>
+    new Paragraph({ spacing: { after: 80 }, bullet: { level: indent }, children: [new TextRun({ text, font: style.bodyFont, color: hex(style.bodyColor), size: 22 })] });
+
+  const { geral, consultas, scripts, integracoes, seguranca, dominio, totvs } = overview;
+
+  paragraphs.push(h2("Geral"));
+  paragraphs.push(kv("Título", geral.titulo));
+  paragraphs.push(kv("Ativo", sim(geral.ativo)));
+  if (geral.paginaEdicaoInscricao) paragraphs.push(kv("Página de edição da inscrição", geral.paginaEdicaoInscricao.nome));
+  if (geral.paginaDetalhesUsuario) paragraphs.push(kv("Página de detalhes do usuário", geral.paginaDetalhesUsuario.nome));
+  paragraphs.push(kv("Carregamento inteligente", sim(geral.carregamentoInteligente)));
+  paragraphs.push(kv("VLibras ativo", sim(geral.vlibrasAtivo)));
+  paragraphs.push(kv("Cabeçalho ativo", sim(geral.cabecalhoAtivo)));
+  if (geral.cabecalhoAtivo && geral.cabecalhoTexto) paragraphs.push(kv("Texto do cabeçalho", geral.cabecalhoTexto));
+  if (geral.linkLogoff) paragraphs.push(kv("Link de logoff", geral.linkLogoff));
+  paragraphs.push(kv("Título do select de inscrições", geral.tituloSelectInscricoes));
+  paragraphs.push(kv("Título da barra de etapas", geral.tituloBarraEtapas));
+  paragraphs.push(kv("Título da barra do portal do inscrito", geral.tituloBarraPortalInscrito));
+
+  if (geral.popupLgpd) {
+    paragraphs.push(h4("Pop-up LGPD"));
+    paragraphs.push(kv("Nome", geral.popupLgpd.nome));
+    paragraphs.push(kv("Permite fechar", sim(geral.popupLgpd.permiteFechar)));
+  }
+  if (geral.campoRegistro) {
+    paragraphs.push(h4("Campo de código do registro"));
+    paragraphs.push(kv("Campo", geral.campoRegistro.nome));
+  }
+  if (geral.campoOfertaCurso) {
+    paragraphs.push(h4("Campo de oferta de curso"));
+    paragraphs.push(...renderCampoDetalhadoDocx(geral.campoOfertaCurso.detalhes, style));
+  }
+  if (geral.campoLocalOferta) {
+    paragraphs.push(h4("Campo de local de oferta"));
+    paragraphs.push(...renderCampoDetalhadoDocx(geral.campoLocalOferta.detalhes, style));
+  }
+
+  paragraphs.push(h2("Consultas TOTVS"));
+  if (consultas.length === 0) paragraphs.push(body("Nenhuma consulta configurada."));
+  for (const c of consultas) {
+    paragraphs.push(h4(`${c.codigo} — ${c.descricao}`));
+    paragraphs.push(kv("Coligada", c.coligada));
+    paragraphs.push(kv("Sistema", c.sistema));
+    paragraphs.push(kv("Ativa", sim(c.ativa)));
+    paragraphs.push(kv("Cache", sim(c.usaCache)));
+    if (c.usaCache) paragraphs.push(kv("Frequência do cache", c.frequenciaCache ?? "não informada"));
+    if (c.contexto && c.contexto.length > 0) for (const ctx of c.contexto) paragraphs.push(ctx.campoVinculado ? kv(ctx.nome, ctx.campoVinculado, 1) : new Paragraph({ bullet: { level: 1 }, children: [new TextRun({ text: ctx.nome, font: style.bodyFont, color: hex(style.bodyColor), size: 22 })] }));
+    // Mesmo formato de `parametrosParagraphs` (usado nas Fontes de dados de etapa/passo e na ação
+    // "Realizar consulta" do botão): "Parâmetros: Sim" seguido de um item por parâmetro.
+    paragraphs.push(kv("Parâmetros", sim(c.parametros.length > 0)));
+    for (const p of c.parametros) {
+      paragraphs.push(titledBullet(`${p.nome} - ${p.tipo}`, 1));
+      if (p.tipo === "Campo do sistema" && p.campoSistema) paragraphs.push(kv("Campo do sistema", p.campoSistema, 2));
+      if (p.tipo === "Valor fixo" && p.valorFixo !== undefined) paragraphs.push(kv("Valor fixo", p.valorFixo, 2));
+    }
+  }
+  paragraphs.push(h2("Scripts"));
+  if (scripts.gtagCode) paragraphs.push(kv("Tag do Google Analytics", scripts.gtagCode));
+  paragraphs.push(kv("Script do Head usa cookies", sim(scripts.scriptHeadComCookies)));
+  paragraphs.push(kv("Script do Body usa cookies", sim(scripts.scriptBodyComCookies)));
+  if (scripts.scriptHead) {
+    paragraphs.push(body("Script (Head):"));
+    paragraphs.push(code(scripts.scriptHead));
+  }
+  if (scripts.scriptBody) {
+    paragraphs.push(body("Script (Body):"));
+    paragraphs.push(code(scripts.scriptBody));
+  }
+
+  paragraphs.push(h2("Integrações"));
+  paragraphs.push(body("Consultas vinculadas ao portal a partir do app Integração TOTVS, na ordem configurada."));
+  if (integracoes.length === 0) paragraphs.push(body("Nenhuma integração configurada."));
+  for (const i of integracoes) {
+    paragraphs.push(h4(`[${i.posicao}] ${i.query} — ${i.descricao}`));
+    paragraphs.push(kv("Coligada", i.coligada));
+    paragraphs.push(kv("Sistema", i.sistema));
+    if (i.tbc) paragraphs.push(kv("TBC", i.tbc));
+    paragraphs.push(kv("Código externo (Integração TOTVS)", i.codigoExterno));
+  }
+
+  paragraphs.push(h2("Segurança"));
+  if (seguranca.length > 0) for (const s of seguranca) paragraphs.push(kv(s.label, s.tipo));
+  else paragraphs.push(body("Nenhum campo de login configurado."));
+
+  paragraphs.push(h2("Domínio"));
+  if (dominio) {
+    paragraphs.push(kv("Tipo", dominio.tipo === "sistema" ? "Domínio fornecido pelo sistema" : "Domínio próprio"));
+    paragraphs.push(dominio.tipo === "sistema" ? kv("Domínio do sistema", dominio.dominioSistema) : kv("Domínio próprio", dominio.dominioProprio));
+  } else {
+    paragraphs.push(body("Domínio não configurado."));
+  }
+
+  paragraphs.push(h2("TOTVS"));
+  paragraphs.push(kv("TBC", totvs.tbc));
+  paragraphs.push(kv("Usuário", totvs.usuario));
+  paragraphs.push(kv("Coligada", totvs.codColigada));
+  paragraphs.push(kv("Filial", totvs.codFilial));
+  paragraphs.push(kv("Sistema", totvs.codSistema));
+  paragraphs.push(kv("Tipo de curso", totvs.codTipoCurso));
+
+  if (overview.warnings.length > 0) {
+    paragraphs.push(h2("Avisos"));
+    for (const w of overview.warnings) paragraphs.push(new Paragraph({ bullet: { level: 0 }, children: [new TextRun({ text: w, font: style.bodyFont, color: hex(style.bodyColor), size: 22 })] }));
   }
 
   const document = new Document({ sections: [{ children: paragraphs }] });

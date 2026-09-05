@@ -1,4 +1,5 @@
 import { Skeleton } from "@/components/ui/skeleton"
+import { TableSkeleton } from "@/components/shared/table-skeleton"
 
 export default function DashboardLoading() {
   return (
@@ -7,7 +8,7 @@ export default function DashboardLoading() {
         <Skeleton className="h-8 w-48" />
         <Skeleton className="h-10 w-32" />
       </div>
-      <Skeleton className="h-96 w-full" />
+      <TableSkeleton />
     </div>
   )
 }

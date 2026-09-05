@@ -2,13 +2,13 @@ import { Suspense } from "react"
 import { listUsers } from "@/actions/admin/users"
 import { listAllClientsForAssignment } from "@/actions/admin/clients"
 import { UsersTable } from "@/components/shared/users-table"
-import { Skeleton } from "@/components/ui/skeleton"
+import { TableSkeleton } from "@/components/shared/table-skeleton"
 import { getCurrentOrganizationId } from "@/lib/tenant"
 
 export default function UsersPage({ searchParams }: { searchParams: Promise<Record<string, string>> }) {
   return (
     <div className="p-6">
-      <Suspense fallback={<Skeleton className="h-96 w-full" />}>
+      <Suspense fallback={<TableSkeleton />}>
         <UsersContent searchParams={searchParams} />
       </Suspense>
     </div>

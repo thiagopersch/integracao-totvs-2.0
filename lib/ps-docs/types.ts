@@ -339,3 +339,121 @@ export const DEFAULT_STYLE: StyleConfig = {
 };
 
 export const FONT_OPTIONS = ["Poppins", "Roboto", "Arial", "Times New Roman", "Calibri"] as const;
+
+/** Documentation model for a whole PORTAL (as opposed to a single processo seletivo) — the
+ *  "Geral"/"Consultas"/"Scripts"/"Integrações"/"Segurança"/"Domínio"/"TOTVS" sections read from
+ *  `admin.portal.apprbs.com.br/api/portal/*`, `/api/settings/*` and `/api/pages` for the given
+ *  `idPortal`. The list of selective processes belonging to the portal (`selective-process-local`)
+ *  is documented separately, one `DocumentacaoPS` per process — see `PortalProcessDocState`. */
+export interface PortalPaginaSpec {
+  nome: string;
+  descricao: string;
+}
+
+/** Reuses `PopupSpec`'s own shape (`itens`/`consultaSql`) for the portal's LGPD pop-up. */
+export interface PortalPopupResumo {
+  nome: string;
+  permiteFechar: boolean;
+  itens: ItemSpec[];
+  consultaSql: ConsultaSqlSpec;
+}
+
+export interface PortalCampoResumo {
+  nome: string;
+  detalhes: CampoDetalhado;
+}
+
+export interface PortalGeralSpec {
+  nome: string;
+  titulo: string;
+  ativo: boolean;
+  paginaEdicaoInscricao?: PortalPaginaSpec;
+  paginaDetalhesUsuario?: PortalPaginaSpec;
+  carregamentoInteligente: boolean;
+  vlibrasAtivo: boolean;
+  cabecalhoAtivo: boolean;
+  cabecalhoTexto?: string;
+  popupLgpd?: PortalPopupResumo;
+  linkLogoff?: string;
+  campoRegistro?: PortalCampoResumo;
+  campoOfertaCurso?: PortalCampoResumo;
+  campoLocalOferta?: PortalCampoResumo;
+  tituloSelectInscricoes: string;
+  tituloBarraEtapas: string;
+  tituloBarraPortalInscrito: string;
+}
+
+export interface PortalConsultaSpec {
+  codigo: string;
+  coligada: string;
+  sistema: string;
+  descricao: string;
+  contexto?: { nome: string; campoVinculado?: string }[];
+  parametros: ParametroAcaoSpec[];
+  ativa: boolean;
+  usaCache: boolean;
+  frequenciaCache?: string;
+}
+
+export interface PortalScriptSpec {
+  gtagCode?: string;
+  scriptBody?: string;
+  scriptBodyComCookies: boolean;
+  scriptHead?: string;
+  scriptHeadComCookies: boolean;
+}
+
+export interface PortalIntegracaoSpec {
+  posicao: number;
+  coligada: string;
+  sistema: string;
+  query: string;
+  descricao: string;
+  tbc?: string;
+  codigoExterno: string;
+}
+
+export interface PortalSegurancaCampoSpec {
+  label: string;
+  tipo: string;
+}
+
+export type PortalDominioSpec = { tipo: "sistema"; dominioSistema: string } | { tipo: "proprio"; dominioProprio: string };
+
+export interface PortalTotvsSpec {
+  tbc: string;
+  usuario: string;
+  codColigada: string;
+  codFilial: string;
+  codSistema: string;
+  codTipoCurso: string;
+}
+
+export interface PortalOverviewSpec {
+  idPortal: string;
+  geral: PortalGeralSpec;
+  consultas: PortalConsultaSpec[];
+  scripts: PortalScriptSpec;
+  integracoes: PortalIntegracaoSpec[];
+  seguranca: PortalSegurancaCampoSpec[];
+  dominio?: PortalDominioSpec;
+  totvs: PortalTotvsSpec;
+  warnings: string[];
+}
+
+export interface PortalProcessRef {
+  id: string;
+  identifier: string;
+  name: string;
+}
+
+export type PortalProcessDocStatus = "pending" | "loading" | "done" | "error";
+
+export interface PortalProcessDocState {
+  ref: PortalProcessRef;
+  status: PortalProcessDocStatus;
+  progress?: { done: number; total: number };
+  doc?: DocumentacaoPS;
+  warnings: string[];
+  error?: string;
+}

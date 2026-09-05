@@ -155,6 +155,31 @@ const CONDITION_LOGIC_LABELS: Record<number, string> = {
   2: "Se todas as regras corresponderem",
 };
 
+/** `cache_interval_type_id` — how often a query's cache refreshes, per explicit instruction. Used
+ *  everywhere a `usaCache`/`frequenciaCache` pair is documented: stage/step/popup/page/componente
+ *  fontes de dados (`buildFonteDados`/`buildConsultaSql` below) and the portal-level "Consultas
+ *  TOTVS" section (`actions/integrations/ps-portal-docs.ts`). */
+const CACHE_INTERVAL_LABELS: Record<number, string> = {
+  1: "15 minutos",
+  2: "30 minutos",
+  3: "1 hora",
+  4: "2 horas",
+  5: "3 horas",
+  6: "6 horas",
+  7: "12 horas",
+  8: "Diário",
+  9: "Semanal",
+};
+
+/** Falls back to the raw id (as a string) when it doesn't match a known interval, same defensive
+ *  spirit as the rest of this parser — never throws or silently drops it, per explicit instruction
+ *  that only unset (`null`/`undefined`) should read as "não informada" at the call site. */
+export function formatCacheInterval(cacheIntervalTypeId: unknown): string | undefined {
+  if (cacheIntervalTypeId === null || cacheIntervalTypeId === undefined) return undefined;
+  const id = Number(cacheIntervalTypeId);
+  return CACHE_INTERVAL_LABELS[id] ?? String(cacheIntervalTypeId);
+}
+
 /** Portuguese labels for the alignment enums used by `layout_direction`/`*_alignment` — matches
  *  the wording the builder's own UI uses for these dropdowns. Rendered as "PT (raw)" — e.g.
  *  "Espaço entre (space-between)" — per explicit instruction, so the original English enum value
@@ -277,7 +302,7 @@ function formatFieldRef(fieldId: unknown, fieldCatalog: Map<number, string>, unr
 /** Same as `formatFieldRef`, but for the optional call sites that previously used
  *  `resolveFieldLabel` (no id at all -> `undefined`, so the caller can omit the field entirely
  *  instead of showing a placeholder). */
-function formatFieldRefOptional(fieldId: unknown, fieldCatalog: Map<number, string>): string | undefined {
+export function formatFieldRefOptional(fieldId: unknown, fieldCatalog: Map<number, string>): string | undefined {
   const id = Number(fieldId);
   if (!id) return undefined;
   return formatFieldRef(id, fieldCatalog);
@@ -353,7 +378,7 @@ function buildFonteDados(raw: Raw, fieldCatalog: Map<number, string>): FonteDado
     codSistema: String(system),
     codConsulta: String(identifier),
     usaCache: raw.use_cache === true || raw.use_cache === 1,
-    frequenciaCache: raw.cache_interval_type_id != null ? String(raw.cache_interval_type_id) : undefined,
+    frequenciaCache: formatCacheInterval(raw.cache_interval_type_id),
     contexto,
   };
 }
@@ -410,7 +435,7 @@ function buildConsultaSql(payload: unknown, fieldCatalog: Map<number, string>): 
     codSistema: String(raw.system),
     codConsulta: String(raw.code),
     usaCache: raw.use_cache === true || raw.use_cache === 1,
-    frequenciaCache: raw.cache_interval_type_id != null ? String(raw.cache_interval_type_id) : undefined,
+    frequenciaCache: formatCacheInterval(raw.cache_interval_type_id),
     parametros,
   };
 }
@@ -900,7 +925,11 @@ function describeBackground(item: Raw): BackgroundAgrupamentoSpec | undefined {
   return { tipo, cor, possuiImagemVinculada };
 }
 
-function mapItem(item: Raw, fieldCatalog: Map<number, string>, catalogs: ActionCatalogs): ItemSpec {
+/** Exported so a raw record with the same shape (e.g. `GET /api/settings/field/{id}`, confirmed
+ *  identical to a `content` item — see the comment above `parseEtapa`) can be parsed standalone,
+ *  outside of a stage's own passo tree — used by the portal-level "Geral" section to describe
+ *  `course_field_id`/`local_offer_field_id` the same way a normal campo is documented. */
+export function mapItem(item: Raw, fieldCatalog: Map<number, string>, catalogs: ActionCatalogs): ItemSpec {
   const formBuild = parseFormBuild(item.form_build);
   const outerType = firstString(item, ["type"]) ?? "desconhecido";
   const formioType = firstString(formBuild, ["type"]) ?? outerType;
