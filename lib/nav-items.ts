@@ -13,6 +13,8 @@ export type NavGroup = {
   label: string;
   icon: string;
   items: NavLeaf[];
+  /** Render as a collapsible group even with a single item (default: single-item groups render as a flat link). */
+  forceCollapsible?: boolean;
 };
 
 export const navGroups: NavGroup[] = [
@@ -33,6 +35,14 @@ export const navGroups: NavGroup[] = [
       { href: "/admin/dataservers", label: "Dataservers", icon: "Database", resource: "dataservers" },
       { href: "/admin/processes", label: "Processos", icon: "Workflow", resource: "processes" },
       { href: "/admin/sistemas", label: "Sistemas TOTVS", icon: "Layers", resource: "sistemas" },
+    ],
+  },
+  {
+    label: "Projetos",
+    icon: "FolderKanban",
+    forceCollapsible: true,
+    items: [
+      { href: "/projetos/mapeador", label: "Mapeador", icon: "Map", resource: "mapeador_projetos", action: "read" },
     ],
   },
   {

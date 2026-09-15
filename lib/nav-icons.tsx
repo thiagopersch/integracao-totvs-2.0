@@ -33,6 +33,8 @@ import {
   FileDown,
   FileUp,
   FlaskConical,
+  FolderKanban,
+  Map,
   type LucideIcon,
 } from "lucide-react";
 
@@ -71,4 +73,6 @@ export const NAV_ICONS: Record<string, LucideIcon> = {
   FileDown,
   FileUp,
   FlaskConical,
+  FolderKanban,
+  Map,
 };

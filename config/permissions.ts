@@ -38,6 +38,7 @@ export const PERMISSIONS: PermissionDef[] = [
   ...crud("demand_types", "Tipos de Demanda", "demands"),
   ...crud("tags", "Tags", "demands"),
   ...crud("demands", "Demandas", "demands"),
+  ...crud("mapeador_projetos", "Projetos Mapeados", "mapeador"),
   { resource: "soap", action: "execute", name: "Executar SOAP", description: "Executar chamadas SOAP", module: "soap" },
   { resource: "soap", action: "history", name: "Ver Histórico", description: "Visualizar histórico SOAP", module: "soap" },
   {
@@ -118,7 +119,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<"ADMIN" | "MANAGER" | "USER", stri
         ? p.action === "read"
         : ["soap", "integrations", "tbc_reports", "ps_docs", "ps_ficha_test", "dashboard", "notifications", "reports", "deletion_logs", "activity_logs"].includes(p.resource)
           ? true
-          : ["analysts", "contracts", "requesters", "departments", "demand_types", "tags", "demands"].includes(p.resource)
+          : ["analysts", "contracts", "requesters", "departments", "demand_types", "tags", "demands", "mapeador_projetos"].includes(p.resource)
             ? p.action !== "delete"
             : false
   ).map(toKey),

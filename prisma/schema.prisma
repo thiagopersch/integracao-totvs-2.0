@@ -144,6 +144,7 @@ model Organization {
   notifications      Notification[]
   emailSettings      EmailSettings?
   fichaAutomationRuns FichaAutomationRun[]
+  mapeadorProjetos   MapeadorProjeto[]
 
   @@map("organizations")
 }
@@ -927,6 +928,40 @@ model NotificationSetting {
 
   @@unique([userId, channel])
   @@map("notification_settings")
+}
+
+/** A mapped enrollment process (e.g. "Vestibular Presencial") — the Rubeus Mapeador de Experiências equivalent. */
+model MapeadorProjeto {
+  id                    String    @id @default(uuid())
+  organizationId        String    @map("organization_id")
+  nome                  String
+  informacoesAdicionais Json?     @map("informacoes_adicionais")
+  prototipoConfig       Json?     @map("prototipo_config")
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
+  deletedAt             DateTime? @map("deleted_at")
+
+  organization Organization    @relation(fields: [organizationId], references: [id])
+  etapas       MapeadorEtapa[]
+
+  @@map("mapeador_projetos")
+}
+
+/** One step of a MapeadorProjeto's ficha — camposPorEtapa holds the free-form passos/campos tree (same shape import/export JSON uses). */
+model MapeadorEtapa {
+  id             String   @id @default(uuid())
+  projetoId      String   @map("projeto_id")
+  ordem          Int
+  nome           String
+  condicao       String?
+  regras         String?  @db.Text
+  camposPorEtapa Json?    @map("campos_por_etapa")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  projeto MapeadorProjeto @relation(fields: [projetoId], references: [id], onDelete: Cascade)
+
+  @@map("mapeador_etapas")
 }
 
 /** SMTP credentials for the EMAIL notification channel — configured per organization here instead of fixed .env vars. */

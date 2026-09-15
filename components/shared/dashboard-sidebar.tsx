@@ -78,8 +78,9 @@ export function DashboardSidebar() {
           {sidebarGroups.map((group) => {
             const GroupIcon = NAV_ICONS[group.icon] ?? Settings
 
-            // Single-item groups render as a plain link — no point collapsing one route.
-            if (group.items.length === 1) {
+            // Single-item groups render as a plain link — no point collapsing one route —
+            // unless the group opts into always showing as a collapsible section (forceCollapsible).
+            if (group.items.length === 1 && !group.forceCollapsible) {
               const item = group.items[0]
               const ItemIcon = NAV_ICONS[item.icon] ?? Settings
               const active = itemActive(item.href)
