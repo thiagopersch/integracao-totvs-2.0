@@ -57,13 +57,17 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       // without the affected user having to log out and back in.
       if (token.id) {
         const refreshed = await authService.refreshSession(token.id);
-        if (refreshed) {
-          token.role = refreshed.user.role;
-          token.organizationId = refreshed.user.organizationId;
-          token.permissions = refreshed.permissions;
-          token.allowedClientIds = refreshed.allowedClientIds;
-          token.changePassword = refreshed.user.changePassword;
+        if (!refreshed) {
+          // Usuário/organização não existe mais (deletado, banco trocado) — invalida a sessão em
+          // vez de manter um `organizationId` órfão circulando, que só estoura mais tarde como um
+          // erro de FK confuso (ex: apiLog.create) em vez de forçar um novo login na hora.
+          return null;
         }
+        token.role = refreshed.user.role;
+        token.organizationId = refreshed.user.organizationId;
+        token.permissions = refreshed.permissions;
+        token.allowedClientIds = refreshed.allowedClientIds;
+        token.changePassword = refreshed.user.changePassword;
       }
       return token;
     },

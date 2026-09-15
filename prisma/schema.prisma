@@ -91,6 +91,20 @@ enum BackupRestoreStatus {
   ERROR
 }
 
+enum FichaAutomationStatus {
+  RUNNING
+  DONE
+  ERROR
+  PARTIAL
+}
+
+enum FichaAutomationStepStatus {
+  SUCCESS
+  FAILED
+  PENDING
+  SKIPPED
+}
+
 model Organization {
   id        String    @id @default(uuid())
   name      String
@@ -129,6 +143,7 @@ model Organization {
   demands            Demand[]
   notifications      Notification[]
   emailSettings      EmailSettings?
+  fichaAutomationRuns FichaAutomationRun[]
 
   @@map("organizations")
 }
@@ -196,6 +211,7 @@ model User {
   filtersLastBackedUp   Filter[]
   backupsRestored       Backup[]
   allowedClients        UserClient[]
+  fichaAutomationRuns   FichaAutomationRun[]
 
   @@map("users")
 }
@@ -387,6 +403,45 @@ model Backup {
   restoredToTbc    Tbc?              @relation("BackupRestoredToTbc", fields: [restoredToTbcId], references: [id])
 
   @@map("backups")
+}
+
+model FichaAutomationRun {
+  id                   String                @id @default(uuid())
+  organizationId       String                @map("organization_id")
+  userId               String?               @map("user_id")
+  idPs                 String                @map("id_ps")
+  pageUrl              String                @map("page_url")
+  status               FichaAutomationStatus @default(RUNNING)
+  finalSubmitConfirmed Boolean               @default(false) @map("final_submit_confirmed")
+  errorMessage         String?               @map("error_message")
+  startedAt            DateTime              @default(now()) @map("started_at")
+  finishedAt           DateTime?             @map("finished_at")
+
+  organization Organization          @relation(fields: [organizationId], references: [id])
+  user         User?                 @relation(fields: [userId], references: [id])
+  steps        FichaAutomationStep[]
+
+  @@map("ficha_automation_runs")
+}
+
+model FichaAutomationStep {
+  id           String                    @id @default(uuid())
+  runId        String                    @map("run_id")
+  order        Int
+  etapaNome    String                    @map("etapa_nome")
+  passoNome    String?                   @map("passo_nome")
+  kind         String
+  status       FichaAutomationStepStatus @default(PENDING)
+  durationMs   Int?                      @map("duration_ms")
+  fieldsFilled Int?                      @map("fields_filled")
+  fieldsFailed Int?                      @map("fields_failed")
+  errorMessage String?                   @map("error_message")
+  details      Json?
+  createdAt    DateTime                  @default(now()) @map("created_at")
+
+  run FichaAutomationRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@map("ficha_automation_steps")
 }
 
 model SentenceCategory {

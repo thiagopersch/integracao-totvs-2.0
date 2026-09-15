@@ -61,6 +61,13 @@ export const PERMISSIONS: PermissionDef[] = [
     description: "Ler a estrutura de um processo seletivo (Token PS + ID PS) e gerar a documentação técnica",
     module: "integrations",
   },
+  {
+    resource: "ps_ficha_test",
+    action: "execute",
+    name: "Testar Configuração de Processo Seletivo",
+    description: "Executar bateria de testes automáticos na ficha de um processo seletivo (Token PS + ID PS + link da página)",
+    module: "integrations",
+  },
   { resource: "dashboard", action: "view", name: "Ver Dashboard", description: "Visualizar dashboard", module: "dashboard" },
   { resource: "settings", action: "manage", name: "Gerenciar Configurações", description: "Gerenciar configurações do sistema", module: "settings" },
   { resource: "notifications", action: "read", name: "Ver Notificações", description: "Visualizar próprias notificações", module: "notifications" },
@@ -87,6 +94,7 @@ Object.assign(resourceLabels, {
   integrations: "Integrações Externas",
   tbc_reports: "Relatórios TBC",
   ps_docs: "Documentação PS",
+  ps_ficha_test: "Teste de Ficha PS",
   dashboard: "Dashboard",
   settings: "Configurações",
   notifications: "Notificações",
@@ -108,7 +116,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<"ADMIN" | "MANAGER" | "USER", stri
       ? p.action !== "delete"
       : ["dataservers", "processes"].includes(p.resource)
         ? p.action === "read"
-        : ["soap", "integrations", "tbc_reports", "ps_docs", "dashboard", "notifications", "reports", "deletion_logs", "activity_logs"].includes(p.resource)
+        : ["soap", "integrations", "tbc_reports", "ps_docs", "ps_ficha_test", "dashboard", "notifications", "reports", "deletion_logs", "activity_logs"].includes(p.resource)
           ? true
           : ["analysts", "contracts", "requesters", "departments", "demand_types", "tags", "demands"].includes(p.resource)
             ? p.action !== "delete"

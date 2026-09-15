@@ -1026,6 +1026,7 @@ export function mapItem(item: Raw, fieldCatalog: Map<number, string>, catalogs: 
     return {
       ...base,
       categoria: "cep",
+      fieldId: item.field_id ? Number(item.field_id) : undefined,
       campoCepVinculado: formatFieldRef(item.field_id_to_save_cep, fieldCatalog),
       editavel: item.read_only !== 1,
     };
@@ -1043,6 +1044,7 @@ export function mapItem(item: Raw, fieldCatalog: Map<number, string>, catalogs: 
   return {
     ...base,
     categoria: "campo",
+    fieldId: item.field_id ? Number(item.field_id) : undefined,
     obrigatorio: validacoes.some((v) => v.tipo.toLowerCase().includes("obrigat") && v.ativado),
     regras: validacoes.filter((v) => v.ativado).map((v) => (v.mensagem ? `${v.tipo} (${v.mensagem})` : v.tipo)),
     detalhes: buildCampoDetalhado(item, formBuild, formioType, fieldCatalog),
@@ -1173,4 +1175,17 @@ export function parseSelectiveProcessStructure(
   if (etapas.length === 0) warnings.push("Nenhuma etapa ativa foi encontrada na resposta da API.");
 
   return { model: { tituloPortal, idPs, etapas }, warnings };
+}
+
+/** Conta ocorrências do placeholder "campo #<id>" (ver `formatFieldRef` acima) que sobram numa
+ *  etapa já parseada — cada uma é um id de campo que nenhum catálogo
+ *  conseguiu resolver para um nome legível. Usado pela página de teste de ficha
+ *  (`actions/integrations/ps-ficha-test.ts`) para reportar quantos campos ficaram sem nome.
+ *  Percorre o objeto inteiro via `JSON.stringify` em vez de navegar campo a campo: `EtapaSpec`/
+ *  `ItemSpec` têm dezenas de strings onde o rótulo pode aparecer (rotulo, nome,
+ *  camposAgrupados[].nome, vinculos[], parametros[].campoSistema, etc.), e o padrão é sempre o
+ *  texto literal "campo #<id>" onde quer que apareça. */
+export function countUnresolvedFieldPlaceholders(etapa: EtapaSpec): number {
+  const matches = JSON.stringify(etapa).match(/campo #\d+/g);
+  return matches ? matches.length : 0;
 }

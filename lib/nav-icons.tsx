@@ -32,6 +32,7 @@ import {
   Activity,
   FileDown,
   FileUp,
+  FlaskConical,
   type LucideIcon,
 } from "lucide-react";
 
@@ -69,4 +70,5 @@ export const NAV_ICONS: Record<string, LucideIcon> = {
   Activity,
   FileDown,
   FileUp,
+  FlaskConical,
 };

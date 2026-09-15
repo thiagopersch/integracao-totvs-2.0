@@ -52,6 +52,7 @@ export const navGroups: NavGroup[] = [
       { href: "/integrations/email", label: "E-mail", icon: "Mail", resource: "integrations", action: "execute" },
       { href: "/integrations/tbc-reports", label: "Relatórios TBC", icon: "FileBarChart", resource: "tbc_reports", action: "execute" },
       { href: "/integrations/ps-docs", label: "Documentação PS", icon: "FileText", resource: "ps_docs", action: "execute" },
+      { href: "/integrations/ps-ficha-test", label: "Teste de Ficha PS", icon: "FlaskConical", resource: "ps_ficha_test", action: "execute" },
     ],
   },
   {

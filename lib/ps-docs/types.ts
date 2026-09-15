@@ -244,6 +244,11 @@ export interface ItemSpec {
   categoria: ItemCategoria;
   nome: string;
   tipo: string;
+  /** ID numérico do campo no builder (`field_id`) — só populado para categoria "campo"/"cep".
+   *  É o MESMO id usado pelo formulário público real como `name="data[<fieldId>]"` (confirmado
+   *  ao vivo), usado pela automação de preenchimento (`lib/ps-ficha-automation/`) para montar o
+   *  seletor do campo no navegador sem precisar adivinhar por texto/label. */
+  fieldId?: number;
   classeCss?: string;
   padding?: string;
   larguraMaxima?: string;
