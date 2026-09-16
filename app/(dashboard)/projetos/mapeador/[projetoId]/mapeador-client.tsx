@@ -2,10 +2,16 @@
 
 import { useEffect, useRef, useState } from "react"
 import { toast } from "sonner"
-import { ArrowLeft, Download, FileJson, Loader2, Upload } from "lucide-react"
+import { ArrowLeft, Download, FileJson, Loader2, MoreVertical, Upload } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { renameMapeadorProjeto, importMapeadorProjeto } from "@/actions/mapeador"
 import { exportMapeadorProjetoJson, exportMapeadorProjetoXlsx } from "@/actions/mapeador-export"
 import { useMapeadorStore } from "@/store/mapeador.store"
@@ -13,6 +19,7 @@ import { useDebounce } from "@/hooks/use-debounce"
 import { useRouter } from "next/navigation"
 import type { MapeadorProjetoDTO } from "@/types/mapeador"
 import { MapeamentoTab } from "@/components/mapeador/mapeamento-tab"
+import { InformacoesAdicionaisTab } from "@/components/mapeador/informacoes-adicionais-tab"
 import { VisualizadorTab } from "@/components/mapeador/visualizador-tab"
 import { PrototipoTab } from "@/components/mapeador/prototipo-tab"
 
@@ -102,18 +109,25 @@ export function MapeadorClient({ initialProjeto }: MapeadorClientProps) {
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b p-4">
-        <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon" onClick={() => router.push("/projetos/mapeador")}>
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-          <Input
-            value={projeto.nome}
-            onChange={(e) => setNome(e.target.value)}
-            className="w-64 border-none text-lg font-bold shadow-none focus-visible:ring-1"
-          />
-        </div>
-        <div className="flex flex-wrap gap-2">
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as typeof activeTab)} className="flex h-full flex-col">
+        <div className="sticky top-0 z-10 flex flex-wrap items-center justify-between gap-3 border-b bg-background p-4">
+          <div className="flex flex-wrap items-center gap-3">
+            <Button variant="ghost" size="icon" onClick={() => router.push("/projetos/mapeador")}>
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+            <Input
+              value={projeto.nome}
+              onChange={(e) => setNome(e.target.value)}
+              className="w-56 border-none text-lg font-bold shadow-none focus-visible:ring-1"
+            />
+            <TabsList>
+              <TabsTrigger value="mapeamento">Mapeamento</TabsTrigger>
+              <TabsTrigger value="informacoes">Informações adicionais</TabsTrigger>
+              <TabsTrigger value="visualizador">Visualizador</TabsTrigger>
+              <TabsTrigger value="prototipo">Protótipo visual</TabsTrigger>
+            </TabsList>
+          </div>
+
           <input
             ref={fileInputRef}
             type="file"
@@ -125,36 +139,43 @@ export function MapeadorClient({ initialProjeto }: MapeadorClientProps) {
               e.target.value = ""
             }}
           />
-          <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}>
-            <Upload className="h-4 w-4" /> Importar JSON
-          </Button>
-          <Button variant="outline" size="sm" onClick={handleExportJson} disabled={exporting !== null}>
-            {exporting === "json" ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileJson className="h-4 w-4" />} Exportar JSON
-          </Button>
-          <Button variant="outline" size="sm" onClick={handleExportXlsx} disabled={exporting !== null}>
-            {exporting === "xlsx" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />} Exportar Excel
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              render={
+                <Button variant="outline" size="icon">
+                  <MoreVertical className="h-4 w-4" />
+                </Button>
+              }
+            />
+            <DropdownMenuContent align="end" className="w-auto min-w-44 whitespace-nowrap">
+              <DropdownMenuItem onClick={() => fileInputRef.current?.click()}>
+                <Upload className="h-4 w-4" /> Importar JSON
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={handleExportJson} disabled={exporting !== null}>
+                {exporting === "json" ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileJson className="h-4 w-4" />} Exportar JSON
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={handleExportXlsx} disabled={exporting !== null}>
+                {exporting === "xlsx" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />} Exportar Excel
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
-      </div>
 
-      <div className="flex-1 overflow-auto p-4">
-        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as typeof activeTab)}>
-          <TabsList>
-            <TabsTrigger value="mapeamento">Mapeamento</TabsTrigger>
-            <TabsTrigger value="visualizador">Visualizador</TabsTrigger>
-            <TabsTrigger value="prototipo">Protótipo visual</TabsTrigger>
-          </TabsList>
-          <TabsContent value="mapeamento" className="mt-4">
+        <div className="flex-1 overflow-auto p-4">
+          <TabsContent value="mapeamento" className="mt-0">
             <MapeamentoTab />
           </TabsContent>
-          <TabsContent value="visualizador" className="mt-4">
+          <TabsContent value="informacoes" className="mt-0">
+            <InformacoesAdicionaisTab />
+          </TabsContent>
+          <TabsContent value="visualizador" className="mt-0">
             <VisualizadorTab />
           </TabsContent>
-          <TabsContent value="prototipo" className="mt-4">
+          <TabsContent value="prototipo" className="mt-0">
             <PrototipoTab />
           </TabsContent>
-        </Tabs>
-      </div>
+        </div>
+      </Tabs>
     </div>
   )
 }

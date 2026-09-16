@@ -3,10 +3,12 @@
 import { useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
-import { Plus, FolderKanban, Trash2, Upload, Loader2 } from "lucide-react"
+import { Plus, FolderKanban, Trash2, Upload, Loader2, Sparkles, FilePlus2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Badge } from "@/components/ui/badge"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import {
   Dialog,
@@ -15,27 +17,52 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
+  DialogDescription,
 } from "@/components/ui/dialog"
-import { createMapeadorProjeto, deleteMapeadorProjeto, importMapeadorProjeto } from "@/actions/mapeador"
+import {
+  createMapeadorProjeto,
+  createMapeadorProjetosFromTemplates,
+  deleteMapeadorProjeto,
+  importMapeadorProjeto,
+} from "@/actions/mapeador"
 import { useHasPermission } from "@/hooks/use-permissions"
-import type { MapeadorProjetoSummary } from "@/types/mapeador"
+import { cn } from "@/lib/utils"
+import type { MapeadorProjetoSummary, MapeadorTemplateSummary } from "@/types/mapeador"
+
+type DialogStep = "closed" | "choice" | "templates" | "blank"
 
 interface MapeadorProjetosListProps {
   initialProjetos: MapeadorProjetoSummary[]
+  templates: MapeadorTemplateSummary[]
 }
 
-export function MapeadorProjetosList({ initialProjetos }: MapeadorProjetosListProps) {
+export function MapeadorProjetosList({ initialProjetos, templates }: MapeadorProjetosListProps) {
   const router = useRouter()
   const [projetos, setProjetos] = useState(initialProjetos)
-  const [createOpen, setCreateOpen] = useState(false)
+  const [step, setStep] = useState<DialogStep>("closed")
   const [nome, setNome] = useState("")
+  const [selectedTemplateIds, setSelectedTemplateIds] = useState<Set<string>>(() => new Set(templates.map((t) => t.id)))
   const [loading, setLoading] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const canCreate = useHasPermission("mapeador_projetos", "create")
   const canDelete = useHasPermission("mapeador_projetos", "delete")
 
-  async function handleCreate() {
+  function openChoice() {
+    setNome("")
+    setSelectedTemplateIds(new Set(templates.map((t) => t.id)))
+    setStep("choice")
+  }
+
+  function toggleTemplate(id: string, checked: boolean) {
+    setSelectedTemplateIds((prev) => {
+      const next = new Set(prev)
+      if (checked) next.add(id)
+      else next.delete(id)
+      return next
+    })
+  }
+
+  async function handleCreateBlank() {
     if (!nome.trim()) return
     setLoading(true)
     try {
@@ -44,9 +71,24 @@ export function MapeadorProjetosList({ initialProjetos }: MapeadorProjetosListPr
         toast.error(result.error || "Erro ao criar projeto")
         return
       }
-      setCreateOpen(false)
-      setNome("")
+      setStep("closed")
       router.push(`/projetos/mapeador/${result.data.id}`)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function handleCreateFromTemplates() {
+    if (selectedTemplateIds.size === 0) return
+    setLoading(true)
+    try {
+      const result = await createMapeadorProjetosFromTemplates(Array.from(selectedTemplateIds))
+      if (!result.success) {
+        toast.error(result.error || "Erro ao gerar os processos")
+        return
+      }
+      setStep("closed")
+      router.push(`/projetos/mapeador/${result.data[0].id}`)
     } finally {
       setLoading(false)
     }
@@ -96,38 +138,127 @@ export function MapeadorProjetosList({ initialProjetos }: MapeadorProjetosListPr
             <Upload className="h-4 w-4" /> Importar JSON
           </Button>
           {canCreate && (
-            <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-              <DialogTrigger
-                render={
-                  <Button>
-                    <Plus className="h-4 w-4" /> Novo projeto
-                  </Button>
-                }
-              />
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Criar processo em branco</DialogTitle>
-                </DialogHeader>
-                <DialogBody className="space-y-2">
-                  <Label htmlFor="nome">Nome do processo</Label>
-                  <Input
-                    id="nome"
-                    value={nome}
-                    onChange={(e) => setNome(e.target.value)}
-                    placeholder="Ex: Vestibular Presencial"
-                    onKeyDown={(e) => e.key === "Enter" && handleCreate()}
-                  />
-                </DialogBody>
-                <DialogFooter>
-                  <Button onClick={handleCreate} disabled={loading || !nome.trim()}>
-                    {loading && <Loader2 className="h-4 w-4 animate-spin" />} Criar
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
+            <Button onClick={openChoice}>
+              <Plus className="h-4 w-4" /> Novo projeto
+            </Button>
           )}
         </div>
       </div>
+
+      <Dialog open={step === "choice"} onOpenChange={(open) => !open && setStep("closed")}>
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Novo projeto</DialogTitle>
+            <DialogDescription>Como você quer começar este mapeamento?</DialogDescription>
+          </DialogHeader>
+          <DialogBody className="grid gap-4 sm:grid-cols-2">
+            <Card className="flex flex-col">
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="flex items-center gap-2">
+                    <Sparkles className="h-4 w-4 text-primary" /> Usar o padrão Rubeus
+                  </CardTitle>
+                  <Badge>Recomendado</Badge>
+                </div>
+                <CardDescription>
+                  Começa com as formas de ingresso já mapeadas conforme o modelo padrão: etapas, passos, campos, botões e
+                  feedbacks. Depois você ajusta o que muda para este cliente.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="mt-auto">
+                <Button className="w-full" onClick={() => setStep("templates")}>
+                  Escolher formas de ingresso
+                </Button>
+              </CardContent>
+            </Card>
+            <Card className="flex flex-col">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <FilePlus2 className="h-4 w-4" /> Criar do zero
+                </CardTitle>
+                <CardDescription>
+                  Começa com um processo em branco, para mapear uma ficha que não segue o padrão. Você monta as etapas, os
+                  passos e os campos manualmente.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="mt-auto">
+                <Button variant="outline" className="w-full" onClick={() => setStep("blank")}>
+                  Criar processo em branco
+                </Button>
+              </CardContent>
+            </Card>
+          </DialogBody>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={step === "templates"} onOpenChange={(open) => !open && setStep("closed")}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Padrão Rubeus</DialogTitle>
+            <DialogDescription>
+              Selecione as formas de ingresso que este cliente vai usar. Cada uma vira um processo já mapeado, pronto para
+              ajustar na reunião.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogBody className="space-y-2">
+            {templates.map((template) => (
+              <Label
+                key={template.id}
+                className={cn(
+                  "flex cursor-pointer items-center gap-3 rounded-lg border p-3 font-normal",
+                  selectedTemplateIds.has(template.id) && "border-primary"
+                )}
+              >
+                <Checkbox
+                  checked={selectedTemplateIds.has(template.id)}
+                  onCheckedChange={(checked) => toggleTemplate(template.id, !!checked)}
+                />
+                <div>
+                  <p className="font-semibold">{template.nome}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {template.etapasCount} etapas · {template.itensCount} itens
+                  </p>
+                </div>
+              </Label>
+            ))}
+          </DialogBody>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setStep("choice")}>
+              Voltar
+            </Button>
+            <Button onClick={handleCreateFromTemplates} disabled={loading || selectedTemplateIds.size === 0}>
+              {loading && <Loader2 className="h-4 w-4 animate-spin" />} Adicionar selecionados
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={step === "blank"} onOpenChange={(open) => !open && setStep("closed")}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Criar processo em branco</DialogTitle>
+          </DialogHeader>
+          <DialogBody className="space-y-2">
+            <Label htmlFor="nome">Nome do processo</Label>
+            <Input
+              id="nome"
+              value={nome}
+              onChange={(e) => setNome(e.target.value)}
+              placeholder="Ex: Vestibular Presencial"
+              onKeyDown={(e) => e.key === "Enter" && handleCreateBlank()}
+              autoFocus
+            />
+          </DialogBody>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setStep("choice")}>
+              Voltar
+            </Button>
+            <Button onClick={handleCreateBlank} disabled={loading || !nome.trim()}>
+              {loading && <Loader2 className="h-4 w-4 animate-spin" />} Criar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {projetos.length === 0 ? (
         <Card>

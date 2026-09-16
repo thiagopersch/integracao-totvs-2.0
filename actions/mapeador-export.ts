@@ -3,6 +3,7 @@
 import * as XLSX from "xlsx";
 import { requirePermission } from "@/lib/rbac";
 import { mapeadorService } from "@/services/mapeador.service";
+import { renderPrototipoHtml } from "@/lib/mapeador/render-prototipo-html";
 import { MAPEADOR_CAMPO_TIPO_LABELS } from "@/types/mapeador";
 
 export async function exportMapeadorProjetoJson(id: string) {
@@ -58,6 +59,32 @@ export async function exportMapeadorProjetoXlsx(id: string) {
       base64,
       fileName: `${projeto.nome.toLowerCase().replace(/\s+/g, "-")}.xlsx`,
     };
+  } catch (error) {
+    return { success: false as const, error: (error as Error).message };
+  }
+}
+
+export async function exportMapeadorPrototipoHtml(id: string, gerarPara: "atual" | "todos") {
+  try {
+    const { organizationId } = await requirePermission("mapeador_projetos", "read");
+    const projeto = await mapeadorService.getProjeto(id, organizationId);
+    if (!projeto) throw new Error("Projeto não encontrado");
+
+    let projetos = [projeto];
+    if (gerarPara === "todos") {
+      const summaries = await mapeadorService.listProjetos(organizationId);
+      const all = await Promise.all(summaries.map((s) => mapeadorService.getProjeto(s.id, organizationId)));
+      projetos = all.filter((p): p is NonNullable<typeof p> => !!p);
+    }
+
+    const html = renderPrototipoHtml(projetos, {
+      corMarca: projeto.prototipoConfig.corMarca,
+      corBarra: projeto.prototipoConfig.corBarra,
+      bgImageUrl: projeto.prototipoConfig.bgImageUrl ?? undefined,
+      logoUrl: projeto.prototipoConfig.logoUrl ?? undefined,
+    });
+
+    return { success: true as const, html, fileName: `${projeto.nome.toLowerCase().replace(/\s+/g, "-")}-prototipo.html` };
   } catch (error) {
     return { success: false as const, error: (error as Error).message };
   }

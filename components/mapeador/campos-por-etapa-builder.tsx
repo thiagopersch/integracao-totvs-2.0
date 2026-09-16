@@ -9,7 +9,8 @@ import { updateMapeadorEtapa } from "@/actions/mapeador"
 import { useMapeadorStore } from "@/store/mapeador.store"
 import { useDebounce } from "@/hooks/use-debounce"
 import { PassoEditor } from "@/components/mapeador/passo-editor"
-import type { MapeadorPasso } from "@/types/mapeador"
+import { FeedbacksEditor } from "@/components/mapeador/feedbacks-editor"
+import type { MapeadorFeedback, MapeadorPasso } from "@/types/mapeador"
 
 function newPasso(): MapeadorPasso {
   return { id: crypto.randomUUID(), tipo: "passo", titulo: `Passo`, campos: [] }
@@ -20,6 +21,7 @@ export function CamposPorEtapaBuilder() {
   const selectedEtapaId = useMapeadorStore((s) => s.selectedEtapaId)
   const setSelectedEtapaId = useMapeadorStore((s) => s.setSelectedEtapaId)
   const setCamposPorEtapa = useMapeadorStore((s) => s.setCamposPorEtapa)
+  const patchEtapa = useMapeadorStore((s) => s.patchEtapa)
 
   const etapa = projeto.etapas.find((e) => e.id === selectedEtapaId) ?? projeto.etapas[0] ?? null
   const serialized = JSON.stringify(etapa?.camposPorEtapa ?? [])
@@ -73,6 +75,10 @@ export function CamposPorEtapaBuilder() {
     setCamposPorEtapa(etapa!.id, [...etapa!.camposPorEtapa, newPasso()])
   }
 
+  function updateFeedbacks(feedbacks: MapeadorFeedback[]) {
+    patchEtapa(etapa!.id, { feedbacks })
+  }
+
   return (
     <div className="grid gap-4 md:grid-cols-[220px_1fr]">
       <div className="space-y-1">
@@ -106,6 +112,10 @@ export function CamposPorEtapaBuilder() {
         <Button variant="outline" size="sm" onClick={addPasso}>
           <Plus className="h-3.5 w-3.5" /> Adicionar passo
         </Button>
+
+        <div className="border-t pt-4">
+          <FeedbacksEditor etapaId={etapa.id} etapaNome={etapa.nome} projetoId={projeto.id} feedbacks={etapa.feedbacks} onChange={updateFeedbacks} />
+        </div>
       </div>
     </div>
   )

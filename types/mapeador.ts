@@ -33,14 +33,46 @@ export const MAPEADOR_CAMPO_TIPO_LABELS: Record<MapeadorCampoTipo, string> = {
   divisor: "Divisor (quebra de linha)",
 }
 
+/** Column span out of a 12-column grid (Bootstrap-style): 12 = full row, 6 = half, 4 = a third, 3 = a quarter, etc. */
+export type MapeadorCampoLargura = number
+
+export const MAPEADOR_LARGURA_DEFAULT: MapeadorCampoLargura = 12
+
+/**
+ * Accepts the current 1–12 column value and transparently upgrades data saved under the old
+ * fixed-percentage scheme ("25"/"33"/"50"/"100") so existing projects keep rendering correctly.
+ */
+export function normalizeLargura(value: unknown): MapeadorCampoLargura {
+  if (typeof value === "number" && Number.isFinite(value)) return Math.min(12, Math.max(1, Math.round(value)))
+  switch (value) {
+    case "25":
+      return 3
+    case "33":
+      return 4
+    case "50":
+      return 6
+    case "100":
+      return 12
+    default:
+      return MAPEADOR_LARGURA_DEFAULT
+  }
+}
+
 export interface MapeadorCampo {
   id: string
   tipo: MapeadorCampoTipo
   label: string
   obrigatorio?: boolean
   opcoesLista?: string[]
+  /** Human-readable description of the display condition, derived from condicaoRefCampoId/condicaoRefValor — kept for imported templates that only ever had free text. */
   condicaoExibicao?: string
+  /** Id of the field (within the same passo) this field's visibility depends on. */
+  condicaoRefCampoId?: string | null
+  /** Value/state of the referenced field that makes this field visible (boolean for a plain check, or one of its opcoesLista). */
+  condicaoRefValor?: string | boolean
   acaoDestinoEtapaId?: string | null
+  /** Column span (1-12) in the Protótipo visual grid — set directly in the campo editor or via the "Ajustar layout" click-to-resize mode. Read through normalizeLargura(). */
+  largura?: MapeadorCampoLargura
 }
 
 export type MapeadorPassoTipo = "passo" | "popup" | "pagina"
@@ -60,13 +92,58 @@ export interface MapeadorInformacoesAdicionais {
   classificacaoConvocacao?: string
   criterioClassificacao?: string
   agendamento?: string
+  /** Some Padrão Rubeus templates (e.g. Prova Online) carry extra process-specific keys beyond the fixed ones above. */
+  [key: string]: string | undefined
 }
 
+export type MapeadorFeedbackTipo = "positivo" | "negativo" | "neutro"
+
+export const MAPEADOR_FEEDBACK_TIPO_LABELS: Record<MapeadorFeedbackTipo, string> = {
+  positivo: "Conclusivo · Positivo",
+  negativo: "Conclusivo · Negativo",
+  neutro: "Intermediário · Neutro",
+}
+
+export interface MapeadorFeedback {
+  /** "Status exibido" — ex.: Concluída, Reprovado. */
+  feedback: string
+  /** "Quando aparece" — a lógica/gatilho em texto livre. */
+  logic: string
+  tipo: MapeadorFeedbackTipo | string
+  botaoNoPortal?: boolean
+  botaoLabel?: string
+}
+
+export type MapeadorGerarPara = "atual" | "todos"
+
 export interface MapeadorPrototipoConfig {
-  tema?: string
+  temaId?: string | null
   corMarca?: string
   corBarra?: string
   visualizacao?: "desktop" | "mobile"
+  logoUrl?: string | null
+  bgImageUrl?: string | null
+  /** Inline text overrides from the "Editar textos" click-to-edit mode, keyed by a fixed identifier (e.g. "btn.avancar"). */
+  textos?: Record<string, string>
+  gerarPara?: MapeadorGerarPara
+  exportVisualizacao?: "desktop" | "mobile"
+}
+
+export interface MapeadorTemaConfig {
+  corMarca?: string
+  corBarra?: string
+  campoCor?: string
+  campoRaio?: number
+  botaoCor?: string
+  botaoRaio?: number
+  logoUrl?: string | null
+  bgImageUrl?: string | null
+}
+
+export interface MapeadorTemaDTO {
+  id: string
+  nome: string
+  config: MapeadorTemaConfig
 }
 
 export interface MapeadorEtapaDTO {
@@ -76,6 +153,7 @@ export interface MapeadorEtapaDTO {
   condicao: string | null
   regras: string | null
   camposPorEtapa: CamposPorEtapa
+  feedbacks: MapeadorFeedback[]
 }
 
 export interface MapeadorProjetoDTO {
@@ -91,4 +169,11 @@ export interface MapeadorProjetoSummary {
   nome: string
   etapasCount: number
   updatedAt: string
+}
+
+export interface MapeadorTemplateSummary {
+  id: string
+  nome: string
+  etapasCount: number
+  itensCount: number
 }

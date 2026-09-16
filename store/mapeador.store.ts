@@ -1,7 +1,7 @@
 import { create } from "zustand"
 import type { CamposPorEtapa, MapeadorEtapaDTO, MapeadorProjetoDTO } from "@/types/mapeador"
 
-export type MapeadorTab = "mapeamento" | "visualizador" | "prototipo"
+export type MapeadorTab = "mapeamento" | "informacoes" | "visualizador" | "prototipo"
 
 interface MapeadorState {
   projeto: MapeadorProjetoDTO | null

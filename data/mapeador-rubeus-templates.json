@@ -1,0 +1,5882 @@
+[
+  {
+    "id": "vestibular-presencial",
+    "nome": "Vestibular Presencial",
+    "informacoesAdicionais": {
+      "idProcessoSeletivo": "",
+      "idRelatorioContrato": "",
+      "classificacaoConvocacao": "",
+      "criterioClassificacao": "",
+      "agendamento": ""
+    },
+    "etapas": [
+      {
+        "ordem": 1,
+        "nome": "Dados de inscrição",
+        "condicao": "Acessar a ficha",
+        "regras": "Insira aqui regras/validações especificas desta etapa e/ou de campos que pertencem a ela\nExemplo: \n1) O campo 'onde conheceu a IE' será listado as opções A, B e C;\n2) O campo do nome do pai e da mãe serão salvos no campo complementar da inscrição.",
+        "camposPorEtapa": [
+          {
+            "id": "yewn482qf20x",
+            "tipo": "passo",
+            "titulo": "Dados básicos",
+            "campos": [
+              {
+                "id": "vdn60i07f20x",
+                "tipo": "texto",
+                "label": "Nome Completo",
+                "obrigatorio": true
+              },
+              {
+                "id": "t8yf8pldf20x",
+                "tipo": "check",
+                "label": "Possui nome social"
+              },
+              {
+                "id": "wmym2ao9f20x",
+                "tipo": "texto",
+                "label": "Nome Social"
+              },
+              {
+                "id": "i1a9xvpjf20x",
+                "tipo": "texto",
+                "label": "E-mail",
+                "obrigatorio": true
+              },
+              {
+                "id": "n9eksz4cf20x",
+                "tipo": "texto",
+                "label": "Celular",
+                "obrigatorio": true
+              },
+              {
+                "id": "gewrk2nhf20x",
+                "tipo": "check",
+                "label": "Assinatura LGPD",
+                "obrigatorio": true
+              },
+              {
+                "id": "1hhq5ylxf20x",
+                "tipo": "botao",
+                "label": "VOLTAR"
+              },
+              {
+                "id": "dysmj3uxf20x",
+                "tipo": "botao",
+                "label": "AVANÇAR"
+              }
+            ]
+          },
+          {
+            "id": "psgiqy31f20x",
+            "tipo": "passo",
+            "titulo": "Curso de interesse",
+            "campos": [
+              {
+                "id": "zfnv2xfsf20x",
+                "tipo": "select",
+                "label": "Curso",
+                "obrigatorio": true
+              },
+              {
+                "id": "8il553dlf20x",
+                "tipo": "select",
+                "label": "Local de estudo",
+                "obrigatorio": true
+              },
+              {
+                "id": "akk5v257f20x",
+                "tipo": "select",
+                "label": "Turno",
+                "obrigatorio": true
+              },
+              {
+                "id": "oc9t76n1f20x",
+                "tipo": "botao",
+                "label": "VOLTAR"
+              },
+              {
+                "id": "6zivmcz3f20x",
+                "tipo": "botao",
+                "label": "AVANÇAR"
+              }
+            ]
+          },
+          {
+            "id": "w8kyftiff20x",
+            "tipo": "passo",
+            "titulo": "Estamos quase lá",
+            "campos": [
+              {
+                "id": "06idtlj1f20x",
+                "tipo": "texto",
+                "label": "CPF",
+                "obrigatorio": true
+              },
+              {
+                "id": "6m3bynhpf20x",
+                "tipo": "data",
+                "label": "Data de Nascimento",
+                "obrigatorio": true
+              },
+              {
+                "id": "n7sf47dzf20x",
+                "tipo": "radio",
+                "label": "Possui alguma deficiência?",
+                "obrigatorio": true
+              },
+              {
+                "id": "66xv9xvrf20x",
+                "tipo": "radio",
+                "label": "Sexo",
+                "obrigatorio": true
+              },
+              {
+                "id": "m5vofg4jf20x",
+                "tipo": "check",
+                "label": "Auditiva",
+                "condicaoExibicao": "Só aparece se \"Possui alguma deficiência?\" = \"Sim\""
+              },
+              {
+                "id": "fh2p6p1vf20x",
+                "tipo": "check",
+                "label": "Fala",
+                "condicaoExibicao": "Só aparece se \"Possui alguma deficiência?\" = \"Sim\""
+              },
+              {
+                "id": "1gt5cp7uf20x",
+                "tipo": "check",
+                "label": "Física",
+                "condicaoExibicao": "Só aparece se \"Possui alguma deficiência?\" = \"Sim\""
+              },
+              {
+                "id": "2vsuk0rrf20x",
+                "tipo": "check",
+                "label": "Intelectual",
+                "condicaoExibicao": "Só aparece se \"Possui alguma deficiência?\" = \"Sim\""
+              },
+              {
+                "id": "plpi1wpof20x",
+                "tipo": "check",
+                "label": "Visual",
+                "condicaoExibicao": "Só aparece se \"Possui alguma deficiência?\" = \"Sim\""
+              },
+              {
+                "id": "igs12zjhf20x",
+                "tipo": "check",
+                "label": "Mental",
+                "condicaoExibicao": "Só aparece se \"Possui alguma deficiência?\" = \"Sim\""
+              },
+              {
+                "id": "xwnm1gcef20x",
+                "tipo": "check",
+                "label": "Outras deficiências",
+                "condicaoExibicao": "Só aparece se \"Possui alguma deficiência?\" = \"Sim\""
+              },
+              {
+                "id": "qvcffhoef20x",
+                "tipo": "texto",
+                "label": "Descreva sua necessidade",
+                "condicaoExibicao": "Só aparece se \"Outras deficiências\" estiver marcado"
+              },
+              {
+                "id": "fnxaqek3f20x",
+                "tipo": "botao",
+                "label": "VOLTAR"
+              },
+              {
+                "id": "ilczux42f20x",
+                "tipo": "botao",
+                "label": "CONCLUIR"
+              }
+            ]
+          }
+        ],
+        "feedbacks": [
+          {
+            "feedback": "Concluída",
+            "logic": "Inscrição finalizada na ficha",
+            "tipo": "positivo"
+          }
+        ]
+      },
+      {
+        "ordem": 2,
+        "nome": "Taxa de inscrição",
+        "condicao": "Concluir a Inscrição e se houver taxa de inscrição",
+        "regras": "1) Se houver, precisamos solicitar os dados de endereço na etapa \"dados de inscrição\" no último passo \"Estamos quase lá\" da inscrição.",
+        "camposPorEtapa": [
+          {
+            "id": "gs00g9orf20x",
+            "tipo": "passo",
+            "titulo": "Taxa de inscrição",
+            "campos": [
+              {
+                "id": "pc47rsemf20x",
+                "tipo": "pagamento_valor",
+                "label": "Valor a pagar"
+              },
+              {
+                "id": "bpjamrp9f20x",
+                "tipo": "pagamento_formas",
+                "label": "Meio de pagamento"
+              },
+              {
+                "id": "04logcw1f20x",
+                "tipo": "botao",
+                "label": "PORTAL DO CANDIDATO"
+              },
+              {
+                "id": "hbg8tuksf20x",
+                "tipo": "botao",
+                "label": "REALIZAR PAGAMENTO \nBTN - GERAR BOLETO"
+              }
+            ]
+          }
+        ],
+        "feedbacks": [
+          {
+            "feedback": "Aguardando pagamento",
+            "logic": "Aguardando realização do pagamento",
+            "tipo": "nao_conclusivo"
+          },
+          {
+            "feedback": "Em processamento",
+            "logic": "Aguardando confirmação de inscrição",
+            "tipo": "nao_conclusivo"
+          },
+          {
+            "feedback": "Recebido",
+            "logic": "Confirmação de inscrição e pagamento realizado",
+            "tipo": "positivo"
+          }
+        ]
+      },
+      {
+        "ordem": 3,
+        "nome": "Documentos de inscrição",
+        "condicao": "Concluir a Inscrição e se houver documentos de inscrição",
+        "regras": null,
+        "camposPorEtapa": [
+          {
+            "id": "675xplfaf20x",
+            "tipo": "passo",
+            "titulo": "Documentos de inscrição",
+            "campos": [
+              {
+                "id": "98bedjehf20x",
+                "tipo": "texto_informativo",
+                "label": "Texto informativo"
+              },
+              {
+                "id": "1lc8v64uf20x",
+                "tipo": "documento_upload",
+                "label": "Documentos de inscrição",
+                "obrigatorio": true
+              },
+              {
+                "id": "p3tj4s4if20x",
+                "tipo": "botao",
+                "label": "PORTAL DO CANDIDATO"
+              },
+              {
+                "id": "eiv169dff20x",
+                "tipo": "botao",
+                "label": "ENVIAR"
+              }
+            ]
+          }
+        ],
+        "feedbacks": [
+          {
+            "feedback": "Pendente envio",
+            "logic": "Candidato pendente de enviar documentos",
+            "tipo": "nao_conclusivo"
+          },
+          {
+            "feedback": "Recusado",
+            "logic": "Quando qualquer documento é recusado",
+            "tipo": "negativo"
+          },
+          {
+            "feedback": "Em análise",
+            "logic": "Quando todos os documentos estão em análise",
+            "tipo": "nao_conclusivo"
+          },
+          {
+            "feedback": "Obrigatórios em análise",
+            "logic": "Quando todos os documentos obrigatórios estão em análise",
+            "tipo": "nao_conclusivo"
+          },
+          {
+            "feedback": "Entregues",
+            "logic": "Quando todos os documentos forem aprovados",
+            "tipo": "positivo"
+          },
+          {
+            "feedback": "Obrigatórios entregues",
+            "logic": "Quando todos os documentos obrigatórios forem aprovados",
+            "tipo": "positivo"
+          }
+        ]
+      },
+      {
+        "ordem": 4,
+        "nome": "Avaliação Presencial",
+        "condicao": "Concluir a Inscrição",
+        "regras": null,
+        "camposPorEtapa": [
+          {
+            "id": "ytwn67wof20x",
+            "tipo": "passo",
+            "titulo": "Avaliação Presencial",
+            "campos": [
+              {
+                "id": "yt5n9zg7f20x",
+                "tipo": "texto_informativo",
+                "label": "Texto informativo"
+              },
+              {
+                "id": "jygwbw6kf20x",
+                "tipo": "botao",
+                "label": "PORTAL DO CANDIDATO"
+              }
+            ]
+          }
+        ],
+        "feedbacks": [
+          {
+            "feedback": "Pendente",
+            "logic": "Avaliação ainda não realizada",
+            "tipo": "nao_conclusivo"
+          },
+          {
+            "feedback": "Concluída",
+            "logic": "Avaliação concluída",
+            "tipo": "positivo"
+          }
+        ]
+      },
+      {
+        "ordem": 5,
+        "nome": "Resultado",
+        "condicao": "Resultado da avaliação presencial divulgado",
+        "regras": null,
+        "camposPorEtapa": [
+          {
+            "id": "p56zxh18f20x",
+            "tipo": "passo",
+            "titulo": "Resultado",
+            "campos": [
+              {
+                "id": "v1pwp85ef20x",
+                "tipo": "texto_informativo",
+                "label": "Texto informativo"
+              },
+              {
+                "id": "kpt2illvf20x",
+                "tipo": "botao",
+                "label": "PORTAL DO CANDIDATO"
+              }
+            ]
+          }
+        ],
+        "feedbacks": [
+          {
+            "feedback": "Reprovado",
+            "logic": "Reprovado na avaliação presencial",
+            "tipo": "negativo"
+          },
+          {
+            "feedback": "Classificado",
+            "logic": "Aprovado na avaliação presencial e ststus no TOTVS como Classificado",
+            "tipo": "positivo"
+          },
+          {
+            "feedback": "Convocado",
+            "logic": "Candidato foi classificado e Convocado",
+            "tipo": "positivo"
+          },
+          {
+            "feedback": "Ausente",
+            "logic": "Ausente no dia da avaliação",
+            "tipo": "nao_conclusivo"
+          }
+        ]
+      },
+      {
+        "ordem": 6,
+        "nome": "Responsável financeiro",
+        "condicao": "Documentos de Inscrição aprovados, taxa de inscrição paga (se houver), candidato aprovado no PS e menor de 18 anos.",
+        "regras": null,
+        "camposPorEtapa": [
+          {
+            "id": "uufiv52tf20x",
+            "tipo": "passo",
+            "titulo": "Responsável financeiro",
+            "campos": [
+              {
+                "id": "ivoh2vj8f20x",
+                "tipo": "texto",
+                "label": "Nome completo do responsável financeiro",
+                "obrigatorio": true
+              },
+              {
+                "id": "0t47wkhof20x",
+                "tipo": "texto",
+                "label": "E-mail",
+                "obrigatorio": true
+              },
+              {
+                "id": "mv9npt7hf20x",
+                "tipo": "texto",
+                "label": "CPF",
+                "obrigatorio": true
+              },
+              {
+                "id": "vj4xs619f20x",
+                "tipo": "data",
+                "label": "Data de nascimento",
+                "obrigatorio": true
+              },
+              {
+                "id": "vkdlh6s7f20x",
+                "tipo": "texto",
+                "label": "Celular",
+                "obrigatorio": true
+              },
+              {
+                "id": "ne3c7iw4f20x",
+                "tipo": "select",
+                "label": "Sexo",
+                "obrigatorio": true
+              },
+              {
+                "id": "px7mbxqgf20x",
+                "tipo": "texto",
+                "label": "CEP",
+                "obrigatorio": true
+              },
+              {
+                "id": "l1jqsqqzf20x",
+                "tipo": "texto",
+                "label": "Rua",
+                "obrigatorio": true
+              },
+              {
+                "id": "5zzz8j36f20x",
+                "tipo": "texto",
+                "label": "Número",
+                "obrigatorio": true
+              },
+              {
+                "id": "wz3ui59jf20x",
+                "tipo": "texto",
+                "label": "Complemento"
+              },
+              {
+                "id": "9usyf039f20x",
+                "tipo": "texto",
+                "label": "Bairro",
+                "obrigatorio": true
+              },
+              {
+                "id": "ivwh1ffgf20x",
+                "tipo": "select",
+                "label": "Cidade",
+                "obrigatorio": true
+              },
+              {
+                "id": "85zaih7sf20x",
+                "tipo": "select",
+                "label": "Estado",
+                "obrigatorio": true
+              },
+              {
+                "id": "48wpclvof20x",
+                "tipo": "select",
+                "label": "Nacionalidade",
+                "obrigatorio": true
+              },
+              {
+                "id": "x85no9tzf20x",
+                "tipo": "select",
+                "label": "País natal",
+                "obrigatorio": true
+              },
+              {
+                "id": "zi2gi2q0f20x",
+                "tipo": "select",
+                "label": "Estado natal",
+                "obrigatorio": true
+              },
+              {
+                "id": "y1topvckf20x",
+                "tipo": "select",
+                "label": "Cidade natal",
+                "obrigatorio": true
+              },
+              {
+                "id": "j8lnmo7pf20x",
+                "tipo": "botao",
+                "label": "PORTAL DO CANDIDATO"
+              },
+              {
+                "id": "63bsd87nf20x",
+                "tipo": "botao",
+                "label": "CONCLUIR"
+              }
+            ]
+          }
+        ],
+        "feedbacks": [
+          {
+            "feedback": "Pendente",
+            "logic": "Pendente cadastro do responsável financeiro",
+            "tipo": "nao_conclusivo"
+          },
+          {
+            "feedback": "Concluído",
+            "logic": "Cadastro do responsável financeiro finalizado",
+            "tipo": "positivo"
+          }
+        ]
+      },
+      {
+        "ordem": 7,
+        "nome": "Pré-Matrícula",
+        "condicao": "Documentos de Inscrição aprovados, taxa de inscrição paga (se houver), candidato aprovado no PS e menor de 18 anos",
+        "regras": "1) Em cenário que o candidato é menor de 18 anos, a etapa é exibida junto a do Responsável Financeiro, porém só pode ser acessada após o cadastro do responsável.",
+        "camposPorEtapa": [
+          {
+            "id": "c0fubrxbf20x",
+            "tipo": "passo",
+            "titulo": "Dados complementares",
+            "campos": [
+              {
+                "id": "szdcwuv9f20x",
+                "tipo": "texto",
+                "label": "CEP",
+                "obrigatorio": true
+              },
+              {
+                "id": "vb9bg50uf20x",
+                "tipo": "texto",
+                "label": "Rua",
+                "obrigatorio": true
+              },
+              {
+                "id": "4l4b99p8f20x",
+                "tipo": "texto",
+                "label": "Número",
+                "obrigatorio": true
+              },
+              {
+                "id": "r2qpnwcof20x",
+                "tipo": "texto",
+                "label": "Complemento"
+              },
+              {
+                "id": "554z0lx7f20x",
+                "tipo": "texto",
+                "label": "Bairro",
+                "obrigatorio": true
+              },
+              {
+                "id": "sx2udm0bf20x",
+                "tipo": "select",
+                "label": "Cidade",
+                "obrigatorio": true
+              },
+              {
+                "id": "ni8sbtw2f20x",
+                "tipo": "select",
+                "label": "Estado",
+                "obrigatorio": true
+              },
+              {
+                "id": "vcp9h7x9f20x",
+                "tipo": "select",
+                "label": "Nacionalidade",
+                "obrigatorio": true
+              },
+              {
+                "id": "ywxiobmtf20x",
+                "tipo": "select",
+                "label": "País natal",
+                "obrigatorio": true
+              },
+              {
+                "id": "zj6k5br2f20x",
+                "tipo": "select",
+                "label": "Estado natal",
+                "obrigatorio": true
+              },
+              {
+                "id": "xwno30cof20x",
+                "tipo": "select",
+                "label": "Cidade natal",
+                "obrigatorio": true
+              },
+              {
+                "id": "6amrushsf20x",
+                "tipo": "texto",
+                "label": "RG",
+                "obrigatorio": true
+              },
+              {
+                "id": "ki9rofmhf20x",
+                "tipo": "select",
+                "label": "Orgão emissor",
+                "obrigatorio": true
+              },
+              {
+                "id": "88woxojkf20x",
+                "tipo": "data",
+                "label": "Data da emissão",
+                "obrigatorio": true
+              },
+              {
+                "id": "k2qwxfmdf20x",
+                "tipo": "botao",
+                "label": "PORTAL DO CANDIDATO"
+              },
+              {
+                "id": "ieqq3p6jf20x",
+                "tipo": "botao",
+                "label": "AVANÇAR"
+              }
+            ]
+          },
+          {
+            "id": "jkjsi6hbf20x",
+            "tipo": "passo",
+            "titulo": "Plano de pagamento",
+            "campos": [
+              {
+                "id": "vler3qwmf20x",
+                "tipo": "select",
+                "label": "Plano de pagamento"
+              },
+              {
+                "id": "36bjh538f20x",
+                "tipo": "botao",
+                "label": "VOLTAR"
+              },
+              {
+                "id": "jhq8hdb0f20x",
+                "tipo": "botao",
+                "label": "CONCLUIR"
+              }
+            ]
+          }
+        ],
+        "feedbacks": [
+          {
+            "feedback": "Pendente",
+            "logic": "Pendente acessar a etapa e preencher as informações",
+            "tipo": "nao_conclusivo"
+          },
+          {
+            "feedback": "Informe o responsável",
+            "logic": "Pendente cadastro do responsável financeiro",
+            "tipo": "nao_conclusivo"
+          },
+          {
+            "feedback": "Concluída",
+            "logic": "Informações enviadas e aluno criado no módulo educacional (RM TOTVS) com RA",
+            "tipo": "positivo"
+          }
+        ]
+      },
+      {
+        "ordem": 8,
+        "nome": "Termos de matrícula",
+        "condicao": null,
+        "regras": null,
+        "camposPorEtapa": [
+          {
+            "id": "uhp7tj9kf20x",
+            "tipo": "passo",
+            "titulo": "Gerar seu contrato",
+            "campos": [
+              {
+                "id": "a4skheupf20x",
+                "tipo": "texto_informativo",
+                "label": "Texto informativo"
+              },
+              {
+                "id": "lemlvnx5f20x",
+                "tipo": "texto",
+                "label": "Clique aqui para realizar o download de contrato"
+              },
+              {
+                "id": "1dw9yef8f20x",
+                "tipo": "check",
+                "label": "Aceite do contrato"
+              },
+              {
+                "id": "ez428wvmf20x",
+                "tipo": "botao",
+                "label": "PORTAL DO CANDIDATO"
+              },
+              {
+                "id": "h8l43uitf20x",
+                "tipo": "botao",
+                "label": "CONFIRMAR"
+              }
+            ]
+          }
+        ],
+        "feedbacks": [
+          {
+            "feedback": "Pendente",
+            "logic": "[Check] \"Aceite do contrato\" não está selecionado",
+            "tipo": "nao_conclusivo"
+          },
+          {
+            "feedback": "Assinado",
+            "logic": "Contrato assinado",
+            "tipo": "positivo"
+          }
+        ]
+      },
+      {
+        "ordem": 9,
+        "nome": "Termos de matrícula (TAE)",
+        "condicao": null,
+        "regras": null,
+        "camposPorEtapa": [
+          {
+            "id": "mg6746f9f20x",
+            "tipo": "passo",
+            "titulo": "Gerar seu contrato",
+            "campos": [
+              {
+                "id": "tsmz6e00f20x",
+                "tipo": "texto_informativo",
+                "label": "Texto informativo"
+              },
+              {
+                "id": "9izbjiwqf20x",
+                "tipo": "texto",
+                "label": "Clique aqui para realizar o download de contrato"
+              },
+              {
+                "id": "1rx9egpif20x",
+                "tipo": "botao",
+                "label": "PORTAL DO CANDIDATO"
+              },
+              {
+                "id": "rqvk7q6kf20x",
+                "tipo": "botao",
+                "label": "ASSINAR CONTRATO DIGITAL"
+              }
+            ]
+          },
+          {
+            "id": "eq5ca2spf20x",
+            "tipo": "popup",
+            "titulo": "TAE",
+            "campos": [
+              {
+                "id": "8zdco630f20x",
+                "tipo": "texto_informativo",
+                "label": "Texto informativo"
+              },
+              {
+                "id": "lv2kmpgsf20x",
+                "tipo": "botao",
+                "label": "CIENTE"
+              }
+            ]
+          }
+        ],
+        "feedbacks": [
+          {
+            "feedback": "Pendente",
+            "logic": "Contrato pendente de assinatura",
+            "tipo": "nao_conclusivo"
+          },
+          {
+            "feedback": "Aguardando assinatura",
+            "logic": "Contrato pendente de assinatura",
+            "tipo": "nao_conclusivo"
+          },
+          {
+            "feedback": "Finalizado",
+            "logic": "Contrato assinado",
+            "tipo": "positivo"
+          },
+          {
+            "feedback": "Rejeitado",
+            "logic": "Status TAE = Rejeitado",
+            "tipo": "negativo"
+          }
+        ]
+      },
+      {
+        "ordem": 10,
+        "nome": "Taxa de matrícula",
+        "condicao": "Concluir a Pré-matrícula e assinar o termo de matrícula",
+        "regras": null,
+        "camposPorEtapa": [
+          {
+            "id": "hinmsc4yf20x",
+            "tipo": "passo",
+            "titulo": "Pagamento da matrícula",
+            "campos": [
+              {
+                "id": "qrodak56f20x",
+                "tipo": "pagamento_valor",
+                "label": "Valor a pagar"
+              },
+              {
+                "id": "2pm1l48tf20x",
+                "tipo": "pagamento_formas",
+                "label": "Meio de pagamento"
+              },
+              {
+                "id": "vm80pg1xf20x",
+                "tipo": "botao",
+                "label": "Portal do Candidato"
+              },
+              {
+                "id": "a7g9ib0of20x",
+                "tipo": "botao",
+                "label": "REALIZAR PAGAMENTOBTN - GERAR BOLETO"
+              }
+            ]
+          }
+        ],
+        "feedbacks": [
+          {
+            "feedback": "Aguardando pagamento",
+            "logic": "Aguardando realização do pagamento",
+            "tipo": "nao_conclusivo"
+          },
+          {
+            "feedback": "Recebido",
+            "logic": "Pagamento realizado",
+            "tipo": "positivo"
+          }
+        ]
+      },
+      {
+        "ordem": 11,
+        "nome": "Documentos de matrícula",
+        "condicao": "Concluir a Pré-matrícula e assinar o termo de matrícula",
+        "regras": null,
+        "camposPorEtapa": [
+          {
+            "id": "6467mua7f20x",
+            "tipo": "passo",
+            "titulo": "Documentação de matrícula",
+            "campos": [
+              {
+                "id": "zvyiogsof20x",
+                "tipo": "texto_informativo",
+                "label": "Texto informativo"
+              },
+              {
+                "id": "tzpq4wolf20x",
+                "tipo": "documento_upload",
+                "label": "Documentos de matrícula",
+                "obrigatorio": true
+              },
+              {
+                "id": "r5swxykpf20x",
+                "tipo": "botao",
+                "label": "PORTAL DO CANDIDATO"
+              },
+              {
+                "id": "hianrv6df20x",
+                "tipo": "botao",
+                "label": "ENVIAR"
+              }
+            ]
+          }
+        ],
+        "feedbacks": [
+          {
+            "feedback": "Pendente envio",
+            "logic": "Candidato pendente de enviar documentos",
+            "tipo": "nao_conclusivo"
+          },
+          {
+            "feedback": "Recusado",
+            "logic": "Quando qualquer documento é recusado",
+            "tipo": "negativo"
+          },
+          {
+            "feedback": "Em análise",
+            "logic": "Quando todos os documentos estão em análise",
+            "tipo": "nao_conclusivo"
+          },
+          {
+            "feedback": "Obrigatórios em análise",
+            "logic": "Quando todos os documentos obrigatórios estão em análise",
+            "tipo": "nao_conclusivo"
+          },
+          {
+            "feedback": "Entregues",
+            "logic": "Quando todos os documentos forem aprovados",
+            "tipo": "positivo"
+          },
+          {
+            "feedback": "Obrigatórios entregues",
+            "logic": "Quando todos os documentos obrigatórios forem aprovados",
+            "tipo": "positivo"
+          }
+        ]
+      },
+      {
+        "ordem": 12,
+        "nome": "Matrícula",
+        "condicao": "Concluir a Pré-matrícula e assinar o termo de matrícula",
+        "regras": "1) Etapa exclusiva para os feedbacks.",
+        "camposPorEtapa": [],
+        "feedbacks": [
+          {
+            "feedback": "Pendente",
+            "logic": "Status de matrícula é diferente de \"Matriculado\"",
+            "tipo": "nao_conclusivo"
+          },
+          {
+            "feedback": "Concluída",
+            "logic": "Status de matrícula no período letivo alterado para \"Matriculado\"",
+            "tipo": "positivo"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "enem",
+    "nome": "ENEM",
+    "informacoesAdicionais": {
+      "idProcessoSeletivo": "",
+      "idRelatorioContrato": "",
+      "classificacaoConvocacao": "",
+      "criterioClassificacao": "",
+      "agendamento": ""
+    },
+    "etapas": [
+      {
+        "ordem": 1,
+        "nome": "Dados de inscrição",
+        "condicao": "Acessar a ficha",
+        "regras": null,
+        "camposPorEtapa": [
+          {
+            "id": "gmau946xf20x",
+            "tipo": "passo",
+            "titulo": "Dados básicos",
+            "campos": [
+              {
+                "id": "1at8bffjf20x",
+                "tipo": "texto",
+                "label": "Nome Completo",
+                "obrigatorio": true
+              },
+              {
+                "id": "2rlnh9sxf20x",
+                "tipo": "check",
+                "label": "Nome Social"
+              },
+              {
+                "id": "knwmv6hdf20x",
+                "tipo": "texto",
+                "label": "E-mail",
+                "obrigatorio": true
+              },
+              {
+                "id": "y4ue5ctwf20x",
+                "tipo": "texto",
+                "label": "Celular",
+                "obrigatorio": true
+              },
+              {
+                "id": "zpqd3h2pf20x",
+                "tipo": "check",
+                "label": "Assinatura LGPD",
+                "obrigatorio": true
+              },
+              {
+                "id": "hyc8k06of20x",
+                "tipo": "botao",
+                "label": "VOLTAR"
+              },
+              {
+                "id": "zfyiqi2af20x",
+                "tipo": "botao",
+                "label": "AVANÇAR"
+              }
+            ]
+          },
+          {
+            "id": "my14us74f20x",
+            "tipo": "passo",
+            "titulo": "Curso de interesse",
+            "campos": [
+              {
+                "id": "8obmt5pef20x",
+                "tipo": "select",
+                "label": "Curso",
+                "obrigatorio": true
+              },
+              {
+                "id": "zx3g71j2f20x",
+                "tipo": "select",
+                "label": "Local de estudo",
+                "obrigatorio": true
+              },
+              {
+                "id": "d7vb2i3bf20x",
+                "tipo": "select",
+                "label": "Turno",
+                "obrigatorio": true
+              },
+              {
+                "id": "klasbqk8f20x",
+                "tipo": "botao",
+                "label": "VOLTAR"
+              },
+              {
+                "id": "oy8nnw44f20x",
+                "tipo": "botao",
+                "label": "AVANÇAR"
+              }
+            ]
+          },
+          {
+            "id": "vyp2gcdpf20x",
+            "tipo": "passo",
+            "titulo": "Estamos quase lá",
+            "campos": [
+              {
+                "id": "1629zf88f20x",
+                "tipo": "texto",
+                "label": "CPF",
+                "obrigatorio": true
+              },
+              {
+                "id": "wkcetu5bf20x",
+                "tipo": "data",
+                "label": "Data de Nascimento",
+                "obrigatorio": true
+              },
+              {
+                "id": "drhop3uof20x",
+                "tipo": "radio",
+                "label": "Possui alguma deficiência?",
+                "obrigatorio": true
+              },
+              {
+                "id": "bdux6z74f20x",
+                "tipo": "radio",
+                "label": "Sexo",
+                "obrigatorio": true
+              },
+              {
+                "id": "22dgsjtnf20x",
+                "tipo": "check",
+                "label": "Auditiva",
+                "condicaoExibicao": "Só aparece se \"Possui alguma deficiência?\" = \"Sim\""
+              },
+              {
+                "id": "9obotgnif20x",
+                "tipo": "check",
+                "label": "Fala",
+                "condicaoExibicao": "Só aparece se \"Possui alguma deficiência?\" = \"Sim\""
+              },
+              {
+                "id": "q8xmdtn8f20x",
+                "tipo": "check",
+                "label": "Física",
+                "condicaoExibicao": "Só aparece se \"Possui alguma deficiência?\" = \"Sim\""
+              },
+              {
+                "id": "ncmysgs2f20x",
+                "tipo": "check",
+                "label": "Intelectual",
+                "condicaoExibicao": "Só aparece se \"Possui alguma deficiência?\" = \"Sim\""
+              },
+              {
+                "id": "o3dx1oy7f20x",
+                "tipo": "check",
+                "label": "Visual",
+                "condicaoExibicao": "Só aparece se \"Possui alguma deficiência?\" = \"Sim\""
+              },
+              {
+                "id": "avwlaqazf20x",
+                "tipo": "check",
+                "label": "Mental",
+                "condicaoExibicao": "Só aparece se \"Possui alguma deficiência?\" = \"Sim\""
+              },
+              {
+                "id": "g74nku73f20x",
+                "tipo": "check",
+                "label": "Outras deficiências",
+                "condicaoExibicao": "Só aparece se \"Possui alguma deficiência?\" = \"Sim\""
+              },
+              {
+                "id": "t9astx52f20x",
+                "tipo": "texto",
+                "label": "Descreva sua necessidade",
+                "condicaoExibicao": "Só aparece se \"Outras deficiências\" estiver marcado"
+              },
+              {
+                "id": "com3t1v4f20x",
+                "tipo": "botao",
+                "label": "VOLTAR"
+              },
+              {
+                "id": "e0cyn02cf20x",
+                "tipo": "botao",
+                "label": "AVANÇAR"
+              }
+            ]
+          },
+          {
+            "id": "7vhpuejkf20x",
+            "tipo": "passo",
+            "titulo": "Notas do ENEM",
+            "campos": [
+              {
+                "id": "tlcj68q5f20x",
+                "tipo": "texto",
+                "label": "Número de inscrição",
+                "obrigatorio": true
+              },
+              {
+                "id": "v8iecf58f20x",
+                "tipo": "select",
+                "label": "Ano de realização do ENEM",
+                "obrigatorio": true
+              },
+              {
+                "id": "ox8m9gwhf20x",
+                "tipo": "texto",
+                "label": "Nota de ciências da natureza",
+                "obrigatorio": true
+              },
+              {
+                "id": "v5qkfth3f20x",
+                "tipo": "texto",
+                "label": "Nota de ciências humanas",
+                "obrigatorio": true
+              },
+              {
+                "id": "y5tk6prxf20x",
+                "tipo": "texto",
+                "label": "Nota de matemática",
+                "obrigatorio": true
+              },
+              {
+                "id": "9xptv46vf20x",
+                "tipo": "texto",
+                "label": "Nota de linguagens",
+                "obrigatorio": true
+              },
+              {
+                "id": "5esa66taf20x",
+                "tipo": "texto",
+                "label": "Nota da redação",
+                "obrigatorio": true
+              },
+              {
+                "id": "qc8gi03if20x",
+                "tipo": "texto",
+                "label": "Média de notas"
+              },
+              {
+                "id": "vfvbcldef20x",
+                "tipo": "botao",
+                "label": "VOLTAR"
+              },
+              {
+                "id": "xx3e7tvwf20x",
+                "tipo": "botao",
+                "label": "CONCLUIR"
+              }
+            ]
+          }
+        ],
+        "feedbacks": [
+          {
+            "feedback": "Concluída",
+            "logic": "Inscrição finalizada na ficha",
+            "tipo": "positivo"
+          }
+        ]
+      },
+      {
+        "ordem": 2,
+        "nome": "Taxa de inscrição",
+        "condicao": "Concluir a Inscrição e se houver taxa de inscrição",
+        "regras": null,
+        "camposPorEtapa": [
+          {
+            "id": "xcrwe95sf20x",
+            "tipo": "passo",
+            "titulo": "Taxa de inscrição",
+            "campos": [
+              {
+                "id": "ewy6pp3ff20x",
+                "tipo": "pagamento_valor",
+                "label": "Valor a pagar"
+              },
+              {
+                "id": "fle3f0uof20x",
+                "tipo": "pagamento_formas",
+                "label": "Meio de pagamento"
+              },
+              {
+                "id": "pwrjqpocf20x",
+                "tipo": "botao",
+                "label": "PORTAL DO CANDIDATO"
+              },
+              {
+                "id": "2z4add7uf20x",
+                "tipo": "botao",
+                "label": "REALIZAR PAGAMENTO\nBTN - GERAR BOLETO"
+              }
+            ]
+          }
+        ],
+        "feedbacks": [
+          {
+            "feedback": "Aguardando pagamento",
+            "logic": "Aguardando realização do pagamento",
+            "tipo": "nao_conclusivo"
+          },
+          {
+            "feedback": "Em processamento",
+            "logic": "Aguardando confirmação de inscrição",
+            "tipo": "nao_conclusivo"
+          },
+          {
+            "feedback": "Recebido",
+            "logic": "Confirmação de inscrição e pagamento realizado",
+            "tipo": "positivo"
+          }
+        ]
+      },
+      {
+        "ordem": 3,
+        "nome": "Documentos de inscrição",
+        "condicao": "Concluir a Inscrição e se houver documentos de inscrição",
+        "regras": null,
+        "camposPorEtapa": [
+          {
+            "id": "nnehbj5of20x",
+            "tipo": "passo",
+            "titulo": "Documentos de inscrição",
+            "campos": [
+              {
+                "id": "anxdz0ywf20x",
+                "tipo": "texto_informativo",
+                "label": "Texto informativo"
+              },
+              {
+                "id": "nwmyl9nnf20x",
+                "tipo": "documento_upload",
+                "label": "Documentos de inscrição",
+                "obrigatorio": true
+              },
+              {
+                "id": "holrx0mff20x",
+                "tipo": "botao",
+                "label": "PORTAL DO CANDIDATO"
+              },
+              {
+                "id": "zzyk2krof20x",
+                "tipo": "botao",
+                "label": "ENVIAR"
+              }
+            ]
+          }
+        ],
+        "feedbacks": [
+          {
+            "feedback": "Pendente envio",
+            "logic": "Candidato pendente de enviar documentos",
+            "tipo": "nao_conclusivo"
+          },
+          {
+            "feedback": "Recusado",
+            "logic": "Quando qualquer documento é recusado",
+            "tipo": "negativo"
+          },
+          {
+            "feedback": "Em análise",
+            "logic": "Quando todos os documentos estão em análise",
+            "tipo": "nao_conclusivo"
+          },
+          {
+            "feedback": "Obrigatórios em análise",
+            "logic": "Quando todos os documentos obrigatórios estão em análise",
+            "tipo": "nao_conclusivo"
+          },
+          {
+            "feedback": "Entregues",
+            "logic": "Quando todos os documentos forem aprovados",
+            "tipo": "positivo"
+          },
+          {
+            "feedback": "Obrigatórios entregues",
+            "logic": "Quando todos os documentos obrigatórios forem aprovados",
+            "tipo": "positivo"
+          }
+        ]
+      },
+      {
+        "ordem": 4,
+        "nome": "Checagem de notas",
+        "condicao": "Concluir a Inscrição",
+        "regras": "Etapa responsável por retornar os status referente a inscrição.",
+        "camposPorEtapa": [
+          {
+            "id": "hn7mugejf20x",
+            "tipo": "passo",
+            "titulo": "Checando as notas do ENEM",
+            "campos": [
+              {
+                "id": "8h02ezpjf20x",
+                "tipo": "condicional",
+                "label": "Texto informativo Reprovado"
+              },
+              {
+                "id": "fc0waakhf20x",
+                "tipo": "botao",
+                "label": "PORTAL DO CANDIDATO"
+              },
+              {
+                "id": "5loja0ypf20x",
+                "tipo": "botao",
+                "label": "NOVA INSCRIÇÃO"
+              },
+              {
+                "id": "lq3skcvuf20x",
+                "tipo": "condicional",
+                "label": "Texto informativo de Aprovado"
+              },
+              {
+                "id": "ti3y9hnnf20x",
+                "tipo": "botao",
+                "label": "PORTAL DO CANDIDATO"
+              }
+            ]
+          }
+        ],
+        "feedbacks": [
+          {
+            "feedback": "Validando",
+            "logic": "Notas ainda não foram avaliadas",
+            "tipo": "nao_conclusivo"
+          },
+          {
+            "feedback": "Desclassificado",
+            "logic": "Candidato reprovado",
+            "tipo": "negativo"
+          },
+          {
+            "feedback": "Aguardando convocação",
+            "logic": "Candidato aprovado e aguardando convocação",
+            "tipo": "nao_conclusivo"
+          },
+          {
+            "feedback": "Aprovado",
+            "logic": "Candidato em chamada",
+            "tipo": "positivo"
+          }
+        ]
+      },
+      {
+        "ordem": 5,
+        "nome": "Responsável financeiro",
+        "condicao": "Documentos de Inscrição aprovados, taxa de inscrição paga (se houver), candidato aprovado no PS e menor de 18 anos.",
+        "regras": null,
+        "camposPorEtapa": [
+          {
+            "id": "trjv90etf20x",
+            "tipo": "passo",
+            "titulo": "Responsável financeiro",
+            "campos": [
+              {
+                "id": "if2aj2l1f20x",
+                "tipo": "texto",
+                "label": "Nome completo do responsável financeiro",
+                "obrigatorio": true
+              },
+              {
+                "id": "12w45ahjf20x",
+                "tipo": "texto",
+                "label": "E-mail",
+                "obrigatorio": true
+              },
+              {
+                "id": "3avrw53bf20x",
+                "tipo": "texto",
+                "label": "CPF",
+                "obrigatorio": true
+              },
+              {
+                "id": "kul80vpvf20x",
+                "tipo": "data",
+                "label": "Data de nascimento",
+                "obrigatorio": true
+              },
+              {
+                "id": "ronauyyuf20x",
+                "tipo": "texto",
+                "label": "Celular",
+                "obrigatorio": true
+              },
+              {
+                "id": "e0kz5ic6f20x",
+                "tipo": "select",
+                "label": "Sexo",
+                "obrigatorio": true
+              },
+              {
+                "id": "hl0giaeif20x",
+                "tipo": "texto",
+                "label": "CEP",
+                "obrigatorio": true
+              },
+              {
+                "id": "1yotvhbnf20x",
+                "tipo": "texto",
+                "label": "Rua",
+                "obrigatorio": true
+              },
+              {
+                "id": "ir1htsaef20x",
+                "tipo": "texto",
+                "label": "Número",
+                "obrigatorio": true
+              },
+              {
+                "id": "rr7ww46if20x",
+                "tipo": "texto",
+                "label": "Complemento"
+              },
+              {
+                "id": "r04yl8vof20x",
+                "tipo": "texto",
+                "label": "Bairro",
+                "obrigatorio": true
+              },
+              {
+                "id": "giiggzz5f20x",
+                "tipo": "select",
+                "label": "Cidade",
+                "obrigatorio": true
+              },
+              {
+                "id": "s969vnpzf20x",
+                "tipo": "select",
+                "label": "Estado",
+                "obrigatorio": true
+              },
+              {
+                "id": "lwc0sfg0f20x",
+                "tipo": "select",
+                "label": "Nacionalidade",
+                "obrigatorio": true
+              },
+              {
+                "id": "l7f6jv18f20x",
+                "tipo": "select",
+                "label": "País natal",
+                "obrigatorio": true
+              },
+              {
+                "id": "j14tzcukf20x",
+                "tipo": "select",
+                "label": "Estado natal",
+                "obrigatorio": true
+              },
+              {
+                "id": "rlu0rnjqf20x",
+                "tipo": "select",
+                "label": "Cidade natal",
+                "obrigatorio": true
+              },
+              {
+                "id": "rcira726f20x",
+                "tipo": "botao",
+                "label": "PORTAL DO CANDIDATO"
+              },
+              {
+                "id": "84q71v8gf20x",
+                "tipo": "botao",
+                "label": "CONCLUIR"
+              }
+            ]
+          }
+        ],
+        "feedbacks": [
+          {
+            "feedback": "Pendente",
+            "logic": "Pendente cadastro do responsável financeiro",
+            "tipo": "nao_conclusivo"
+          },
+          {
+            "feedback": "Concluído",
+            "logic": "Cadastro do responsável financeiro finalizado",
+            "tipo": "positivo"
+          }
+        ]
+      },
+      {
+        "ordem": 6,
+        "nome": "Pré-Matrícula",
+        "condicao": "Documentos de Inscrição aprovados, taxa de inscrição paga (se houver), candidato aprovado no PS e menor de 18 anos",
+        "regras": "Em cenário que o candidato é menor de 18 anos, a etapa é exibida junto a do Responsável Financeiro, porém só pode ser acessada após o cadastro do responsável.",
+        "camposPorEtapa": [
+          {
+            "id": "kr8kzh3rf20x",
+            "tipo": "passo",
+            "titulo": "Dados complementares",
+            "campos": [
+              {
+                "id": "3asqgkvwf20x",
+                "tipo": "texto",
+                "label": "CEP",
+                "obrigatorio": true
+              },
+              {
+                "id": "4wumagbgf20x",
+                "tipo": "texto",
+                "label": "Rua",
+                "obrigatorio": true
+              },
+              {
+                "id": "38x4ailxf20x",
+                "tipo": "texto",
+                "label": "Número",
+                "obrigatorio": true
+              },
+              {
+                "id": "ymr4yd5ef20x",
+                "tipo": "texto",
+                "label": "Complemento"
+              },
+              {
+                "id": "xnw4bg7tf20x",
+                "tipo": "texto",
+                "label": "Bairro",
+                "obrigatorio": true
+              },
+              {
+                "id": "nm847wqcf20x",
+                "tipo": "select",
+                "label": "Cidade",
+                "obrigatorio": true
+              },
+              {
+                "id": "lrfuyxy0f20x",
+                "tipo": "select",
+                "label": "Estado",
+                "obrigatorio": true
+              },
+              {
+                "id": "454iizntf20x",
+                "tipo": "select",
+                "label": "Nacionalidade",
+                "obrigatorio": true
+              },
+              {
+                "id": "jgdz3d2uf20x",
+                "tipo": "select",
+                "label": "País natal",
+                "obrigatorio": true
+              },
+              {
+                "id": "npqouj67f20x",
+                "tipo": "select",
+                "label": "Estado natal",
+                "obrigatorio": true
+              },
+              {
+                "id": "knvmckkzf20x",
+                "tipo": "select",
+                "label": "Cidade natal",
+                "obrigatorio": true
+              },
+              {
+                "id": "hbcyvdzwf20x",
+                "tipo": "texto",
+                "label": "RG",
+                "obrigatorio": true
+              },
+              {
+                "id": "v2zm7xv3f20x",
+                "tipo": "select",
+                "label": "Orgão emissor",
+                "obrigatorio": true
+              },
+              {
+                "id": "vvwoq4qsf20x",
+                "tipo": "data",
+                "label": "Data da emissão",
+                "obrigatorio": true
+              },
+              {
+                "id": "yhtmw5uwf20x",
+                "tipo": "botao",
+                "label": "PORTAL DO CANDIDATO"
+              },
+              {
+                "id": "0tvuvnltf20x",
+                "tipo": "botao",
+                "label": "AVANÇAR"
+              }
+            ]
+          },
+          {
+            "id": "m5t3ti1of20x",
+            "tipo": "passo",
+            "titulo": "Plano de pagamento",
+            "campos": [
+              {
+                "id": "loycdq19f20x",
+                "tipo": "select",
+                "label": "Plano de pagamento"
+              },
+              {
+                "id": "20e9zk9jf20x",
+                "tipo": "botao",
+                "label": "VOLTAR"
+              },
+              {
+                "id": "n0hhgst6f20x",
+                "tipo": "botao",
+                "label": "CONCLUIR"
+              }
+            ]
+          }
+        ],
+        "feedbacks": [
+          {
+            "feedback": "Pendente",
+            "logic": "Pendente acessar a etapa e preencher as informações",
+            "tipo": "nao_conclusivo"
+          },
+          {
+            "feedback": "Informe o responsável",
+            "logic": "Pendente cadastro do responsável financeiro",
+            "tipo": "nao_conclusivo"
+          },
+          {
+            "feedback": "Concluída",
+            "logic": "Informações enviadas e aluno criado no módulo educacional (RM TOTVS) com RA",
+            "tipo": "positivo"
+          }
+        ]
+      },
+      {
+        "ordem": 7,
+        "nome": "Termos de matrícula",
+        "condicao": null,
+        "regras": null,
+        "camposPorEtapa": [
+          {
+            "id": "v5vs42k0f20x",
+            "tipo": "passo",
+            "titulo": "Gerar seu contrato",
+            "campos": [
+              {
+                "id": "ofpx1334f20x",
+                "tipo": "texto_informativo",
+                "label": "Texto informativo"
+              },
+              {
+                "id": "xsp6jrgxf20x",
+                "tipo": "texto",
+                "label": "Clique aqui para realizar o download de contrato"
+              },
+              {
+                "id": "sdq8qda0f20x",
+                "tipo": "check",
+                "label": "Aceite do contrato"
+              },
+              {
+                "id": "5yahtx3tf20x",
+                "tipo": "botao",
+                "label": "PORTAL DO CANDIDATO"
+              },
+              {
+                "id": "kypyc9otf20x",
+                "tipo": "botao",
+                "label": "CONFIRMAR"
+              }
+            ]
+          }
+        ],
+        "feedbacks": [
+          {
+            "feedback": "Pendente",
+            "logic": "[Check] \"Aceite do contrato\" não está selecionado",
+            "tipo": "nao_conclusivo"
+          },
+          {
+            "feedback": "Assinado",
+            "logic": "Contrato assinado",
+            "tipo": "positivo"
+          }
+        ]
+      },
+      {
+        "ordem": 8,
+        "nome": "Termos de matrícula (TAE)",
+        "condicao": null,
+        "regras": null,
+        "camposPorEtapa": [
+          {
+            "id": "8wrfwsuqf20x",
+            "tipo": "passo",
+            "titulo": "Gerar seu contrato",
+            "campos": [
+              {
+                "id": "280un5w7f20x",
+                "tipo": "texto_informativo",
+                "label": "Texto informativo"
+              },
+              {
+                "id": "lc3kvfd0f20x",
+                "tipo": "texto",
+                "label": "Clique aqui para realizar o download de contrato"
+              },
+              {
+                "id": "45kfz4gtf20x",
+                "tipo": "botao",
+                "label": "PORTAL DO CANDIDATO"
+              },
+              {
+                "id": "6pbu77agf20x",
+                "tipo": "botao",
+                "label": "ASSINAR CONTRATO DIGITAL"
+              }
+            ]
+          },
+          {
+            "id": "traewxbbf20x",
+            "tipo": "popup",
+            "titulo": "TAE",
+            "campos": [
+              {
+                "id": "sryjkgrwf20x",
+                "tipo": "texto_informativo",
+                "label": "Texto informativo"
+              },
+              {
+                "id": "vi6agee9f20x",
+                "tipo": "botao",
+                "label": "CIENTE"
+              }
+            ]
+          }
+        ],
+        "feedbacks": [
+          {
+            "feedback": "Pendente",
+            "logic": "Contrato pendente de assinatura",
+            "tipo": "nao_conclusivo"
+          },
+          {
+            "feedback": "Aguardando assinatura",
+            "logic": "Contrato pendente de assinatura",
+            "tipo": "nao_conclusivo"
+          },
+          {
+            "feedback": "Finalizado",
+            "logic": "Contrato assinado",
+            "tipo": "positivo"
+          },
+          {
+            "feedback": "Rejeitado",
+            "logic": "Status TAE = Rejeitado",
+            "tipo": "negativo"
+          }
+        ]
+      },
+      {
+        "ordem": 9,
+        "nome": "Taxa de matrícula",
+        "condicao": "Concluir a Pré-matrícula e assinar o termo de matrícula",
+        "regras": null,
+        "camposPorEtapa": [
+          {
+            "id": "kcuhz700f20x",
+            "tipo": "passo",
+            "titulo": "Pagamento da matrícula",
+            "campos": [
+              {
+                "id": "l67otzj6f20x",
+                "tipo": "pagamento_valor",
+                "label": "Valor a pagar"
+              },
+              {
+                "id": "bo3xlofff20x",
+                "tipo": "pagamento_formas",
+                "label": "Meio de pagamento"
+              },
+              {
+                "id": "wj0wnmwjf20x",
+                "tipo": "botao",
+                "label": "Portal do Candidato"
+              },
+              {
+                "id": "6tmkkn8tf20x",
+                "tipo": "botao",
+                "label": "REALIZAR PAGAMENTO\nBTN - GERAR BOLETO"
+              }
+            ]
+          }
+        ],
+        "feedbacks": [
+          {
+            "feedback": "Aguardando pagamento",
+            "logic": "Aguardando realização do pagamento",
+            "tipo": "nao_conclusivo"
+          },
+          {
+            "feedback": "Recebido",
+            "logic": "Pagamento realizado",
+            "tipo": "positivo"
+          }
+        ]
+      },
+      {
+        "ordem": 10,
+        "nome": "Documentos de matrícula",
+        "condicao": "Concluir a Pré-matrícula e assinar o termo de matrícula",
+        "regras": null,
+        "camposPorEtapa": [
+          {
+            "id": "yv1qt1f4f20x",
+            "tipo": "passo",
+            "titulo": "Documentação de matrícula",
+            "campos": [
+              {
+                "id": "tm51pkhff20x",
+                "tipo": "texto_informativo",
+                "label": "Texto informativo"
+              },
+              {
+                "id": "0s063gw0f20x",
+                "tipo": "documento_upload",
+                "label": "Documentos de matrícula",
+                "obrigatorio": true
+              },
+              {
+                "id": "po7hovovf20x",
+                "tipo": "botao",
+                "label": "PORTAL DO CANDIDATO"
+              },
+              {
+                "id": "fpmg2vgbf20x",
+                "tipo": "botao",
+                "label": "ENVIAR"
+              }
+            ]
+          }
+        ],
+        "feedbacks": [
+          {
+            "feedback": "Pendente envio",
+            "logic": "Candidato pendente de enviar documentos",
+            "tipo": "nao_conclusivo"
+          },
+          {
+            "feedback": "Recusado",
+            "logic": "Quando qualquer documento é recusado",
+            "tipo": "negativo"
+          },
+          {
+            "feedback": "Em análise",
+            "logic": "Quando todos os documentos estão em análise",
+            "tipo": "nao_conclusivo"
+          },
+          {
+            "feedback": "Obrigatórios em análise",
+            "logic": "Quando todos os documentos obrigatórios estão em análise",
+            "tipo": "nao_conclusivo"
+          },
+          {
+            "feedback": "Entregues",
+            "logic": "Quando todos os documentos forem aprovados",
+            "tipo": "positivo"
+          },
+          {
+            "feedback": "Obrigatórios entregues",
+            "logic": "Quando todos os documentos obrigatórios forem aprovados",
+            "tipo": "positivo"
+          }
+        ]
+      },
+      {
+        "ordem": 11,
+        "nome": "Matrícula",
+        "condicao": "Concluir a Pré-matrícula e assinar o termo de matrícula",
+        "regras": "Etapa exclusica para os feedbacks.",
+        "camposPorEtapa": [],
+        "feedbacks": [
+          {
+            "feedback": "Pendente",
+            "logic": "Status de matrícula é diferente de \"Matriculado\"",
+            "tipo": "nao_conclusivo"
+          },
+          {
+            "feedback": "Concluída",
+            "logic": "Status de matrícula no período letivo alterado para \"Matriculado\"",
+            "tipo": "positivo"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "transferencia",
+    "nome": "Transferência",
+    "informacoesAdicionais": {
+      "idProcessoSeletivo": "",
+      "idRelatorioContrato": "",
+      "classificacaoConvocacao": "",
+      "criterioClassificacao": "",
+      "agendamento": ""
+    },
+    "etapas": [
+      {
+        "ordem": 1,
+        "nome": "Dados de inscrição",
+        "condicao": "Acessar a ficha",
+        "regras": null,
+        "camposPorEtapa": [
+          {
+            "id": "drsk1owhf20x",
+            "tipo": "passo",
+            "titulo": "Dados básicos",
+            "campos": [
+              {
+                "id": "9m4l9sj8f20x",
+                "tipo": "texto",
+                "label": "Nome Completo",
+                "obrigatorio": true
+              },
+              {
+                "id": "oov98365f20x",
+                "tipo": "check",
+                "label": "Nome Social"
+              },
+              {
+                "id": "nex3crrxf20x",
+                "tipo": "texto",
+                "label": "E-mail",
+                "obrigatorio": true
+              },
+              {
+                "id": "751bietxf20x",
+                "tipo": "texto",
+                "label": "Celular",
+                "obrigatorio": true
+              },
+              {
+                "id": "zkvobtlyf20x",
+                "tipo": "check",
+                "label": "Assinatura LGPD",
+                "obrigatorio": true
+              },
+              {
+                "id": "vu2jrtgsf20x",
+                "tipo": "botao",
+                "label": "VOLTAR"
+              },
+              {
+                "id": "0d47xixsf20x",
+                "tipo": "botao",
+                "label": "AVANÇAR"
+              }
+            ]
+          },
+          {
+            "id": "h9c15fw6f20x",
+            "tipo": "passo",
+            "titulo": "Curso de interesse",
+            "campos": [
+              {
+                "id": "nh3b0o27f20x",
+                "tipo": "select",
+                "label": "Curso",
+                "obrigatorio": true
+              },
+              {
+                "id": "l743qtfnf20x",
+                "tipo": "select",
+                "label": "Local de estudo",
+                "obrigatorio": true
+              },
+              {
+                "id": "jqcdnx3gf20x",
+                "tipo": "select",
+                "label": "Turno",
+                "obrigatorio": true
+              },
+              {
+                "id": "kafrj0o2f20x",
+                "tipo": "botao",
+                "label": "VOLTAR"
+              },
+              {
+                "id": "ceppnuy6f20x",
+                "tipo": "botao",
+                "label": "AVANÇAR"
+              }
+            ]
+          },
+          {
+            "id": "wcs2p93bf20x",
+            "tipo": "passo",
+            "titulo": "Estamos quase lá",
+            "campos": [
+              {
+                "id": "96qqba75f20x",
+                "tipo": "texto",
+                "label": "CPF",
+                "obrigatorio": true
+              },
+              {
+                "id": "t756xjeaf20x",
+                "tipo": "data",
+                "label": "Data de Nascimento",
+                "obrigatorio": true
+              },
+              {
+                "id": "s2z572zxf20x",
+                "tipo": "radio",
+                "label": "Possui alguma deficiência?",
+                "obrigatorio": true
+              },
+              {
+                "id": "xsdphss9f20x",
+                "tipo": "radio",
+                "label": "Gênero",
+                "obrigatorio": true
+              },
+              {
+                "id": "ad2g2x02f20x",
+                "tipo": "check",
+                "label": "Auditiva",
+                "condicaoExibicao": "Só aparece se \"Possui alguma deficiência?\" = \"Sim\""
+              },
+              {
+                "id": "hgdvm9baf20x",
+                "tipo": "check",
+                "label": "Fala",
+                "condicaoExibicao": "Só aparece se \"Possui alguma deficiência?\" = \"Sim\""
+              },
+              {
+                "id": "h1sw766ff20x",
+                "tipo": "check",
+                "label": "Física",
+                "condicaoExibicao": "Só aparece se \"Possui alguma deficiência?\" = \"Sim\""
+              },
+              {
+                "id": "gp5pade7f20x",
+                "tipo": "check",
+                "label": "Intelectual",
+                "condicaoExibicao": "Só aparece se \"Possui alguma deficiência?\" = \"Sim\""
+              },
+              {
+                "id": "xsi4wa0hf20x",
+                "tipo": "check",
+                "label": "Visual",
+                "condicaoExibicao": "Só aparece se \"Possui alguma deficiência?\" = \"Sim\""
+              },
+              {
+                "id": "k6r2wfuhf20x",
+                "tipo": "check",
+                "label": "Mental",
+                "condicaoExibicao": "Só aparece se \"Possui alguma deficiência?\" = \"Sim\""
+              },
+              {
+                "id": "48n5gxkqf20x",
+                "tipo": "check",
+                "label": "Outras deficiências",
+                "condicaoExibicao": "Só aparece se \"Possui alguma deficiência?\" = \"Sim\""
+              },
+              {
+                "id": "ve4co6a9f20x",
+                "tipo": "texto",
+                "label": "Descreva sua necessidade",
+                "condicaoExibicao": "Só aparece se \"Outras deficiências\" estiver marcado"
+              },
+              {
+                "id": "iv9jbm90f20x",
+                "tipo": "botao",
+                "label": "VOLTAR"
+              },
+              {
+                "id": "xy5i3ys1f20x",
+                "tipo": "botao",
+                "label": "CONCLUIR"
+              }
+            ]
+          }
+        ],
+        "feedbacks": [
+          {
+            "feedback": "Concluída",
+            "logic": "Inscrição finalizada na ficha",
+            "tipo": "positivo"
+          }
+        ]
+      },
+      {
+        "ordem": 2,
+        "nome": "Taxa de inscrição",
+        "condicao": "Concluir a Inscrição e se houver taxa de inscrição",
+        "regras": null,
+        "camposPorEtapa": [
+          {
+            "id": "bb5ko36wf20x",
+            "tipo": "passo",
+            "titulo": "Taxa de inscrição",
+            "campos": [
+              {
+                "id": "xe1fv76qf20x",
+                "tipo": "pagamento_valor",
+                "label": "Valor a pagar"
+              },
+              {
+                "id": "0vo4tx6mf20x",
+                "tipo": "pagamento_formas",
+                "label": "Meio de pagamento"
+              },
+              {
+                "id": "0whlr72tf20x",
+                "tipo": "botao",
+                "label": "PORTAL DO CANDIDATO"
+              },
+              {
+                "id": "bdausv20f20x",
+                "tipo": "botao",
+                "label": "REALIZAR PAGAMENTOBTN - GERAR BOLETO"
+              }
+            ]
+          }
+        ],
+        "feedbacks": [
+          {
+            "feedback": "Aguardando pagamento",
+            "logic": "Aguardando realização do pagamento",
+            "tipo": "nao_conclusivo"
+          },
+          {
+            "feedback": "Em processamento",
+            "logic": "Aguardando confirmação de inscrição",
+            "tipo": "nao_conclusivo"
+          },
+          {
+            "feedback": "Recebido",
+            "logic": "Confirmação de inscrição e pagamento realizado",
+            "tipo": "positivo"
+          }
+        ]
+      },
+      {
+        "ordem": 3,
+        "nome": "Documentos de inscrição",
+        "condicao": "Concluir a Inscrição e se houver documentos de inscrição",
+        "regras": null,
+        "camposPorEtapa": [
+          {
+            "id": "7u3bheidf20x",
+            "tipo": "passo",
+            "titulo": "Documentos de inscrição",
+            "campos": [
+              {
+                "id": "uempjax7f20x",
+                "tipo": "texto_informativo",
+                "label": "Texto informativo"
+              },
+              {
+                "id": "f7s46p73f20x",
+                "tipo": "documento_upload",
+                "label": "Documentos de inscrição",
+                "obrigatorio": true
+              },
+              {
+                "id": "wu33pmwxf20x",
+                "tipo": "botao",
+                "label": "PORTAL DO CANDIDATO"
+              },
+              {
+                "id": "tjn70yi9f20x",
+                "tipo": "botao",
+                "label": "ENVIAR"
+              }
+            ]
+          }
+        ],
+        "feedbacks": [
+          {
+            "feedback": "Pendente envio",
+            "logic": "Candidato pendente de enviar documentos",
+            "tipo": "nao_conclusivo"
+          },
+          {
+            "feedback": "Recusado",
+            "logic": "Quando qualquer documento é recusado",
+            "tipo": "negativo"
+          },
+          {
+            "feedback": "Em análise",
+            "logic": "Quando todos os documentos estão em análise",
+            "tipo": "nao_conclusivo"
+          },
+          {
+            "feedback": "Obrigatórios em análise",
+            "logic": "Quando todos os documentos obrigatórios estão em análise",
+            "tipo": "nao_conclusivo"
+          },
+          {
+            "feedback": "Entregues",
+            "logic": "Quando todos os documentos forem aprovados",
+            "tipo": "positivo"
+          },
+          {
+            "feedback": "Obrigatórios entregues",
+            "logic": "Quando todos os documentos obrigatórios forem aprovados",
+            "tipo": "positivo"
+          }
+        ]
+      },
+      {
+        "ordem": 4,
+        "nome": "Responsável financeiro",
+        "condicao": "Documentos de Inscrição aprovados, taxa de inscrição paga (se houver), candidato aprovado no PS e menor de 18 anos.",
+        "regras": null,
+        "camposPorEtapa": [
+          {
+            "id": "0nw96nljf20x",
+            "tipo": "passo",
+            "titulo": "Responsável financeiro",
+            "campos": [
+              {
+                "id": "ltifr43df20x",
+                "tipo": "texto",
+                "label": "Nome completo do responsável financeiro",
+                "obrigatorio": true
+              },
+              {
+                "id": "awhr1x5pf20x",
+                "tipo": "texto",
+                "label": "E-mail",
+                "obrigatorio": true
+              },
+              {
+                "id": "g2ghx2uvf20x",
+                "tipo": "texto",
+                "label": "CPF",
+                "obrigatorio": true
+              },
+              {
+                "id": "tsj42lwkf20x",
+                "tipo": "data",
+                "label": "Data de nascimento",
+                "obrigatorio": true
+              },
+              {
+                "id": "634mj0ptf20x",
+                "tipo": "texto",
+                "label": "Celular",
+                "obrigatorio": true
+              },
+              {
+                "id": "gkhzdek3f20x",
+                "tipo": "select",
+                "label": "Sexo",
+                "obrigatorio": true
+              },
+              {
+                "id": "6lkeqro7f20x",
+                "tipo": "texto",
+                "label": "CEP",
+                "obrigatorio": true
+              },
+              {
+                "id": "yu6ztajxf20x",
+                "tipo": "texto",
+                "label": "Rua",
+                "obrigatorio": true
+              },
+              {
+                "id": "66fdvow4f20x",
+                "tipo": "texto",
+                "label": "Número",
+                "obrigatorio": true
+              },
+              {
+                "id": "4gim41jxf20x",
+                "tipo": "texto",
+                "label": "Complemento"
+              },
+              {
+                "id": "6x5bd0s0f20x",
+                "tipo": "texto",
+                "label": "Bairro",
+                "obrigatorio": true
+              },
+              {
+                "id": "wl5kh6dwf20x",
+                "tipo": "select",
+                "label": "Cidade",
+                "obrigatorio": true
+              },
+              {
+                "id": "l2vgihppf20x",
+                "tipo": "select",
+                "label": "Estado",
+                "obrigatorio": true
+              },
+              {
+                "id": "dupf2lqsf20x",
+                "tipo": "select",
+                "label": "Nacionalidade",
+                "obrigatorio": true
+              },
+              {
+                "id": "jm0eggkhf20x",
+                "tipo": "select",
+                "label": "País natal",
+                "obrigatorio": true
+              },
+              {
+                "id": "no3cxp71f20x",
+                "tipo": "select",
+                "label": "Estado natal",
+                "obrigatorio": true
+              },
+              {
+                "id": "8txula2nf20x",
+                "tipo": "select",
+                "label": "Cidade natal",
+                "obrigatorio": true
+              },
+              {
+                "id": "k3ce1hinf20x",
+                "tipo": "botao",
+                "label": "PORTAL DO CANDIDATO"
+              },
+              {
+                "id": "1wsmc6l3f20x",
+                "tipo": "botao",
+                "label": "CONCLUIR"
+              }
+            ]
+          }
+        ],
+        "feedbacks": [
+          {
+            "feedback": "Pendente",
+            "logic": "Pendente cadastro do responsável financeiro",
+            "tipo": "nao_conclusivo"
+          },
+          {
+            "feedback": "Concluído",
+            "logic": "Cadastro do responsável financeiro finalizado",
+            "tipo": "positivo"
+          }
+        ]
+      },
+      {
+        "ordem": 5,
+        "nome": "Pré-Matrícula",
+        "condicao": "Documentos de Inscrição aprovados, taxa de inscrição paga (se houver), candidato aprovado no PS e menor de 18 anos",
+        "regras": "Em cenário que o candidato é menor de 18 anos, a etapa é exibida junto a do Responsável Financeiro, porém só pode ser acessada após o cadastro do responsável.",
+        "camposPorEtapa": [
+          {
+            "id": "1amtmm7cf20x",
+            "tipo": "passo",
+            "titulo": "Dados complementares",
+            "campos": [
+              {
+                "id": "2581fg6rf20x",
+                "tipo": "texto",
+                "label": "CEP",
+                "obrigatorio": true
+              },
+              {
+                "id": "qlgudqu0f20x",
+                "tipo": "texto",
+                "label": "Rua",
+                "obrigatorio": true
+              },
+              {
+                "id": "fiod6cuif20x",
+                "tipo": "texto",
+                "label": "Número",
+                "obrigatorio": true
+              },
+              {
+                "id": "khni0d8vf20x",
+                "tipo": "texto",
+                "label": "Complemento"
+              },
+              {
+                "id": "stu9946cf20x",
+                "tipo": "texto",
+                "label": "Bairro",
+                "obrigatorio": true
+              },
+              {
+                "id": "1n18b6bkf20x",
+                "tipo": "select",
+                "label": "Cidade",
+                "obrigatorio": true
+              },
+              {
+                "id": "b147ape9f20x",
+                "tipo": "select",
+                "label": "Estado",
+                "obrigatorio": true
+              },
+              {
+                "id": "sjddcyobf20x",
+                "tipo": "select",
+                "label": "Nacionalidade",
+                "obrigatorio": true
+              },
+              {
+                "id": "0lss4kvyf20x",
+                "tipo": "select",
+                "label": "País natal",
+                "obrigatorio": true
+              },
+              {
+                "id": "bwno8co8f20x",
+                "tipo": "select",
+                "label": "Estado natal",
+                "obrigatorio": true
+              },
+              {
+                "id": "033uvx2gf20x",
+                "tipo": "select",
+                "label": "Cidade natal",
+                "obrigatorio": true
+              },
+              {
+                "id": "f66mqyjxf20x",
+                "tipo": "texto",
+                "label": "RG",
+                "obrigatorio": true
+              },
+              {
+                "id": "55wasz1lf20x",
+                "tipo": "select",
+                "label": "Orgão emissor",
+                "obrigatorio": true
+              },
+              {
+                "id": "3dfa80c6f20x",
+                "tipo": "data",
+                "label": "Data da emissão",
+                "obrigatorio": true
+              },
+              {
+                "id": "u0kl87upf20x",
+                "tipo": "botao",
+                "label": "PORTAL DO CANDIDATO"
+              },
+              {
+                "id": "a1gedhsgf20x",
+                "tipo": "botao",
+                "label": "AVANÇAR"
+              }
+            ]
+          },
+          {
+            "id": "2cmmzab1f20x",
+            "tipo": "passo",
+            "titulo": "Plano de pagamento",
+            "campos": [
+              {
+                "id": "wq7aznsif20x",
+                "tipo": "select",
+                "label": "Plano de pagamento"
+              },
+              {
+                "id": "7xjzgty8f20x",
+                "tipo": "botao",
+                "label": "VOLTAR"
+              },
+              {
+                "id": "qcni0552f20x",
+                "tipo": "botao",
+                "label": "CONCLUIR"
+              }
+            ]
+          }
+        ],
+        "feedbacks": [
+          {
+            "feedback": "Pendente",
+            "logic": "Pendente acessar a etapa e preencher as informações",
+            "tipo": "nao_conclusivo"
+          },
+          {
+            "feedback": "Informe o responsável",
+            "logic": "Pendente cadastro do responsável financeiro",
+            "tipo": "nao_conclusivo"
+          },
+          {
+            "feedback": "Concluída",
+            "logic": "Informações enviadas e aluno criado no módulo educacional (RM TOTVS) com RA",
+            "tipo": "positivo"
+          }
+        ]
+      },
+      {
+        "ordem": 6,
+        "nome": "Termos de matrícula",
+        "condicao": null,
+        "regras": null,
+        "camposPorEtapa": [
+          {
+            "id": "iokktor1f20x",
+            "tipo": "passo",
+            "titulo": "Gerar seu contrato",
+            "campos": [
+              {
+                "id": "js811zdcf20x",
+                "tipo": "texto_informativo",
+                "label": "Texto informativo"
+              },
+              {
+                "id": "l1anb5bcf20x",
+                "tipo": "texto",
+                "label": "Clique aqui para realizar o download de contrato"
+              },
+              {
+                "id": "fd5u6i3tf20x",
+                "tipo": "check",
+                "label": "Aceite do contrato"
+              },
+              {
+                "id": "klux74awf20x",
+                "tipo": "botao",
+                "label": "PORTAL DO CANDIDATO"
+              },
+              {
+                "id": "6o0uky69f20x",
+                "tipo": "botao",
+                "label": "CONFIRMAR"
+              }
+            ]
+          }
+        ],
+        "feedbacks": [
+          {
+            "feedback": "Pendente",
+            "logic": "[Check] \"Aceite do contrato\" não está selecionado",
+            "tipo": "nao_conclusivo"
+          },
+          {
+            "feedback": "Assinado",
+            "logic": "Contrato assinado",
+            "tipo": "positivo"
+          }
+        ]
+      },
+      {
+        "ordem": 7,
+        "nome": "Termos de matrícula (TAE)",
+        "condicao": null,
+        "regras": null,
+        "camposPorEtapa": [
+          {
+            "id": "2e6s0112f20x",
+            "tipo": "passo",
+            "titulo": "Gerar seu contrato",
+            "campos": [
+              {
+                "id": "thgm13a7f20x",
+                "tipo": "texto_informativo",
+                "label": "Texto informativo"
+              },
+              {
+                "id": "9w11hyaff20x",
+                "tipo": "texto",
+                "label": "Clique aqui para realizar o download de contrato"
+              },
+              {
+                "id": "rp7l7yvef20x",
+                "tipo": "botao",
+                "label": "PORTAL DO CANDIDATO"
+              },
+              {
+                "id": "wfvx5edtf20x",
+                "tipo": "botao",
+                "label": "ASSINAR CONTRATO DIGITAL"
+              }
+            ]
+          },
+          {
+            "id": "88u8aa7sf20x",
+            "tipo": "popup",
+            "titulo": "TAE",
+            "campos": [
+              {
+                "id": "970gmzm4f20x",
+                "tipo": "texto_informativo",
+                "label": "Texto informativo"
+              },
+              {
+                "id": "3kn725ulf20x",
+                "tipo": "botao",
+                "label": "CIENTE"
+              }
+            ]
+          }
+        ],
+        "feedbacks": [
+          {
+            "feedback": "Pendente",
+            "logic": "Contrato pendente de assinatura",
+            "tipo": "nao_conclusivo"
+          },
+          {
+            "feedback": "Aguardando assinatura",
+            "logic": "Contrato pendente de assinatura",
+            "tipo": "nao_conclusivo"
+          },
+          {
+            "feedback": "Finalizado",
+            "logic": "Contrato assinado",
+            "tipo": "positivo"
+          },
+          {
+            "feedback": "Rejeitado",
+            "logic": "Status TAE = Rejeitado",
+            "tipo": "negativo"
+          }
+        ]
+      },
+      {
+        "ordem": 8,
+        "nome": "Taxa de matrícula",
+        "condicao": "Concluir a Pré-matrícula e assinar o termo de matrícula",
+        "regras": null,
+        "camposPorEtapa": [
+          {
+            "id": "lldd9n1if20x",
+            "tipo": "passo",
+            "titulo": "Pagamento da matrícula",
+            "campos": [
+              {
+                "id": "a807nyw5f20x",
+                "tipo": "pagamento_valor",
+                "label": "Valor a pagar"
+              },
+              {
+                "id": "zr8zg8g3f20x",
+                "tipo": "pagamento_formas",
+                "label": "Meio de pagamento"
+              },
+              {
+                "id": "04uriv2kf20x",
+                "tipo": "botao",
+                "label": "PORTAL DO CANDIDATO"
+              },
+              {
+                "id": "smhng93jf20x",
+                "tipo": "botao",
+                "label": "REALIZAR PAGAMENTOBTN - GERAR BOLETO"
+              }
+            ]
+          }
+        ],
+        "feedbacks": [
+          {
+            "feedback": "Aguardando pagamento",
+            "logic": "Aguardando realização do pagamento",
+            "tipo": "nao_conclusivo"
+          },
+          {
+            "feedback": "Recebido",
+            "logic": "Pagamento realizado",
+            "tipo": "positivo"
+          }
+        ]
+      },
+      {
+        "ordem": 9,
+        "nome": "Documentos de matrícula",
+        "condicao": "Concluir a Pré-matrícula e assinar o termo de matrícula",
+        "regras": null,
+        "camposPorEtapa": [
+          {
+            "id": "8tjpzjzof20x",
+            "tipo": "passo",
+            "titulo": "Documentação de matrícula",
+            "campos": [
+              {
+                "id": "skia536sf20x",
+                "tipo": "texto_informativo",
+                "label": "Texto informativo"
+              },
+              {
+                "id": "invljgkcf20x",
+                "tipo": "documento_upload",
+                "label": "Documentos de matrícula",
+                "obrigatorio": true
+              },
+              {
+                "id": "37xufbs6f20x",
+                "tipo": "botao",
+                "label": "PORTAL DO CANDIDATO"
+              },
+              {
+                "id": "r7x6fpahf20x",
+                "tipo": "botao",
+                "label": "ENVIAR"
+              }
+            ]
+          }
+        ],
+        "feedbacks": [
+          {
+            "feedback": "Pendente envio",
+            "logic": "Candidato pendente de enviar documentos",
+            "tipo": "nao_conclusivo"
+          },
+          {
+            "feedback": "Recusado",
+            "logic": "Quando qualquer documento é recusado",
+            "tipo": "negativo"
+          },
+          {
+            "feedback": "Em análise",
+            "logic": "Quando todos os documentos estão em análise",
+            "tipo": "nao_conclusivo"
+          },
+          {
+            "feedback": "Obrigatórios em análise",
+            "logic": "Quando todos os documentos obrigatórios estão em análise",
+            "tipo": "nao_conclusivo"
+          },
+          {
+            "feedback": "Entregues",
+            "logic": "Quando todos os documentos forem aprovados",
+            "tipo": "positivo"
+          },
+          {
+            "feedback": "Obrigatórios entregues",
+            "logic": "Quando todos os documentos obrigatórios forem aprovados",
+            "tipo": "positivo"
+          }
+        ]
+      },
+      {
+        "ordem": 10,
+        "nome": "Matrícula",
+        "condicao": "Concluir a Pré-matrícula e assinar o termo de matrícula",
+        "regras": "Etapa exclusica para os feedbacks.",
+        "camposPorEtapa": [],
+        "feedbacks": [
+          {
+            "feedback": "Pendente",
+            "logic": "Status de matrícula é diferente de \"Matriculado\"",
+            "tipo": "nao_conclusivo"
+          },
+          {
+            "feedback": "Concluída",
+            "logic": "Status de matrícula no período letivo alterado para \"Matriculado\"",
+            "tipo": "positivo"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "prova-online",
+    "nome": "Prova Online",
+    "informacoesAdicionais": {
+      "idProcessoSeletivo": "",
+      "idRelatorioContrato": "",
+      "classificacaoConvocacao": "",
+      "criterioClassificacao": "",
+      "Nome da avaliação | App Prova On-line Rubeus": "",
+      "agendamento": ""
+    },
+    "etapas": [
+      {
+        "ordem": 1,
+        "nome": "Dados de inscrição",
+        "condicao": "Acessar a ficha",
+        "regras": null,
+        "camposPorEtapa": [
+          {
+            "id": "t36x64eff20x",
+            "tipo": "passo",
+            "titulo": "Dados básicos",
+            "campos": [
+              {
+                "id": "36vohwuzf20x",
+                "tipo": "texto",
+                "label": "Nome Completo",
+                "obrigatorio": true
+              },
+              {
+                "id": "1ns2kap3f20x",
+                "tipo": "check",
+                "label": "Nome Social"
+              },
+              {
+                "id": "47yb9j5sf20x",
+                "tipo": "texto",
+                "label": "E-mail",
+                "obrigatorio": true
+              },
+              {
+                "id": "5sp0qf7kf20x",
+                "tipo": "texto",
+                "label": "Celular",
+                "obrigatorio": true
+              },
+              {
+                "id": "aj80tus5f20x",
+                "tipo": "check",
+                "label": "Assinatura LGPD",
+                "obrigatorio": true
+              },
+              {
+                "id": "rvhck50jf20x",
+                "tipo": "botao",
+                "label": "VOLTAR"
+              },
+              {
+                "id": "gdjk1prbf20x",
+                "tipo": "botao",
+                "label": "AVANÇAR"
+              }
+            ]
+          },
+          {
+            "id": "dnzy99fzf20x",
+            "tipo": "passo",
+            "titulo": "Curso de interesse",
+            "campos": [
+              {
+                "id": "gpfktixyf20x",
+                "tipo": "select",
+                "label": "Curso",
+                "obrigatorio": true
+              },
+              {
+                "id": "n1zkgftcf20x",
+                "tipo": "select",
+                "label": "Local de estudo",
+                "obrigatorio": true
+              },
+              {
+                "id": "ltiyu5dcf20x",
+                "tipo": "select",
+                "label": "Turno",
+                "obrigatorio": true
+              },
+              {
+                "id": "85j2vofaf20x",
+                "tipo": "botao",
+                "label": "VOLTAR"
+              },
+              {
+                "id": "jvil19i0f20x",
+                "tipo": "botao",
+                "label": "AVANÇAR"
+              }
+            ]
+          },
+          {
+            "id": "8bgshnimf20x",
+            "tipo": "passo",
+            "titulo": "Estamos quase lá",
+            "campos": [
+              {
+                "id": "dxwk3eief20x",
+                "tipo": "texto",
+                "label": "CPF",
+                "obrigatorio": true
+              },
+              {
+                "id": "edrwlco5f20x",
+                "tipo": "data",
+                "label": "Data de Nascimento",
+                "obrigatorio": true
+              },
+              {
+                "id": "zczg7nw1f20x",
+                "tipo": "radio",
+                "label": "Possui alguma deficiência?",
+                "obrigatorio": true
+              },
+              {
+                "id": "uqykf4ehf20x",
+                "tipo": "radio",
+                "label": "Sexo",
+                "obrigatorio": true
+              },
+              {
+                "id": "kd32t8kkf20x",
+                "tipo": "check",
+                "label": "Auditiva",
+                "condicaoExibicao": "Só aparece se \"Possui alguma deficiência?\" = \"Sim\""
+              },
+              {
+                "id": "k1qsdlgnf20x",
+                "tipo": "check",
+                "label": "Fala",
+                "condicaoExibicao": "Só aparece se \"Possui alguma deficiência?\" = \"Sim\""
+              },
+              {
+                "id": "nsmhx31rf20x",
+                "tipo": "check",
+                "label": "Física",
+                "condicaoExibicao": "Só aparece se \"Possui alguma deficiência?\" = \"Sim\""
+              },
+              {
+                "id": "42d6dxgzf20x",
+                "tipo": "check",
+                "label": "Intelectual",
+                "condicaoExibicao": "Só aparece se \"Possui alguma deficiência?\" = \"Sim\""
+              },
+              {
+                "id": "wiedxrirf20x",
+                "tipo": "check",
+                "label": "Visual",
+                "condicaoExibicao": "Só aparece se \"Possui alguma deficiência?\" = \"Sim\""
+              },
+              {
+                "id": "z03cbikmf20x",
+                "tipo": "check",
+                "label": "Mental",
+                "condicaoExibicao": "Só aparece se \"Possui alguma deficiência?\" = \"Sim\""
+              },
+              {
+                "id": "ciz70d82f20x",
+                "tipo": "check",
+                "label": "Outras deficiências",
+                "condicaoExibicao": "Só aparece se \"Possui alguma deficiência?\" = \"Sim\""
+              },
+              {
+                "id": "j18eonwif20x",
+                "tipo": "texto",
+                "label": "Descreva sua necessidade",
+                "condicaoExibicao": "Só aparece se \"Outras deficiências\" estiver marcado"
+              },
+              {
+                "id": "61ozbxk2f20x",
+                "tipo": "botao",
+                "label": "VOLTAR"
+              },
+              {
+                "id": "ddnquvu8f20x",
+                "tipo": "botao",
+                "label": "CONCLUIR"
+              }
+            ]
+          }
+        ],
+        "feedbacks": [
+          {
+            "feedback": "Concluída",
+            "logic": "Inscrição finalizada na ficha",
+            "tipo": "positivo"
+          }
+        ]
+      },
+      {
+        "ordem": 2,
+        "nome": "Taxa de inscrição",
+        "condicao": "Concluir a Inscrição e se houver taxa de inscrição",
+        "regras": null,
+        "camposPorEtapa": [
+          {
+            "id": "gjr9tzt3f20x",
+            "tipo": "passo",
+            "titulo": "Taxa de inscrição",
+            "campos": [
+              {
+                "id": "avgwi2waf20x",
+                "tipo": "pagamento_valor",
+                "label": "Valor a pagar"
+              },
+              {
+                "id": "8et9rev9f20x",
+                "tipo": "pagamento_formas",
+                "label": "Meio de pagamento"
+              },
+              {
+                "id": "26s0wjk7f20x",
+                "tipo": "botao",
+                "label": "PORTAL DO CANDIDATO"
+              },
+              {
+                "id": "1qhq8xzjf20x",
+                "tipo": "botao",
+                "label": "REALIZAR PAGAMENTO \nBTN - GERAR BOLETO"
+              }
+            ]
+          }
+        ],
+        "feedbacks": [
+          {
+            "feedback": "Aguardando pagamento",
+            "logic": "Aguardando realização do pagamento",
+            "tipo": "nao_conclusivo"
+          },
+          {
+            "feedback": "Em processamento",
+            "logic": "Aguardando confirmação de inscrição",
+            "tipo": "nao_conclusivo"
+          },
+          {
+            "feedback": "Recebido",
+            "logic": "Confirmação de inscrição e pagamento realizado",
+            "tipo": "positivo"
+          }
+        ]
+      },
+      {
+        "ordem": 3,
+        "nome": "Documentos de inscrição",
+        "condicao": "Concluir a Inscrição e se houver documentos de inscrição",
+        "regras": null,
+        "camposPorEtapa": [
+          {
+            "id": "b6x9io32f20x",
+            "tipo": "passo",
+            "titulo": "Documentos de inscrição",
+            "campos": [
+              {
+                "id": "us9ayjnif20x",
+                "tipo": "texto_informativo",
+                "label": "Texto informativo"
+              },
+              {
+                "id": "b5k4q8ctf20x",
+                "tipo": "documento_upload",
+                "label": "Documentos de inscrição",
+                "obrigatorio": true
+              },
+              {
+                "id": "58zhy75hf20x",
+                "tipo": "botao",
+                "label": "PORTAL DO CANDIDATO"
+              },
+              {
+                "id": "mab04vg8f20x",
+                "tipo": "botao",
+                "label": "ENVIAR"
+              }
+            ]
+          }
+        ],
+        "feedbacks": [
+          {
+            "feedback": "Pendente envio",
+            "logic": "Candidato pendente de enviar documentos",
+            "tipo": "nao_conclusivo"
+          },
+          {
+            "feedback": "Recusado",
+            "logic": "Quando qualquer documento é recusado",
+            "tipo": "negativo"
+          },
+          {
+            "feedback": "Em análise",
+            "logic": "Quando todos os documentos estão em análise",
+            "tipo": "nao_conclusivo"
+          },
+          {
+            "feedback": "Obrigatórios em análise",
+            "logic": "Quando todos os documentos obrigatórios estão em análise",
+            "tipo": "nao_conclusivo"
+          },
+          {
+            "feedback": "Entregues",
+            "logic": "Quando todos os documentos forem aprovados",
+            "tipo": "positivo"
+          },
+          {
+            "feedback": "Obrigatórios entregues",
+            "logic": "Quando todos os documentos obrigatórios forem aprovados",
+            "tipo": "positivo"
+          }
+        ]
+      },
+      {
+        "ordem": 4,
+        "nome": "Avaliação online",
+        "condicao": "Se houver documento e o documento for aprovado E se a inscrição for confirmada",
+        "regras": null,
+        "camposPorEtapa": [
+          {
+            "id": "i2ggcbopf20x",
+            "tipo": "passo",
+            "titulo": "Avaliação online",
+            "campos": [
+              {
+                "id": "hrs4ej77f20x",
+                "tipo": "texto_informativo",
+                "label": "Texto informativo"
+              },
+              {
+                "id": "8vhkrf66f20x",
+                "tipo": "botao",
+                "label": "PORTAL DO CANDIDATO"
+              },
+              {
+                "id": "nex1imyrf20x",
+                "tipo": "botao",
+                "label": "INICIAR AVALIAÇÃO"
+              },
+              {
+                "id": "5vvuksgef20x",
+                "tipo": "condicional",
+                "label": "Candidato Reprovado \nTexto informativo"
+              },
+              {
+                "id": "iw5xmjrsf20x",
+                "tipo": "botao",
+                "label": "PORTAL DO CANDIDATO"
+              },
+              {
+                "id": "00z5trwbf20x",
+                "tipo": "botao",
+                "label": "REFAZER AVALIAÇÃO"
+              }
+            ]
+          }
+        ],
+        "feedbacks": [
+          {
+            "feedback": "Disponível",
+            "logic": "Candidato habilitado a realizar a prova",
+            "tipo": "nao_conclusivo"
+          },
+          {
+            "feedback": "Já iniciada",
+            "logic": "Candidato iniciou a prova, porém ainda não finalizou",
+            "tipo": "nao_conclusivo"
+          },
+          {
+            "feedback": "Aguardando correção",
+            "logic": "Prova finalizada e aguardando correção",
+            "tipo": "nao_conclusivo"
+          },
+          {
+            "feedback": "Aprovado",
+            "logic": "Candidato aprovado",
+            "tipo": "positivo"
+          },
+          {
+            "feedback": "Reprovado",
+            "logic": "Candidato reprovado",
+            "tipo": "negativo"
+          },
+          {
+            "feedback": "Ausente em dia de prova",
+            "logic": "Candidato não realizou a prova no período determinado. Status alterado no TOTVS RM",
+            "tipo": "nao_conclusivo"
+          },
+          {
+            "feedback": "Aguardando convocação",
+            "logic": "Aluno aprovado e com Status no TOTVS RM chamando para Convocação",
+            "tipo": "nao_conclusivo"
+          },
+          {
+            "feedback": "Indisponível",
+            "logic": "Avaliação indisponível",
+            "tipo": "nao_conclusivo"
+          }
+        ]
+      },
+      {
+        "ordem": 5,
+        "nome": "Resultado",
+        "condicao": "Resultado da avaliação presencial divulgado",
+        "regras": null,
+        "camposPorEtapa": [
+          {
+            "id": "fc67hpc9f20x",
+            "tipo": "passo",
+            "titulo": "Resultado",
+            "campos": [
+              {
+                "id": "lb1ic6aif20x",
+                "tipo": "texto_informativo",
+                "label": "Texto informativo"
+              },
+              {
+                "id": "35r0a2c1f20x",
+                "tipo": "botao",
+                "label": "PORTAL DO CANDIDATO"
+              }
+            ]
+          }
+        ],
+        "feedbacks": [
+          {
+            "feedback": "Reprovado",
+            "logic": "Reprovado na avaliação presencial",
+            "tipo": "negativo"
+          },
+          {
+            "feedback": "Classificado",
+            "logic": "Aprovado na avaliação presencial e ststus no TOTVS como Classificado",
+            "tipo": "positivo"
+          },
+          {
+            "feedback": "Convocado",
+            "logic": "Candidato foi classificado e Convocado",
+            "tipo": "positivo"
+          },
+          {
+            "feedback": "Ausente",
+            "logic": "Ausente no dia da avaliação",
+            "tipo": "nao_conclusivo"
+          }
+        ]
+      },
+      {
+        "ordem": 6,
+        "nome": "Responsável financeiro",
+        "condicao": "Documentos de Inscrição aprovados, taxa de inscrição paga (se houver), candidato aprovado no PS e menor de 18 anos.",
+        "regras": null,
+        "camposPorEtapa": [
+          {
+            "id": "yp5uiulbf20x",
+            "tipo": "passo",
+            "titulo": "Responsável financeiro",
+            "campos": [
+              {
+                "id": "epuhkignf20x",
+                "tipo": "texto",
+                "label": "Nome completo do responsável financeiro",
+                "obrigatorio": true
+              },
+              {
+                "id": "mr5q7f4lf20x",
+                "tipo": "texto",
+                "label": "E-mail",
+                "obrigatorio": true
+              },
+              {
+                "id": "h7r6r38zf20x",
+                "tipo": "texto",
+                "label": "CPF",
+                "obrigatorio": true
+              },
+              {
+                "id": "qo3tw2zkf20x",
+                "tipo": "data",
+                "label": "Data de nascimento",
+                "obrigatorio": true
+              },
+              {
+                "id": "jtgjmstyf20x",
+                "tipo": "texto",
+                "label": "Celular",
+                "obrigatorio": true
+              },
+              {
+                "id": "erz5047yf20x",
+                "tipo": "select",
+                "label": "Sexo",
+                "obrigatorio": true
+              },
+              {
+                "id": "3jc6ugltf20x",
+                "tipo": "texto",
+                "label": "CEP",
+                "obrigatorio": true
+              },
+              {
+                "id": "o7kvf49qf20x",
+                "tipo": "texto",
+                "label": "Rua",
+                "obrigatorio": true
+              },
+              {
+                "id": "4rql5mgff20x",
+                "tipo": "texto",
+                "label": "Número",
+                "obrigatorio": true
+              },
+              {
+                "id": "fa5x5g37f20x",
+                "tipo": "texto",
+                "label": "Complemento"
+              },
+              {
+                "id": "vgnt2ls0f20x",
+                "tipo": "texto",
+                "label": "Bairro",
+                "obrigatorio": true
+              },
+              {
+                "id": "eojgo853f20x",
+                "tipo": "select",
+                "label": "Cidade",
+                "obrigatorio": true
+              },
+              {
+                "id": "tsjryingf20x",
+                "tipo": "select",
+                "label": "Estado",
+                "obrigatorio": true
+              },
+              {
+                "id": "uh98qrcnf20x",
+                "tipo": "select",
+                "label": "Nacionalidade",
+                "obrigatorio": true
+              },
+              {
+                "id": "fmoq4bg2f20x",
+                "tipo": "select",
+                "label": "País natal",
+                "obrigatorio": true
+              },
+              {
+                "id": "bt4ma32gf20x",
+                "tipo": "select",
+                "label": "Estado natal",
+                "obrigatorio": true
+              },
+              {
+                "id": "zm1csk6rf20x",
+                "tipo": "select",
+                "label": "Cidade natal",
+                "obrigatorio": true
+              },
+              {
+                "id": "dzji6almf20x",
+                "tipo": "botao",
+                "label": "PORTAL DO CANDIDATO"
+              },
+              {
+                "id": "cslcr0wif20x",
+                "tipo": "botao",
+                "label": "CONCLUIR"
+              }
+            ]
+          }
+        ],
+        "feedbacks": [
+          {
+            "feedback": "Pendente",
+            "logic": "Pendente cadastro do responsável financeiro",
+            "tipo": "nao_conclusivo"
+          },
+          {
+            "feedback": "Concluído",
+            "logic": "Cadastro do responsável financeiro finalizado",
+            "tipo": "positivo"
+          }
+        ]
+      },
+      {
+        "ordem": 7,
+        "nome": "Pré-Matrícula",
+        "condicao": "Documentos de Inscrição aprovados, taxa de inscrição paga (se houver), candidato aprovado no PS e menor de 18 anos",
+        "regras": "Em cenário que o candidato é menor de 18 anos, a etapa é exibida junto a do Responsável Financeiro, porém só pode ser acessada após o cadastro do responsável.",
+        "camposPorEtapa": [
+          {
+            "id": "4lyljcpof20x",
+            "tipo": "passo",
+            "titulo": "Dados complementares",
+            "campos": [
+              {
+                "id": "zeg8dhbsf20x",
+                "tipo": "texto",
+                "label": "CEP",
+                "obrigatorio": true
+              },
+              {
+                "id": "5f7zw6nff20x",
+                "tipo": "texto",
+                "label": "Rua",
+                "obrigatorio": true
+              },
+              {
+                "id": "i3qlo214f20x",
+                "tipo": "texto",
+                "label": "Número",
+                "obrigatorio": true
+              },
+              {
+                "id": "p0fs81ebf20x",
+                "tipo": "texto",
+                "label": "Complemento"
+              },
+              {
+                "id": "at3dpmdkf20x",
+                "tipo": "texto",
+                "label": "Bairro",
+                "obrigatorio": true
+              },
+              {
+                "id": "vownpdowf20x",
+                "tipo": "select",
+                "label": "Cidade",
+                "obrigatorio": true
+              },
+              {
+                "id": "iph6m1vkf20x",
+                "tipo": "select",
+                "label": "Estado",
+                "obrigatorio": true
+              },
+              {
+                "id": "ok7rpf19f20x",
+                "tipo": "select",
+                "label": "Nacionalidade",
+                "obrigatorio": true
+              },
+              {
+                "id": "x8c8odg1f20x",
+                "tipo": "select",
+                "label": "País natal",
+                "obrigatorio": true
+              },
+              {
+                "id": "9dburfchf20x",
+                "tipo": "select",
+                "label": "Estado natal",
+                "obrigatorio": true
+              },
+              {
+                "id": "3kmb7neaf20x",
+                "tipo": "select",
+                "label": "Cidade natal",
+                "obrigatorio": true
+              },
+              {
+                "id": "75m24rosf20x",
+                "tipo": "texto",
+                "label": "RG",
+                "obrigatorio": true
+              },
+              {
+                "id": "2bu8ndlmf20x",
+                "tipo": "select",
+                "label": "Orgão emissor",
+                "obrigatorio": true
+              },
+              {
+                "id": "r2jb7niqf20x",
+                "tipo": "data",
+                "label": "Data da emissão",
+                "obrigatorio": true
+              },
+              {
+                "id": "78846nm5f20x",
+                "tipo": "botao",
+                "label": "PORTAL DO CANDIDATO"
+              },
+              {
+                "id": "wta7emrnf20x",
+                "tipo": "botao",
+                "label": "AVANÇAR"
+              }
+            ]
+          },
+          {
+            "id": "qq6qk04if20x",
+            "tipo": "passo",
+            "titulo": "Plano de pagamento",
+            "campos": [
+              {
+                "id": "e211rsvdf20x",
+                "tipo": "select",
+                "label": "Plano de pagamento"
+              },
+              {
+                "id": "5fak7ctpf20x",
+                "tipo": "botao",
+                "label": "VOLTAR"
+              },
+              {
+                "id": "atdujbp5f20x",
+                "tipo": "botao",
+                "label": "CONCLUIR"
+              }
+            ]
+          }
+        ],
+        "feedbacks": [
+          {
+            "feedback": "Pendente",
+            "logic": "Pendente acessar a etapa e preencher as informações",
+            "tipo": "nao_conclusivo"
+          },
+          {
+            "feedback": "Informe o responsável",
+            "logic": "Pendente cadastro do responsável financeiro",
+            "tipo": "nao_conclusivo"
+          },
+          {
+            "feedback": "Concluída",
+            "logic": "Informações enviadas e aluno criado no módulo educacional (RM TOTVS) com RA",
+            "tipo": "positivo"
+          }
+        ]
+      },
+      {
+        "ordem": 8,
+        "nome": "Termos de matrícula",
+        "condicao": null,
+        "regras": null,
+        "camposPorEtapa": [
+          {
+            "id": "i5aexl6of20x",
+            "tipo": "passo",
+            "titulo": "Gerar seu contrato",
+            "campos": [
+              {
+                "id": "rq8bhv1hf20x",
+                "tipo": "texto_informativo",
+                "label": "Texto informativo"
+              },
+              {
+                "id": "aewatm3xf20x",
+                "tipo": "texto",
+                "label": "Clique aqui para realizar o download de contrato"
+              },
+              {
+                "id": "r2p9n4lxf20x",
+                "tipo": "check",
+                "label": "Aceite do contrato"
+              },
+              {
+                "id": "d7mvt7nuf20x",
+                "tipo": "botao",
+                "label": "PORTAL DO CANDIDATO"
+              },
+              {
+                "id": "y3oe0pvdf20x",
+                "tipo": "botao",
+                "label": "CONFIRMAR"
+              }
+            ]
+          }
+        ],
+        "feedbacks": [
+          {
+            "feedback": "Pendente",
+            "logic": "[Check] \"Aceite do contrato\" não está selecionado",
+            "tipo": "nao_conclusivo"
+          },
+          {
+            "feedback": "Assinado",
+            "logic": "Contrato assinado",
+            "tipo": "positivo"
+          }
+        ]
+      },
+      {
+        "ordem": 9,
+        "nome": "Termos de matrícula (TAE)",
+        "condicao": null,
+        "regras": null,
+        "camposPorEtapa": [
+          {
+            "id": "s6ed4b71f20x",
+            "tipo": "passo",
+            "titulo": "Gerar seu contrato",
+            "campos": [
+              {
+                "id": "dxabv9gxf20x",
+                "tipo": "texto_informativo",
+                "label": "Texto informativo"
+              },
+              {
+                "id": "dugwxlchf20x",
+                "tipo": "texto",
+                "label": "Clique aqui para realizar o download de contrato"
+              },
+              {
+                "id": "oboedkzcf20x",
+                "tipo": "botao",
+                "label": "PORTAL DO CANDIDATO"
+              },
+              {
+                "id": "y72ldaksf20x",
+                "tipo": "botao",
+                "label": "ASSINAR CONTRATO DIGITAL"
+              }
+            ]
+          },
+          {
+            "id": "57h2nqugf20x",
+            "tipo": "popup",
+            "titulo": "TAE",
+            "campos": [
+              {
+                "id": "2ly0gjzwf20x",
+                "tipo": "texto_informativo",
+                "label": "Texto informativo"
+              },
+              {
+                "id": "1kdbrzk2f20x",
+                "tipo": "botao",
+                "label": "CIENTE"
+              }
+            ]
+          }
+        ],
+        "feedbacks": [
+          {
+            "feedback": "Pendente",
+            "logic": "Contrato pendente de assinatura",
+            "tipo": "nao_conclusivo"
+          },
+          {
+            "feedback": "Aguardando assinatura",
+            "logic": "Contrato pendente de assinatura",
+            "tipo": "nao_conclusivo"
+          },
+          {
+            "feedback": "Finalizado",
+            "logic": "Contrato assinado",
+            "tipo": "positivo"
+          },
+          {
+            "feedback": "Rejeitado",
+            "logic": "Status TAE = Rejeitado",
+            "tipo": "negativo"
+          }
+        ]
+      },
+      {
+        "ordem": 10,
+        "nome": "Taxa de matrícula",
+        "condicao": "Concluir a Pré-matrícula e assinar o termo de matrícula",
+        "regras": null,
+        "camposPorEtapa": [
+          {
+            "id": "yu5neoe1f20x",
+            "tipo": "passo",
+            "titulo": "Pagamento da matrícula",
+            "campos": [
+              {
+                "id": "rla5mhkrf20x",
+                "tipo": "pagamento_valor",
+                "label": "Valor a pagar"
+              },
+              {
+                "id": "1fo3n3zmf20x",
+                "tipo": "pagamento_formas",
+                "label": "Meio de pagamento"
+              },
+              {
+                "id": "oyhvxqouf20x",
+                "tipo": "botao",
+                "label": "PORTAL DO CANDIDATO"
+              },
+              {
+                "id": "pzfo4brrf20x",
+                "tipo": "botao",
+                "label": "REALIZAR PAGAMENTOBTN - GERAR BOLETO"
+              }
+            ]
+          }
+        ],
+        "feedbacks": [
+          {
+            "feedback": "Aguardando pagamento",
+            "logic": "Aguardando realização do pagamento",
+            "tipo": "nao_conclusivo"
+          },
+          {
+            "feedback": "Recebido",
+            "logic": "Pagamento realizado",
+            "tipo": "positivo"
+          }
+        ]
+      },
+      {
+        "ordem": 11,
+        "nome": "Documentos de matrícula",
+        "condicao": "Concluir a Pré-matrícula e assinar o termo de matrícula",
+        "regras": null,
+        "camposPorEtapa": [
+          {
+            "id": "9n0urs9mf20x",
+            "tipo": "passo",
+            "titulo": "Documentação de matrícula",
+            "campos": [
+              {
+                "id": "5zwj3vuef20x",
+                "tipo": "texto_informativo",
+                "label": "Texto informativo"
+              },
+              {
+                "id": "hhbisrpef20x",
+                "tipo": "documento_upload",
+                "label": "Documentos de matrícula",
+                "obrigatorio": true
+              },
+              {
+                "id": "rtsz494af20x",
+                "tipo": "botao",
+                "label": "PORTAL DO CANDIDATO"
+              },
+              {
+                "id": "s58gtadpf20x",
+                "tipo": "botao",
+                "label": "ENVIAR"
+              }
+            ]
+          }
+        ],
+        "feedbacks": [
+          {
+            "feedback": "Pendente envio",
+            "logic": "Candidato pendente de enviar documentos",
+            "tipo": "nao_conclusivo"
+          },
+          {
+            "feedback": "Recusado",
+            "logic": "Quando qualquer documento é recusado",
+            "tipo": "negativo"
+          },
+          {
+            "feedback": "Em análise",
+            "logic": "Quando todos os documentos estão em análise",
+            "tipo": "nao_conclusivo"
+          },
+          {
+            "feedback": "Obrigatórios em análise",
+            "logic": "Quando todos os documentos obrigatórios estão em análise",
+            "tipo": "nao_conclusivo"
+          },
+          {
+            "feedback": "Entregues",
+            "logic": "Quando todos os documentos forem aprovados",
+            "tipo": "positivo"
+          },
+          {
+            "feedback": "Obrigatórios entregues",
+            "logic": "Quando todos os documentos obrigatórios forem aprovados",
+            "tipo": "positivo"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "obtencao-de-novo-titulo",
+    "nome": "Obtenção de novo título",
+    "informacoesAdicionais": {
+      "idProcessoSeletivo": "",
+      "idRelatorioContrato": "",
+      "classificacaoConvocacao": "",
+      "criterioClassificacao": "",
+      "agendamento": ""
+    },
+    "etapas": [
+      {
+        "ordem": 1,
+        "nome": "Dados de inscrição",
+        "condicao": "Acessar a ficha",
+        "regras": null,
+        "camposPorEtapa": [
+          {
+            "id": "gzkvyfo6f20x",
+            "tipo": "passo",
+            "titulo": "Dados básicos",
+            "campos": [
+              {
+                "id": "7qd06v86f20x",
+                "tipo": "texto",
+                "label": "Nome Completo",
+                "obrigatorio": true
+              },
+              {
+                "id": "wmcwuutaf20x",
+                "tipo": "check",
+                "label": "Nome Social"
+              },
+              {
+                "id": "6iapy5i6f20x",
+                "tipo": "texto",
+                "label": "E-mail",
+                "obrigatorio": true
+              },
+              {
+                "id": "3cj1mdjof20x",
+                "tipo": "texto",
+                "label": "Celular",
+                "obrigatorio": true
+              },
+              {
+                "id": "vlxoygyrf20x",
+                "tipo": "check",
+                "label": "Assinatura LGPD",
+                "obrigatorio": true
+              },
+              {
+                "id": "2ugf5vvgf20x",
+                "tipo": "botao",
+                "label": "VOLTAR"
+              },
+              {
+                "id": "5rhqewd1f20x",
+                "tipo": "botao",
+                "label": "AVANÇAR"
+              }
+            ]
+          },
+          {
+            "id": "2u3w0b8tf20x",
+            "tipo": "passo",
+            "titulo": "Curso de interesse",
+            "campos": [
+              {
+                "id": "mbv6s3qpf20x",
+                "tipo": "select",
+                "label": "Curso",
+                "obrigatorio": true
+              },
+              {
+                "id": "a67n4fmqf20x",
+                "tipo": "select",
+                "label": "Local de estudo",
+                "obrigatorio": true
+              },
+              {
+                "id": "d7x6vru3f20x",
+                "tipo": "select",
+                "label": "Turno",
+                "obrigatorio": true
+              },
+              {
+                "id": "8ylp93mbf20x",
+                "tipo": "botao",
+                "label": "VOLTAR"
+              },
+              {
+                "id": "taohmmnsf20x",
+                "tipo": "botao",
+                "label": "AVANÇAR"
+              }
+            ]
+          },
+          {
+            "id": "gkuanozdf20x",
+            "tipo": "passo",
+            "titulo": "Estamos quase lá",
+            "campos": [
+              {
+                "id": "vm25c0j0f20x",
+                "tipo": "texto",
+                "label": "CPF",
+                "obrigatorio": true
+              },
+              {
+                "id": "hhc0i02wf20x",
+                "tipo": "data",
+                "label": "Data de Nascimento",
+                "obrigatorio": true
+              },
+              {
+                "id": "lsrz5v3zf20x",
+                "tipo": "radio",
+                "label": "Possui alguma deficiência?",
+                "obrigatorio": true
+              },
+              {
+                "id": "1pe587vzf20x",
+                "tipo": "radio",
+                "label": "Gênero",
+                "obrigatorio": true
+              },
+              {
+                "id": "cf2cw0m1f20x",
+                "tipo": "check",
+                "label": "Auditiva",
+                "condicaoExibicao": "Só aparece se \"Possui alguma deficiência?\" = \"Sim\""
+              },
+              {
+                "id": "q4d76l9uf20x",
+                "tipo": "check",
+                "label": "Fala",
+                "condicaoExibicao": "Só aparece se \"Possui alguma deficiência?\" = \"Sim\""
+              },
+              {
+                "id": "e2xlbqlpf20x",
+                "tipo": "check",
+                "label": "Física",
+                "condicaoExibicao": "Só aparece se \"Possui alguma deficiência?\" = \"Sim\""
+              },
+              {
+                "id": "ispvei6jf20x",
+                "tipo": "check",
+                "label": "Intelectual",
+                "condicaoExibicao": "Só aparece se \"Possui alguma deficiência?\" = \"Sim\""
+              },
+              {
+                "id": "rloaqk7cf20x",
+                "tipo": "check",
+                "label": "Visual",
+                "condicaoExibicao": "Só aparece se \"Possui alguma deficiência?\" = \"Sim\""
+              },
+              {
+                "id": "voxuunnkf20x",
+                "tipo": "check",
+                "label": "Mental",
+                "condicaoExibicao": "Só aparece se \"Possui alguma deficiência?\" = \"Sim\""
+              },
+              {
+                "id": "togin7s5f20x",
+                "tipo": "check",
+                "label": "Outras deficiências",
+                "condicaoExibicao": "Só aparece se \"Possui alguma deficiência?\" = \"Sim\""
+              },
+              {
+                "id": "esu2168ff20x",
+                "tipo": "texto",
+                "label": "Descreva sua necessidade",
+                "condicaoExibicao": "Só aparece se \"Outras deficiências\" estiver marcado"
+              },
+              {
+                "id": "tikalgi0f20x",
+                "tipo": "botao",
+                "label": "VOLTAR"
+              },
+              {
+                "id": "79kigq1zf20x",
+                "tipo": "botao",
+                "label": "CONCLUIR"
+              }
+            ]
+          }
+        ],
+        "feedbacks": [
+          {
+            "feedback": "Concluída",
+            "logic": "Inscrição finalizada na ficha",
+            "tipo": "positivo"
+          }
+        ]
+      },
+      {
+        "ordem": 2,
+        "nome": "Taxa de inscrição",
+        "condicao": "Concluir a Inscrição e se houver taxa de inscrição",
+        "regras": null,
+        "camposPorEtapa": [
+          {
+            "id": "fc7vctnnf20x",
+            "tipo": "passo",
+            "titulo": "Taxa de inscrição",
+            "campos": [
+              {
+                "id": "cv3oqsk6f20x",
+                "tipo": "pagamento_valor",
+                "label": "Valor a pagar"
+              },
+              {
+                "id": "8rjt8exgf20x",
+                "tipo": "pagamento_formas",
+                "label": "Meio de pagamento"
+              },
+              {
+                "id": "tetfb1yhf20x",
+                "tipo": "botao",
+                "label": "PORTAL DO CANDIDATO"
+              },
+              {
+                "id": "hs2teo07f20x",
+                "tipo": "botao",
+                "label": "REALIZAR PAGAMENTOBTN - GERAR BOLETO"
+              }
+            ]
+          }
+        ],
+        "feedbacks": [
+          {
+            "feedback": "Aguardando pagamento",
+            "logic": "Aguardando realização do pagamento",
+            "tipo": "nao_conclusivo"
+          },
+          {
+            "feedback": "Em processamento",
+            "logic": "Aguardando confirmação de inscrição",
+            "tipo": "nao_conclusivo"
+          },
+          {
+            "feedback": "Recebido",
+            "logic": "Confirmação de inscrição e pagamento realizado",
+            "tipo": "positivo"
+          }
+        ]
+      },
+      {
+        "ordem": 3,
+        "nome": "Documentos de inscrição",
+        "condicao": "Concluir a Inscrição e se houver documentos de inscrição",
+        "regras": null,
+        "camposPorEtapa": [
+          {
+            "id": "z7fo29y8f20x",
+            "tipo": "passo",
+            "titulo": "Documentos de inscrição",
+            "campos": [
+              {
+                "id": "52y7y9jzf20x",
+                "tipo": "texto_informativo",
+                "label": "Texto informativo"
+              },
+              {
+                "id": "tr1em14yf20x",
+                "tipo": "documento_upload",
+                "label": "Documentos de inscrição",
+                "obrigatorio": true
+              },
+              {
+                "id": "kxrtfltqf20x",
+                "tipo": "botao",
+                "label": "PORTAL DO CANDIDATO"
+              },
+              {
+                "id": "nsbqn8wcf20x",
+                "tipo": "botao",
+                "label": "ENVIAR"
+              }
+            ]
+          }
+        ],
+        "feedbacks": [
+          {
+            "feedback": "Pendente envio",
+            "logic": "Candidato pendente de enviar documentos",
+            "tipo": "nao_conclusivo"
+          },
+          {
+            "feedback": "Recusado",
+            "logic": "Quando qualquer documento é recusado",
+            "tipo": "negativo"
+          },
+          {
+            "feedback": "Em análise",
+            "logic": "Quando todos os documentos estão em análise",
+            "tipo": "nao_conclusivo"
+          },
+          {
+            "feedback": "Obrigatórios em análise",
+            "logic": "Quando todos os documentos obrigatórios estão em análise",
+            "tipo": "nao_conclusivo"
+          },
+          {
+            "feedback": "Entregues",
+            "logic": "Quando todos os documentos forem aprovados",
+            "tipo": "positivo"
+          },
+          {
+            "feedback": "Obrigatórios entregues",
+            "logic": "Quando todos os documentos obrigatórios forem aprovados",
+            "tipo": "positivo"
+          }
+        ]
+      },
+      {
+        "ordem": 4,
+        "nome": "Responsável financeiro",
+        "condicao": "Documentos de Inscrição aprovados, taxa de inscrição paga (se houver), candidato aprovado no PS e menor de 18 anos.",
+        "regras": null,
+        "camposPorEtapa": [
+          {
+            "id": "umyqqaeaf20x",
+            "tipo": "passo",
+            "titulo": "Responsável financeiro",
+            "campos": [
+              {
+                "id": "87xrirlwf20x",
+                "tipo": "texto",
+                "label": "Nome completo do responsável financeiro",
+                "obrigatorio": true
+              },
+              {
+                "id": "up2k9q3lf20x",
+                "tipo": "texto",
+                "label": "E-mail",
+                "obrigatorio": true
+              },
+              {
+                "id": "g97j93f4f20x",
+                "tipo": "texto",
+                "label": "CPF",
+                "obrigatorio": true
+              },
+              {
+                "id": "bgct57j9f20x",
+                "tipo": "data",
+                "label": "Data de nascimento",
+                "obrigatorio": true
+              },
+              {
+                "id": "alp4vn3uf20x",
+                "tipo": "texto",
+                "label": "Celular",
+                "obrigatorio": true
+              },
+              {
+                "id": "0br81i6lf20x",
+                "tipo": "select",
+                "label": "Sexo",
+                "obrigatorio": true
+              },
+              {
+                "id": "ww5lu4l3f20x",
+                "tipo": "texto",
+                "label": "CEP",
+                "obrigatorio": true
+              },
+              {
+                "id": "p1rmfkgpf20x",
+                "tipo": "texto",
+                "label": "Rua",
+                "obrigatorio": true
+              },
+              {
+                "id": "5ivvh5fff20x",
+                "tipo": "texto",
+                "label": "Número",
+                "obrigatorio": true
+              },
+              {
+                "id": "xfwzuq3af20x",
+                "tipo": "texto",
+                "label": "Complemento"
+              },
+              {
+                "id": "2q2u4gkkf20x",
+                "tipo": "texto",
+                "label": "Bairro",
+                "obrigatorio": true
+              },
+              {
+                "id": "uybmsu38f20x",
+                "tipo": "select",
+                "label": "Cidade",
+                "obrigatorio": true
+              },
+              {
+                "id": "ipjgyavzf20x",
+                "tipo": "select",
+                "label": "Estado",
+                "obrigatorio": true
+              },
+              {
+                "id": "z7n7yrcyf20x",
+                "tipo": "select",
+                "label": "Nacionalidade",
+                "obrigatorio": true
+              },
+              {
+                "id": "asc3581gf20x",
+                "tipo": "select",
+                "label": "País natal",
+                "obrigatorio": true
+              },
+              {
+                "id": "mo4zugfuf20x",
+                "tipo": "select",
+                "label": "Estado natal",
+                "obrigatorio": true
+              },
+              {
+                "id": "tk98brwmf20x",
+                "tipo": "select",
+                "label": "Cidade natal",
+                "obrigatorio": true
+              },
+              {
+                "id": "ku9o8tktf20x",
+                "tipo": "botao",
+                "label": "PORTAL DO CANDIDATO"
+              },
+              {
+                "id": "n3xgrz0ef20x",
+                "tipo": "botao",
+                "label": "CONCLUIR"
+              }
+            ]
+          }
+        ],
+        "feedbacks": [
+          {
+            "feedback": "Pendente",
+            "logic": "Pendente cadastro do responsável financeiro",
+            "tipo": "nao_conclusivo"
+          },
+          {
+            "feedback": "Concluído",
+            "logic": "Cadastro do responsável financeiro finalizado",
+            "tipo": "positivo"
+          }
+        ]
+      },
+      {
+        "ordem": 5,
+        "nome": "Pré-Matrícula",
+        "condicao": "Documentos de Inscrição aprovados, taxa de inscrição paga (se houver), candidato aprovado no PS e menor de 18 anos",
+        "regras": "Em cenário que o candidato é menor de 18 anos, a etapa é exibida junto a do Responsável Financeiro, porém só pode ser acessada após o cadastro do responsável.",
+        "camposPorEtapa": [
+          {
+            "id": "j3amwmt0f20x",
+            "tipo": "passo",
+            "titulo": "Dados complementares",
+            "campos": [
+              {
+                "id": "av94db3gf20x",
+                "tipo": "texto",
+                "label": "CEP",
+                "obrigatorio": true
+              },
+              {
+                "id": "uaztg4wef20x",
+                "tipo": "texto",
+                "label": "Rua",
+                "obrigatorio": true
+              },
+              {
+                "id": "hackd3nxf20x",
+                "tipo": "texto",
+                "label": "Número",
+                "obrigatorio": true
+              },
+              {
+                "id": "4llldw2ef20x",
+                "tipo": "texto",
+                "label": "Complemento"
+              },
+              {
+                "id": "d0woglmyf20x",
+                "tipo": "texto",
+                "label": "Bairro",
+                "obrigatorio": true
+              },
+              {
+                "id": "u04sd3vzf20x",
+                "tipo": "select",
+                "label": "Cidade",
+                "obrigatorio": true
+              },
+              {
+                "id": "p4gz136wf20x",
+                "tipo": "select",
+                "label": "Estado",
+                "obrigatorio": true
+              },
+              {
+                "id": "dmx8s9myf20x",
+                "tipo": "select",
+                "label": "Nacionalidade",
+                "obrigatorio": true
+              },
+              {
+                "id": "7plwid3wf20x",
+                "tipo": "select",
+                "label": "País natal",
+                "obrigatorio": true
+              },
+              {
+                "id": "id92lejbf20x",
+                "tipo": "select",
+                "label": "Estado natal",
+                "obrigatorio": true
+              },
+              {
+                "id": "s52it6mnf20x",
+                "tipo": "select",
+                "label": "Cidade natal",
+                "obrigatorio": true
+              },
+              {
+                "id": "7qxsly8uf20x",
+                "tipo": "texto",
+                "label": "RG",
+                "obrigatorio": true
+              },
+              {
+                "id": "1eyxlu8zf20x",
+                "tipo": "select",
+                "label": "Orgão emissor",
+                "obrigatorio": true
+              },
+              {
+                "id": "7xqm3ztsf20x",
+                "tipo": "data",
+                "label": "Data da emissão",
+                "obrigatorio": true
+              },
+              {
+                "id": "o0kxizwwf20x",
+                "tipo": "botao",
+                "label": "PORTAL DO CANDIDATO"
+              },
+              {
+                "id": "3xhworanf20x",
+                "tipo": "botao",
+                "label": "AVANÇAR"
+              }
+            ]
+          },
+          {
+            "id": "r1sejnxlf20x",
+            "tipo": "passo",
+            "titulo": "Plano de pagamento",
+            "campos": [
+              {
+                "id": "ut6d5rcif20x",
+                "tipo": "select",
+                "label": "Plano de pagamento"
+              },
+              {
+                "id": "rfeksieff20x",
+                "tipo": "botao",
+                "label": "VOLTAR"
+              },
+              {
+                "id": "6um3pvc1f20x",
+                "tipo": "botao",
+                "label": "CONCLUIR"
+              }
+            ]
+          }
+        ],
+        "feedbacks": [
+          {
+            "feedback": "Pendente",
+            "logic": "Pendente acessar a etapa e preencher as informações",
+            "tipo": "nao_conclusivo"
+          },
+          {
+            "feedback": "Informe o responsável",
+            "logic": "Pendente cadastro do responsável financeiro",
+            "tipo": "nao_conclusivo"
+          },
+          {
+            "feedback": "Concluída",
+            "logic": "Informações enviadas e aluno criado no módulo educacional (RM TOTVS) com RA",
+            "tipo": "positivo"
+          }
+        ]
+      },
+      {
+        "ordem": 6,
+        "nome": "Termos de matrícula",
+        "condicao": null,
+        "regras": null,
+        "camposPorEtapa": [
+          {
+            "id": "2iuwkonvf20x",
+            "tipo": "passo",
+            "titulo": "Gerar seu contrato",
+            "campos": [
+              {
+                "id": "q810kjtrf20x",
+                "tipo": "texto_informativo",
+                "label": "Texto informativo"
+              },
+              {
+                "id": "cpne0wj7f20x",
+                "tipo": "texto",
+                "label": "Clique aqui para realizar o download de contrato"
+              },
+              {
+                "id": "jeudls07f20x",
+                "tipo": "check",
+                "label": "Aceite do contrato"
+              },
+              {
+                "id": "snl1imaif20x",
+                "tipo": "botao",
+                "label": "PORTAL DO CANDIDATO"
+              },
+              {
+                "id": "fatpb181f20x",
+                "tipo": "botao",
+                "label": "CONFIRMAR"
+              }
+            ]
+          }
+        ],
+        "feedbacks": [
+          {
+            "feedback": "Pendente",
+            "logic": "[Check] \"Aceite do contrato\" não está selecionado",
+            "tipo": "nao_conclusivo"
+          },
+          {
+            "feedback": "Assinado",
+            "logic": "Contrato assinado",
+            "tipo": "positivo"
+          }
+        ]
+      },
+      {
+        "ordem": 7,
+        "nome": "Termos de matrícula (TAE)",
+        "condicao": null,
+        "regras": null,
+        "camposPorEtapa": [
+          {
+            "id": "zt1re03rf20x",
+            "tipo": "passo",
+            "titulo": "Gerar seu contrato",
+            "campos": [
+              {
+                "id": "6f3kpjtlf20x",
+                "tipo": "texto_informativo",
+                "label": "Texto informativo"
+              },
+              {
+                "id": "xjfvh5i2f20x",
+                "tipo": "texto",
+                "label": "Clique aqui para realizar o download de contrato"
+              },
+              {
+                "id": "3xzlptz7f20x",
+                "tipo": "botao",
+                "label": "PORTAL DO CANDIDATO"
+              },
+              {
+                "id": "ara0oa75f20x",
+                "tipo": "botao",
+                "label": "ASSINAR CONTRATO DIGITAL"
+              }
+            ]
+          },
+          {
+            "id": "wmy4x5kgf20x",
+            "tipo": "popup",
+            "titulo": "TAE",
+            "campos": [
+              {
+                "id": "0x08f2rbf20x",
+                "tipo": "texto_informativo",
+                "label": "Texto informativo"
+              },
+              {
+                "id": "tkc7pikrf20x",
+                "tipo": "botao",
+                "label": "CIENTE"
+              }
+            ]
+          }
+        ],
+        "feedbacks": [
+          {
+            "feedback": "Pendente",
+            "logic": "Contrato pendente de assinatura",
+            "tipo": "nao_conclusivo"
+          },
+          {
+            "feedback": "Aguardando assinatura",
+            "logic": "Contrato pendente de assinatura",
+            "tipo": "nao_conclusivo"
+          },
+          {
+            "feedback": "Finalizado",
+            "logic": "Contrato assinado",
+            "tipo": "positivo"
+          },
+          {
+            "feedback": "Rejeitado",
+            "logic": "Status TAE = Rejeitado",
+            "tipo": "negativo"
+          }
+        ]
+      },
+      {
+        "ordem": 8,
+        "nome": "Taxa de matrícula",
+        "condicao": "Concluir a Pré-matrícula e assinar o termo de matrícula",
+        "regras": null,
+        "camposPorEtapa": [
+          {
+            "id": "bfdwcd83f20x",
+            "tipo": "passo",
+            "titulo": "Pagamento da matrícula",
+            "campos": [
+              {
+                "id": "mn8y3v9nf20x",
+                "tipo": "pagamento_valor",
+                "label": "Valor a pagar"
+              },
+              {
+                "id": "z8176x6uf20x",
+                "tipo": "pagamento_formas",
+                "label": "Meio de pagamento"
+              },
+              {
+                "id": "5gzd5rdkf20x",
+                "tipo": "botao",
+                "label": "PORTAL DO CANDIDATO"
+              },
+              {
+                "id": "jf14e2n4f20x",
+                "tipo": "botao",
+                "label": "REALIZAR PAGAMENTOBTN - GERAR BOLETO"
+              }
+            ]
+          }
+        ],
+        "feedbacks": [
+          {
+            "feedback": "Aguardando pagamento",
+            "logic": "Aguardando realização do pagamento",
+            "tipo": "nao_conclusivo"
+          },
+          {
+            "feedback": "Recebido",
+            "logic": "Pagamento realizado",
+            "tipo": "positivo"
+          }
+        ]
+      },
+      {
+        "ordem": 9,
+        "nome": "Documentos de matrícula",
+        "condicao": "Concluir a Pré-matrícula e assinar o termo de matrícula",
+        "regras": null,
+        "camposPorEtapa": [
+          {
+            "id": "qadneusif20x",
+            "tipo": "passo",
+            "titulo": "Documentação de matrícula",
+            "campos": [
+              {
+                "id": "fwk18jz4f20x",
+                "tipo": "texto_informativo",
+                "label": "Texto informativo"
+              },
+              {
+                "id": "inx5bkn0f20x",
+                "tipo": "documento_upload",
+                "label": "Documentos de matrícula",
+                "obrigatorio": true
+              },
+              {
+                "id": "gu6yua6bf20x",
+                "tipo": "botao",
+                "label": "PORTAL DO CANDIDATO"
+              },
+              {
+                "id": "qsqjr654f20x",
+                "tipo": "botao",
+                "label": "ENVIAR"
+              }
+            ]
+          }
+        ],
+        "feedbacks": [
+          {
+            "feedback": "Pendente envio",
+            "logic": "Candidato pendente de enviar documentos",
+            "tipo": "nao_conclusivo"
+          },
+          {
+            "feedback": "Recusado",
+            "logic": "Quando qualquer documento é recusado",
+            "tipo": "negativo"
+          },
+          {
+            "feedback": "Em análise",
+            "logic": "Quando todos os documentos estão em análise",
+            "tipo": "nao_conclusivo"
+          },
+          {
+            "feedback": "Obrigatórios em análise",
+            "logic": "Quando todos os documentos obrigatórios estão em análise",
+            "tipo": "nao_conclusivo"
+          },
+          {
+            "feedback": "Entregues",
+            "logic": "Quando todos os documentos forem aprovados",
+            "tipo": "positivo"
+          },
+          {
+            "feedback": "Obrigatórios entregues",
+            "logic": "Quando todos os documentos obrigatórios forem aprovados",
+            "tipo": "positivo"
+          }
+        ]
+      },
+      {
+        "ordem": 10,
+        "nome": "Matrícula",
+        "condicao": "Concluir a Pré-matrícula e assinar o termo de matrícula",
+        "regras": "Etapa exclusica para os feedbacks.",
+        "camposPorEtapa": [],
+        "feedbacks": [
+          {
+            "feedback": "Pendente",
+            "logic": "Status de matrícula é diferente de \"Matriculado\"",
+            "tipo": "nao_conclusivo"
+          },
+          {
+            "feedback": "Concluída",
+            "logic": "Status de matrícula no período letivo alterado para \"Matriculado\"",
+            "tipo": "positivo"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "colegio",
+    "nome": "Colégio",
+    "informacoesAdicionais": {
+      "idProcessoSeletivo": "",
+      "idRelatorioContrato": "",
+      "classificacaoConvocacao": "",
+      "criterioClassificacao": "",
+      "Nome da avaliação | App Prova On-line Rubeus": "",
+      "agendamento": ""
+    },
+    "etapas": [
+      {
+        "ordem": 1,
+        "nome": "Pré-cadastro",
+        "condicao": "Acessar a ficha",
+        "regras": null,
+        "camposPorEtapa": [
+          {
+            "id": "4ss9w6p1f20x",
+            "tipo": "passo",
+            "titulo": "Responsável pelo aluno",
+            "campos": [
+              {
+                "id": "z136am3yf20x",
+                "tipo": "titulo_pagina",
+                "label": "Preencha os dados de quem será o responsável pelo estudante"
+              },
+              {
+                "id": "89aqiu32f20x",
+                "tipo": "texto_informativo",
+                "label": "Esse será o responsável que realizará o acesso no portal do candidato"
+              },
+              {
+                "id": "megcni3df20x",
+                "tipo": "texto",
+                "label": "Nome Completo",
+                "obrigatorio": true
+              },
+              {
+                "id": "45l8984ff20x",
+                "tipo": "texto",
+                "label": "E-mail",
+                "obrigatorio": true
+              },
+              {
+                "id": "kwasduauf20x",
+                "tipo": "check",
+                "label": "Possui nome social?"
+              },
+              {
+                "id": "g8gdypp6f20x",
+                "tipo": "check",
+                "label": "Nome Social",
+                "condicaoExibicao": "Só aparece se \"Possui nome social?\" estiver marcado"
+              },
+              {
+                "id": "85lqdc9zf20x",
+                "tipo": "texto",
+                "label": "CPF",
+                "obrigatorio": true
+              },
+              {
+                "id": "10fyu62kf20x",
+                "tipo": "data",
+                "label": "Data de nascimento",
+                "obrigatorio": true
+              },
+              {
+                "id": "slw46hbff20x",
+                "tipo": "texto",
+                "label": "Celular",
+                "obrigatorio": true
+              },
+              {
+                "id": "jxqq9c50f20x",
+                "tipo": "divisor",
+                "label": ""
+              },
+              {
+                "id": "1tk420lkf20x",
+                "tipo": "texto",
+                "label": "CEP",
+                "obrigatorio": true
+              },
+              {
+                "id": "vspnx46qf20x",
+                "tipo": "texto",
+                "label": "Rua",
+                "obrigatorio": true
+              },
+              {
+                "id": "ymotvmcqf20x",
+                "tipo": "texto",
+                "label": "Número",
+                "obrigatorio": true
+              },
+              {
+                "id": "ulusu7awf20x",
+                "tipo": "texto",
+                "label": "Complemento",
+                "obrigatorio": true
+              },
+              {
+                "id": "o0vtdcbyf20x",
+                "tipo": "texto",
+                "label": "Bairro",
+                "obrigatorio": true
+              },
+              {
+                "id": "xudn3b6ff20x",
+                "tipo": "select",
+                "label": "Cidade",
+                "obrigatorio": true
+              },
+              {
+                "id": "1ne467zqf20x",
+                "tipo": "select",
+                "label": "Estado",
+                "obrigatorio": true
+              },
+              {
+                "id": "d9s2qvv6f20x",
+                "tipo": "select",
+                "label": "Estado Natal",
+                "obrigatorio": true
+              },
+              {
+                "id": "j9qxbl7wf20x",
+                "tipo": "select",
+                "label": "Cidade Natal",
+                "obrigatorio": true
+              },
+              {
+                "id": "z9dlxlmaf20x",
+                "tipo": "check",
+                "label": "Aceito receber conteúdo e lembretes sobre o processo seletivo. Ao informar os meus dados, eu concordo com a Politica de Privacidade regente.",
+                "obrigatorio": true
+              },
+              {
+                "id": "6tw2kbh0f20x",
+                "tipo": "botao",
+                "label": "VOLTAR"
+              },
+              {
+                "id": "z8zq61wqf20x",
+                "tipo": "botao",
+                "label": "AVANÇAR"
+              }
+            ]
+          },
+          {
+            "id": "ish5afq0f20x",
+            "tipo": "passo",
+            "titulo": "Dados aluno",
+            "campos": [
+              {
+                "id": "ad6begy7f20x",
+                "tipo": "texto_informativo",
+                "label": "Agora, você pode preencher os dados do(a) aluno(a)"
+              },
+              {
+                "id": "mzjzwm9pf20x",
+                "tipo": "texto",
+                "label": "Nome completo",
+                "obrigatorio": true
+              },
+              {
+                "id": "zgfy6hi0f20x",
+                "tipo": "texto",
+                "label": "E-mail",
+                "obrigatorio": true
+              },
+              {
+                "id": "3d5bl1kqf20x",
+                "tipo": "check",
+                "label": "Possuo nome social",
+                "obrigatorio": true
+              },
+              {
+                "id": "gjyv3qs1f20x",
+                "tipo": "texto",
+                "label": "Nome social",
+                "obrigatorio": true,
+                "condicaoExibicao": "Só aparece se \"Possuo nome social\" estiver marcado"
+              },
+              {
+                "id": "ur6p8m84f20x",
+                "tipo": "texto",
+                "label": "CPF",
+                "obrigatorio": true
+              },
+              {
+                "id": "bi4q1r47f20x",
+                "tipo": "data",
+                "label": "Data de nascimento",
+                "obrigatorio": true
+              },
+              {
+                "id": "rczj2d2ef20x",
+                "tipo": "radio",
+                "label": "Sexo",
+                "obrigatorio": true
+              },
+              {
+                "id": "76apggfvf20x",
+                "tipo": "botao",
+                "label": "Aproveitar Endereço"
+              },
+              {
+                "id": "z21eqferf20x",
+                "tipo": "texto",
+                "label": "CEP",
+                "obrigatorio": true
+              },
+              {
+                "id": "8je52jsuf20x",
+                "tipo": "texto",
+                "label": "Rua",
+                "obrigatorio": true
+              },
+              {
+                "id": "e4wt3x34f20x",
+                "tipo": "texto",
+                "label": "Número",
+                "obrigatorio": true
+              },
+              {
+                "id": "yp49qrr3f20x",
+                "tipo": "texto",
+                "label": "Complemento",
+                "obrigatorio": true
+              },
+              {
+                "id": "lozk7czof20x",
+                "tipo": "texto",
+                "label": "Bairro",
+                "obrigatorio": true
+              },
+              {
+                "id": "iznuije4f20x",
+                "tipo": "select",
+                "label": "Cidade",
+                "obrigatorio": true
+              },
+              {
+                "id": "zk9ddv7zf20x",
+                "tipo": "select",
+                "label": "Estado",
+                "obrigatorio": true
+              },
+              {
+                "id": "jmmkesm9f20x",
+                "tipo": "select",
+                "label": "Estado Natal",
+                "obrigatorio": true
+              },
+              {
+                "id": "i4h1ganmf20x",
+                "tipo": "select",
+                "label": "Cidade natal",
+                "obrigatorio": true
+              },
+              {
+                "id": "dkwkgco2f20x",
+                "tipo": "botao",
+                "label": "VOLTAR"
+              },
+              {
+                "id": "jvc11x15f20x",
+                "tipo": "botao",
+                "label": "AVANÇAR"
+              }
+            ]
+          },
+          {
+            "id": "13ynrrquf20x",
+            "tipo": "passo",
+            "titulo": "Estamos quase lá",
+            "campos": [
+              {
+                "id": "9q8gurfpf20x",
+                "tipo": "texto_informativo",
+                "label": "Escolha a série que aluno irá estudar!"
+              },
+              {
+                "id": "f0ra3nzcf20x",
+                "tipo": "select",
+                "label": "Série",
+                "obrigatorio": true
+              },
+              {
+                "id": "olmi5pptf20x",
+                "tipo": "botao",
+                "label": "VOLTAR"
+              },
+              {
+                "id": "0jrf2vzyf20x",
+                "tipo": "botao",
+                "label": "CONCLUIR"
+              }
+            ]
+          }
+        ],
+        "feedbacks": [
+          {
+            "feedback": "Concluída",
+            "logic": "Inscrição finalizada na ficha",
+            "tipo": "positivo"
+          }
+        ]
+      },
+      {
+        "ordem": 2,
+        "nome": "Responsável financeiro",
+        "condicao": "Documentos de Inscrição aprovados, taxa de inscrição paga (se houver), candidato aprovado no PS e menor de 18 anos.",
+        "regras": null,
+        "camposPorEtapa": [
+          {
+            "id": "9qlf6ex8f20x",
+            "tipo": "passo",
+            "titulo": "Responsável financeiro",
+            "campos": [
+              {
+                "id": "6csiufmbf20x",
+                "tipo": "titulo_pagina",
+                "label": "Cadastro do responsável financeiro"
+              },
+              {
+                "id": "e3kyqeldf20x",
+                "tipo": "texto_informativo",
+                "label": "Para continuar clique em Cadastrar responsável e informe os dados do responsável do aluno."
+              },
+              {
+                "id": "0txlj1yaf20x",
+                "tipo": "botao",
+                "label": "Portal do candidato"
+              },
+              {
+                "id": "k78tdid4f20x",
+                "tipo": "botao",
+                "label": "Cadastrar responsável"
+              }
+            ]
+          },
+          {
+            "id": "evk05bsrf20x",
+            "tipo": "popup",
+            "titulo": "Responsável financeiro",
+            "campos": [
+              {
+                "id": "1qw2h9tvf20x",
+                "tipo": "texto",
+                "label": "Nome completo do responsável financeiro",
+                "obrigatorio": true
+              },
+              {
+                "id": "xxykzyxkf20x",
+                "tipo": "texto",
+                "label": "E-mail",
+                "obrigatorio": true
+              },
+              {
+                "id": "53lgqbc0f20x",
+                "tipo": "select",
+                "label": "Grau de parentesco"
+              },
+              {
+                "id": "jlkceantf20x",
+                "tipo": "texto",
+                "label": "CPF",
+                "obrigatorio": true
+              },
+              {
+                "id": "7phbjuu0f20x",
+                "tipo": "data",
+                "label": "Data de nascimento",
+                "obrigatorio": true
+              },
+              {
+                "id": "wfv1ns3yf20x",
+                "tipo": "texto",
+                "label": "Celular",
+                "obrigatorio": true
+              },
+              {
+                "id": "xogsukvgf20x",
+                "tipo": "texto",
+                "label": "Carteira de identidade",
+                "obrigatorio": true
+              },
+              {
+                "id": "u9ld047sf20x",
+                "tipo": "select",
+                "label": "Orgão emissor",
+                "obrigatorio": true
+              },
+              {
+                "id": "5589ve9cf20x",
+                "tipo": "select",
+                "label": "UF da identidade",
+                "obrigatorio": true
+              },
+              {
+                "id": "v7xd19n4f20x",
+                "tipo": "select",
+                "label": "Nacionalidade",
+                "obrigatorio": true
+              },
+              {
+                "id": "54c6z23xf20x",
+                "tipo": "texto",
+                "label": "Grau de instrução"
+              },
+              {
+                "id": "fzmqvmsyf20x",
+                "tipo": "texto",
+                "label": "Profissão"
+              },
+              {
+                "id": "opvua97nf20x",
+                "tipo": "divisor",
+                "label": ""
+              },
+              {
+                "id": "t74dboa0f20x",
+                "tipo": "texto",
+                "label": "CEP",
+                "obrigatorio": true
+              },
+              {
+                "id": "o5p33snjf20x",
+                "tipo": "texto",
+                "label": "Rua",
+                "obrigatorio": true
+              },
+              {
+                "id": "g1v7fz3uf20x",
+                "tipo": "texto",
+                "label": "Número",
+                "obrigatorio": true
+              },
+              {
+                "id": "fv0hbevof20x",
+                "tipo": "texto",
+                "label": "Complemento"
+              },
+              {
+                "id": "2n94jqi2f20x",
+                "tipo": "texto",
+                "label": "Bairro",
+                "obrigatorio": true
+              },
+              {
+                "id": "vvx6mzfsf20x",
+                "tipo": "select",
+                "label": "Cidade",
+                "obrigatorio": true
+              },
+              {
+                "id": "9g65ua0af20x",
+                "tipo": "select",
+                "label": "Estado",
+                "obrigatorio": true
+              },
+              {
+                "id": "g6kcpurtf20x",
+                "tipo": "select",
+                "label": "Estado natal",
+                "obrigatorio": true
+              },
+              {
+                "id": "6e3a9acwf20x",
+                "tipo": "select",
+                "label": "Cidade natal",
+                "obrigatorio": true
+              },
+              {
+                "id": "t4p8g8qsf20x",
+                "tipo": "botao",
+                "label": "X FECHAR"
+              },
+              {
+                "id": "9r2sqy9kf20x",
+                "tipo": "botao",
+                "label": "CONCLUIR"
+              }
+            ]
+          }
+        ],
+        "feedbacks": [
+          {
+            "feedback": "Pendente",
+            "logic": "Pendente cadastro do responsável financeiro",
+            "tipo": "nao_conclusivo"
+          },
+          {
+            "feedback": "Concluído",
+            "logic": "Cadastro do responsável financeiro finalizado",
+            "tipo": "positivo"
+          }
+        ]
+      },
+      {
+        "ordem": 3,
+        "nome": "Taxa de inscrição",
+        "condicao": "Concluir a Inscrição e se houver taxa de inscrição",
+        "regras": null,
+        "camposPorEtapa": [
+          {
+            "id": "n2wzyebdf20x",
+            "tipo": "passo",
+            "titulo": "Taxa de inscrição",
+            "campos": [
+              {
+                "id": "01vt8ok4f20x",
+                "tipo": "pagamento_valor",
+                "label": "Valor a pagar"
+              },
+              {
+                "id": "gb7gig0tf20x",
+                "tipo": "pagamento_formas",
+                "label": "Meio de pagamento"
+              },
+              {
+                "id": "vwvjw8akf20x",
+                "tipo": "botao",
+                "label": "PORTAL DO CANDIDATO"
+              },
+              {
+                "id": "b3dlbrflf20x",
+                "tipo": "botao",
+                "label": "REALIZAR PAGAMENTO \nBTN - GERAR BOLETO"
+              }
+            ]
+          }
+        ],
+        "feedbacks": [
+          {
+            "feedback": "Aguardando pagamento",
+            "logic": "Aguardando realização do pagamento",
+            "tipo": "nao_conclusivo"
+          },
+          {
+            "feedback": "Em processamento",
+            "logic": "Aguardando confirmação de inscrição",
+            "tipo": "nao_conclusivo"
+          },
+          {
+            "feedback": "Recebido",
+            "logic": "Confirmação de inscrição e pagamento realizado",
+            "tipo": "positivo"
+          }
+        ]
+      },
+      {
+        "ordem": 4,
+        "nome": "Documentos de inscrição",
+        "condicao": "Concluir a Inscrição e se houver documentos de inscrição",
+        "regras": null,
+        "camposPorEtapa": [
+          {
+            "id": "o14ij770f20x",
+            "tipo": "passo",
+            "titulo": "Documentos de inscrição",
+            "campos": [
+              {
+                "id": "xnndk92zf20x",
+                "tipo": "texto_informativo",
+                "label": "Texto informativo"
+              },
+              {
+                "id": "jhymuwb1f20x",
+                "tipo": "documento_upload",
+                "label": "Documentos de inscrição",
+                "obrigatorio": true
+              },
+              {
+                "id": "bhwcyavjf20x",
+                "tipo": "botao",
+                "label": "PORTAL DO CANDIDATO"
+              },
+              {
+                "id": "r10jlg9zf20x",
+                "tipo": "botao",
+                "label": "ENVIAR"
+              }
+            ]
+          }
+        ],
+        "feedbacks": [
+          {
+            "feedback": "Pendente envio",
+            "logic": "Candidato pendente de enviar documentos",
+            "tipo": "nao_conclusivo"
+          },
+          {
+            "feedback": "Recusado",
+            "logic": "Quando qualquer documento é recusado",
+            "tipo": "negativo"
+          },
+          {
+            "feedback": "Em análise",
+            "logic": "Quando todos os documentos estão em análise",
+            "tipo": "nao_conclusivo"
+          },
+          {
+            "feedback": "Obrigatórios em análise",
+            "logic": "Quando todos os documentos obrigatórios estão em análise",
+            "tipo": "nao_conclusivo"
+          },
+          {
+            "feedback": "Entregues",
+            "logic": "Quando todos os documentos forem aprovados",
+            "tipo": "positivo"
+          },
+          {
+            "feedback": "Obrigatórios entregues",
+            "logic": "Quando todos os documentos obrigatórios forem aprovados",
+            "tipo": "positivo"
+          }
+        ]
+      },
+      {
+        "ordem": 5,
+        "nome": "Filiação",
+        "condicao": "Se houver documento e o documento for aprovado E se a inscrição for confirmada",
+        "regras": null,
+        "camposPorEtapa": [
+          {
+            "id": "0k7glql4f20x",
+            "tipo": "passo",
+            "titulo": "Filiação",
+            "campos": [
+              {
+                "id": "qj6j53gtf20x",
+                "tipo": "texto_informativo",
+                "label": "Consulte os responsáveis vinculados no aluno e adicione novos responsáveis clicando em Cadastrar filiação"
+              },
+              {
+                "id": "w0frsdguf20x",
+                "tipo": "texto_informativo",
+                "label": "Responsável da Inscrição: Marcus da Silva"
+              },
+              {
+                "id": "r00dr2ykf20x",
+                "tipo": "texto_informativo",
+                "label": "Responsável Financeiro: Marcus da Silva"
+              },
+              {
+                "id": "odwvcs3nf20x",
+                "tipo": "botao",
+                "label": "Portal do candidato"
+              },
+              {
+                "id": "damqkcbgf20x",
+                "tipo": "botao",
+                "label": "Cadastrar Filiação"
+              }
+            ]
+          },
+          {
+            "id": "iosirjicf20x",
+            "tipo": "pagina",
+            "titulo": "Preencha os dados da sua filiação",
+            "campos": [
+              {
+                "id": "knzoobbbf20x",
+                "tipo": "titulo_pagina",
+                "label": "Preencha os dados da sua filiação"
+              },
+              {
+                "id": "fe80drvff20x",
+                "tipo": "texto",
+                "label": "Tipo de relacionamento"
+              },
+              {
+                "id": "anbpt2rrf20x",
+                "tipo": "texto",
+                "label": "Nome completo da filiação"
+              },
+              {
+                "id": "5xayb8lvf20x",
+                "tipo": "texto",
+                "label": "E-mail"
+              },
+              {
+                "id": "6m139xx4f20x",
+                "tipo": "texto",
+                "label": "CPF"
+              },
+              {
+                "id": "xhf8727gf20x",
+                "tipo": "texto",
+                "label": "Celular"
+              },
+              {
+                "id": "y5wnzug7f20x",
+                "tipo": "data",
+                "label": "Data de nascimento"
+              },
+              {
+                "id": "xmhipkbyf20x",
+                "tipo": "texto",
+                "label": "Número da carteira de identidade"
+              },
+              {
+                "id": "0gpia8ihf20x",
+                "tipo": "select",
+                "label": "Orgão Emissor"
+              },
+              {
+                "id": "jx87xd2df20x",
+                "tipo": "texto",
+                "label": "UF da carteira da indentidade"
+              },
+              {
+                "id": "a6r46wcgf20x",
+                "tipo": "divisor",
+                "label": ""
+              },
+              {
+                "id": "591q7pu2f20x",
+                "tipo": "texto",
+                "label": "CEP",
+                "obrigatorio": true
+              },
+              {
+                "id": "cpv8xzpef20x",
+                "tipo": "texto",
+                "label": "Rua",
+                "obrigatorio": true
+              },
+              {
+                "id": "mmbms3ewf20x",
+                "tipo": "texto",
+                "label": "Número",
+                "obrigatorio": true
+              },
+              {
+                "id": "p2a6bss8f20x",
+                "tipo": "texto",
+                "label": "Complemento",
+                "obrigatorio": true
+              },
+              {
+                "id": "dd580ao3f20x",
+                "tipo": "texto",
+                "label": "Bairro",
+                "obrigatorio": true
+              },
+              {
+                "id": "hvgz3gtcf20x",
+                "tipo": "select",
+                "label": "Cidade",
+                "obrigatorio": true
+              },
+              {
+                "id": "lcqte5o9f20x",
+                "tipo": "select",
+                "label": "Estado",
+                "obrigatorio": true
+              },
+              {
+                "id": "e6k6zyv8f20x",
+                "tipo": "select",
+                "label": "Estado Natal",
+                "obrigatorio": true
+              },
+              {
+                "id": "erur0v2yf20x",
+                "tipo": "select",
+                "label": "Cidade Natal",
+                "obrigatorio": true
+              },
+              {
+                "id": "iqu6r920f20x",
+                "tipo": "botao",
+                "label": "Portal do candidato"
+              },
+              {
+                "id": "3topb1elf20x",
+                "tipo": "botao",
+                "label": "Cadastrar Responsável"
+              }
+            ]
+          }
+        ],
+        "feedbacks": [
+          {
+            "feedback": "Pendente",
+            "logic": "Filiação ainda não cadastrada",
+            "tipo": "nao_conclusivo"
+          },
+          {
+            "feedback": "Realizada",
+            "logic": "Filiação cadastrada",
+            "tipo": "positivo"
+          }
+        ]
+      },
+      {
+        "ordem": 6,
+        "nome": "Pré-Matrícula",
+        "condicao": "Documentos de Inscrição aprovados, taxa de inscrição paga (se houver), candidato aprovado no PS e menor de 18 anos",
+        "regras": "Em cenário que o candidato é menor de 18 anos, a etapa é exibida junto a do Responsável Financeiro, porém só pode ser acessada após o cadastro do responsável.",
+        "camposPorEtapa": [
+          {
+            "id": "uzxv0c5wf20x",
+            "tipo": "passo",
+            "titulo": "Dados complementares",
+            "campos": [
+              {
+                "id": "9k3xmh19f20x",
+                "tipo": "titulo_pagina",
+                "label": "Agora, precisa informar o responsável acadêmico!"
+              },
+              {
+                "id": "d8okv77hf20x",
+                "tipo": "texto",
+                "label": "Nome completo do responsável acadêmico",
+                "obrigatorio": true
+              },
+              {
+                "id": "7dohsm18f20x",
+                "tipo": "select",
+                "label": "E-mail",
+                "obrigatorio": true
+              },
+              {
+                "id": "f8niv2f9f20x",
+                "tipo": "data",
+                "label": "Grau de parentesco",
+                "obrigatorio": true
+              },
+              {
+                "id": "ww34kzc8f20x",
+                "tipo": "texto",
+                "label": "CPF",
+                "obrigatorio": true
+              },
+              {
+                "id": "w60x84bcf20x",
+                "tipo": "data",
+                "label": "Data de nascimento",
+                "obrigatorio": true
+              },
+              {
+                "id": "3nlwhu8xf20x",
+                "tipo": "texto",
+                "label": "Celular",
+                "obrigatorio": true
+              },
+              {
+                "id": "lhiah498f20x",
+                "tipo": "select",
+                "label": "Estado civil",
+                "obrigatorio": true
+              },
+              {
+                "id": "2stqpb5af20x",
+                "tipo": "divisor",
+                "label": ""
+              },
+              {
+                "id": "l20qmzunf20x",
+                "tipo": "texto",
+                "label": "CEP",
+                "obrigatorio": true
+              },
+              {
+                "id": "4lnu1wuif20x",
+                "tipo": "texto",
+                "label": "Rua",
+                "obrigatorio": true
+              },
+              {
+                "id": "p57k9snaf20x",
+                "tipo": "texto",
+                "label": "Número",
+                "obrigatorio": true
+              },
+              {
+                "id": "2jc49uoxf20x",
+                "tipo": "texto",
+                "label": "Complemento"
+              },
+              {
+                "id": "vte8yu8pf20x",
+                "tipo": "texto",
+                "label": "Bairro",
+                "obrigatorio": true
+              },
+              {
+                "id": "9oksg3u9f20x",
+                "tipo": "select",
+                "label": "Cidade",
+                "obrigatorio": true
+              },
+              {
+                "id": "v1t41ly7f20x",
+                "tipo": "select",
+                "label": "Estado",
+                "obrigatorio": true
+              },
+              {
+                "id": "ybivpoa1f20x",
+                "tipo": "select",
+                "label": "Nacionalidade",
+                "obrigatorio": true
+              },
+              {
+                "id": "nlnti6eaf20x",
+                "tipo": "select",
+                "label": "Estado natal",
+                "obrigatorio": true
+              },
+              {
+                "id": "9qigetg2f20x",
+                "tipo": "select",
+                "label": "Cidade natal",
+                "obrigatorio": true
+              },
+              {
+                "id": "0mxwzyusf20x",
+                "tipo": "botao",
+                "label": "PORTAL DO CANDIDATO"
+              },
+              {
+                "id": "iorqxeh8f20x",
+                "tipo": "botao",
+                "label": "AVANÇAR"
+              }
+            ]
+          },
+          {
+            "id": "bk9nj3bnf20x",
+            "tipo": "passo",
+            "titulo": "Plano de pagamento",
+            "campos": [
+              {
+                "id": "bmm3d8vff20x",
+                "tipo": "titulo_pagina",
+                "label": "Agora, selecione a opção de pagamento mais adequada para você!"
+              },
+              {
+                "id": "8i57iepef20x",
+                "tipo": "select",
+                "label": "Plano de pagamento"
+              },
+              {
+                "id": "4nlxep38f20x",
+                "tipo": "botao",
+                "label": "VOLTAR"
+              },
+              {
+                "id": "36pap0exf20x",
+                "tipo": "botao",
+                "label": "CONCLUIR"
+              }
+            ]
+          }
+        ],
+        "feedbacks": [
+          {
+            "feedback": "Pendente",
+            "logic": "Pendente acessar a etapa e preencher as informações",
+            "tipo": "nao_conclusivo"
+          },
+          {
+            "feedback": "Concluída",
+            "logic": "Informações enviadas e aluno criado no módulo educacional (RM TOTVS) com RA",
+            "tipo": "positivo"
+          }
+        ]
+      },
+      {
+        "ordem": 7,
+        "nome": "Termos de matrícula",
+        "condicao": null,
+        "regras": null,
+        "camposPorEtapa": [
+          {
+            "id": "iruta6mof20x",
+            "tipo": "passo",
+            "titulo": "Gerar seu contrato",
+            "campos": [
+              {
+                "id": "ok6vce69f20x",
+                "tipo": "texto_informativo",
+                "label": "Texto informativo"
+              },
+              {
+                "id": "qi1tabf8f20x",
+                "tipo": "texto",
+                "label": "Clique aqui para realizar o download de contrato"
+              },
+              {
+                "id": "jf362garf20x",
+                "tipo": "check",
+                "label": "Declaro que li e estou de acordo com o contrato apresentado",
+                "obrigatorio": true
+              },
+              {
+                "id": "6jsuq3f8f20x",
+                "tipo": "botao",
+                "label": "PORTAL DO CANDIDATO"
+              },
+              {
+                "id": "lvn2irqwf20x",
+                "tipo": "botao",
+                "label": "CONFIRMAR",
+                "condicaoExibicao": "Só aparece se \"Declaro que li e estou de acordo com o contrato apresentado\" estiver marcado"
+              }
+            ]
+          }
+        ],
+        "feedbacks": [
+          {
+            "feedback": "Pendente",
+            "logic": "[Check] \"Aceite do contrato\" não está selecionado",
+            "tipo": "nao_conclusivo"
+          },
+          {
+            "feedback": "Assinado",
+            "logic": "Contrato assinado",
+            "tipo": "positivo"
+          }
+        ]
+      },
+      {
+        "ordem": 8,
+        "nome": "Termos de matrícula (TAE)",
+        "condicao": null,
+        "regras": null,
+        "camposPorEtapa": [
+          {
+            "id": "mg6jvvs1f20x",
+            "tipo": "passo",
+            "titulo": "Gerar seu contrato",
+            "campos": [
+              {
+                "id": "hwuzseojf20x",
+                "tipo": "texto_informativo",
+                "label": "Texto informativo"
+              },
+              {
+                "id": "5ykifmfvf20x",
+                "tipo": "texto",
+                "label": "Clique aqui para realizar o download de contrato"
+              },
+              {
+                "id": "jnbyxx6gf20x",
+                "tipo": "botao",
+                "label": "PORTAL DO CANDIDATO"
+              },
+              {
+                "id": "e7iqeg19f20x",
+                "tipo": "botao",
+                "label": "ASSINAR CONTRATO DIGITAL"
+              }
+            ]
+          },
+          {
+            "id": "x243fatef20x",
+            "tipo": "popup",
+            "titulo": "TAE",
+            "campos": [
+              {
+                "id": "068sojk0f20x",
+                "tipo": "texto_informativo",
+                "label": "Foi enviado o token de autenticação para o seu e-mail pxxxduarxxx@gmail.com"
+              },
+              {
+                "id": "3gu2uk0ef20x",
+                "tipo": "texto",
+                "label": "Token"
+              },
+              {
+                "id": "b88w7ei2f20x",
+                "tipo": "botao",
+                "label": "Validar"
+              }
+            ]
+          }
+        ],
+        "feedbacks": [
+          {
+            "feedback": "Pendente",
+            "logic": "Contrato pendente de assinatura",
+            "tipo": "nao_conclusivo"
+          },
+          {
+            "feedback": "Aguardando assinatura",
+            "logic": "Contrato pendente de assinatura",
+            "tipo": "nao_conclusivo"
+          },
+          {
+            "feedback": "Finalizado",
+            "logic": "Contrato assinado",
+            "tipo": "positivo"
+          },
+          {
+            "feedback": "Rejeitado",
+            "logic": "Status TAE = Rejeitado",
+            "tipo": "negativo"
+          }
+        ]
+      },
+      {
+        "ordem": 9,
+        "nome": "Taxa de matrícula",
+        "condicao": "Concluir a Pré-matrícula e assinar o termo de matrícula",
+        "regras": null,
+        "camposPorEtapa": [
+          {
+            "id": "dqx23ghrf20x",
+            "tipo": "passo",
+            "titulo": "Pagamento da matrícula",
+            "campos": [
+              {
+                "id": "mzex2igpf20x",
+                "tipo": "pagamento_valor",
+                "label": "Valor a pagar"
+              },
+              {
+                "id": "stjfjsd2f20x",
+                "tipo": "pagamento_formas",
+                "label": "Meio de pagamento"
+              },
+              {
+                "id": "69strb7sf20x",
+                "tipo": "botao",
+                "label": "PORTAL DO CANDIDATO"
+              },
+              {
+                "id": "4pm8w1dsf20x",
+                "tipo": "botao",
+                "label": "REALIZAR PAGAMENTOBTN - GERAR BOLETO"
+              }
+            ]
+          }
+        ],
+        "feedbacks": [
+          {
+            "feedback": "Aguardando pagamento",
+            "logic": "Aguardando realização do pagamento",
+            "tipo": "nao_conclusivo"
+          },
+          {
+            "feedback": "Recebido",
+            "logic": "Pagamento realizado",
+            "tipo": "positivo"
+          }
+        ]
+      },
+      {
+        "ordem": 10,
+        "nome": "Documentos de matrícula",
+        "condicao": "Concluir a Pré-matrícula e assinar o termo de matrícula",
+        "regras": null,
+        "camposPorEtapa": [
+          {
+            "id": "jvtkm8b8f20x",
+            "tipo": "passo",
+            "titulo": "Documentação de matrícula",
+            "campos": [
+              {
+                "id": "s8b2wy3uf20x",
+                "tipo": "texto_informativo",
+                "label": "Texto informativo"
+              },
+              {
+                "id": "eingpcpsf20x",
+                "tipo": "documento_upload",
+                "label": "Documentos de matrícula",
+                "obrigatorio": true
+              },
+              {
+                "id": "w9trss9if20x",
+                "tipo": "botao",
+                "label": "PORTAL DO CANDIDATO"
+              },
+              {
+                "id": "k7myudwcf20x",
+                "tipo": "botao",
+                "label": "ENVIAR"
+              }
+            ]
+          }
+        ],
+        "feedbacks": [
+          {
+            "feedback": "Pendente envio",
+            "logic": "Candidato pendente de enviar documentos",
+            "tipo": "nao_conclusivo"
+          },
+          {
+            "feedback": "Recusado",
+            "logic": "Quando qualquer documento é recusado",
+            "tipo": "negativo"
+          },
+          {
+            "feedback": "Em análise",
+            "logic": "Quando todos os documentos estão em análise",
+            "tipo": "nao_conclusivo"
+          },
+          {
+            "feedback": "Obrigatórios em análise",
+            "logic": "Quando todos os documentos obrigatórios estão em análise",
+            "tipo": "nao_conclusivo"
+          },
+          {
+            "feedback": "Entregues",
+            "logic": "Quando todos os documentos forem aprovados",
+            "tipo": "positivo"
+          },
+          {
+            "feedback": "Obrigatórios entregues",
+            "logic": "Quando todos os documentos obrigatórios forem aprovados",
+            "tipo": "positivo"
+          }
+        ]
+      },
+      {
+        "ordem": 11,
+        "nome": "Matricula",
+        "condicao": "Status de matricula no periodo letivo chamado de Matriculado",
+        "regras": null,
+        "camposPorEtapa": [],
+        "feedbacks": []
+      }
+    ]
+  }
+]

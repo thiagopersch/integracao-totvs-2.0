@@ -67,9 +67,16 @@ export function PassoEditor({ passo, etapas, onChange, onRemove, onMove, canMove
         </Button>
       </div>
 
-      <div className="space-y-2">
+      <div className="space-y-3">
         {passo.campos.map((campo) => (
-          <CampoRow key={campo.id} campo={campo} etapas={etapas} onChange={(patch) => updateCampo(campo.id, patch)} onRemove={() => removeCampo(campo.id)} />
+          <CampoRow
+            key={campo.id}
+            campo={campo}
+            etapas={etapas}
+            passoCampos={passo.campos}
+            onChange={(patch) => updateCampo(campo.id, patch)}
+            onRemove={() => removeCampo(campo.id)}
+          />
         ))}
       </div>
 

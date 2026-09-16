@@ -24,6 +24,27 @@ export async function listMapeadorProjetos() {
   return mapeadorService.listProjetos(organizationId);
 }
 
+export async function listMapeadorTemplates() {
+  await requirePermission("mapeador_projetos", "read");
+  return mapeadorService.listTemplates();
+}
+
+export async function createMapeadorProjetosFromTemplates(templateIds: string[]) {
+  const { organizationId } = await requirePermission("mapeador_projetos", "create");
+  if (!templateIds.length) return fail(new Error("Selecione ao menos uma forma de ingresso"));
+
+  try {
+    const created = await mapeadorService.createProjetosFromTemplates(templateIds, organizationId);
+    for (const projeto of created) {
+      await auditService.log({ action: "CREATE", entity: "MapeadorProjeto", entityId: projeto.id, newData: { nome: projeto.nome, fromTemplate: true } });
+    }
+    revalidatePath("/projetos/mapeador");
+    return { success: true as const, data: created };
+  } catch (error) {
+    return fail(error);
+  }
+}
+
 export async function getMapeadorProjeto(id: string) {
   const { organizationId } = await requirePermission("mapeador_projetos", "read");
   return mapeadorService.getProjeto(id, organizationId);
@@ -85,7 +106,7 @@ export async function updateMapeadorInformacoesAdicionais(id: string, data: Reco
   }
 }
 
-export async function updateMapeadorPrototipoConfig(id: string, data: Record<string, string | undefined>) {
+export async function updateMapeadorPrototipoConfig(id: string, data: Record<string, unknown>) {
   const { organizationId } = await requirePermission("mapeador_projetos", "update");
   const parsed = updatePrototipoConfigSchema.safeParse(data);
   if (!parsed.success) return fail(new Error("Dados inválidos"));
@@ -127,7 +148,7 @@ export async function duplicateMapeadorEtapa(etapaId: string, projetoId: string)
 export async function updateMapeadorEtapa(
   etapaId: string,
   projetoId: string,
-  data: { nome?: string; condicao?: string | null; regras?: string | null; camposPorEtapa?: unknown[] }
+  data: { nome?: string; condicao?: string | null; regras?: string | null; camposPorEtapa?: unknown[]; feedbacks?: unknown[] }
 ) {
   const { organizationId } = await requirePermission("mapeador_projetos", "update");
   const parsed = updateEtapaSchema.safeParse(data);

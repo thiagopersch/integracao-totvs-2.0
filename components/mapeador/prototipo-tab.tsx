@@ -1,46 +1,99 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { toast } from "sonner"
+import { Download, ExternalLink, FileText, Loader2, Pencil, Ruler } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Checkbox } from "@/components/ui/checkbox"
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { updateMapeadorPrototipoConfig } from "@/actions/mapeador"
+import { updateMapeadorPrototipoConfig, updateMapeadorEtapa, listMapeadorProjetos, getMapeadorProjeto } from "@/actions/mapeador"
+import { exportMapeadorPrototipoHtml } from "@/actions/mapeador-export"
+import { listMapeadorTemas } from "@/actions/mapeador-tema"
 import { useMapeadorStore } from "@/store/mapeador.store"
 import { cn } from "@/lib/utils"
-import type { MapeadorCampo } from "@/types/mapeador"
-
-const TEMAS = [
-  { value: "padrao", label: "Padrão" },
-  { value: "escuro", label: "Escuro" },
-]
+import { ImageInput } from "@/components/mapeador/image-input"
+import { PrototipoPreview } from "@/components/mapeador/prototipo/prototipo-preview"
+import { PrototipoNavbar } from "@/components/mapeador/prototipo/prototipo-navbar"
+import { TemaEditorDialog } from "@/components/mapeador/prototipo/tema-editor-dialog"
+import { buildScreens } from "@/components/mapeador/prototipo/screens"
+import { prototipoCss } from "@/components/mapeador/prototipo/styles"
+import { exportPrototipoPdf } from "@/components/mapeador/prototipo/export-pdf"
+import type { MapeadorCampo, MapeadorCampoLargura, MapeadorGerarPara, MapeadorProjetoDTO, MapeadorTemaDTO } from "@/types/mapeador"
 
 function isVoltarButton(label: string) {
   return /voltar/i.test(label)
 }
 
+function downloadText(text: string, fileName: string, mime: string) {
+  const blob = new Blob([text], { type: mime })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement("a")
+  a.href = url
+  a.download = fileName
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
 export function PrototipoTab() {
   const projeto = useMapeadorStore((s) => s.projeto)!
   const patchPrototipoConfig = useMapeadorStore((s) => s.patchPrototipoConfig)
-  const [etapaIndex, setEtapaIndex] = useState(0)
-  const [passoIndex, setPassoIndex] = useState(0)
-  const [values, setValues] = useState<Record<string, unknown>>({})
-  const [errors, setErrors] = useState<Set<string>>(new Set())
-  const [finished, setFinished] = useState(false)
+  const setCamposPorEtapa = useMapeadorStore((s) => s.setCamposPorEtapa)
 
   const config = projeto.prototipoConfig
-  const visualizacao = config.visualizacao ?? "desktop"
-  const corMarca = config.corMarca || "#0d9488"
-  const corBarra = config.corBarra || "#ffffff"
+  const gerarPara: MapeadorGerarPara = config.gerarPara ?? "atual"
+  const exportVisualizacao = config.exportVisualizacao ?? "desktop"
 
-  const etapa = projeto.etapas[etapaIndex] ?? null
-  const passo = etapa?.camposPorEtapa[passoIndex] ?? null
+  const [temas, setTemas] = useState<MapeadorTemaDTO[]>([])
+  const [temaDialogOpen, setTemaDialogOpen] = useState(false)
+  const [editingTema, setEditingTema] = useState<MapeadorTemaDTO | null>(null)
+  const [siblingProjetos, setSiblingProjetos] = useState<MapeadorProjetoDTO[] | null>(null)
+  const [loadingSiblings, setLoadingSiblings] = useState(false)
+  const [adjustMode, setAdjustMode] = useState(false)
+  const [editingTextos, setEditingTextos] = useState(false)
+  const [screenIndex, setScreenIndex] = useState(0)
+  const [values, setValues] = useState<Record<string, unknown>>({})
+  const [exporting, setExporting] = useState<"html" | "pdf" | null>(null)
 
-  const etapaIndexById = useMemo(() => new Map(projeto.etapas.map((e, i) => [e.id, i])), [projeto.etapas])
+  useEffect(() => {
+    listMapeadorTemas().then(setTemas)
+  }, [])
+
+  useEffect(() => {
+    let cancelled = false
+
+    async function load() {
+      setScreenIndex(0)
+      if (gerarPara !== "todos") {
+        setSiblingProjetos(null)
+        return
+      }
+      setLoadingSiblings(true)
+      const summaries = await listMapeadorProjetos()
+      const all = await Promise.all(summaries.map((s) => getMapeadorProjeto(s.id)))
+      if (cancelled) return
+      setSiblingProjetos(all.filter((p): p is MapeadorProjetoDTO => !!p))
+      setLoadingSiblings(false)
+    }
+
+    load()
+    return () => {
+      cancelled = true
+    }
+  }, [gerarPara])
+
+  const projetos = useMemo(() => {
+    if (gerarPara === "todos" && siblingProjetos) {
+      // Keep the currently-edited project's live (unsaved-to-disk-yet) state in sync in the list.
+      return siblingProjetos.map((p) => (p.id === projeto.id ? projeto : p))
+    }
+    return [projeto]
+  }, [gerarPara, siblingProjetos, projeto])
+
+  const screens = useMemo(() => buildScreens(projetos), [projetos])
+
+  const screen = screens[Math.min(screenIndex, screens.length - 1)]
 
   function saveConfig(patch: Partial<typeof config>) {
     patchPrototipoConfig(patch)
@@ -51,291 +104,259 @@ export function PrototipoTab() {
 
   function setValue(campoId: string, value: unknown) {
     setValues((prev) => ({ ...prev, [campoId]: value }))
-    setErrors((prev) => {
-      if (!prev.has(campoId)) return prev
-      const next = new Set(prev)
-      next.delete(campoId)
-      return next
-    })
   }
 
-  function goToEtapaPasso(etapaIdx: number, passoIdx: number) {
-    setEtapaIndex(etapaIdx)
-    setPassoIndex(passoIdx)
-    setFinished(false)
-  }
-
-  function advance(destinoEtapaId?: string | null) {
-    if (destinoEtapaId) {
-      const idx = etapaIndexById.get(destinoEtapaId)
-      if (idx !== undefined) return goToEtapaPasso(idx, 0)
-    }
-    if (!etapa) return
-    if (passoIndex < etapa.camposPorEtapa.length - 1) return goToEtapaPasso(etapaIndex, passoIndex + 1)
-    if (etapaIndex < projeto.etapas.length - 1) return goToEtapaPasso(etapaIndex + 1, 0)
-    setFinished(true)
-  }
-
-  function goBack() {
-    if (passoIndex > 0) return goToEtapaPasso(etapaIndex, passoIndex - 1)
-    if (etapaIndex > 0) {
-      const prevEtapa = projeto.etapas[etapaIndex - 1]
-      return goToEtapaPasso(etapaIndex - 1, Math.max(prevEtapa.camposPorEtapa.length - 1, 0))
-    }
+  function goTo(index: number) {
+    setScreenIndex(Math.max(0, Math.min(screens.length - 1, index)))
   }
 
   function handleBotaoClick(campo: MapeadorCampo) {
-    if (isVoltarButton(campo.label)) return goBack()
-
-    const camposObrigatorios = (passo?.campos ?? []).filter(
-      (c) => c.obrigatorio && !["botao", "texto_informativo", "titulo_pagina", "label_destaque", "divisor"].includes(c.tipo)
-    )
-    const missing = camposObrigatorios.filter((c) => {
-      const v = values[c.id]
-      return v === undefined || v === "" || (Array.isArray(v) && v.length === 0)
-    })
-    if (missing.length > 0) {
-      setErrors(new Set(missing.map((c) => c.id)))
-      toast.error("Preencha os campos obrigatórios antes de avançar.")
-      return
-    }
-    advance(campo.acaoDestinoEtapaId)
+    if (isVoltarButton(campo.label)) return goTo(screenIndex - 1)
+    // Required fields are highlighted (via `largura`/`obrigatorio`) but never block navigation.
+    goTo(screenIndex + 1)
   }
 
-  function renderCampo(campo: MapeadorCampo) {
-    const hasError = errors.has(campo.id)
-    switch (campo.tipo) {
-      case "titulo_pagina":
-        return (
-          <h3 key={campo.id} className="text-lg font-bold">
-            {campo.label}
-          </h3>
-        )
-      case "label_destaque":
-        return (
-          <p key={campo.id} className="font-semibold text-primary">
-            {campo.label}
-          </p>
-        )
-      case "texto_informativo":
-        return (
-          <p key={campo.id} className="text-sm text-muted-foreground">
-            {campo.label}
-          </p>
-        )
-      case "divisor":
-        return <hr key={campo.id} className="my-2" />
-      case "botao":
-        return (
-          <Button
-            key={campo.id}
-            variant={isVoltarButton(campo.label) ? "outline" : "default"}
-            className="w-full"
-            onClick={() => handleBotaoClick(campo)}
-            style={!isVoltarButton(campo.label) ? { backgroundColor: corMarca } : undefined}
-          >
-            {campo.label.toUpperCase()}
-          </Button>
-        )
-      case "select":
-        return (
-          <div key={campo.id} className="space-y-1">
-            <Label className={cn(hasError && "text-destructive")}>
-              {campo.label} {campo.obrigatorio && "*"}
-            </Label>
-            <Select items={(campo.opcoesLista ?? []).map((o) => ({ value: o, label: o }))} value={(values[campo.id] as string) ?? null} onValueChange={(v) => setValue(campo.id, v)}>
-              <SelectTrigger className={cn("w-full", hasError && "border-destructive")}>
-                <SelectValue placeholder="Selecione..." />
-              </SelectTrigger>
-              <SelectContent>
-                {(campo.opcoesLista ?? []).map((o) => (
-                  <SelectItem key={o} value={o}>
-                    {o}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        )
-      case "radio":
-        return (
-          <div key={campo.id} className="space-y-1">
-            <Label className={cn(hasError && "text-destructive")}>
-              {campo.label} {campo.obrigatorio && "*"}
-            </Label>
-            <RadioGroup value={(values[campo.id] as string) ?? ""} onValueChange={(v) => setValue(campo.id, v)}>
-              {(campo.opcoesLista ?? []).map((o) => (
-                <Label key={o} className="flex items-center gap-2 font-normal">
-                  <RadioGroupItem value={o} /> {o}
-                </Label>
-              ))}
-            </RadioGroup>
-          </div>
-        )
-      case "check":
-        if (campo.opcoesLista?.length) {
-          const selected = (values[campo.id] as string[]) ?? []
-          return (
-            <div key={campo.id} className="space-y-1">
-              <Label className={cn(hasError && "text-destructive")}>
-                {campo.label} {campo.obrigatorio && "*"}
-              </Label>
-              {campo.opcoesLista.map((o) => (
-                <Label key={o} className="flex items-center gap-2 font-normal">
-                  <Checkbox
-                    checked={selected.includes(o)}
-                    onCheckedChange={(v) => setValue(campo.id, v ? [...selected, o] : selected.filter((s) => s !== o))}
-                  />
-                  {o}
-                </Label>
-              ))}
-            </div>
-          )
-        }
-        return (
-          <Label key={campo.id} className="flex items-center gap-2 font-normal">
-            <Checkbox checked={!!values[campo.id]} onCheckedChange={(v) => setValue(campo.id, !!v)} />
-            {campo.label} {campo.obrigatorio && "*"}
-          </Label>
-        )
-      case "data":
-        return (
-          <div key={campo.id} className="space-y-1">
-            <Label className={cn(hasError && "text-destructive")}>
-              {campo.label} {campo.obrigatorio && "*"}
-            </Label>
-            <Input type="date" value={(values[campo.id] as string) ?? ""} onChange={(e) => setValue(campo.id, e.target.value)} className={cn(hasError && "border-destructive")} />
-          </div>
-        )
-      case "documento_upload":
-        return (
-          <div key={campo.id} className="space-y-1">
-            <Label className={cn(hasError && "text-destructive")}>
-              {campo.label} {campo.obrigatorio && "*"}
-            </Label>
-            <Input type="file" onChange={(e) => setValue(campo.id, e.target.files?.[0]?.name ?? "")} className={cn(hasError && "border-destructive")} />
-          </div>
-        )
-      case "pagamento_valor":
-        return (
-          <div key={campo.id} className="rounded-md bg-muted p-3 text-center font-semibold">
-            {campo.label}
-          </div>
-        )
-      case "pagamento_formas":
-      case "popup":
-      case "condicional":
-        return (
-          <p key={campo.id} className="text-sm italic text-muted-foreground">
-            {campo.label}
-          </p>
-        )
-      default:
-        return (
-          <div key={campo.id} className="space-y-1">
-            <Label className={cn(hasError && "text-destructive")}>
-              {campo.label} {campo.obrigatorio && "*"}
-            </Label>
-            <Input value={(values[campo.id] as string) ?? ""} onChange={(e) => setValue(campo.id, e.target.value)} className={cn(hasError && "border-destructive")} />
-          </div>
-        )
+  function handleLarguraChange(campoId: string, largura: MapeadorCampoLargura) {
+    if (screen.kind !== "form" || screen.projetoIndex !== projetos.indexOf(projeto)) return
+    const etapa = projeto.etapas[screen.etapaIndex]
+    if (!etapa) return
+    const nextCampos = etapa.camposPorEtapa.map((passo) => ({
+      ...passo,
+      campos: passo.campos.map((c) => (c.id === campoId ? { ...c, largura } : c)),
+    }))
+    setCamposPorEtapa(etapa.id, nextCampos)
+    updateMapeadorEtapa(etapa.id, projeto.id, { camposPorEtapa: nextCampos }).then((result) => {
+      if (!result.success) toast.error(result.error || "Erro ao salvar largura do campo")
+    })
+  }
+
+  function handleTextoChange(id: string, value: string) {
+    saveConfig({ textos: { ...(config.textos ?? {}), [id]: value } })
+  }
+
+  async function handleExportHtml() {
+    setExporting("html")
+    try {
+      const result = await exportMapeadorPrototipoHtml(projeto.id, gerarPara)
+      if (!result.success) return toast.error(result.error || "Erro ao gerar HTML")
+      downloadText(result.html, result.fileName, "text/html")
+    } finally {
+      setExporting(null)
     }
+  }
+
+  async function handleExportPdf() {
+    setExporting("pdf")
+    try {
+      exportPrototipoPdf(projetos, exportVisualizacao === "mobile" ? "portrait" : "landscape")
+    } finally {
+      setExporting(null)
+    }
+  }
+
+  function handleOpenNewTab() {
+    window.open(`/projetos/mapeador/${projeto.id}/prototipo/preview?gerarPara=${gerarPara}`, "_blank")
   }
 
   return (
     <div className="space-y-4">
       <Card>
-        <CardContent className="flex flex-wrap items-center gap-6 py-4">
-          <div className="space-y-1">
-            <Label className="text-xs text-muted-foreground">Visualização</Label>
-            <div className="flex overflow-hidden rounded-md border">
-              <button
-                className={cn("px-3 py-1 text-sm", visualizacao === "desktop" ? "bg-primary text-primary-foreground" : "bg-background")}
-                onClick={() => saveConfig({ visualizacao: "desktop" })}
+        <CardContent className="space-y-4 py-4">
+          <div>
+            <p className="mb-2 text-xs font-semibold uppercase text-muted-foreground">Conteúdo</p>
+            <div className="flex flex-wrap items-end gap-4">
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">Gerar para</Label>
+                <Select
+                  items={[
+                    { value: "atual", label: "Somente este processo" },
+                    { value: "todos", label: "Todos os processos" },
+                  ]}
+                  value={gerarPara}
+                  onValueChange={(v) => saveConfig({ gerarPara: v as MapeadorGerarPara })}
+                >
+                  <SelectTrigger className="w-56">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="atual">Somente este processo</SelectItem>
+                    <SelectItem value="todos">Todos os processos</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">Visualização</Label>
+                <div className="flex overflow-hidden rounded-md border">
+                  <button
+                    className={cn("px-3 py-1 text-sm", (config.visualizacao ?? "desktop") === "desktop" ? "bg-primary text-primary-foreground" : "bg-background")}
+                    onClick={() => saveConfig({ visualizacao: "desktop" })}
+                  >
+                    Desktop
+                  </button>
+                  <button
+                    className={cn("px-3 py-1 text-sm", config.visualizacao === "mobile" ? "bg-primary text-primary-foreground" : "bg-background")}
+                    onClick={() => saveConfig({ visualizacao: "mobile" })}
+                  >
+                    Mobile
+                  </button>
+                </div>
+              </div>
+              <Button
+                variant={adjustMode ? "default" : "outline"}
+                size="sm"
+                onClick={() => {
+                  setAdjustMode((v) => !v)
+                  setEditingTextos(false)
+                }}
               >
-                Desktop
-              </button>
-              <button
-                className={cn("px-3 py-1 text-sm", visualizacao === "mobile" ? "bg-primary text-primary-foreground" : "bg-background")}
-                onClick={() => saveConfig({ visualizacao: "mobile" })}
+                <Ruler className="h-4 w-4" /> Ajustar layout
+              </Button>
+              <Button
+                variant={editingTextos ? "default" : "outline"}
+                size="sm"
+                onClick={() => {
+                  setEditingTextos((v) => !v)
+                  setAdjustMode(false)
+                }}
               >
-                Mobile
-              </button>
+                <Pencil className="h-4 w-4" /> Editar textos
+              </Button>
+            </div>
+            {(adjustMode || editingTextos) && (
+              <p className="mt-2 text-xs text-muted-foreground">
+                {adjustMode
+                  ? "Modo de ajuste ativo: clique em um campo na prévia abaixo e escolha a largura, de 1 a 12 colunas (12 = linha inteira)."
+                  : 'Modo de edição de texto ativo: clique em um texto fixo da prévia (ex. "AVANÇAR", título do Portal do candidato) para reescrevê-lo.'}
+              </p>
+            )}
+          </div>
+
+          <div>
+            <p className="mb-2 text-xs font-semibold uppercase text-muted-foreground">Aparência</p>
+            <div className="flex flex-wrap items-end gap-4">
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">Tema</Label>
+                <Select
+                  items={[{ value: "__none__", label: "Padrão" }, ...temas.map((t) => ({ value: t.id, label: t.nome })), { value: "__new__", label: "+ Criar novo tema" }]}
+                  value={config.temaId ?? "__none__"}
+                  onValueChange={(v) => {
+                    if (v === "__new__") {
+                      setEditingTema(null)
+                      setTemaDialogOpen(true)
+                      return
+                    }
+                    const temaId = v === "__none__" ? null : (v as string)
+                    const tema = temas.find((t) => t.id === temaId)
+                    saveConfig({
+                      temaId,
+                      ...(tema
+                        ? {
+                            corMarca: tema.config.corMarca,
+                            corBarra: tema.config.corBarra,
+                            logoUrl: tema.config.logoUrl,
+                            bgImageUrl: tema.config.bgImageUrl,
+                          }
+                        : {}),
+                    })
+                  }}
+                >
+                  <SelectTrigger className="w-44">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">Padrão</SelectItem>
+                    {temas.map((t) => (
+                      <SelectItem key={t.id} value={t.id}>
+                        {t.nome}
+                      </SelectItem>
+                    ))}
+                    <SelectItem value="__new__">+ Criar novo tema</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">Cor da marca</Label>
+                <Input type="color" value={config.corMarca || "#0CC1AA"} onChange={(e) => saveConfig({ corMarca: e.target.value })} className="h-8 w-14 p-1" />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">Cor da barra</Label>
+                <Input type="color" value={config.corBarra || "#0AA392"} onChange={(e) => saveConfig({ corBarra: e.target.value })} className="h-8 w-14 p-1" />
+              </div>
+              <ImageInput label="Logo" value={config.logoUrl} onChange={(url) => saveConfig({ logoUrl: url })} kind="logo" />
+              <ImageInput label="Imagem de fundo" value={config.bgImageUrl} onChange={(url) => saveConfig({ bgImageUrl: url })} hint="Recomendado: pelo menos 1600×1000px, paisagem" kind="background" />
             </div>
           </div>
-          <div className="space-y-1">
-            <Label className="text-xs text-muted-foreground">Tema</Label>
-            <Select items={TEMAS} value={config.tema ?? "padrao"} onValueChange={(v) => saveConfig({ tema: v as string })}>
-              <SelectTrigger className="w-36">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {TEMAS.map((t) => (
-                  <SelectItem key={t.value} value={t.value}>
-                    {t.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1">
-            <Label className="text-xs text-muted-foreground">Cor da marca</Label>
-            <Input type="color" value={corMarca} onChange={(e) => saveConfig({ corMarca: e.target.value })} className="h-8 w-14 p-1" />
-          </div>
-          <div className="space-y-1">
-            <Label className="text-xs text-muted-foreground">Cor da barra</Label>
-            <Input type="color" value={corBarra} onChange={(e) => saveConfig({ corBarra: e.target.value })} className="h-8 w-14 p-1" />
+
+          <div>
+            <p className="mb-2 text-xs font-semibold uppercase text-muted-foreground">Exportar</p>
+            <div className="flex flex-wrap items-center gap-2">
+              <Select items={[{ value: "desktop", label: "Desktop" }, { value: "mobile", label: "Mobile" }]} value={exportVisualizacao} onValueChange={(v) => saveConfig({ exportVisualizacao: v as "desktop" | "mobile" })}>
+                <SelectTrigger className="w-32">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="desktop">Desktop</SelectItem>
+                  <SelectItem value="mobile">Mobile</SelectItem>
+                </SelectContent>
+              </Select>
+              <Button variant="outline" size="sm" onClick={handleOpenNewTab}>
+                <ExternalLink className="h-4 w-4" /> Abrir em nova aba
+              </Button>
+              <Button variant="outline" size="sm" onClick={handleExportPdf} disabled={exporting !== null}>
+                {exporting === "pdf" ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />} Exportar PDF
+              </Button>
+              <Button size="sm" onClick={handleExportHtml} disabled={exporting !== null}>
+                {exporting === "html" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />} Baixar .html
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>
 
-      <div className="flex justify-center">
-        <div
-          className={cn("overflow-hidden rounded-lg border shadow-sm transition-all", visualizacao === "mobile" ? "w-[390px]" : "w-full max-w-3xl")}
-        >
-          <div className="flex items-center justify-between px-4 py-3" style={{ backgroundColor: corBarra }}>
-            <span className="text-lg font-bold" style={{ color: corMarca }}>
-              EXEMPLO
-            </span>
-            <span className="rounded-md border px-3 py-1 text-sm">LOGIN</span>
-          </div>
-
-          <div className="space-y-4 p-6">
-            {finished ? (
-              <div className="py-12 text-center">
-                <p className="text-lg font-semibold">Fluxo concluído!</p>
-                <p className="text-sm text-muted-foreground">O candidato percorreu todas as etapas mapeadas.</p>
-                <Button className="mt-4" variant="outline" onClick={() => goToEtapaPasso(0, 0)}>
-                  Reiniciar
-                </Button>
-              </div>
-            ) : etapa && passo ? (
-              <>
-                <div className="flex flex-wrap gap-1 text-xs text-muted-foreground">
-                  {projeto.etapas.map((e, i) => (
-                    <span
-                      key={e.id}
-                      className={cn("rounded-full px-2 py-0.5", i === etapaIndex ? "font-semibold text-foreground" : "")}
-                      style={i === etapaIndex ? { backgroundColor: `${corMarca}22`, color: corMarca } : undefined}
-                    >
-                      {i + 1}. {e.nome}
-                    </span>
-                  ))}
-                </div>
-                <h2 className="text-xl font-semibold">{passo.titulo}</h2>
-                <div className="space-y-3">{passo.campos.map(renderCampo)}</div>
-                {!passo.campos.some((c) => c.tipo === "botao") && (
-                  <Button className="w-full" style={{ backgroundColor: corMarca }} onClick={() => handleBotaoClick({ id: "__auto__", tipo: "botao", label: "Avançar" })}>
-                    AVANÇAR
-                  </Button>
-                )}
-              </>
-            ) : (
-              <p className="text-sm text-muted-foreground">Nenhuma etapa com passos mapeados ainda. Vá até a aba Mapeamento para começar.</p>
-            )}
+      {loadingSiblings ? (
+        <div className="flex justify-center py-12">
+          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        </div>
+      ) : (
+        <div className="flex justify-center">
+          <div
+            className={cn("mapeador-proto overflow-hidden rounded-lg border shadow-sm transition-all", config.visualizacao === "mobile" ? "w-[390px]" : "w-full max-w-4xl")}
+            style={{ "--brand": config.corMarca || "#0CC1AA", "--bar": config.corBarra || "#0AA392" } as React.CSSProperties}
+          >
+            <style dangerouslySetInnerHTML={{ __html: prototipoCss(".mapeador-proto") }} />
+            <PrototipoPreview
+              screen={screen}
+              projetos={projetos}
+              values={values}
+              errors={new Set()}
+              setValue={setValue}
+              onBotaoClick={handleBotaoClick}
+              onAdvanceFromPortal={() => goTo(screenIndex + 1)}
+              logoUrl={config.logoUrl}
+              bgImageUrl={config.bgImageUrl}
+              textos={config.textos ?? {}}
+              onTextoChange={handleTextoChange}
+              editingTextos={editingTextos}
+              adjustMode={adjustMode}
+              onLarguraChange={handleLarguraChange}
+            />
+            <PrototipoNavbar screens={screens} screenIndex={screenIndex} projetos={projetos} onJump={goTo} />
           </div>
         </div>
-      </div>
+      )}
+
+      <TemaEditorDialog
+        open={temaDialogOpen}
+        onOpenChange={setTemaDialogOpen}
+        tema={editingTema}
+        onSaved={(tema) => {
+          setTemas((prev) => {
+            const exists = prev.some((t) => t.id === tema.id)
+            return exists ? prev.map((t) => (t.id === tema.id ? tema : t)) : [...prev, tema]
+          })
+          saveConfig({ temaId: tema.id, corMarca: tema.config.corMarca, corBarra: tema.config.corBarra, logoUrl: tema.config.logoUrl, bgImageUrl: tema.config.bgImageUrl })
+        }}
+      />
     </div>
   )
 }

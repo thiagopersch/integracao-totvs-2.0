@@ -37,6 +37,7 @@ export const ENTITY_LABELS: Record<string, string> = {
   EmailSettings: "Configurações de E-mail",
   MapeadorProjeto: "Projetos Mapeados",
   MapeadorEtapa: "Etapas Mapeadas",
+  MapeadorTema: "Temas do Mapeador",
 };
 
 export interface BlockingReference {

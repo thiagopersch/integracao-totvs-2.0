@@ -145,6 +145,7 @@ model Organization {
   emailSettings      EmailSettings?
   fichaAutomationRuns FichaAutomationRun[]
   mapeadorProjetos   MapeadorProjeto[]
+  mapeadorTemas      MapeadorTema[]
 
   @@map("organizations")
 }
@@ -956,12 +957,27 @@ model MapeadorEtapa {
   condicao       String?
   regras         String?  @db.Text
   camposPorEtapa Json?    @map("campos_por_etapa")
+  feedbacks      Json?
   createdAt      DateTime @default(now()) @map("created_at")
   updatedAt      DateTime @updatedAt @map("updated_at")
 
   projeto MapeadorProjeto @relation(fields: [projetoId], references: [id], onDelete: Cascade)
 
   @@map("mapeador_etapas")
+}
+
+/** Reusable Protótipo visual appearance preset (brand/bar color, field/button style, logo, background), shared across every MapeadorProjeto in the organization. */
+model MapeadorTema {
+  id             String   @id @default(uuid())
+  organizationId String   @map("organization_id")
+  nome           String
+  config         Json
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@map("mapeador_temas")
 }
 
 /** SMTP credentials for the EMAIL notification channel — configured per organization here instead of fixed .env vars. */

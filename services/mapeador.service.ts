@@ -1,12 +1,15 @@
 import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@/generated/prisma/client";
+import { MAPEADOR_RUBEUS_TEMPLATES, getMapeadorTemplate } from "@/lib/mapeador/templates";
 import type {
   CamposPorEtapa,
   MapeadorEtapaDTO,
+  MapeadorFeedback,
   MapeadorInformacoesAdicionais,
   MapeadorProjetoDTO,
   MapeadorProjetoSummary,
   MapeadorPrototipoConfig,
+  MapeadorTemplateSummary,
 } from "@/types/mapeador";
 
 function toEtapaDTO(etapa: {
@@ -16,6 +19,7 @@ function toEtapaDTO(etapa: {
   condicao: string | null;
   regras: string | null;
   camposPorEtapa: unknown;
+  feedbacks: unknown;
 }): MapeadorEtapaDTO {
   return {
     id: etapa.id,
@@ -24,6 +28,7 @@ function toEtapaDTO(etapa: {
     condicao: etapa.condicao,
     regras: etapa.regras,
     camposPorEtapa: (etapa.camposPorEtapa as CamposPorEtapa | null) ?? [],
+    feedbacks: (etapa.feedbacks as MapeadorFeedback[] | null) ?? [],
   };
 }
 
@@ -93,7 +98,7 @@ export const mapeadorService = {
       orderBy: { ordem: "desc" },
     });
     return prisma.mapeadorEtapa.create({
-      data: { projetoId, nome, ordem: (last?.ordem ?? 0) + 1, camposPorEtapa: [] },
+      data: { projetoId, nome, ordem: (last?.ordem ?? 0) + 1, camposPorEtapa: [], feedbacks: [] },
     });
   },
 
@@ -114,6 +119,7 @@ export const mapeadorService = {
         condicao: etapa.condicao,
         regras: etapa.regras,
         camposPorEtapa: etapa.camposPorEtapa ?? [],
+        feedbacks: etapa.feedbacks ?? [],
         ordem: (last?.ordem ?? 0) + 1,
       },
     });
@@ -121,7 +127,13 @@ export const mapeadorService = {
 
   async updateEtapa(
     etapaId: string,
-    data: { nome?: string; condicao?: string | null; regras?: string | null; camposPorEtapa?: CamposPorEtapa },
+    data: {
+      nome?: string;
+      condicao?: string | null;
+      regras?: string | null;
+      camposPorEtapa?: CamposPorEtapa;
+      feedbacks?: MapeadorFeedback[];
+    },
     organizationId: string
   ) {
     const etapa = await prisma.mapeadorEtapa.findFirst({
@@ -131,7 +143,11 @@ export const mapeadorService = {
 
     return prisma.mapeadorEtapa.update({
       where: { id: etapaId },
-      data: { ...data, camposPorEtapa: data.camposPorEtapa as unknown as Prisma.InputJsonValue },
+      data: {
+        ...data,
+        camposPorEtapa: data.camposPorEtapa as unknown as Prisma.InputJsonValue,
+        feedbacks: data.feedbacks as unknown as Prisma.InputJsonValue,
+      },
     });
   },
 
@@ -167,9 +183,47 @@ export const mapeadorService = {
             condicao: etapa.condicao,
             regras: etapa.regras,
             camposPorEtapa: (etapa.camposPorEtapa ?? []) as unknown as Prisma.InputJsonValue,
+            feedbacks: (etapa.feedbacks ?? []) as unknown as Prisma.InputJsonValue,
           })),
         },
       },
     });
+  },
+
+  listTemplates(): MapeadorTemplateSummary[] {
+    return MAPEADOR_RUBEUS_TEMPLATES.map((t) => ({
+      id: t.id,
+      nome: t.nome,
+      etapasCount: t.etapas.length,
+      itensCount: t.etapas.reduce((sum, e) => sum + e.camposPorEtapa.reduce((s, p) => s + p.campos.length, 0), 0),
+    }));
+  },
+
+  async createProjetosFromTemplates(templateIds: string[], organizationId: string) {
+    const created: { id: string; nome: string }[] = [];
+    for (const templateId of templateIds) {
+      const template = getMapeadorTemplate(templateId);
+      if (!template) continue;
+
+      const projeto = await prisma.mapeadorProjeto.create({
+        data: {
+          organizationId,
+          nome: template.nome,
+          informacoesAdicionais: template.informacoesAdicionais as Prisma.InputJsonValue,
+          etapas: {
+            create: template.etapas.map((etapa) => ({
+              ordem: etapa.ordem,
+              nome: etapa.nome,
+              condicao: etapa.condicao,
+              regras: etapa.regras,
+              camposPorEtapa: etapa.camposPorEtapa as unknown as Prisma.InputJsonValue,
+              feedbacks: etapa.feedbacks as unknown as Prisma.InputJsonValue,
+            })),
+          },
+        },
+      });
+      created.push({ id: projeto.id, nome: projeto.nome });
+    }
+    return created;
   },
 };

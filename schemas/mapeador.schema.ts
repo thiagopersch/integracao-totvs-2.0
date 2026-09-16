@@ -8,19 +8,18 @@ export const renameMapeadorProjetoSchema = z.object({
   nome: z.string().min(2, "Nome deve ter no mínimo 2 caracteres"),
 });
 
-export const updateInformacoesAdicionaisSchema = z.object({
-  idProcessoSeletivo: z.string().optional(),
-  idRelatorioContrato: z.string().optional(),
-  classificacaoConvocacao: z.string().optional(),
-  criterioClassificacao: z.string().optional(),
-  agendamento: z.string().optional(),
-});
+export const updateInformacoesAdicionaisSchema = z.record(z.string(), z.string().optional());
 
 export const updatePrototipoConfigSchema = z.object({
-  tema: z.string().optional(),
+  temaId: z.string().nullable().optional(),
   corMarca: z.string().optional(),
   corBarra: z.string().optional(),
   visualizacao: z.enum(["desktop", "mobile"]).optional(),
+  logoUrl: z.string().nullable().optional(),
+  bgImageUrl: z.string().nullable().optional(),
+  textos: z.record(z.string(), z.string()).optional(),
+  gerarPara: z.enum(["atual", "todos"]).optional(),
+  exportVisualizacao: z.enum(["desktop", "mobile"]).optional(),
 });
 
 export const createEtapaSchema = z.object({
@@ -32,6 +31,7 @@ export const updateEtapaSchema = z.object({
   condicao: z.string().nullable().optional(),
   regras: z.string().nullable().optional(),
   camposPorEtapa: z.array(z.any()).optional(),
+  feedbacks: z.array(z.any()).optional(),
 });
 
 export const reorderEtapasSchema = z.object({
