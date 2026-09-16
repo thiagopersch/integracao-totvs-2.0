@@ -4,7 +4,7 @@ import * as XLSX from "xlsx";
 import { requirePermission } from "@/lib/rbac";
 import { mapeadorService } from "@/services/mapeador.service";
 import { renderPrototipoHtml } from "@/lib/mapeador/render-prototipo-html";
-import { MAPEADOR_CAMPO_TIPO_LABELS } from "@/types/mapeador";
+import { flattenCampos, MAPEADOR_CAMPO_TIPO_LABELS } from "@/types/mapeador";
 
 export async function exportMapeadorProjetoJson(id: string) {
   try {
@@ -37,7 +37,7 @@ export async function exportMapeadorProjetoXlsx(id: string) {
 
     const camposRows = projeto.etapas.flatMap((etapa) =>
       etapa.camposPorEtapa.flatMap((passo) =>
-        passo.campos.map((campo) => ({
+        flattenCampos(passo.campos).map((campo) => ({
           Etapa: etapa.nome,
           Passo: passo.titulo,
           "Tipo do passo": passo.tipo,

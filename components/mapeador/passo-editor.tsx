@@ -1,5 +1,7 @@
 "use client"
 
+import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core"
+import { SortableContext, verticalListSortingStrategy, arrayMove } from "@dnd-kit/sortable"
 import { ArrowDown, ArrowUp, Plus, Trash2 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -28,6 +30,8 @@ interface PassoEditorProps {
 }
 
 export function PassoEditor({ passo, etapas, onChange, onRemove, onMove, canMoveUp, canMoveDown }: PassoEditorProps) {
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }))
+
   function updateCampo(campoId: string, patch: Partial<MapeadorCampo>) {
     onChange({ campos: passo.campos.map((c) => (c.id === campoId ? { ...c, ...patch } : c)) })
   }
@@ -38,6 +42,15 @@ export function PassoEditor({ passo, etapas, onChange, onRemove, onMove, canMove
 
   function addCampo() {
     onChange({ campos: [...passo.campos, newCampo()] })
+  }
+
+  function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+    const oldIndex = passo.campos.findIndex((c) => c.id === active.id)
+    const newIndex = passo.campos.findIndex((c) => c.id === over.id)
+    if (oldIndex === -1 || newIndex === -1) return
+    onChange({ campos: arrayMove(passo.campos, oldIndex, newIndex) })
   }
 
   return (
@@ -67,18 +80,22 @@ export function PassoEditor({ passo, etapas, onChange, onRemove, onMove, canMove
         </Button>
       </div>
 
-      <div className="space-y-3">
-        {passo.campos.map((campo) => (
-          <CampoRow
-            key={campo.id}
-            campo={campo}
-            etapas={etapas}
-            passoCampos={passo.campos}
-            onChange={(patch) => updateCampo(campo.id, patch)}
-            onRemove={() => removeCampo(campo.id)}
-          />
-        ))}
-      </div>
+      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+        <SortableContext items={passo.campos.map((c) => c.id)} strategy={verticalListSortingStrategy}>
+          <div className="space-y-3">
+            {passo.campos.map((campo) => (
+              <CampoRow
+                key={campo.id}
+                campo={campo}
+                etapas={etapas}
+                passoCampos={passo.campos}
+                onChange={(patch) => updateCampo(campo.id, patch)}
+                onRemove={() => removeCampo(campo.id)}
+              />
+            ))}
+          </div>
+        </SortableContext>
+      </DndContext>
 
       <Button variant="outline" size="sm" className="mt-2" onClick={addCampo}>
         <Plus className="h-3.5 w-3.5" /> Adicionar campo

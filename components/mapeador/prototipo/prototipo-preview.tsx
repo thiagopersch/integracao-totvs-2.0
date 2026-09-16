@@ -4,11 +4,12 @@ import { Fragment, useState } from "react"
 import { ChevronDown, Pencil } from "lucide-react"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { cn } from "@/lib/utils"
-import { normalizeLargura, type MapeadorCampo, type MapeadorCampoLargura, type MapeadorProjetoDTO } from "@/types/mapeador"
+import { normalizeLargura, type MapeadorCampo, type MapeadorCampoLargura, type MapeadorEtapaDTO, type MapeadorProjetoDTO } from "@/types/mapeador"
 import type { PrototipoScreen } from "@/components/mapeador/prototipo/screens"
 
 const DEFAULT_BG =
@@ -113,6 +114,44 @@ function WidthPicker({ value, novaLinha, onPickLargura, onToggleNovaLinha, child
   )
 }
 
+/** Picks the feedback that represents "what happened" for an already-completed etapa in the portal timeline: the configured positivo outcome, or whichever was configured first. */
+function pickFeedback(etapa: MapeadorEtapaDTO) {
+  return etapa.feedbacks.find((f) => f.tipo === "positivo") ?? etapa.feedbacks[0]
+}
+
+interface StatusRowTooltipProps {
+  etapa: MapeadorEtapaDTO
+  currentFeedback?: string
+  children: React.ReactNode
+}
+
+/** Hover tooltip listing every configured feedback (with its logic) for an etapa shown in the portal timeline — only rendered when at least one feedback has a logic worth explaining. */
+function StatusRowTooltip({ etapa, currentFeedback, children }: StatusRowTooltipProps) {
+  const comLogica = etapa.feedbacks.filter((f) => f.logic?.trim())
+  if (!comLogica.length) return <>{children}</>
+  return (
+    <Tooltip>
+      <TooltipTrigger render={<div className="cursor-help underline decoration-dotted underline-offset-2" />}>{children}</TooltipTrigger>
+      <TooltipContent className="w-72 max-w-72 flex-col items-start gap-0 p-0" side="top">
+        <div className="w-full border-b border-background/20 px-3 py-2 text-[11px] font-semibold uppercase tracking-wide opacity-70">
+          {comLogica.length} situações possíveis nesta etapa
+        </div>
+        <div className="w-full divide-y divide-background/20">
+          {comLogica.map((f, i) => (
+            <div key={i} className="px-3 py-2">
+              <div className="text-sm font-semibold">
+                {f.feedback}
+                {f.feedback === currentFeedback && <span className="ml-1 font-normal opacity-70">· exibido agora</span>}
+              </div>
+              <div className="text-xs opacity-80">{f.logic}</div>
+            </div>
+          ))}
+        </div>
+      </TooltipContent>
+    </Tooltip>
+  )
+}
+
 interface LoginDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -197,20 +236,44 @@ export function PrototipoPreview({
   function renderCampo(campo: MapeadorCampo) {
     const hasError = errors.has(campo.id)
     const larguraCss = larguraStyle(normalizeLargura(campo.largura))
+    const textoEstiloCss: React.CSSProperties = { textAlign: campo.alinhamento ?? "left", color: campo.cor || undefined }
 
     let content: React.ReactNode
     switch (campo.tipo) {
       case "titulo_pagina":
-        content = <div className="p-title-inline">{campo.label}</div>
+        content = (
+          <div className="p-title-inline" style={textoEstiloCss}>
+            {campo.label}
+          </div>
+        )
         break
       case "label_destaque":
-        content = <div className="p-label-inline">{campo.label}</div>
+        content = (
+          <div className="p-label-inline" style={textoEstiloCss}>
+            {campo.label}
+          </div>
+        )
         break
       case "texto_informativo":
-        content = <p className="p-info">{campo.label}</p>
+        content = (
+          <p className="p-info" style={textoEstiloCss}>
+            {campo.label}
+          </p>
+        )
         break
       case "divisor":
         content = <hr className="p-hr" />
+        break
+      case "agrupamento":
+        content = (
+          <div className="p-grid">
+            {(campo.colunas ?? []).map((coluna) => (
+              <div key={coluna.id} className="p-coluna" style={larguraStyle(normalizeLargura(coluna.largura))}>
+                {coluna.campos.filter(isCampoVisible).map(renderCampo)}
+              </div>
+            ))}
+          </div>
+        )
         break
       case "botao":
         return (
@@ -431,7 +494,7 @@ export function PrototipoPreview({
           </button>
         </div>
         <div className="p-portal" style={{ backgroundImage: `url(${bg})` }}>
-          <div className="w-72 space-y-4">
+          <div className="w-[28%] min-w-[260px] max-w-sm shrink-0 space-y-4">
             <div className="p-card">
               <div className="p-card-title">Minhas inscrições</div>
               <div className="flex items-center justify-between">
@@ -460,13 +523,22 @@ export function PrototipoPreview({
             </div>
             <div className="space-y-0 p-5">
               {etapasConcluidas.map((e) => {
-                const fb = e.feedbacks.find((f) => f.tipo === "positivo")
+                const fb = pickFeedback(e)
+                const tipo = fb?.tipo ?? "positivo"
+                const isPositivo = tipo === "positivo"
+                const icone = isPositivo ? "✓" : tipo === "negativo" ? "✕" : "!"
                 return (
-                  <div className="p-status-row" key={e.id}>
-                    <span className="p-status-ic done">✓</span>
+                  <div
+                    className={cn("p-status-row", isPositivo && "!border-t-0 !my-1 rounded-lg !px-4")}
+                    style={isPositivo ? { background: "var(--brand)" } : undefined}
+                    key={e.id}
+                  >
+                    <span className={cn("p-status-ic", isPositivo && "!border-white !bg-transparent !text-white")}>{icone}</span>
                     <div>
-                      <div className="p-card-value">{e.nome}</div>
-                      <div className="text-xs italic text-muted-foreground">{fb?.feedback || "Concluída"}</div>
+                      <div className={cn("p-card-value", isPositivo && "!text-white")}>{e.nome}</div>
+                      <StatusRowTooltip etapa={e} currentFeedback={fb?.feedback}>
+                        <div className={cn("text-xs italic", isPositivo ? "!text-white/85" : "text-muted-foreground")}>{fb?.feedback || "Concluída"}</div>
+                      </StatusRowTooltip>
                     </div>
                   </div>
                 )
@@ -477,7 +549,9 @@ export function PrototipoPreview({
                     <span className="p-status-ic">!</span>
                     <div>
                       <div className="p-card-value">{nextEtapa.nome}</div>
-                      <div className="text-xs italic text-muted-foreground">Aguardando conclusão</div>
+                      <StatusRowTooltip etapa={nextEtapa}>
+                        <div className="text-xs italic text-muted-foreground">Aguardando conclusão</div>
+                      </StatusRowTooltip>
                     </div>
                   </div>
                   {(feedbackPositivo?.botaoNoPortal ?? true) && (

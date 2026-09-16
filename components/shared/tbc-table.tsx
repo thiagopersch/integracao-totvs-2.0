@@ -35,7 +35,7 @@ import type { PaginationMeta } from "@/types/common"
 import { zodResolver } from "@hookform/resolvers/zod"
 import type { Client } from "@/generated/prisma/client"
 import type { ColumnDef } from "@tanstack/react-table"
-import { Loader2, Plus, ShieldCheck } from "lucide-react"
+import { ListChecks, Loader2, Plus, ShieldCheck } from "lucide-react"
 import { useState } from "react"
 import { Controller, useForm, type Resolver } from "react-hook-form"
 import { toast } from "sonner"
@@ -198,17 +198,23 @@ export function TbcTable({ data, meta, clients, filterClients }: TbcTableProps) 
         onToggleStatus={canUpdate ? () => handleToggleStatus(row.original.id, row.original.status) : undefined}
         isActive={row.original.status}
         extraItems={
-            <DropdownMenuItem
-              onClick={() => handleValidateRow(row.original)}
-              disabled={validatingRowId === row.original.id}
-            >
-              {validatingRowId === row.original.id ? (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              ) : (
-                <ShieldCheck className="h-4 w-4 mr-2" />
-              )}
-              Validar TBC
-            </DropdownMenuItem>
+            <>
+              <DropdownMenuItem
+                onClick={() => handleValidateRow(row.original)}
+                disabled={validatingRowId === row.original.id}
+              >
+                {validatingRowId === row.original.id ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <ShieldCheck className="h-4 w-4 mr-2" />
+                )}
+                Validar TBC
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => router.push(`/admin/tbcs/${row.original.id}/checklist`)}>
+                <ListChecks className="h-4 w-4 mr-2" />
+                Checklist
+              </DropdownMenuItem>
+            </>
         }
       />
     ),

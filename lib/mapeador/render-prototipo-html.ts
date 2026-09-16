@@ -1,5 +1,32 @@
 import { prototipoCss } from "@/components/mapeador/prototipo/styles";
-import { normalizeLargura, type MapeadorProjetoDTO } from "@/types/mapeador";
+import { normalizeLargura, type MapeadorCampo, type MapeadorProjetoDTO } from "@/types/mapeador";
+
+interface MappedCampo {
+  tipo: string;
+  label: string;
+  obrigatorio: boolean;
+  opcoes: string[];
+  largura: number;
+  alinhamento?: string;
+  cor?: string;
+  colunas: { largura: number; campos: MappedCampo[] }[];
+}
+
+function mapCampo(c: MapeadorCampo): MappedCampo {
+  return {
+    tipo: c.tipo,
+    label: c.label,
+    obrigatorio: !!c.obrigatorio,
+    opcoes: c.opcoesLista ?? [],
+    largura: normalizeLargura(c.largura),
+    alinhamento: c.alinhamento,
+    cor: c.cor,
+    colunas: (c.colunas ?? []).map((col) => ({
+      largura: normalizeLargura(col.largura),
+      campos: col.campos.map(mapCampo),
+    })),
+  };
+}
 
 /**
  * Builds a standalone, self-contained HTML document for the "Baixar .html" export: same visual
@@ -11,15 +38,10 @@ export function renderPrototipoHtml(projetos: MapeadorProjetoDTO[], options: { c
     nome: p.nome,
     etapas: p.etapas.map((e) => ({
       nome: e.nome,
+      feedbacks: e.feedbacks.map((f) => ({ feedback: f.feedback, logic: f.logic, tipo: f.tipo })),
       passos: e.camposPorEtapa.map((passo) => ({
         titulo: passo.titulo,
-        campos: passo.campos.map((c) => ({
-          tipo: c.tipo,
-          label: c.label,
-          obrigatorio: !!c.obrigatorio,
-          opcoes: c.opcoesLista ?? [],
-          largura: normalizeLargura(c.largura),
-        })),
+        campos: passo.campos.map(mapCampo),
       })),
     })),
   }));
@@ -71,12 +93,24 @@ function fieldHtml(c, path){
   const pct = (largura / 12) * 100;
   const gapAdjust = 20 * (1 - largura / 12);
   const widthStyle = 'width:calc(' + pct + '% - ' + gapAdjust + 'px)';
+  const textoEstilo = 'text-align:'+(c.alinhamento||'left')+(c.cor?';color:'+c.cor:'');
   let inner = '';
   switch(c.tipo){
-    case 'titulo_pagina': inner = '<div class="p-title-inline">'+esc(c.label)+'</div>'; break;
-    case 'label_destaque': inner = '<div class="p-label-inline">'+esc(c.label)+'</div>'; break;
-    case 'texto_informativo': inner = '<p class="p-info">'+esc(c.label)+'</p>'; break;
+    case 'titulo_pagina': inner = '<div class="p-title-inline" style="'+textoEstilo+'">'+esc(c.label)+'</div>'; break;
+    case 'label_destaque': inner = '<div class="p-label-inline" style="'+textoEstilo+'">'+esc(c.label)+'</div>'; break;
+    case 'texto_informativo': inner = '<p class="p-info" style="'+textoEstilo+'">'+esc(c.label)+'</p>'; break;
     case 'divisor': inner = '<hr class="p-hr">'; break;
+    case 'agrupamento': {
+      const colunas = (c.colunas||[]).map((coluna, i) => {
+        const colLargura = coluna.largura || 12;
+        const colPct = (colLargura / 12) * 100;
+        const colGapAdjust = 20 * (1 - colLargura / 12);
+        const colFields = (coluna.campos||[]).map((cf, j) => fieldHtml(cf, path+'.'+i+'.'+j)).join('');
+        return '<div class="p-coluna" style="width:calc('+colPct+'% - '+colGapAdjust+'px)">'+colFields+'</div>';
+      }).join('');
+      inner = '<div class="p-grid">'+colunas+'</div>';
+      break;
+    }
     case 'select': {
       const opts = (c.opcoes||[]).map(o=>'<option value="'+esc(o)+'">'+esc(o)+'</option>').join('');
       inner = '<div class="p-fld"><label class="p-lbl">'+esc(c.label)+' '+req+'</label><select class="p-ctl" data-k="'+path+'"><option value="" disabled selected>Selecionar</option>'+opts+'</select></div>';
@@ -140,15 +174,27 @@ function render(){
     const next = projeto.etapas[s.ei+1];
     const detalhes = [['Curso','Administração'],['Modalidade','Presencial'],['Campus','Sede'],['Forma de Ingresso','Vestibular Presencial']]
       .map(([l,v]) => '<div class="p-detail-row"><div class="p-detail-lbl">'+l+'</div><div class="p-detail-val">'+v+'</div></div>').join('');
+    function pickFeedback(e){ return (e.feedbacks||[]).find(f=>f.tipo==='positivo') || (e.feedbacks||[])[0]; }
     el.innerHTML = topbarProfile + '<div class="p-portal" style="background-image:url('+BG+')">'
-      + '<div style="width:288px;display:flex;flex-direction:column;gap:16px">'
+      + '<div style="width:28%;min-width:260px;max-width:340px;display:flex;flex-direction:column;gap:16px">'
       + '<div class="p-card"><div class="p-card-title">Minhas inscrições</div><div class="p-card-value">'+esc(projeto.nome)+'</div></div>'
       + '<div class="p-card"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px"><div class="p-card-value">Detalhes da inscrição</div></div>'+detalhes+'</div>'
       + '</div>'
       + '<div class="p-card" style="min-width:320px;flex:1;padding:0;overflow:hidden">'
       + '<div style="background:var(--brand);padding:16px;text-align:center;font-weight:600;color:#fff;font-size:14px">Acompanhe aqui o status da sua inscrição</div>'
       + '<div style="padding:20px">'
-      + done.map(e => '<div class="p-status-row"><span class="p-status-ic done">✓</span><div><div class="p-card-value">'+esc(e.nome)+'</div><div style="font-size:12px;font-style:italic;color:#8a8a95">Concluída</div></div></div>').join('')
+      + done.map(e => {
+          const fb = pickFeedback(e);
+          const tipo = fb ? fb.tipo : 'positivo';
+          const isPositivo = tipo === 'positivo';
+          const icone = isPositivo ? '✓' : (tipo === 'negativo' ? '✕' : '!');
+          const label = fb ? fb.feedback : 'Concluída';
+          const rowStyle = isPositivo ? 'border-top:none;border-radius:8px;padding:16px;margin:4px 0;background:var(--brand)' : 'padding:16px 0';
+          const icStyle = isPositivo ? 'border-color:#fff;color:#fff;background:transparent' : '';
+          const titleStyle = isPositivo ? 'color:#fff' : '';
+          const subStyle = isPositivo ? 'color:rgba(255,255,255,.85)' : 'color:#8a8a95';
+          return '<div class="p-status-row" style="'+rowStyle+'"><span class="p-status-ic" style="'+icStyle+'">'+icone+'</span><div><div class="p-card-value" style="'+titleStyle+'">'+esc(e.nome)+'</div><div style="font-size:12px;font-style:italic;'+subStyle+'">'+esc(label)+'</div></div></div>';
+        }).join('')
       + (next ? '<div class="p-status-row" style="justify-content:space-between"><div style="display:flex;align-items:center;gap:12px"><span class="p-status-ic">!</span><div><div class="p-card-value">'+esc(next.nome)+'</div><div style="font-size:12px;font-style:italic;color:#8a8a95">Aguardando conclusão</div></div></div><button class="p-btn ghost" id="portal-next" style="border:1px solid #ddd">Acessar</button></div>' : '')
       + '</div></div></div>';
     const btn = document.getElementById('portal-next');

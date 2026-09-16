@@ -14,6 +14,7 @@ export type MapeadorCampoTipo =
   | "popup"
   | "condicional"
   | "divisor"
+  | "agrupamento"
 
 export const MAPEADOR_CAMPO_TIPO_LABELS: Record<MapeadorCampoTipo, string> = {
   texto: "Campo - Texto",
@@ -31,6 +32,7 @@ export const MAPEADOR_CAMPO_TIPO_LABELS: Record<MapeadorCampoTipo, string> = {
   popup: "Pop-up",
   condicional: "[Condicional]",
   divisor: "Divisor (quebra de linha)",
+  agrupamento: "Agrupamento (colunas)",
 }
 
 /** Column span out of a 12-column grid (Bootstrap-style): 12 = full row, 6 = half, 4 = a third, 3 = a quarter, etc. */
@@ -75,6 +77,35 @@ export interface MapeadorCampo {
   largura?: MapeadorCampoLargura
   /** Forces the field onto its own row in the Protótipo visual grid, with extra top spacing, regardless of its largura. Set via the "Ajustar layout" click-to-resize mode. */
   novaLinha?: boolean
+  /** Text alignment for heading/text content types (titulo_pagina, label_destaque, texto_informativo). */
+  alinhamento?: "left" | "center" | "right"
+  /** Text color (any CSS color) for heading/text content types (titulo_pagina, label_destaque, texto_informativo). */
+  cor?: string
+  /** Columns (1-4) for a tipo "agrupamento" campo — the group's own largura/novaLinha still place it within the parent grid, like any other campo. */
+  colunas?: MapeadorColuna[]
+}
+
+/** One column inside a tipo "agrupamento" campo: its own width (same 1-12 scale as campo.largura) and an ordered list of nested campos. Agrupamento campos cannot nest inside a coluna (v1 constraint, enforced in the editor). */
+export interface MapeadorColuna {
+  id: string
+  largura: MapeadorCampoLargura
+  campos: MapeadorCampo[]
+}
+
+/** Recursively finds the campo with the given id anywhere in the tree (including inside agrupamento colunas) and applies patch to it, leaving everything else untouched. Used by the "Ajustar layout" click-to-resize mode, which needs to reach fields nested inside a coluna. */
+export function updateCampoDeep(campos: MapeadorCampo[], campoId: string, patch: Partial<MapeadorCampo>): MapeadorCampo[] {
+  return campos.map((c) => {
+    if (c.id === campoId) return { ...c, ...patch }
+    if (c.tipo === "agrupamento" && c.colunas) {
+      return { ...c, colunas: c.colunas.map((col) => ({ ...col, campos: updateCampoDeep(col.campos, campoId, patch) })) }
+    }
+    return c
+  })
+}
+
+/** Recursively expands any tipo "agrupamento" campo into its nested campos (depth-first), so flat consumers (exports, summaries) see every real field instead of one opaque "agrupamento" entry. */
+export function flattenCampos(campos: MapeadorCampo[]): MapeadorCampo[] {
+  return campos.flatMap((c) => (c.tipo === "agrupamento" ? (c.colunas ?? []).flatMap((col) => flattenCampos(col.campos)) : [c]))
 }
 
 export type MapeadorPassoTipo = "passo" | "popup" | "pagina"

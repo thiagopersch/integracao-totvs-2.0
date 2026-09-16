@@ -20,7 +20,7 @@ import { TemaEditorDialog } from "@/components/mapeador/prototipo/tema-editor-di
 import { buildScreens } from "@/components/mapeador/prototipo/screens"
 import { prototipoCss } from "@/components/mapeador/prototipo/styles"
 import { exportPrototipoPdf } from "@/components/mapeador/prototipo/export-pdf"
-import type { MapeadorCampo, MapeadorCampoLargura, MapeadorGerarPara, MapeadorProjetoDTO, MapeadorTemaDTO } from "@/types/mapeador"
+import { updateCampoDeep, type MapeadorCampo, type MapeadorCampoLargura, type MapeadorGerarPara, type MapeadorProjetoDTO, type MapeadorTemaDTO } from "@/types/mapeador"
 
 function isVoltarButton(label: string) {
   return /voltar/i.test(label)
@@ -122,7 +122,7 @@ export function PrototipoTab() {
     if (!etapa) return
     const nextCampos = etapa.camposPorEtapa.map((passo) => ({
       ...passo,
-      campos: passo.campos.map((c) => (c.id === campoId ? { ...c, largura } : c)),
+      campos: updateCampoDeep(passo.campos, campoId, { largura }),
     }))
     setCamposPorEtapa(etapa.id, nextCampos)
     updateMapeadorEtapa(etapa.id, projeto.id, { camposPorEtapa: nextCampos }).then((result) => {
@@ -136,7 +136,7 @@ export function PrototipoTab() {
     if (!etapa) return
     const nextCampos = etapa.camposPorEtapa.map((passo) => ({
       ...passo,
-      campos: passo.campos.map((c) => (c.id === campoId ? { ...c, novaLinha } : c)),
+      campos: updateCampoDeep(passo.campos, campoId, { novaLinha }),
     }))
     setCamposPorEtapa(etapa.id, nextCampos)
     updateMapeadorEtapa(etapa.id, projeto.id, { camposPorEtapa: nextCampos }).then((result) => {

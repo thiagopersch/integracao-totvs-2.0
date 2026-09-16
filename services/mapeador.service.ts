@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@/generated/prisma/client";
 import { MAPEADOR_RUBEUS_TEMPLATES, getMapeadorTemplate } from "@/lib/mapeador/templates";
+import { flattenCampos } from "@/types/mapeador";
 import type {
   CamposPorEtapa,
   MapeadorEtapaDTO,
@@ -195,7 +196,7 @@ export const mapeadorService = {
       id: t.id,
       nome: t.nome,
       etapasCount: t.etapas.length,
-      itensCount: t.etapas.reduce((sum, e) => sum + e.camposPorEtapa.reduce((s, p) => s + p.campos.length, 0), 0),
+      itensCount: t.etapas.reduce((sum, e) => sum + e.camposPorEtapa.reduce((s, p) => s + flattenCampos(p.campos).length, 0), 0),
     }));
   },
 

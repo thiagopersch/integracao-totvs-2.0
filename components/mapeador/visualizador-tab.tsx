@@ -9,7 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { CollapsibleSection } from "@/components/mapeador/collapsible-section"
 import { exportMapeadorProjetoXlsx } from "@/actions/mapeador-export"
 import { useMapeadorStore } from "@/store/mapeador.store"
-import { MAPEADOR_CAMPO_TIPO_LABELS } from "@/types/mapeador"
+import { flattenCampos, MAPEADOR_CAMPO_TIPO_LABELS } from "@/types/mapeador"
 
 const INFO_LABELS: Record<string, string> = {
   idProcessoSeletivo: "Identificador (ID) do Processo Seletivo",
@@ -98,7 +98,7 @@ export function VisualizadorTab() {
                 {etapa.camposPorEtapa.map((passo) => (
                   <div key={passo.id} className="space-y-2 rounded-md border p-3">
                     <div className="rounded bg-amber-100 px-1.5 py-0.5 text-xs font-semibold text-amber-900">{passo.titulo}</div>
-                    {passo.campos.map((campo) => (
+                    {flattenCampos(passo.campos).map((campo) => (
                       <div key={campo.id} className="flex items-start justify-between gap-2 text-xs">
                         {campo.tipo === "botao" ? (
                           <span className="w-full rounded bg-fuchsia-100 px-1.5 py-0.5 text-center font-semibold text-fuchsia-900">{campo.label}</span>

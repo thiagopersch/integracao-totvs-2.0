@@ -1,6 +1,6 @@
 import jsPDF from "jspdf"
 import autoTable from "jspdf-autotable"
-import { MAPEADOR_CAMPO_TIPO_LABELS } from "@/types/mapeador"
+import { flattenCampos, MAPEADOR_CAMPO_TIPO_LABELS } from "@/types/mapeador"
 import type { MapeadorProjetoDTO } from "@/types/mapeador"
 
 /** Structured PDF (etapas + campos, one section per processo) — a simplified, printable version of the prototype flow, since capturing every screen pixel-perfectly would need one canvas render per screen. */
@@ -22,7 +22,7 @@ export function exportPrototipoPdf(projetos: MapeadorProjetoDTO[], orientation: 
 
     const camposRows = projeto.etapas.flatMap((etapa) =>
       etapa.camposPorEtapa.flatMap((passo) =>
-        passo.campos.map((campo) => [etapa.nome, passo.titulo, campo.label, MAPEADOR_CAMPO_TIPO_LABELS[campo.tipo] ?? campo.tipo, campo.obrigatorio ? "Sim" : "Não"])
+        flattenCampos(passo.campos).map((campo) => [etapa.nome, passo.titulo, campo.label, MAPEADOR_CAMPO_TIPO_LABELS[campo.tipo] ?? campo.tipo, campo.obrigatorio ? "Sim" : "Não"])
       )
     )
 

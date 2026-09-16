@@ -29,6 +29,7 @@ ${scope} .p-stepper li.todo{opacity:.45}
 ${scope} .p-main{flex:1;background:#fff;padding:40px 46px}
 ${scope} .p-h1{font-size:23px;font-weight:700;margin:0 0 20px}
 ${scope} .p-grid{display:flex;flex-wrap:wrap;gap:18px 20px}
+${scope} .p-coluna{display:flex;flex-direction:column;gap:18px}
 ${scope} .p-fld{display:flex;flex-direction:column;position:relative}
 ${scope} .p-lbl{font-size:14px;font-weight:400;color:#4e4d4d;margin-bottom:6px}
 ${scope} .p-req{color:#2b2b3c}
