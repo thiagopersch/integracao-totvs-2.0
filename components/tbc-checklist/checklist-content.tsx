@@ -1,23 +1,25 @@
 "use client"
 
-import { ClipboardList, Plus, X } from "lucide-react"
+import { ClipboardList, Loader2, Plus, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import { ChecklistFieldCard } from "@/components/tbc-checklist/checklist-field-card"
 import type { AddedDataserver } from "@/components/tbc-checklist/tbc-checklist-client"
 import type { ProcessoSeletivo } from "@/components/tbc-checklist/processo-seletivo-sidebar"
-import type { ChecklistTableResult } from "@/actions/integrations/tbc-checklist"
+import type { ChecklistRecord, ChecklistTableResult } from "@/actions/integrations/tbc-checklist"
 
 interface ChecklistContentProps {
   selectedProcesso: ProcessoSeletivo | null
   addedDataservers: AddedDataserver[]
+  loadingPrimary: boolean
   onRemoveDataserver: (code: string) => void
   onOpenAddDialog: () => void
 }
 
 function TablesView({ tables }: { tables: ChecklistTableResult[] }) {
   if (tables.length === 1) {
-    return <FieldsGrid table={tables[0]} />
+    return <RecordsView table={tables[0]} />
   }
   return (
     <Tabs defaultValue={tables[0]?.table}>
@@ -30,24 +32,54 @@ function TablesView({ tables }: { tables: ChecklistTableResult[] }) {
       </TabsList>
       {tables.map((table) => (
         <TabsContent key={table.table} value={table.table}>
-          <FieldsGrid table={table} />
+          <RecordsView table={table} />
         </TabsContent>
       ))}
     </Tabs>
   )
 }
 
-function FieldsGrid({ table }: { table: ChecklistTableResult }) {
+/** A table with a single matched row shows its fields directly; more than one (e.g. N áreas
+ *  ofertadas sharing the same coligada+IDPS filtro) becomes a collapsed-by-default accordion, one
+ *  item per row, so each record's own checklist can be inspected without cluttering the screen. */
+function RecordsView({ table }: { table: ChecklistTableResult }) {
+  if (table.records.length === 0) {
+    return <p className="pt-3 text-sm text-muted-foreground">Nenhum registro encontrado nesta tabela.</p>
+  }
+  if (table.records.length === 1) {
+    return <FieldsGrid record={table.records[0]} />
+  }
   return (
-    <div className="grid grid-cols-2 gap-3 pt-3 sm:grid-cols-3 lg:grid-cols-4">
-      {table.fields.map((field) => (
-        <ChecklistFieldCard key={`${table.table}-${field.name}`} field={field} />
+    <Accordion defaultValue={[]} className="pt-3">
+      {table.records.map((record) => (
+        <AccordionItem key={record.key} value={record.key}>
+          <AccordionTrigger>{record.label}</AccordionTrigger>
+          <AccordionContent>
+            <FieldsGrid record={record} />
+          </AccordionContent>
+        </AccordionItem>
+      ))}
+    </Accordion>
+  )
+}
+
+function FieldsGrid({ record }: { record: ChecklistRecord }) {
+  return (
+    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+      {record.fields.map((field) => (
+        <ChecklistFieldCard key={`${record.key}-${field.name}`} field={field} />
       ))}
     </div>
   )
 }
 
-export function ChecklistContent({ selectedProcesso, addedDataservers, onRemoveDataserver, onOpenAddDialog }: ChecklistContentProps) {
+export function ChecklistContent({
+  selectedProcesso,
+  addedDataservers,
+  loadingPrimary,
+  onRemoveDataserver,
+  onOpenAddDialog,
+}: ChecklistContentProps) {
   if (!selectedProcesso) {
     return (
       <div className="flex flex-1 flex-col items-center justify-center gap-2 rounded-md border text-center text-muted-foreground">
@@ -69,7 +101,14 @@ export function ChecklistContent({ selectedProcesso, addedDataservers, onRemoveD
         </Button>
       </div>
 
-      {addedDataservers.length === 0 && (
+      {addedDataservers.length === 0 && loadingPrimary && (
+        <p className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          Carregando checklist...
+        </p>
+      )}
+
+      {addedDataservers.length === 0 && !loadingPrimary && (
         <p className="text-sm text-muted-foreground">
           Nenhum Data Server adicionado ainda. Clique em &quot;Adicionar Data Server&quot; para começar o checklist.
         </p>

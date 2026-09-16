@@ -17,9 +17,28 @@ export type ChecklistFieldRow = {
   valor: string
 }
 
+/** One matched row for a table — a table can have more than one when the filtro is scoped to a
+ *  broader key (e.g. coligada+IDPS) that several rows share (N áreas ofertadas for 1 processo). */
+export type ChecklistRecord = {
+  key: string
+  label: string
+  fields: ChecklistFieldRow[]
+}
+
 export type ChecklistTableResult = {
   table: string
-  fields: ChecklistFieldRow[]
+  records: ChecklistRecord[]
+}
+
+/** Picks a human label for one row of a table: prefers the first non-PK field with a real value
+ *  (usually a "nome"/"descrição" column), falls back to the row's own PK values, then a plain
+ *  ordinal — so every accordion item has something to show even for oddly-shaped tables. */
+function pickRecordLabel(fields: SchemaTable["fields"], row: Record<string, string>, index: number): string {
+  const nonPk = fields.find((f) => !f.isPrimaryKey && (row[f.name] ?? "").trim().length > 0)
+  if (nonPk) return row[nonPk.name]
+  const pkValues = fields.filter((f) => f.isPrimaryKey).map((f) => row[f.name]).filter((v) => (v ?? "").trim().length > 0)
+  if (pkValues.length) return pkValues.join(" - ")
+  return `Registro ${index + 1}`
 }
 
 /** coligada/filial/tipo de curso — same 3 fields the SOAP Builder always sends as Contexto. */
@@ -111,22 +130,27 @@ export async function fetchDataserverChecklist(input: {
       userId
     )
     const dataTables: DataTable[] = parseReadViewResult(viewRes.xmlResponse)
-    const rowsByTable = new Map(dataTables.map((t) => [t.name, t.rows[0]]))
+    const rowsByTable = new Map(dataTables.map((t) => [t.name, t.rows]))
 
     const result: ChecklistTableResult[] = tables.map((table) => {
-      const firstRow = rowsByTable.get(table.name)
-      const fields: ChecklistFieldRow[] = table.fields.map((field) => {
-        const rawValue = firstRow?.[field.name] ?? ""
-        return {
-          table: table.name,
-          name: field.name,
-          caption: field.caption && field.caption !== "-" ? field.caption : field.name,
-          isPrimaryKey: field.isPrimaryKey,
-          configurado: rawValue.trim().length > 0,
-          valor: rawValue,
-        }
-      })
-      return { table: table.name, fields }
+      const tableRows = rowsByTable.get(table.name)
+      const effectiveRows = tableRows?.length ? tableRows : [{}]
+      const records: ChecklistRecord[] = effectiveRows.map((row, index) => ({
+        key: `${table.name}-${index}`,
+        label: pickRecordLabel(table.fields, row, index),
+        fields: table.fields.map((field) => {
+          const rawValue = row[field.name] ?? ""
+          return {
+            table: table.name,
+            name: field.name,
+            caption: field.caption && field.caption !== "-" ? field.caption : field.name,
+            isPrimaryKey: field.isPrimaryKey,
+            configurado: rawValue.trim().length > 0,
+            valor: rawValue,
+          }
+        }),
+      }))
+      return { table: table.name, records }
     })
 
     return { success: true as const, tables: result }

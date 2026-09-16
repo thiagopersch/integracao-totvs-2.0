@@ -26,21 +26,34 @@ import { buildDefaultFiltro } from "@/lib/tbc-checklist-filtro"
 import type { Dataserver } from "@/generated/prisma/client"
 import { toast } from "sonner"
 
-const DEFAULT_CONTEXT: ChecklistContext = { coligate: 1, branch: 1, levelEducation: 1 }
-
 interface AddDataserverDialogProps {
   tbcId: string
   open: boolean
   onOpenChange: (open: boolean) => void
   dataservers: Dataserver[]
   loading: boolean
-  onConfirm: (dataserver: Dataserver, filtro: string, context: ChecklistContext) => void
+  context: ChecklistContext
+  onContextChange: (context: ChecklistContext) => void
+  /** Field values already known from the selected processo seletivo (its own row plus
+   *  CODCOLIGADA/CODFILIAL/CODTIPOCURSO from context), used to pre-fill the new Data Server's
+   *  filtro with real values instead of a blank template. */
+  knownValues: Record<string, string>
+  onConfirm: (dataserver: Dataserver, filtro: string) => void
 }
 
-export function AddDataserverDialog({ tbcId, open, onOpenChange, dataservers, loading, onConfirm }: AddDataserverDialogProps) {
+export function AddDataserverDialog({
+  tbcId,
+  open,
+  onOpenChange,
+  dataservers,
+  loading,
+  context,
+  onContextChange,
+  knownValues,
+  onConfirm,
+}: AddDataserverDialogProps) {
   const [dataserverId, setDataserverId] = useState("")
   const [filtro, setFiltro] = useState("")
-  const [context, setContext] = useState<ChecklistContext>(DEFAULT_CONTEXT)
   const [schemaLoading, setSchemaLoading] = useState(false)
 
   const selected = dataservers.find((d) => d.id === dataserverId)
@@ -49,7 +62,6 @@ export function AddDataserverDialog({ tbcId, open, onOpenChange, dataservers, lo
     if (!next) {
       setDataserverId("")
       setFiltro("")
-      setContext(DEFAULT_CONTEXT)
     }
     onOpenChange(next)
   }
@@ -62,7 +74,7 @@ export function AddDataserverDialog({ tbcId, open, onOpenChange, dataservers, lo
       toast.error(result.error || `Falha ao buscar schema do Data Server "${dataserver.name}"`)
       return
     }
-    setFiltro(buildDefaultFiltro(result.tables))
+    setFiltro(buildDefaultFiltro(result.tables, knownValues))
   }
 
   async function handleSelectDataserver(id: string) {
@@ -96,7 +108,7 @@ export function AddDataserverDialog({ tbcId, open, onOpenChange, dataservers, lo
             <AccordionItem value="filtro">
               <AccordionTrigger>Contexto e filtro (ReadView)</AccordionTrigger>
               <AccordionContent className="flex flex-col gap-3">
-                <ChecklistContextFields value={context} onChange={setContext} />
+                <ChecklistContextFields value={context} onChange={onContextChange} />
                 <Field>
                   <div className="flex items-center justify-between gap-2">
                     <FieldLabel>Filtro (condição SQL, ex.: TABELA.CAMPO = &apos;valor&apos;)</FieldLabel>
@@ -130,7 +142,7 @@ export function AddDataserverDialog({ tbcId, open, onOpenChange, dataservers, lo
           <Button type="button" variant="outline" onClick={() => handleOpenChange(false)} disabled={loading}>
             Cancelar
           </Button>
-          <Button type="button" onClick={() => selected && onConfirm(selected, filtro, context)} disabled={!selected || loading}>
+          <Button type="button" onClick={() => selected && onConfirm(selected, filtro)} disabled={!selected || loading}>
             {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Adicionar
           </Button>

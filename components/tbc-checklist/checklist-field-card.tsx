@@ -10,22 +10,27 @@ interface ChecklistFieldCardProps {
 }
 
 export function ChecklistFieldCard({ field }: ChecklistFieldCardProps) {
+  // Long captions cramped into a single narrow grid column wrap onto themselves and visually spill
+  // past the card — give them a wider card (2 grid columns) instead of fighting for space.
+  const isLongCaption = field.caption.length > 24
+
   return (
     <Accordion
       defaultValue={[]}
       className={cn(
-        "rounded-md border",
+        "min-w-0 rounded-md border",
+        isLongCaption && "col-span-2",
         field.configurado
           ? "border-green-300 bg-green-50 dark:border-green-800 dark:bg-green-950/30"
           : "border-red-300 bg-red-50 dark:border-red-800 dark:bg-red-950/30"
       )}
     >
       <AccordionItem value="field" className="border-none">
-        <AccordionTrigger className="items-center px-3 py-3 hover:no-underline [&[data-open]>svg]:rotate-180">
+        <AccordionTrigger className="min-w-0 items-center px-3 py-3 hover:no-underline [&[data-open]>svg]:rotate-180">
           <div className="flex min-w-0 flex-1 flex-col gap-1 text-left">
             <span
               className={cn(
-                "truncate text-sm font-medium",
+                "min-w-0 text-sm font-medium break-words",
                 field.configurado ? "text-green-900 dark:text-green-100" : "text-red-900 dark:text-red-100"
               )}
             >

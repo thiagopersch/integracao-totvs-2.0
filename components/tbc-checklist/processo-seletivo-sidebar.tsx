@@ -25,12 +25,16 @@ import { buildDefaultFiltro } from "@/lib/tbc-checklist-filtro"
 import type { Dataserver } from "@/generated/prisma/client"
 import { toast } from "sonner"
 
-const DEFAULT_CONTEXT: ChecklistContext = { coligate: 1, branch: 1, levelEducation: 1 }
-
 export type ProcessoSeletivo = {
   id: string
   label: string
   row: Record<string, string>
+  /** Data Server used to list this processo, its main table, and PK field names — so the
+   *  checklist for this same Data Server can be auto-loaded (and related Data Servers pre-filled)
+   *  without the user re-entering context that's already known. */
+  sourceDataserverCode: string
+  sourceTableName: string
+  pkFieldNames: string[]
 }
 
 interface ProcessoSeletivoSidebarProps {
@@ -38,6 +42,8 @@ interface ProcessoSeletivoSidebarProps {
   dataservers: Dataserver[]
   selectedProcesso: ProcessoSeletivo | null
   onSelectProcesso: (processo: ProcessoSeletivo | null) => void
+  context: ChecklistContext
+  onContextChange: (context: ChecklistContext) => void
 }
 
 /** Numeric-aware descending compare — most TOTVS id/code fields are numeric strings ("3", "12"),
@@ -52,15 +58,22 @@ function compareDesc(a: string, b: string): number {
   return b.localeCompare(a)
 }
 
-export function ProcessoSeletivoSidebar({ tbcId, dataservers, selectedProcesso, onSelectProcesso }: ProcessoSeletivoSidebarProps) {
+export function ProcessoSeletivoSidebar({
+  tbcId,
+  dataservers,
+  selectedProcesso,
+  onSelectProcesso,
+  context,
+  onContextChange,
+}: ProcessoSeletivoSidebarProps) {
   const [collapsed, setCollapsed] = useState(false)
   const [configuring, setConfiguring] = useState(true)
   const [dataserverId, setDataserverId] = useState("")
   const [filtro, setFiltro] = useState("")
-  const [context, setContext] = useState<ChecklistContext>(DEFAULT_CONTEXT)
   const [schemaLoading, setSchemaLoading] = useState(false)
   const [loading, setLoading] = useState(false)
   const [fields, setFields] = useState<{ name: string; caption: string; isPrimaryKey: boolean }[]>([])
+  const [tableName, setTableName] = useState("")
   const [idField, setIdField] = useState("")
   const [labelField, setLabelField] = useState("")
   const [rows, setRows] = useState<Record<string, string>[]>([])
@@ -80,6 +93,7 @@ export function ProcessoSeletivoSidebar({ tbcId, dataservers, selectedProcesso, 
       return
     }
     setFiltro(buildDefaultFiltro(result.tables))
+    setTableName(result.tables[0]?.name ?? "")
     const schemaFields = (result.tables[0]?.fields ?? []).map((f) => ({
       name: f.name,
       caption: f.caption && f.caption !== "-" ? f.caption : f.name,
@@ -113,13 +127,21 @@ export function ProcessoSeletivoSidebar({ tbcId, dataservers, selectedProcesso, 
     setConfiguring(false)
   }
 
+  const pkFieldNames = fields.filter((f) => f.isPrimaryKey).map((f) => f.name)
   const processos: ProcessoSeletivo[] = (() => {
     const byId = new Map<string, ProcessoSeletivo>()
     for (const row of rows) {
       const id = row[idField] ?? ""
       if (byId.has(id)) continue
       const displayLabel = row[labelField] || id || "(sem nome)"
-      byId.set(id, { id, label: id ? `${id} - ${displayLabel}` : displayLabel, row })
+      byId.set(id, {
+        id,
+        label: id ? `${id} - ${displayLabel}` : displayLabel,
+        row,
+        sourceDataserverCode: selectedDataserver?.code ?? "",
+        sourceTableName: tableName,
+        pkFieldNames,
+      })
     }
     return Array.from(byId.values()).sort((a, b) => compareDesc(a.id, b.id))
   })()
@@ -174,7 +196,7 @@ export function ProcessoSeletivoSidebar({ tbcId, dataservers, selectedProcesso, 
             <AccordionItem value="filtro">
               <AccordionTrigger>Contexto e filtro (ReadView)</AccordionTrigger>
               <AccordionContent className="flex flex-col gap-3">
-                <ChecklistContextFields value={context} onChange={setContext} />
+                <ChecklistContextFields value={context} onChange={onContextChange} />
                 <Field>
                   <div className="flex items-center justify-between gap-2">
                     <FieldLabel>Filtro (condição SQL, ex.: TABELA.CAMPO = &apos;valor&apos;)</FieldLabel>
