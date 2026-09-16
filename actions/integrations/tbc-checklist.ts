@@ -4,6 +4,7 @@ import { tbcService } from "@/services/tbc.service"
 import { soapService } from "@/services/soap.service"
 import { soapEndpointService } from "@/services/soap-endpoint.service"
 import { requirePermission } from "@/lib/rbac"
+import { escapeXml, type SoapContext } from "@/utils/soap-envelope"
 import { parseDataServerSchema, parseReadViewResult, type SchemaTable, type DataTable } from "@/utils/soap-schema"
 import type { WsName } from "@/lib/ws-names"
 
@@ -21,20 +22,77 @@ export type ChecklistTableResult = {
   fields: ChecklistFieldRow[]
 }
 
+/** coligada/filial/tipo de curso — same 3 fields the SOAP Builder always sends as Contexto. */
+export type ChecklistContext = {
+  coligate: number
+  branch: number
+  levelEducation: number
+}
+
 /**
- * GetSchema (structure) + ReadView (real values, scoped by `filtro` — the exact TOTVS ReadView
- * filter expression, e.g. "CODCOLIGADA=1;CODPROCESSO=123") for one Data Server, merged field by
- * field. A field is "configurado" when the first matching row has a non-empty value for it.
+ * Only `GetSchema` for one Data Server — used to discover its tables/fields (and primary keys) as
+ * soon as a Data Server is picked, before any ReadView is run, so the filtro editor can be
+ * pre-filled with a `TABLE.PKFIELD = ''` template. Same auth-then-check-then-execute path as
+ * everything else (`soapService.execute`).
  */
-export async function fetchDataserverChecklist(input: { tbcId: string; dataserverCode: string; filtro?: string }) {
+export async function fetchDataserverSchema(input: { tbcId: string; dataserverCode: string; context?: ChecklistContext }) {
   try {
     const { organizationId, allowedClientIds, userId } = await requirePermission("tbcs", "read")
     const credentials = await tbcService.getCredentialsForRequest(input.tbcId, organizationId, allowedClientIds)
     const dataserverType = await soapEndpointService.getActiveTypeByKey("dataserver")
     const wsName = dataserverType.suffix as WsName
+    const soapContext: SoapContext = { ...input.context, user: credentials.user }
 
     const schemaRes = await soapService.execute(
-      { tbc: credentials, wsName, method: "GETSCHEMA", xml: `<GetSchema>\n  <DataServerName>${input.dataserverCode}</DataServerName>\n</GetSchema>` },
+      {
+        tbc: credentials,
+        wsName,
+        method: "GETSCHEMA",
+        xml: `<GetSchema>\n  <DataServerName>${escapeXml(input.dataserverCode)}</DataServerName>\n</GetSchema>`,
+        context: soapContext,
+      },
+      organizationId,
+      userId
+    )
+    const tables = parseDataServerSchema(schemaRes.xmlResponse)
+    if (!tables.length) {
+      return { success: false as const, error: `Nenhuma tabela encontrada no schema do Data Server "${input.dataserverCode}".` }
+    }
+    return { success: true as const, tables }
+  } catch (error) {
+    return { success: false as const, error: (error as Error).message }
+  }
+}
+
+/**
+ * GetSchema (structure) + ReadView (real values, scoped by `filtro` — a SQL-like WHERE condition,
+ * e.g. "SPSPROCESSOSELETIVO.CODCOLIGADA = 1 AND SPSPROCESSOSELETIVO.IDPS = '123'") for one Data
+ * Server, merged field by field. A field is "configurado" when the first matching row has a
+ * non-empty value for it. `context` (coligada/filial/tipo de curso) is always sent, mirroring the
+ * SOAP Builder — TOTVS RM uses it internally to resolve the base before applying the filtro, and
+ * omitting it is what causes "Object reference not set to an instance of an object.".
+ */
+export async function fetchDataserverChecklist(input: {
+  tbcId: string
+  dataserverCode: string
+  filtro?: string
+  context?: ChecklistContext
+}) {
+  try {
+    const { organizationId, allowedClientIds, userId } = await requirePermission("tbcs", "read")
+    const credentials = await tbcService.getCredentialsForRequest(input.tbcId, organizationId, allowedClientIds)
+    const dataserverType = await soapEndpointService.getActiveTypeByKey("dataserver")
+    const wsName = dataserverType.suffix as WsName
+    const soapContext: SoapContext = { ...input.context, user: credentials.user }
+
+    const schemaRes = await soapService.execute(
+      {
+        tbc: credentials,
+        wsName,
+        method: "GETSCHEMA",
+        xml: `<GetSchema>\n  <DataServerName>${escapeXml(input.dataserverCode)}</DataServerName>\n</GetSchema>`,
+        context: soapContext,
+      },
       organizationId,
       userId
     )
@@ -45,10 +103,10 @@ export async function fetchDataserverChecklist(input: { tbcId: string; dataserve
 
     const filtro = input.filtro?.trim() ?? ""
     const readViewXml = filtro
-      ? `<ReadView>\n  <DataServerName>${input.dataserverCode}</DataServerName>\n  <Filtro>${filtro}</Filtro>\n</ReadView>`
-      : `<ReadView>\n  <DataServerName>${input.dataserverCode}</DataServerName>\n</ReadView>`
+      ? `<ReadView>\n  <DataServerName>${escapeXml(input.dataserverCode)}</DataServerName>\n  <Filtro>${escapeXml(filtro)}</Filtro>\n</ReadView>`
+      : `<ReadView>\n  <DataServerName>${escapeXml(input.dataserverCode)}</DataServerName>\n</ReadView>`
     const viewRes = await soapService.execute(
-      { tbc: credentials, wsName, method: "READVIEW", xml: readViewXml },
+      { tbc: credentials, wsName, method: "READVIEW", xml: readViewXml, context: soapContext },
       organizationId,
       userId
     )
@@ -83,15 +141,27 @@ export async function fetchDataserverChecklist(input: { tbcId: string; dataserve
  * this app has no such entity of its own, see plan). Returns raw rows plus the schema so the
  * caller can offer id/label field pickers.
  */
-export async function fetchDataserverRows(input: { tbcId: string; dataserverCode: string; filtro?: string }) {
+export async function fetchDataserverRows(input: {
+  tbcId: string
+  dataserverCode: string
+  filtro?: string
+  context?: ChecklistContext
+}) {
   try {
     const { organizationId, allowedClientIds, userId } = await requirePermission("tbcs", "read")
     const credentials = await tbcService.getCredentialsForRequest(input.tbcId, organizationId, allowedClientIds)
     const dataserverType = await soapEndpointService.getActiveTypeByKey("dataserver")
     const wsName = dataserverType.suffix as WsName
+    const soapContext: SoapContext = { ...input.context, user: credentials.user }
 
     const schemaRes = await soapService.execute(
-      { tbc: credentials, wsName, method: "GETSCHEMA", xml: `<GetSchema>\n  <DataServerName>${input.dataserverCode}</DataServerName>\n</GetSchema>` },
+      {
+        tbc: credentials,
+        wsName,
+        method: "GETSCHEMA",
+        xml: `<GetSchema>\n  <DataServerName>${escapeXml(input.dataserverCode)}</DataServerName>\n</GetSchema>`,
+        context: soapContext,
+      },
       organizationId,
       userId
     )
@@ -99,10 +169,10 @@ export async function fetchDataserverRows(input: { tbcId: string; dataserverCode
 
     const filtro = input.filtro?.trim() ?? ""
     const readViewXml = filtro
-      ? `<ReadView>\n  <DataServerName>${input.dataserverCode}</DataServerName>\n  <Filtro>${filtro}</Filtro>\n</ReadView>`
-      : `<ReadView>\n  <DataServerName>${input.dataserverCode}</DataServerName>\n</ReadView>`
+      ? `<ReadView>\n  <DataServerName>${escapeXml(input.dataserverCode)}</DataServerName>\n  <Filtro>${escapeXml(filtro)}</Filtro>\n</ReadView>`
+      : `<ReadView>\n  <DataServerName>${escapeXml(input.dataserverCode)}</DataServerName>\n</ReadView>`
     const viewRes = await soapService.execute(
-      { tbc: credentials, wsName, method: "READVIEW", xml: readViewXml },
+      { tbc: credentials, wsName, method: "READVIEW", xml: readViewXml, context: soapContext },
       organizationId,
       userId
     )

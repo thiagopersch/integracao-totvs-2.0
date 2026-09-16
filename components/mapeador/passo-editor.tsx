@@ -1,13 +1,28 @@
 "use client"
 
-import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core"
+import { useState } from "react"
+import {
+  DndContext,
+  DragOverlay,
+  pointerWithin,
+  closestCenter,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  useDroppable,
+  type CollisionDetection,
+  type DragEndEvent,
+  type DragOverEvent,
+  type DragStartEvent,
+} from "@dnd-kit/core"
 import { SortableContext, verticalListSortingStrategy, arrayMove } from "@dnd-kit/sortable"
 import { ArrowDown, ArrowUp, Plus, Trash2 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { CampoRow } from "@/components/mapeador/campo-row"
-import type { MapeadorCampo, MapeadorEtapaDTO, MapeadorPasso, MapeadorPassoTipo } from "@/types/mapeador"
+import { allContainerIds, findContainerOf, getContainer, ROOT_CONTAINER, setContainer } from "@/lib/mapeador/campo-containers"
+import { MAPEADOR_CAMPO_TIPO_LABELS, type MapeadorCampo, type MapeadorEtapaDTO, type MapeadorPasso, type MapeadorPassoTipo } from "@/types/mapeador"
 
 const PASSO_TIPO_LABELS: Record<MapeadorPassoTipo, string> = {
   passo: "Passo",
@@ -29,8 +44,16 @@ interface PassoEditorProps {
   canMoveDown: boolean
 }
 
+/** pointerWithin alone reliably hit-tests empty droppable containers (e.g. an empty coluna); closestCenter is the fallback for when the pointer isn't over any droppable yet. Standard combo for dnd-kit's multi-container sortable pattern. */
+const collisionDetection: CollisionDetection = (args) => {
+  const pointerCollisions = pointerWithin(args)
+  return pointerCollisions.length > 0 ? pointerCollisions : closestCenter(args)
+}
+
 export function PassoEditor({ passo, etapas, onChange, onRemove, onMove, canMoveUp, canMoveDown }: PassoEditorProps) {
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }))
+  const [activeCampo, setActiveCampo] = useState<MapeadorCampo | null>(null)
+  const { setNodeRef: setRootRef } = useDroppable({ id: ROOT_CONTAINER })
 
   function updateCampo(campoId: string, patch: Partial<MapeadorCampo>) {
     onChange({ campos: passo.campos.map((c) => (c.id === campoId ? { ...c, ...patch } : c)) })
@@ -44,13 +67,52 @@ export function PassoEditor({ passo, etapas, onChange, onRemove, onMove, canMove
     onChange({ campos: [...passo.campos, newCampo()] })
   }
 
-  function handleDragEnd(event: DragEndEvent) {
+  function handleDragStart(event: DragStartEvent) {
+    const activeId = String(event.active.id)
+    const container = findContainerOf(passo.campos, activeId)
+    setActiveCampo(container ? (getContainer(passo.campos, container).find((c) => c.id === activeId) ?? null) : null)
+  }
+
+  /** Live-moves the dragged campo across containers (root <-> coluna, coluna <-> coluna) as it crosses a boundary, so the item visually relocates while still being dragged — the standard dnd-kit multi-container pattern. */
+  function handleDragOver(event: DragOverEvent) {
     const { active, over } = event
-    if (!over || active.id === over.id) return
-    const oldIndex = passo.campos.findIndex((c) => c.id === active.id)
-    const newIndex = passo.campos.findIndex((c) => c.id === over.id)
-    if (oldIndex === -1 || newIndex === -1) return
-    onChange({ campos: arrayMove(passo.campos, oldIndex, newIndex) })
+    if (!over) return
+    const activeId = String(active.id)
+    const overId = String(over.id)
+    const activeContainer = findContainerOf(passo.campos, activeId)
+    const overContainer = allContainerIds(passo.campos).includes(overId) ? overId : findContainerOf(passo.campos, overId)
+    if (!activeContainer || !overContainer || activeContainer === overContainer) return
+
+    const activeItem = getContainer(passo.campos, activeContainer).find((c) => c.id === activeId)
+    if (!activeItem) return
+    // An agrupamento can never nest inside a coluna.
+    if (activeItem.tipo === "agrupamento" && overContainer !== ROOT_CONTAINER) return
+
+    const sourceItems = getContainer(passo.campos, activeContainer).filter((c) => c.id !== activeId)
+    const destItems = getContainer(passo.campos, overContainer)
+    const overIndex = destItems.findIndex((c) => c.id === overId)
+    const insertAt = overIndex >= 0 ? overIndex : destItems.length
+    const nextDest = [...destItems.slice(0, insertAt), activeItem, ...destItems.slice(insertAt)]
+
+    let nextCampos = setContainer(passo.campos, activeContainer, sourceItems)
+    nextCampos = setContainer(nextCampos, overContainer, nextDest)
+    onChange({ campos: nextCampos })
+  }
+
+  /** Same-container index fix once the drag settles — cross-container moves already happened live in onDragOver. */
+  function handleDragEnd(event: DragEndEvent) {
+    setActiveCampo(null)
+    const { active, over } = event
+    if (!over) return
+    const activeId = String(active.id)
+    const overId = String(over.id)
+    const container = findContainerOf(passo.campos, activeId)
+    if (!container) return
+    const items = getContainer(passo.campos, container)
+    const oldIndex = items.findIndex((c) => c.id === activeId)
+    const newIndex = allContainerIds(passo.campos).includes(overId) ? items.length - 1 : items.findIndex((c) => c.id === overId)
+    if (oldIndex === -1 || newIndex === -1 || oldIndex === newIndex) return
+    onChange({ campos: setContainer(passo.campos, container, arrayMove(items, oldIndex, newIndex)) })
   }
 
   return (
@@ -80,9 +142,9 @@ export function PassoEditor({ passo, etapas, onChange, onRemove, onMove, canMove
         </Button>
       </div>
 
-      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+      <DndContext sensors={sensors} collisionDetection={collisionDetection} onDragStart={handleDragStart} onDragOver={handleDragOver} onDragEnd={handleDragEnd}>
         <SortableContext items={passo.campos.map((c) => c.id)} strategy={verticalListSortingStrategy}>
-          <div className="space-y-3">
+          <div ref={setRootRef} className="space-y-3">
             {passo.campos.map((campo) => (
               <CampoRow
                 key={campo.id}
@@ -95,6 +157,14 @@ export function PassoEditor({ passo, etapas, onChange, onRemove, onMove, canMove
             ))}
           </div>
         </SortableContext>
+        <DragOverlay>
+          {activeCampo && (
+            <div className="rounded-md border bg-background px-3 py-2 text-sm shadow-lg">
+              <span className="font-medium">{activeCampo.label || "Campo"}</span>
+              <span className="ml-2 text-xs text-muted-foreground">{MAPEADOR_CAMPO_TIPO_LABELS[activeCampo.tipo]}</span>
+            </div>
+          )}
+        </DragOverlay>
       </DndContext>
 
       <Button variant="outline" size="sm" className="mt-2" onClick={addCampo}>

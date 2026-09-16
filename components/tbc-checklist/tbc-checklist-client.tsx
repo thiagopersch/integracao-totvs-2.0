@@ -4,7 +4,7 @@ import { useState } from "react"
 import Link from "next/link"
 import { ArrowLeft, ListChecks } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { fetchDataserverChecklist, type ChecklistTableResult } from "@/actions/integrations/tbc-checklist"
+import { fetchDataserverChecklist, type ChecklistContext, type ChecklistTableResult } from "@/actions/integrations/tbc-checklist"
 import { ProcessoSeletivoSidebar, type ProcessoSeletivo } from "@/components/tbc-checklist/processo-seletivo-sidebar"
 import { AddDataserverDialog } from "@/components/tbc-checklist/add-dataserver-dialog"
 import { ChecklistContent } from "@/components/tbc-checklist/checklist-content"
@@ -35,9 +35,9 @@ export function TbcChecklistClient({ tbc, dataservers }: TbcChecklistClientProps
     setAddedDataservers([])
   }
 
-  async function handleAddDataserver(dataserver: Dataserver, filtro: string) {
+  async function handleAddDataserver(dataserver: Dataserver, filtro: string, context: ChecklistContext) {
     setAddLoading(true)
-    const result = await fetchDataserverChecklist({ tbcId: tbc.id, dataserverCode: dataserver.code, filtro })
+    const result = await fetchDataserverChecklist({ tbcId: tbc.id, dataserverCode: dataserver.code, filtro, context })
     setAddLoading(false)
     if (!result.success) {
       toast.error(result.error || `Falha ao consultar o Data Server "${dataserver.name}"`)
@@ -90,6 +90,7 @@ export function TbcChecklistClient({ tbc, dataservers }: TbcChecklistClientProps
       </div>
 
       <AddDataserverDialog
+        tbcId={tbc.id}
         open={addDialogOpen}
         onOpenChange={setAddDialogOpen}
         dataservers={dataservers}

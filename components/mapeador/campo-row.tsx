@@ -1,8 +1,8 @@
 "use client"
 
 import { useState } from "react"
-import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core"
-import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from "@dnd-kit/sortable"
+import { useDroppable } from "@dnd-kit/core"
+import { SortableContext, verticalListSortingStrategy, useSortable } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
 import { AlignCenter, AlignLeft, AlignRight, GripVertical, Plus, Trash2 } from "lucide-react"
 import { Input } from "@/components/ui/input"
@@ -11,6 +11,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { cn } from "@/lib/utils"
+import { colunaContainerId } from "@/lib/mapeador/campo-containers"
 import { MAPEADOR_CAMPO_TIPO_LABELS, normalizeLargura, type MapeadorCampo, type MapeadorCampoTipo, type MapeadorColuna, type MapeadorEtapaDTO } from "@/types/mapeador"
 
 const LISTA_OPCOES_TIPOS: MapeadorCampoTipo[] = ["select", "radio", "check"]
@@ -51,7 +52,6 @@ interface CampoRowProps {
 export function CampoRow({ campo, etapas, passoCampos, onChange, onRemove, allowAgrupamento = true }: CampoRowProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: campo.id })
   const dragStyle = { transform: CSS.Transform.toString(transform), transition }
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }))
   const [expanded, setExpanded] = useState(false)
   const [opcoesText, setOpcoesText] = useState(() => (campo.opcoesLista ?? []).join(", "))
   const mostraOpcoesLista = LISTA_OPCOES_TIPOS.includes(campo.tipo)
@@ -96,17 +96,6 @@ export function CampoRow({ campo, etapas, passoCampos, onChange, onRemove, allow
 
   function setColunaCampos(colunaId: string, campos: MapeadorCampo[]) {
     updateColuna(colunaId, { campos })
-  }
-
-  function handleColunaDragEnd(coluna: MapeadorColuna) {
-    return (event: DragEndEvent) => {
-      const { active, over } = event
-      if (!over || active.id === over.id) return
-      const oldIndex = coluna.campos.findIndex((c) => c.id === active.id)
-      const newIndex = coluna.campos.findIndex((c) => c.id === over.id)
-      if (oldIndex === -1 || newIndex === -1) return
-      setColunaCampos(coluna.id, arrayMove(coluna.campos, oldIndex, newIndex))
-    }
   }
 
   return (
@@ -342,23 +331,11 @@ export function CampoRow({ campo, etapas, passoCampos, onChange, onRemove, allow
                       </Button>
                     </div>
 
-                    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleColunaDragEnd(coluna)}>
-                      <SortableContext items={coluna.campos.map((c) => c.id)} strategy={verticalListSortingStrategy}>
-                        <div className="space-y-2">
-                          {coluna.campos.map((campoFilho) => (
-                            <CampoRow
-                              key={campoFilho.id}
-                              campo={campoFilho}
-                              etapas={etapas}
-                              passoCampos={coluna.campos}
-                              allowAgrupamento={false}
-                              onChange={(patch) => setColunaCampos(coluna.id, coluna.campos.map((c) => (c.id === campoFilho.id ? { ...c, ...patch } : c)))}
-                              onRemove={() => setColunaCampos(coluna.id, coluna.campos.filter((c) => c.id !== campoFilho.id))}
-                            />
-                          ))}
-                        </div>
-                      </SortableContext>
-                    </DndContext>
+                    <ColunaCamposArea
+                      coluna={coluna}
+                      etapas={etapas}
+                      onCamposChange={(campos) => setColunaCampos(coluna.id, campos)}
+                    />
 
                     <Button variant="outline" size="sm" onClick={() => setColunaCampos(coluna.id, [...coluna.campos, newCampoFilho()])}>
                       <Plus className="h-3.5 w-3.5" /> Adicionar campo
@@ -371,5 +348,44 @@ export function CampoRow({ campo, etapas, passoCampos, onChange, onRemove, allow
         </div>
       )}
     </div>
+  )
+}
+
+interface ColunaCamposAreaProps {
+  coluna: MapeadorColuna
+  etapas: MapeadorEtapaDTO[]
+  onCamposChange: (campos: MapeadorCampo[]) => void
+}
+
+/**
+ * A coluna's own droppable+sortable region. `useDroppable` (not just `SortableContext`) is what
+ * keeps an *empty* coluna a valid drag target — a `SortableContext` with zero items has no sortable
+ * node for `over` to hit-test against. Deliberately has no `DndContext` of its own: it's meant to be
+ * rendered under the single shared `DndContext` in passo-editor.tsx, so campos can be dragged between
+ * this coluna, other colunas, and the passo's top-level list.
+ */
+function ColunaCamposArea({ coluna, etapas, onCamposChange }: ColunaCamposAreaProps) {
+  const { setNodeRef } = useDroppable({ id: colunaContainerId(coluna.id) })
+
+  return (
+    <SortableContext items={coluna.campos.map((c) => c.id)} strategy={verticalListSortingStrategy}>
+      <div ref={setNodeRef} className="min-h-[40px] space-y-2">
+        {coluna.campos.length === 0 ? (
+          <div className="rounded-md border border-dashed p-3 text-center text-xs text-muted-foreground">Arraste um campo para cá</div>
+        ) : (
+          coluna.campos.map((campoFilho) => (
+            <CampoRow
+              key={campoFilho.id}
+              campo={campoFilho}
+              etapas={etapas}
+              passoCampos={coluna.campos}
+              allowAgrupamento={false}
+              onChange={(patch) => onCamposChange(coluna.campos.map((c) => (c.id === campoFilho.id ? { ...c, ...patch } : c)))}
+              onRemove={() => onCamposChange(coluna.campos.filter((c) => c.id !== campoFilho.id))}
+            />
+          ))
+        )}
+      </div>
+    </SortableContext>
   )
 }

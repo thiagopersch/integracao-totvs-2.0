@@ -8,7 +8,7 @@ export function TbcChecklistSkeleton() {
         <Skeleton className="h-6 w-72" />
       </div>
       <div className="flex min-h-0 flex-1 gap-4">
-        <div className="flex w-[280px] shrink-0 flex-col gap-2 rounded-md border p-3">
+        <div className="flex w-[380px] shrink-0 flex-col gap-2 rounded-md border p-3">
           <Skeleton className="h-8 w-full" />
           {Array.from({ length: 6 }).map((_, i) => (
             <Skeleton key={i} className="h-9 w-full" />
