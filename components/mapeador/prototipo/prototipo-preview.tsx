@@ -1,7 +1,12 @@
 "use client"
 
-import { useState } from "react"
+import { Fragment, useState } from "react"
+import { ChevronDown, Pencil } from "lucide-react"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import { cn } from "@/lib/utils"
 import { normalizeLargura, type MapeadorCampo, type MapeadorCampoLargura, type MapeadorProjetoDTO } from "@/types/mapeador"
 import type { PrototipoScreen } from "@/components/mapeador/prototipo/screens"
@@ -10,7 +15,20 @@ const DEFAULT_BG =
   "https://images.unsplash.com/photo-1523240795612-9a054b0db644?auto=format&fit=crop&w=1200&q=60"
 
 const GRID_GAP_PX = 20
-const LARGURA_OPCOES = Array.from({ length: 12 }, (_, i) => 12 - i)
+const LARGURA_PRESETS: { label: string; largura: MapeadorCampoLargura }[] = [
+  { label: "25%", largura: 3 },
+  { label: "33%", largura: 4 },
+  { label: "50%", largura: 6 },
+  { label: "100%", largura: 12 },
+]
+
+/** Illustrative-only enrollment details shown on the portal screen's "Detalhes da inscrição" card — there's no real candidate data to show in a prototype. */
+const PORTAL_DETALHES_MOCK = [
+  { label: "Curso", value: "Administração" },
+  { label: "Modalidade", value: "Presencial" },
+  { label: "Campus", value: "Sede" },
+  { label: "Forma de Ingresso", value: "Vestibular Presencial" },
+]
 
 /** Width for an N/12 column span, discounting a share of the row gap so columns still line up flush — mirrors the fixed .p-span-* rules this replaces. */
 function larguraStyle(largura: number): React.CSSProperties {
@@ -49,11 +67,13 @@ function EditableText({ id, value, editing, onChange, className, as = "span" }: 
 
 interface WidthPickerProps {
   value: MapeadorCampoLargura | undefined
-  onPick: (largura: MapeadorCampoLargura) => void
+  novaLinha: boolean | undefined
+  onPickLargura: (largura: MapeadorCampoLargura) => void
+  onToggleNovaLinha: (novaLinha: boolean) => void
   children: React.ReactNode
 }
 
-function WidthPicker({ value, onPick, children }: WidthPickerProps) {
+function WidthPicker({ value, novaLinha, onPickLargura, onToggleNovaLinha, children }: WidthPickerProps) {
   const [open, setOpen] = useState(false)
   const current = normalizeLargura(value)
   return (
@@ -61,24 +81,68 @@ function WidthPicker({ value, onPick, children }: WidthPickerProps) {
       <PopoverTrigger nativeButton={false} render={<div className="p-adjust-target rounded" />}>
         {children}
       </PopoverTrigger>
-      <PopoverContent className="w-auto p-2">
-        <label className="mb-1 block text-xs text-muted-foreground">Largura (colunas de 12)</label>
-        <select
-          className="rounded border bg-background p-1 text-xs"
-          value={current}
-          onChange={(e) => {
-            onPick(Number(e.target.value))
-            setOpen(false)
-          }}
+      <PopoverContent className="flex w-auto flex-row flex-wrap gap-1 p-1">
+        {LARGURA_PRESETS.map((p) => (
+          <button
+            key={p.largura}
+            type="button"
+            className={cn(
+              "rounded px-2 py-1 text-xs font-medium",
+              current === p.largura ? "bg-primary text-primary-foreground" : "bg-muted hover:bg-muted/80"
+            )}
+            onClick={() => {
+              onPickLargura(p.largura)
+              setOpen(false)
+            }}
+          >
+            {p.label}
+          </button>
+        ))}
+        <button
+          type="button"
+          className={cn(
+            "whitespace-nowrap rounded px-2 py-1 text-xs font-medium",
+            novaLinha ? "bg-foreground text-background" : "bg-muted hover:bg-muted/80"
+          )}
+          onClick={() => onToggleNovaLinha(!novaLinha)}
         >
-          {LARGURA_OPCOES.map((n) => (
-            <option key={n} value={n}>
-              {n} ({Math.round((n / 12) * 100)}%)
-            </option>
-          ))}
-        </select>
+          ↵ Nova linha
+        </button>
       </PopoverContent>
     </Popover>
+  )
+}
+
+interface LoginDialogProps {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+}
+
+function LoginDialog({ open, onOpenChange }: LoginDialogProps) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Login</DialogTitle>
+        </DialogHeader>
+        <DialogBody className="space-y-4">
+          <div className="space-y-1.5">
+            <Label>CPF ou EMAIL*</Label>
+            <Input />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Data de Nascimento*</Label>
+            <Input type="date" />
+          </div>
+        </DialogBody>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Cancelar
+          </Button>
+          <Button onClick={() => onOpenChange(false)}>Acessar</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }
 
@@ -97,6 +161,7 @@ interface PrototipoPreviewProps {
   editingTextos: boolean
   adjustMode: boolean
   onLarguraChange: (campoId: string, largura: MapeadorCampoLargura) => void
+  onNovaLinhaChange: (campoId: string, novaLinha: boolean) => void
 }
 
 export function PrototipoPreview({
@@ -114,9 +179,11 @@ export function PrototipoPreview({
   editingTextos,
   adjustMode,
   onLarguraChange,
+  onNovaLinhaChange,
 }: PrototipoPreviewProps) {
   const bg = bgImageUrl || DEFAULT_BG
   const t = (id: string, fallback: string) => textos[id] ?? fallback
+  const [loginOpen, setLoginOpen] = useState(false)
 
   function isCampoVisible(campo: MapeadorCampo): boolean {
     if (!campo.condicaoRefCampoId) return true
@@ -291,7 +358,12 @@ export function PrototipoPreview({
     }
 
     const wrapped = adjustMode ? (
-      <WidthPicker value={campo.largura} onPick={(l) => onLarguraChange(campo.id, l)}>
+      <WidthPicker
+        value={campo.largura}
+        novaLinha={campo.novaLinha}
+        onPickLargura={(l) => onLarguraChange(campo.id, l)}
+        onToggleNovaLinha={(n) => onNovaLinhaChange(campo.id, n)}
+      >
         {content}
       </WidthPicker>
     ) : (
@@ -299,21 +371,26 @@ export function PrototipoPreview({
     )
 
     return (
-      <div key={campo.id} style={larguraCss} data-error={hasError || undefined}>
-        {wrapped}
-      </div>
+      <Fragment key={campo.id}>
+        {campo.novaLinha && <div aria-hidden className="h-0 basis-full" />}
+        <div style={larguraCss} className={campo.novaLinha ? "mt-4" : undefined} data-error={hasError || undefined}>
+          {wrapped}
+        </div>
+      </Fragment>
     )
   }
 
   if (screen.kind === "landing") {
     return (
-      <div>
+      <div className="flex h-full min-h-0 flex-col">
         <div className="p-topbar">
           {logoUrl ? <img src={logoUrl} alt="Logo" className="h-8" /> : <span className="p-brand">EXEMPLO</span>}
-          <button className="p-login">LOGIN</button>
+          <button className="p-login" onClick={() => setLoginOpen(true)}>
+            LOGIN
+          </button>
         </div>
         <div
-          className="flex min-h-[420px] items-center justify-center p-10 text-center"
+          className="flex min-h-[420px] flex-1 items-center justify-center p-10 text-center"
           style={{ backgroundImage: `linear-gradient(rgba(0,0,0,.4),rgba(0,0,0,.4)), url(${bg})`, backgroundSize: "cover", backgroundPosition: "center" }}
         >
           <div className="mx-auto max-w-md text-white">
@@ -333,6 +410,7 @@ export function PrototipoPreview({
             </div>
           </div>
         </div>
+        <LoginDialog open={loginOpen} onOpenChange={setLoginOpen} />
       </div>
     )
   }
@@ -341,32 +419,58 @@ export function PrototipoPreview({
   const etapa = projeto?.etapas[screen.etapaIndex]
 
   if (screen.kind === "portal") {
+    const etapasConcluidas = projeto?.etapas.slice(0, screen.etapaIndex + 1) ?? []
     const nextEtapa = projeto?.etapas[screen.etapaIndex + 1]
     const feedbackPositivo = etapa?.feedbacks.find((f) => f.tipo === "positivo")
-    const statusLabel = feedbackPositivo?.feedback || "Concluída"
     return (
-      <div>
+      <div className="flex h-full min-h-0 flex-col">
         <div className="p-topbar">
           {logoUrl ? <img src={logoUrl} alt="Logo" className="h-8" /> : <span className="p-brand">EXEMPLO</span>}
-          <button className="p-login">Pedro ⌄</button>
+          <button className="p-profile">
+            Pedro <ChevronDown className="h-3.5 w-3.5" />
+          </button>
         </div>
         <div className="p-portal" style={{ backgroundImage: `url(${bg})` }}>
-          <div className="p-card w-72">
-            <div className="p-card-title">Minhas inscrições</div>
-            <div className="p-card-value">{projeto?.nome}</div>
+          <div className="w-72 space-y-4">
+            <div className="p-card">
+              <div className="p-card-title">Minhas inscrições</div>
+              <div className="flex items-center justify-between">
+                <div className="p-card-value">{projeto?.nome}</div>
+                <ChevronDown className="h-4 w-4 text-muted-foreground" />
+              </div>
+            </div>
+            <div className="p-card">
+              <div className="mb-3 flex items-center justify-between">
+                <div className="p-card-value">Detalhes da inscrição</div>
+                <button className="p-btn ghost !shadow-none !bg-white border !px-2.5 !py-1.5 !text-xs">
+                  <Pencil className="mr-1 inline h-3 w-3" /> Editar
+                </button>
+              </div>
+              {PORTAL_DETALHES_MOCK.map((d) => (
+                <div className="p-detail-row" key={d.label}>
+                  <div className="p-detail-lbl">{d.label}</div>
+                  <div className="p-detail-val">{d.value}</div>
+                </div>
+              ))}
+            </div>
           </div>
           <div className="p-card min-w-[320px] flex-1 !p-0 overflow-hidden">
             <div className="bg-[var(--brand)] p-4 text-center text-sm font-semibold text-white">
               <EditableText id="portal.titulo" value={t("portal.titulo", "Acompanhe aqui o status da sua inscrição")} editing={editingTextos} onChange={onTextoChange} />
             </div>
             <div className="space-y-0 p-5">
-              <div className="p-status-row">
-                <span className="p-status-ic done">✓</span>
-                <div>
-                  <div className="p-card-value">{etapa?.nome}</div>
-                  <div className="text-xs italic text-muted-foreground">{statusLabel}</div>
-                </div>
-              </div>
+              {etapasConcluidas.map((e) => {
+                const fb = e.feedbacks.find((f) => f.tipo === "positivo")
+                return (
+                  <div className="p-status-row" key={e.id}>
+                    <span className="p-status-ic done">✓</span>
+                    <div>
+                      <div className="p-card-value">{e.nome}</div>
+                      <div className="text-xs italic text-muted-foreground">{fb?.feedback || "Concluída"}</div>
+                    </div>
+                  </div>
+                )
+              })}
               {nextEtapa && (
                 <div className="p-status-row justify-between">
                   <div className="flex items-center gap-3">
@@ -394,22 +498,24 @@ export function PrototipoPreview({
   const passo = etapa.camposPorEtapa[screen.passoIndex]
 
   return (
-    <div>
+    <div className="flex h-full min-h-0 flex-col">
       <div className="p-topbar">
         {logoUrl ? <img src={logoUrl} alt="Logo" className="h-8" /> : <span className="p-brand">EXEMPLO</span>}
-        <button className="p-login">LOGIN</button>
+        <button className="p-login" onClick={() => setLoginOpen(true)}>
+          LOGIN
+        </button>
       </div>
       <div className="p-body">
         <div className="p-side" style={{ backgroundImage: `url(${bg})` }}>
           <div className="proc">{projeto.nome}</div>
           <div className="etapa">{etapa.nome}</div>
           <ul className="p-stepper">
-            {projeto.etapas.map((e, i) => (
-              <li key={e.id} className={i > screen.etapaIndex ? "todo" : undefined}>
-                <span className={cn("ic", i < screen.etapaIndex && "done")}>{i < screen.etapaIndex ? "✓" : i + 1}</span>
+            {etapa.camposPorEtapa.map((p, i) => (
+              <li key={p.id} className={i > screen.passoIndex ? "todo" : undefined}>
+                <span className={cn("ic", i < screen.passoIndex && "done")}>{i < screen.passoIndex ? "✓" : i + 1}</span>
                 <div>
-                  <div className="nm">{e.nome}</div>
-                  <div className="st">{i < screen.etapaIndex ? "Concluído" : i === screen.etapaIndex ? "Aguardando conclusão" : "Pendente"}</div>
+                  <div className="nm">{p.titulo}</div>
+                  <div className="st">{i < screen.passoIndex ? "Concluído" : i === screen.passoIndex ? "Aguardando conclusão" : "Pendente"}</div>
                 </div>
               </li>
             ))}
@@ -435,6 +541,7 @@ export function PrototipoPreview({
           )}
         </div>
       </div>
+      <LoginDialog open={loginOpen} onOpenChange={setLoginOpen} />
     </div>
   )
 }

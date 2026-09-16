@@ -27,10 +27,11 @@ export function PreviewClient({ projetos }: { projetos: MapeadorProjetoDTO[] }) 
   }
 
   return (
-    <div className="mapeador-proto min-h-screen bg-white">
+    <div className="mapeador-proto flex h-screen w-full flex-col overflow-y-auto bg-white">
       <style dangerouslySetInnerHTML={{ __html: prototipoCss(".mapeador-proto") }} />
       <div
-        className="mapeador-proto"
+        className="mapeador-proto flex min-h-0 flex-1 flex-col"
+        data-visualizacao={config.visualizacao ?? "desktop"}
         style={
           {
             "--brand": config.corMarca || "#0CC1AA",
@@ -53,6 +54,7 @@ export function PreviewClient({ projetos }: { projetos: MapeadorProjetoDTO[] }) 
           editingTextos={false}
           adjustMode={false}
           onLarguraChange={() => {}}
+          onNovaLinhaChange={() => {}}
         />
         <PrototipoNavbar screens={screens} screenIndex={screenIndex} projetos={projetos} onJump={setScreenIndex} />
       </div>

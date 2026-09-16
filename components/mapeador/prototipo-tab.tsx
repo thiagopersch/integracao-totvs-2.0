@@ -130,6 +130,20 @@ export function PrototipoTab() {
     })
   }
 
+  function handleNovaLinhaChange(campoId: string, novaLinha: boolean) {
+    if (screen.kind !== "form" || screen.projetoIndex !== projetos.indexOf(projeto)) return
+    const etapa = projeto.etapas[screen.etapaIndex]
+    if (!etapa) return
+    const nextCampos = etapa.camposPorEtapa.map((passo) => ({
+      ...passo,
+      campos: passo.campos.map((c) => (c.id === campoId ? { ...c, novaLinha } : c)),
+    }))
+    setCamposPorEtapa(etapa.id, nextCampos)
+    updateMapeadorEtapa(etapa.id, projeto.id, { camposPorEtapa: nextCampos }).then((result) => {
+      if (!result.success) toast.error(result.error || "Erro ao salvar layout do campo")
+    })
+  }
+
   function handleTextoChange(id: string, value: string) {
     saveConfig({ textos: { ...(config.textos ?? {}), [id]: value } })
   }
@@ -320,7 +334,8 @@ export function PrototipoTab() {
       ) : (
         <div className="flex justify-center">
           <div
-            className={cn("mapeador-proto overflow-hidden rounded-lg border shadow-sm transition-all", config.visualizacao === "mobile" ? "w-[390px]" : "w-full max-w-4xl")}
+            className={cn("mapeador-proto overflow-hidden rounded-lg border shadow-sm transition-all", config.visualizacao === "mobile" ? "w-[390px]" : "w-full")}
+            data-visualizacao={config.visualizacao ?? "desktop"}
             style={{ "--brand": config.corMarca || "#0CC1AA", "--bar": config.corBarra || "#0AA392" } as React.CSSProperties}
           >
             <style dangerouslySetInnerHTML={{ __html: prototipoCss(".mapeador-proto") }} />
@@ -339,6 +354,7 @@ export function PrototipoTab() {
               editingTextos={editingTextos}
               adjustMode={adjustMode}
               onLarguraChange={handleLarguraChange}
+              onNovaLinhaChange={handleNovaLinhaChange}
             />
             <PrototipoNavbar screens={screens} screenIndex={screenIndex} projetos={projetos} onJump={goTo} />
           </div>

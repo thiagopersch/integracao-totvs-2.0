@@ -73,6 +73,8 @@ export interface MapeadorCampo {
   acaoDestinoEtapaId?: string | null
   /** Column span (1-12) in the Protótipo visual grid — set directly in the campo editor or via the "Ajustar layout" click-to-resize mode. Read through normalizeLargura(). */
   largura?: MapeadorCampoLargura
+  /** Forces the field onto its own row in the Protótipo visual grid, with extra top spacing, regardless of its largura. Set via the "Ajustar layout" click-to-resize mode. */
+  novaLinha?: boolean
 }
 
 export type MapeadorPassoTipo = "passo" | "popup" | "pagina"

@@ -117,7 +117,9 @@ function fieldHtml(c, path){
 function render(){
   const s = screens[current];
   const el = document.getElementById('screen');
-  const topbar = '<div class="p-topbar">'+(LOGO?'<img src="'+LOGO+'" style="height:32px">':'<span class="p-brand">EXEMPLO</span>')+'<button class="p-login">LOGIN</button></div>';
+  const brandMark = LOGO ? '<img src="'+LOGO+'" style="height:32px">' : '<span class="p-brand">EXEMPLO</span>';
+  const topbar = '<div class="p-topbar">'+brandMark+'<button class="p-login">LOGIN</button></div>';
+  const topbarProfile = '<div class="p-topbar">'+brandMark+'<button class="p-profile">Pedro ▾</button></div>';
 
   if (s.kind === 'landing') {
     const opts = DATA.map((p,i)=>'<option value="'+i+'">'+esc(p.nome)+'</option>').join('');
@@ -134,13 +136,19 @@ function render(){
   const etapa = projeto.etapas[s.ei];
 
   if (s.kind === 'portal') {
+    const done = projeto.etapas.slice(0, s.ei+1);
     const next = projeto.etapas[s.ei+1];
-    el.innerHTML = topbar + '<div class="p-portal" style="background-image:url('+BG+')">'
-      + '<div class="p-card" style="width:280px"><div class="p-card-title">Minhas inscrições</div><div class="p-card-value">'+esc(projeto.nome)+'</div></div>'
+    const detalhes = [['Curso','Administração'],['Modalidade','Presencial'],['Campus','Sede'],['Forma de Ingresso','Vestibular Presencial']]
+      .map(([l,v]) => '<div class="p-detail-row"><div class="p-detail-lbl">'+l+'</div><div class="p-detail-val">'+v+'</div></div>').join('');
+    el.innerHTML = topbarProfile + '<div class="p-portal" style="background-image:url('+BG+')">'
+      + '<div style="width:288px;display:flex;flex-direction:column;gap:16px">'
+      + '<div class="p-card"><div class="p-card-title">Minhas inscrições</div><div class="p-card-value">'+esc(projeto.nome)+'</div></div>'
+      + '<div class="p-card"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px"><div class="p-card-value">Detalhes da inscrição</div></div>'+detalhes+'</div>'
+      + '</div>'
       + '<div class="p-card" style="min-width:320px;flex:1;padding:0;overflow:hidden">'
       + '<div style="background:var(--brand);padding:16px;text-align:center;font-weight:600;color:#fff;font-size:14px">Acompanhe aqui o status da sua inscrição</div>'
       + '<div style="padding:20px">'
-      + '<div class="p-status-row"><span class="p-status-ic done">✓</span><div><div class="p-card-value">'+esc(etapa.nome)+'</div><div style="font-size:12px;font-style:italic;color:#8a8a95">Concluída</div></div></div>'
+      + done.map(e => '<div class="p-status-row"><span class="p-status-ic done">✓</span><div><div class="p-card-value">'+esc(e.nome)+'</div><div style="font-size:12px;font-style:italic;color:#8a8a95">Concluída</div></div></div>').join('')
       + (next ? '<div class="p-status-row" style="justify-content:space-between"><div style="display:flex;align-items:center;gap:12px"><span class="p-status-ic">!</span><div><div class="p-card-value">'+esc(next.nome)+'</div><div style="font-size:12px;font-style:italic;color:#8a8a95">Aguardando conclusão</div></div></div><button class="p-btn ghost" id="portal-next" style="border:1px solid #ddd">Acessar</button></div>' : '')
       + '</div></div></div>';
     const btn = document.getElementById('portal-next');
@@ -149,9 +157,9 @@ function render(){
   }
 
   const passo = etapa.passos[s.si];
-  const steps = projeto.etapas.map((e,i)=>{
-    const status = i<s.ei?'Concluído':(i===s.ei?'Aguardando conclusão':'Pendente');
-    return '<li'+(i>s.ei?' style="opacity:.45"':'')+'><span class="ic'+(i<s.ei?' done':'')+'">'+(i<s.ei?'✓':(i+1))+'</span><div><div class="nm">'+esc(e.nome)+'</div><div class="st">'+status+'</div></div></li>';
+  const steps = etapa.passos.map((p,i)=>{
+    const status = i<s.si?'Concluído':(i===s.si?'Aguardando conclusão':'Pendente');
+    return '<li'+(i>s.si?' style="opacity:.45"':'')+'><span class="ic'+(i<s.si?' done':'')+'">'+(i<s.si?'✓':(i+1))+'</span><div><div class="nm">'+esc(p.titulo)+'</div><div class="st">'+status+'</div></div></li>';
   }).join('');
 
   if (!passo) {
