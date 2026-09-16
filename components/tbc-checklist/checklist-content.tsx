@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import { ChecklistFieldCard } from "@/components/tbc-checklist/checklist-field-card"
+import { groupChecklistFields, OTHERS_GROUP_NAME } from "@/lib/tbc-checklist-groups"
 import type { AddedDataserver } from "@/components/tbc-checklist/tbc-checklist-client"
 import type { ProcessoSeletivo } from "@/components/tbc-checklist/processo-seletivo-sidebar"
 import type { ChecklistRecord, ChecklistTableResult } from "@/actions/integrations/tbc-checklist"
@@ -17,9 +18,9 @@ interface ChecklistContentProps {
   onOpenAddDialog: () => void
 }
 
-function TablesView({ tables }: { tables: ChecklistTableResult[] }) {
+function TablesView({ dataserverCode, tables }: { dataserverCode: string; tables: ChecklistTableResult[] }) {
   if (tables.length === 1) {
-    return <RecordsView table={tables[0]} />
+    return <RecordsView dataserverCode={dataserverCode} table={tables[0]} />
   }
   return (
     <Tabs defaultValue={tables[0]?.table}>
@@ -32,7 +33,7 @@ function TablesView({ tables }: { tables: ChecklistTableResult[] }) {
       </TabsList>
       {tables.map((table) => (
         <TabsContent key={table.table} value={table.table}>
-          <RecordsView table={table} />
+          <RecordsView dataserverCode={dataserverCode} table={table} />
         </TabsContent>
       ))}
     </Tabs>
@@ -42,12 +43,12 @@ function TablesView({ tables }: { tables: ChecklistTableResult[] }) {
 /** A table with a single matched row shows its fields directly; more than one (e.g. N áreas
  *  ofertadas sharing the same coligada+IDPS filtro) becomes a collapsed-by-default accordion, one
  *  item per row, so each record's own checklist can be inspected without cluttering the screen. */
-function RecordsView({ table }: { table: ChecklistTableResult }) {
+function RecordsView({ dataserverCode, table }: { dataserverCode: string; table: ChecklistTableResult }) {
   if (table.records.length === 0) {
     return <p className="pt-3 text-sm text-muted-foreground">Nenhum registro encontrado nesta tabela.</p>
   }
   if (table.records.length === 1) {
-    return <FieldsGrid record={table.records[0]} />
+    return <FieldsGrid dataserverCode={dataserverCode} record={table.records[0]} />
   }
   return (
     <Accordion defaultValue={[]} className="pt-3">
@@ -55,7 +56,7 @@ function RecordsView({ table }: { table: ChecklistTableResult }) {
         <AccordionItem key={record.key} value={record.key}>
           <AccordionTrigger>{record.label}</AccordionTrigger>
           <AccordionContent>
-            <FieldsGrid record={record} />
+            <FieldsGrid dataserverCode={dataserverCode} record={record} />
           </AccordionContent>
         </AccordionItem>
       ))}
@@ -63,13 +64,38 @@ function RecordsView({ table }: { table: ChecklistTableResult }) {
   )
 }
 
-function FieldsGrid({ record }: { record: ChecklistRecord }) {
+function CardsGrid({ fields }: { fields: ChecklistRecord["fields"] }) {
   return (
     <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-      {record.fields.map((field) => (
-        <ChecklistFieldCard key={`${record.key}-${field.name}`} field={field} />
+      {fields.map((field) => (
+        <ChecklistFieldCard key={`${field.table}-${field.name}`} field={field} />
       ))}
     </div>
+  )
+}
+
+/** Groups the record's fields by TOTVS screen tab (`groupChecklistFields`) when a mapping exists
+ *  for this Data Server, rendering one open-by-default accordion section per tab ("Outros campos"
+ *  stays collapsed). Falls back to the plain flat grid for Data Servers with no mapping yet. */
+function FieldsGrid({ dataserverCode, record }: { dataserverCode: string; record: ChecklistRecord }) {
+  const groups = groupChecklistFields(dataserverCode, record.fields)
+  if (!groups) {
+    return <CardsGrid fields={record.fields} />
+  }
+
+  const defaultOpen = groups.filter((g) => g.name !== OTHERS_GROUP_NAME).map((g) => g.name)
+
+  return (
+    <Accordion defaultValue={defaultOpen}>
+      {groups.map((group) => (
+        <AccordionItem key={group.name} value={group.name}>
+          <AccordionTrigger>{group.name}</AccordionTrigger>
+          <AccordionContent>
+            <CardsGrid fields={group.fields} />
+          </AccordionContent>
+        </AccordionItem>
+      ))}
+    </Accordion>
   )
 }
 
@@ -122,7 +148,7 @@ export function ChecklistContent({
               <X className="h-4 w-4" />
             </Button>
           </div>
-          <TablesView tables={addedDataservers[0].tables} />
+          <TablesView dataserverCode={addedDataservers[0].code} tables={addedDataservers[0].tables} />
         </div>
       )}
 
@@ -143,7 +169,7 @@ export function ChecklistContent({
                     <X className="h-4 w-4" />
                   </Button>
                 </div>
-                <TablesView tables={ds.tables} />
+                <TablesView dataserverCode={ds.code} tables={ds.tables} />
               </div>
             </TabsContent>
           ))}
