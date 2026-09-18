@@ -46,6 +46,13 @@ export function PrototipoTab() {
   const exportVisualizacao = config.exportVisualizacao ?? "desktop"
 
   const [temas, setTemas] = useState<MapeadorTemaDTO[]>([])
+  // The org's editable baseline appearance (auto-created server-side) — kept out of the "Tema"
+  // dropdown's own list (it already has a "Padrão" option meaning "no tema applied") and instead
+  // used as the fallback wherever a color hasn't been set, plus as the target of the edit button
+  // next to that dropdown when nothing else is selected.
+  const temaPadrao = temas.find((t) => t.nome === "Padrão") ?? null
+  const temasSelecionaveis = temas.filter((t) => t.id !== temaPadrao?.id)
+  const temaAtivo = config.temaId ? (temas.find((t) => t.id === config.temaId) ?? null) : temaPadrao
   const [temaDialogOpen, setTemaDialogOpen] = useState(false)
   const [editingTema, setEditingTema] = useState<MapeadorTemaDTO | null>(null)
   const [siblingProjetos, setSiblingProjetos] = useState<MapeadorProjetoDTO[] | null>(null)
@@ -250,51 +257,65 @@ export function PrototipoTab() {
             <div className="flex flex-wrap items-end gap-4">
               <div className="space-y-1">
                 <Label className="text-xs text-muted-foreground">Tema</Label>
-                <Select
-                  items={[{ value: "__none__", label: "Padrão" }, ...temas.map((t) => ({ value: t.id, label: t.nome })), { value: "__new__", label: "+ Criar novo tema" }]}
-                  value={config.temaId ?? "__none__"}
-                  onValueChange={(v) => {
-                    if (v === "__new__") {
-                      setEditingTema(null)
+                <div className="flex items-center gap-1">
+                  <Select
+                    items={[{ value: "__none__", label: "Padrão" }, ...temasSelecionaveis.map((t) => ({ value: t.id, label: t.nome })), { value: "__new__", label: "+ Criar novo tema" }]}
+                    value={config.temaId ?? "__none__"}
+                    onValueChange={(v) => {
+                      if (v === "__new__") {
+                        setEditingTema(null)
+                        setTemaDialogOpen(true)
+                        return
+                      }
+                      const temaId = v === "__none__" ? null : (v as string)
+                      const tema = temas.find((t) => t.id === temaId)
+                      saveConfig({
+                        temaId,
+                        ...(tema
+                          ? {
+                              corMarca: tema.config.corMarca,
+                              corBarra: tema.config.corBarra,
+                              logoUrl: tema.config.logoUrl,
+                              bgImageUrl: tema.config.bgImageUrl,
+                            }
+                          : {}),
+                      })
+                    }}
+                  >
+                    <SelectTrigger className="w-44">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">Padrão</SelectItem>
+                      {temasSelecionaveis.map((t) => (
+                        <SelectItem key={t.id} value={t.id}>
+                          {t.nome}
+                        </SelectItem>
+                      ))}
+                      <SelectItem value="__new__">+ Criar novo tema</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    disabled={!temaAtivo}
+                    title="Editar tema atual"
+                    onClick={() => {
+                      setEditingTema(temaAtivo)
                       setTemaDialogOpen(true)
-                      return
-                    }
-                    const temaId = v === "__none__" ? null : (v as string)
-                    const tema = temas.find((t) => t.id === temaId)
-                    saveConfig({
-                      temaId,
-                      ...(tema
-                        ? {
-                            corMarca: tema.config.corMarca,
-                            corBarra: tema.config.corBarra,
-                            logoUrl: tema.config.logoUrl,
-                            bgImageUrl: tema.config.bgImageUrl,
-                          }
-                        : {}),
-                    })
-                  }}
-                >
-                  <SelectTrigger className="w-44">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__none__">Padrão</SelectItem>
-                    {temas.map((t) => (
-                      <SelectItem key={t.id} value={t.id}>
-                        {t.nome}
-                      </SelectItem>
-                    ))}
-                    <SelectItem value="__new__">+ Criar novo tema</SelectItem>
-                  </SelectContent>
-                </Select>
+                    }}
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
               </div>
               <div className="space-y-1">
                 <Label className="text-xs text-muted-foreground">Cor da marca</Label>
-                <Input type="color" value={config.corMarca || "#0CC1AA"} onChange={(e) => saveConfig({ corMarca: e.target.value })} className="h-8 w-14 p-1" />
+                <Input type="color" value={config.corMarca || temaPadrao?.config.corMarca || "#0CC1AA"} onChange={(e) => saveConfig({ corMarca: e.target.value })} className="h-8 w-14 p-1" />
               </div>
               <div className="space-y-1">
                 <Label className="text-xs text-muted-foreground">Cor da barra</Label>
-                <Input type="color" value={config.corBarra || "#0AA392"} onChange={(e) => saveConfig({ corBarra: e.target.value })} className="h-8 w-14 p-1" />
+                <Input type="color" value={config.corBarra || temaPadrao?.config.corBarra || "#0AA392"} onChange={(e) => saveConfig({ corBarra: e.target.value })} className="h-8 w-14 p-1" />
               </div>
               <ImageInput label="Logo" value={config.logoUrl} onChange={(url) => saveConfig({ logoUrl: url })} kind="logo" />
               <ImageInput label="Imagem de fundo" value={config.bgImageUrl} onChange={(url) => saveConfig({ bgImageUrl: url })} hint="Recomendado: pelo menos 1600×1000px, paisagem" kind="background" />
@@ -336,7 +357,12 @@ export function PrototipoTab() {
           <div
             className={cn("mapeador-proto overflow-hidden rounded-lg border shadow-sm transition-all", config.visualizacao === "mobile" ? "w-[390px]" : "w-full")}
             data-visualizacao={config.visualizacao ?? "desktop"}
-            style={{ "--brand": config.corMarca || "#0CC1AA", "--bar": config.corBarra || "#0AA392" } as React.CSSProperties}
+            style={
+              {
+                "--brand": config.corMarca || temaPadrao?.config.corMarca || "#0CC1AA",
+                "--bar": config.corBarra || temaPadrao?.config.corBarra || "#0AA392",
+              } as React.CSSProperties
+            }
           >
             <style dangerouslySetInnerHTML={{ __html: prototipoCss(".mapeador-proto") }} />
             <PrototipoPreview
@@ -370,6 +396,11 @@ export function PrototipoTab() {
             const exists = prev.some((t) => t.id === tema.id)
             return exists ? prev.map((t) => (t.id === tema.id ? tema : t)) : [...prev, tema]
           })
+          // Editing the "Padrão" tema while the project still has no tema explicitly chosen must
+          // NOT set `temaId` — Padrão is excluded from the selectable list, so that id wouldn't
+          // match any option — and the color fallbacks already read `temaPadrao.config` live, so
+          // the edit takes effect immediately without copying anything into this project's config.
+          if (tema.nome === "Padrão" && !config.temaId) return
           saveConfig({ temaId: tema.id, corMarca: tema.config.corMarca, corBarra: tema.config.corBarra, logoUrl: tema.config.logoUrl, bgImageUrl: tema.config.bgImageUrl })
         }}
       />

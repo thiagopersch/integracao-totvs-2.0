@@ -209,4 +209,6 @@ export interface MapeadorTemplateSummary {
   nome: string
   etapasCount: number
   itensCount: number
+  /** "rubeus" = one of the 6 static built-in templates; "modelo" = saved by a user from a project ("Salvar como modelo"). */
+  origem: "rubeus" | "modelo"
 }

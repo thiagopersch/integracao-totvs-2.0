@@ -494,7 +494,7 @@ export function PrototipoPreview({
           </button>
         </div>
         <div className="p-portal" style={{ backgroundImage: `url(${bg})` }}>
-          <div className="w-[28%] min-w-[260px] max-w-sm shrink-0 space-y-4">
+          <div className="w-[32%] min-w-[280px] max-w-md shrink-0 space-y-4">
             <div className="p-card">
               <div className="p-card-title">Minhas inscrições</div>
               <div className="flex items-center justify-between">
@@ -517,19 +517,23 @@ export function PrototipoPreview({
               ))}
             </div>
           </div>
-          <div className="p-card min-w-[320px] flex-1 !p-0 overflow-hidden">
+          <div className="p-card min-w-[280px] flex-1 !p-0 overflow-hidden">
             <div className="bg-[var(--brand)] p-4 text-center text-sm font-semibold text-white">
               <EditableText id="portal.titulo" value={t("portal.titulo", "Acompanhe aqui o status da sua inscrição")} editing={editingTextos} onChange={onTextoChange} />
             </div>
             <div className="space-y-0 p-5">
-              {etapasConcluidas.map((e) => {
+              {etapasConcluidas.map((e, index) => {
                 const fb = pickFeedback(e)
                 const tipo = fb?.tipo ?? "positivo"
                 const isPositivo = tipo === "positivo"
                 const icone = isPositivo ? "✓" : tipo === "negativo" ? "✕" : "!"
                 return (
                   <div
-                    className={cn("p-status-row", isPositivo && "!border-t-0 !my-1 rounded-lg !px-4")}
+                    className={cn(
+                      "p-status-row",
+                      isPositivo && "!border-t-0 !-mx-5 !my-0 !rounded-none !px-5 !py-4",
+                      isPositivo && index === 0 && "!-mt-5"
+                    )}
                     style={isPositivo ? { background: "var(--brand)" } : undefined}
                     key={e.id}
                   >
@@ -555,7 +559,7 @@ export function PrototipoPreview({
                     </div>
                   </div>
                   {(feedbackPositivo?.botaoNoPortal ?? true) && (
-                    <button className="p-btn ghost !shadow-none !bg-white border" onClick={onAdvanceFromPortal}>
+                    <button className="p-btn ghost !shadow-none !bg-white border border-[var(--brand)]" onClick={onAdvanceFromPortal}>
                       {feedbackPositivo?.botaoLabel || "Acessar"}
                     </button>
                   )}

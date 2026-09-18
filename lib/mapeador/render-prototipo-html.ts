@@ -176,26 +176,26 @@ function render(){
       .map(([l,v]) => '<div class="p-detail-row"><div class="p-detail-lbl">'+l+'</div><div class="p-detail-val">'+v+'</div></div>').join('');
     function pickFeedback(e){ return (e.feedbacks||[]).find(f=>f.tipo==='positivo') || (e.feedbacks||[])[0]; }
     el.innerHTML = topbarProfile + '<div class="p-portal" style="background-image:url('+BG+')">'
-      + '<div style="width:28%;min-width:260px;max-width:340px;display:flex;flex-direction:column;gap:16px">'
+      + '<div style="width:32%;min-width:280px;max-width:380px;display:flex;flex-direction:column;gap:16px">'
       + '<div class="p-card"><div class="p-card-title">Minhas inscrições</div><div class="p-card-value">'+esc(projeto.nome)+'</div></div>'
       + '<div class="p-card"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px"><div class="p-card-value">Detalhes da inscrição</div></div>'+detalhes+'</div>'
       + '</div>'
-      + '<div class="p-card" style="min-width:320px;flex:1;padding:0;overflow:hidden">'
+      + '<div class="p-card" style="min-width:280px;flex:1;padding:0;overflow:hidden">'
       + '<div style="background:var(--brand);padding:16px;text-align:center;font-weight:600;color:#fff;font-size:14px">Acompanhe aqui o status da sua inscrição</div>'
       + '<div style="padding:20px">'
-      + done.map(e => {
+      + done.map((e, index) => {
           const fb = pickFeedback(e);
           const tipo = fb ? fb.tipo : 'positivo';
           const isPositivo = tipo === 'positivo';
           const icone = isPositivo ? '✓' : (tipo === 'negativo' ? '✕' : '!');
           const label = fb ? fb.feedback : 'Concluída';
-          const rowStyle = isPositivo ? 'border-top:none;border-radius:8px;padding:16px;margin:4px 0;background:var(--brand)' : 'padding:16px 0';
+          const rowStyle = isPositivo ? 'border-top:none;border-radius:0;padding:16px 20px;margin:'+(index===0?'-20px':'0')+' -20px 0;background:var(--brand)' : 'padding:16px 0';
           const icStyle = isPositivo ? 'border-color:#fff;color:#fff;background:transparent' : '';
           const titleStyle = isPositivo ? 'color:#fff' : '';
           const subStyle = isPositivo ? 'color:rgba(255,255,255,.85)' : 'color:#8a8a95';
           return '<div class="p-status-row" style="'+rowStyle+'"><span class="p-status-ic" style="'+icStyle+'">'+icone+'</span><div><div class="p-card-value" style="'+titleStyle+'">'+esc(e.nome)+'</div><div style="font-size:12px;font-style:italic;'+subStyle+'">'+esc(label)+'</div></div></div>';
         }).join('')
-      + (next ? '<div class="p-status-row" style="justify-content:space-between"><div style="display:flex;align-items:center;gap:12px"><span class="p-status-ic">!</span><div><div class="p-card-value">'+esc(next.nome)+'</div><div style="font-size:12px;font-style:italic;color:#8a8a95">Aguardando conclusão</div></div></div><button class="p-btn ghost" id="portal-next" style="border:1px solid #ddd">Acessar</button></div>' : '')
+      + (next ? '<div class="p-status-row" style="justify-content:space-between"><div style="display:flex;align-items:center;gap:12px"><span class="p-status-ic">!</span><div><div class="p-card-value">'+esc(next.nome)+'</div><div style="font-size:12px;font-style:italic;color:#8a8a95">Aguardando conclusão</div></div></div><button class="p-btn ghost" id="portal-next" style="border:1px solid var(--brand)">Acessar</button></div>' : '')
       + '</div></div></div>';
     const btn = document.getElementById('portal-next');
     if (btn) btn.onclick = () => go(current+1);

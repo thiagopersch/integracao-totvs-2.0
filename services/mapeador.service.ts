@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@/generated/prisma/client";
 import { MAPEADOR_RUBEUS_TEMPLATES, getMapeadorTemplate } from "@/lib/mapeador/templates";
+import { mapeadorTemplateService } from "@/services/mapeador-template.service";
 import { flattenCampos } from "@/types/mapeador";
 import type {
   CamposPorEtapa,
@@ -191,19 +192,24 @@ export const mapeadorService = {
     });
   },
 
-  listTemplates(): MapeadorTemplateSummary[] {
-    return MAPEADOR_RUBEUS_TEMPLATES.map((t) => ({
+  async listTemplates(organizationId: string): Promise<MapeadorTemplateSummary[]> {
+    const rubeus: MapeadorTemplateSummary[] = MAPEADOR_RUBEUS_TEMPLATES.map((t) => ({
       id: t.id,
       nome: t.nome,
       etapasCount: t.etapas.length,
       itensCount: t.etapas.reduce((sum, e) => sum + e.camposPorEtapa.reduce((s, p) => s + flattenCampos(p.campos).length, 0), 0),
+      origem: "rubeus" as const,
     }));
+    const modelos = await mapeadorTemplateService.listSummaries(organizationId);
+    return [...rubeus, ...modelos];
   },
 
   async createProjetosFromTemplates(templateIds: string[], organizationId: string) {
     const created: { id: string; nome: string }[] = [];
     for (const templateId of templateIds) {
-      const template = getMapeadorTemplate(templateId);
+      // Static "Padrão Rubeus" templates are checked first (fixed slug ids, e.g.
+      // "vestibular-presencial"); anything else is looked up as a user-saved modelo (UUID id).
+      const template = getMapeadorTemplate(templateId) ?? (await mapeadorTemplateService.get(templateId, organizationId));
       if (!template) continue;
 
       const projeto = await prisma.mapeadorProjeto.create({

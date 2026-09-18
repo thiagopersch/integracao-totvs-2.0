@@ -3,6 +3,7 @@
 import * as XLSX from "xlsx";
 import { requirePermission } from "@/lib/rbac";
 import { mapeadorService } from "@/services/mapeador.service";
+import { mapeadorTemaService } from "@/services/mapeador-tema.service";
 import { renderPrototipoHtml } from "@/lib/mapeador/render-prototipo-html";
 import { flattenCampos, MAPEADOR_CAMPO_TIPO_LABELS } from "@/types/mapeador";
 
@@ -77,9 +78,12 @@ export async function exportMapeadorPrototipoHtml(id: string, gerarPara: "atual"
       projetos = all.filter((p): p is NonNullable<typeof p> => !!p);
     }
 
+    // Falls back to the org's editable "Padrão" tema (not a hardcoded color) when the project
+    // never had a tema applied — so improving that tema also improves what unconfigured exports look like.
+    const temaPadrao = await mapeadorTemaService.getOrCreatePadrao(organizationId);
     const html = renderPrototipoHtml(projetos, {
-      corMarca: projeto.prototipoConfig.corMarca,
-      corBarra: projeto.prototipoConfig.corBarra,
+      corMarca: projeto.prototipoConfig.corMarca ?? temaPadrao.config.corMarca,
+      corBarra: projeto.prototipoConfig.corBarra ?? temaPadrao.config.corBarra,
       bgImageUrl: projeto.prototipoConfig.bgImageUrl ?? undefined,
       logoUrl: projeto.prototipoConfig.logoUrl ?? undefined,
     });

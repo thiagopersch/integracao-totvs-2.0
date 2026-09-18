@@ -25,6 +25,7 @@ import {
   deleteMapeadorProjeto,
   importMapeadorProjeto,
 } from "@/actions/mapeador"
+import { deleteMapeadorTemplateModelo } from "@/actions/mapeador-template"
 import { useHasPermission } from "@/hooks/use-permissions"
 import { cn } from "@/lib/utils"
 import type { MapeadorProjetoSummary, MapeadorTemplateSummary } from "@/types/mapeador"
@@ -39,9 +40,12 @@ interface MapeadorProjetosListProps {
 export function MapeadorProjetosList({ initialProjetos, templates }: MapeadorProjetosListProps) {
   const router = useRouter()
   const [projetos, setProjetos] = useState(initialProjetos)
+  const [templateList, setTemplateList] = useState(templates)
   const [step, setStep] = useState<DialogStep>("closed")
   const [nome, setNome] = useState("")
   const [selectedTemplateIds, setSelectedTemplateIds] = useState<Set<string>>(() => new Set(templates.map((t) => t.id)))
+  const rubeusTemplates = templateList.filter((t) => t.origem === "rubeus")
+  const meusModelos = templateList.filter((t) => t.origem === "modelo")
   const [loading, setLoading] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const canCreate = useHasPermission("mapeador_projetos", "create")
@@ -49,7 +53,7 @@ export function MapeadorProjetosList({ initialProjetos, templates }: MapeadorPro
 
   function openChoice() {
     setNome("")
-    setSelectedTemplateIds(new Set(templates.map((t) => t.id)))
+    setSelectedTemplateIds(new Set(templateList.filter((t) => t.origem === "rubeus").map((t) => t.id)))
     setStep("choice")
   }
 
@@ -103,6 +107,22 @@ export function MapeadorProjetosList({ initialProjetos, templates }: MapeadorPro
     }
     setProjetos((prev) => prev.filter((p) => p.id !== id))
     toast.success("Projeto excluído")
+  }
+
+  async function handleDeleteModelo(id: string) {
+    if (!confirm("Excluir este modelo? Esta ação não pode ser desfeita.")) return
+    const result = await deleteMapeadorTemplateModelo(id)
+    if (!result.success) {
+      toast.error(result.error || "Erro ao excluir modelo")
+      return
+    }
+    setTemplateList((prev) => prev.filter((t) => t.id !== id))
+    setSelectedTemplateIds((prev) => {
+      const next = new Set(prev)
+      next.delete(id)
+      return next
+    })
+    toast.success("Modelo excluído")
   }
 
   async function handleImport(file: File) {
@@ -200,27 +220,66 @@ export function MapeadorProjetosList({ initialProjetos, templates }: MapeadorPro
               ajustar na reunião.
             </DialogDescription>
           </DialogHeader>
-          <DialogBody className="space-y-2">
-            {templates.map((template) => (
-              <Label
-                key={template.id}
-                className={cn(
-                  "flex cursor-pointer items-center gap-3 rounded-lg border p-3 font-normal",
-                  selectedTemplateIds.has(template.id) && "border-primary"
-                )}
-              >
-                <Checkbox
-                  checked={selectedTemplateIds.has(template.id)}
-                  onCheckedChange={(checked) => toggleTemplate(template.id, !!checked)}
-                />
-                <div>
-                  <p className="font-semibold">{template.nome}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {template.etapasCount} etapas · {template.itensCount} itens
-                  </p>
-                </div>
-              </Label>
-            ))}
+          <DialogBody className="space-y-4">
+            <div className="space-y-2">
+              {rubeusTemplates.map((template) => (
+                <Label
+                  key={template.id}
+                  className={cn(
+                    "flex cursor-pointer items-center gap-3 rounded-lg border p-3 font-normal",
+                    selectedTemplateIds.has(template.id) && "border-primary"
+                  )}
+                >
+                  <Checkbox
+                    checked={selectedTemplateIds.has(template.id)}
+                    onCheckedChange={(checked) => toggleTemplate(template.id, !!checked)}
+                  />
+                  <div>
+                    <p className="font-semibold">{template.nome}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {template.etapasCount} etapas · {template.itensCount} itens
+                    </p>
+                  </div>
+                </Label>
+              ))}
+            </div>
+
+            {meusModelos.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-xs font-semibold uppercase text-muted-foreground">Meus modelos</p>
+                {meusModelos.map((template) => (
+                  <Label
+                    key={template.id}
+                    className={cn(
+                      "flex cursor-pointer items-center gap-3 rounded-lg border p-3 font-normal",
+                      selectedTemplateIds.has(template.id) && "border-primary"
+                    )}
+                  >
+                    <Checkbox
+                      checked={selectedTemplateIds.has(template.id)}
+                      onCheckedChange={(checked) => toggleTemplate(template.id, !!checked)}
+                    />
+                    <div className="min-w-0 flex-1">
+                      <p className="font-semibold">{template.nome}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {template.etapasCount} etapas · {template.itensCount} itens
+                      </p>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      onClick={(e) => {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        handleDeleteModelo(template.id)
+                      }}
+                    >
+                      <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                    </Button>
+                  </Label>
+                ))}
+              </div>
+            )}
           </DialogBody>
           <DialogFooter>
             <Button variant="outline" onClick={() => setStep("choice")}>

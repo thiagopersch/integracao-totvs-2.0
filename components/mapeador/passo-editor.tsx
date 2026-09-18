@@ -16,12 +16,13 @@ import {
   type DragStartEvent,
 } from "@dnd-kit/core"
 import { SortableContext, verticalListSortingStrategy, arrayMove } from "@dnd-kit/sortable"
-import { ArrowDown, ArrowUp, Plus, Trash2 } from "lucide-react"
+import { ArrowDown, ArrowUp, ChevronDown, Plus, Trash2 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { CampoRow } from "@/components/mapeador/campo-row"
-import { allContainerIds, findContainerOf, getContainer, ROOT_CONTAINER, setContainer } from "@/lib/mapeador/campo-containers"
+import { cn } from "@/lib/utils"
+import { allContainerIds, findContainerOf, getContainer, isContainerWithin, ROOT_CONTAINER, setContainer } from "@/lib/mapeador/campo-containers"
 import { MAPEADOR_CAMPO_TIPO_LABELS, type MapeadorCampo, type MapeadorEtapaDTO, type MapeadorPasso, type MapeadorPassoTipo } from "@/types/mapeador"
 
 const PASSO_TIPO_LABELS: Record<MapeadorPassoTipo, string> = {
@@ -53,6 +54,9 @@ const collisionDetection: CollisionDetection = (args) => {
 export function PassoEditor({ passo, etapas, onChange, onRemove, onMove, canMoveUp, canMoveDown }: PassoEditorProps) {
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }))
   const [activeCampo, setActiveCampo] = useState<MapeadorCampo | null>(null)
+  // Starts collapsed — a project with many passos otherwise stacks a full drag-and-drop list per
+  // passo on screen at once, which is what made the builder hard to scan.
+  const [collapsed, setCollapsed] = useState(true)
   const { setNodeRef: setRootRef } = useDroppable({ id: ROOT_CONTAINER })
 
   function updateCampo(campoId: string, patch: Partial<MapeadorCampo>) {
@@ -85,18 +89,23 @@ export function PassoEditor({ passo, etapas, onChange, onRemove, onMove, canMove
 
     const activeItem = getContainer(passo.campos, activeContainer).find((c) => c.id === activeId)
     if (!activeItem) return
-    // An agrupamento can never nest inside a coluna.
-    if (activeItem.tipo === "agrupamento" && overContainer !== ROOT_CONTAINER) return
+    // An agrupamento can nest inside another agrupamento's coluna, just never inside one of its
+    // OWN nested colunas — that would nest it inside itself and corrupt the tree.
+    if (activeItem.tipo === "agrupamento" && isContainerWithin(activeItem, overContainer)) return
 
+    // `setContainer` replaces the ROOT container wholesale (it has no other container to merge
+    // against), so `destItems`/`nextDest` must be read AFTER the source removal is applied —
+    // reading them from the original `passo.campos` let a still-stale copy of the moved campo
+    // survive inside its old container whenever a transition passed through the root mid-drag,
+    // duplicating the campo and crashing React on the repeated key.
     const sourceItems = getContainer(passo.campos, activeContainer).filter((c) => c.id !== activeId)
-    const destItems = getContainer(passo.campos, overContainer)
+    const afterRemoval = setContainer(passo.campos, activeContainer, sourceItems)
+    const destItems = getContainer(afterRemoval, overContainer)
     const overIndex = destItems.findIndex((c) => c.id === overId)
     const insertAt = overIndex >= 0 ? overIndex : destItems.length
     const nextDest = [...destItems.slice(0, insertAt), activeItem, ...destItems.slice(insertAt)]
 
-    let nextCampos = setContainer(passo.campos, activeContainer, sourceItems)
-    nextCampos = setContainer(nextCampos, overContainer, nextDest)
-    onChange({ campos: nextCampos })
+    onChange({ campos: setContainer(afterRemoval, overContainer, nextDest) })
   }
 
   /** Same-container index fix once the drag settles — cross-container moves already happened live in onDragOver. */
@@ -117,7 +126,15 @@ export function PassoEditor({ passo, etapas, onChange, onRemove, onMove, canMove
 
   return (
     <div className="rounded-lg border p-3">
-      <div className="mb-2 flex items-center gap-2">
+      <div className={cn("flex items-center gap-2", !collapsed && "mb-2")}>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          onClick={() => setCollapsed((v) => !v)}
+          aria-label={collapsed ? "Expandir passo" : "Recolher passo"}
+        >
+          <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", collapsed && "-rotate-90")} />
+        </Button>
         <Select items={Object.entries(PASSO_TIPO_LABELS).map(([value, label]) => ({ value, label }))} value={passo.tipo} onValueChange={(v) => onChange({ tipo: v as MapeadorPassoTipo })}>
           <SelectTrigger className="w-32 shrink-0">
             <SelectValue />
@@ -131,6 +148,11 @@ export function PassoEditor({ passo, etapas, onChange, onRemove, onMove, canMove
           </SelectContent>
         </Select>
         <Input value={passo.titulo} onChange={(e) => onChange({ titulo: e.target.value })} placeholder="Título do passo" className="flex-1" />
+        {collapsed && (
+          <span className="shrink-0 text-xs text-muted-foreground">
+            {passo.campos.length} {passo.campos.length === 1 ? "campo" : "campos"}
+          </span>
+        )}
         <Button variant="ghost" size="icon-sm" onClick={() => onMove(-1)} disabled={!canMoveUp}>
           <ArrowUp className="h-3.5 w-3.5" />
         </Button>
@@ -142,34 +164,39 @@ export function PassoEditor({ passo, etapas, onChange, onRemove, onMove, canMove
         </Button>
       </div>
 
-      <DndContext sensors={sensors} collisionDetection={collisionDetection} onDragStart={handleDragStart} onDragOver={handleDragOver} onDragEnd={handleDragEnd}>
-        <SortableContext items={passo.campos.map((c) => c.id)} strategy={verticalListSortingStrategy}>
-          <div ref={setRootRef} className="space-y-3">
-            {passo.campos.map((campo) => (
-              <CampoRow
-                key={campo.id}
-                campo={campo}
-                etapas={etapas}
-                passoCampos={passo.campos}
-                onChange={(patch) => updateCampo(campo.id, patch)}
-                onRemove={() => removeCampo(campo.id)}
-              />
-            ))}
-          </div>
-        </SortableContext>
-        <DragOverlay>
-          {activeCampo && (
-            <div className="rounded-md border bg-background px-3 py-2 text-sm shadow-lg">
-              <span className="font-medium">{activeCampo.label || "Campo"}</span>
-              <span className="ml-2 text-xs text-muted-foreground">{MAPEADOR_CAMPO_TIPO_LABELS[activeCampo.tipo]}</span>
-            </div>
-          )}
-        </DragOverlay>
-      </DndContext>
+      {!collapsed && (
+        <>
+          <DndContext sensors={sensors} collisionDetection={collisionDetection} onDragStart={handleDragStart} onDragOver={handleDragOver} onDragEnd={handleDragEnd}>
+            <SortableContext items={passo.campos.map((c) => c.id)} strategy={verticalListSortingStrategy}>
+              <div ref={setRootRef} className="space-y-3">
+                {passo.campos.map((campo) => (
+                  <CampoRow
+                    key={campo.id}
+                    campo={campo}
+                    etapas={etapas}
+                    passoCampos={passo.campos}
+                    activeId={activeCampo?.id ?? null}
+                    onChange={(patch) => updateCampo(campo.id, patch)}
+                    onRemove={() => removeCampo(campo.id)}
+                  />
+                ))}
+              </div>
+            </SortableContext>
+            <DragOverlay>
+              {activeCampo && (
+                <div className="rounded-md border bg-background px-3 py-2 text-sm shadow-lg">
+                  <span className="font-medium">{activeCampo.label || "Campo"}</span>
+                  <span className="ml-2 text-xs text-muted-foreground">{MAPEADOR_CAMPO_TIPO_LABELS[activeCampo.tipo]}</span>
+                </div>
+              )}
+            </DragOverlay>
+          </DndContext>
 
-      <Button variant="outline" size="sm" className="mt-2" onClick={addCampo}>
-        <Plus className="h-3.5 w-3.5" /> Adicionar campo
-      </Button>
+          <Button variant="outline" size="sm" className="mt-2" onClick={addCampo}>
+            <Plus className="h-3.5 w-3.5" /> Adicionar campo
+          </Button>
+        </>
+      )}
     </div>
   )
 }

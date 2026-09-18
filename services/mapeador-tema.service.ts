@@ -1,6 +1,9 @@
 import { prisma } from "@/lib/prisma";
+import { MAPEADOR_TEMA_PADRAO_CONFIG } from "@/lib/mapeador/tema-defaults";
 import type { Prisma } from "@/generated/prisma/client";
 import type { MapeadorTemaConfig, MapeadorTemaDTO } from "@/types/mapeador";
+
+const TEMA_PADRAO_NOME = "Padrão";
 
 function toDTO(tema: { id: string; nome: string; config: unknown }): MapeadorTemaDTO {
   return { id: tema.id, nome: tema.nome, config: (tema.config as MapeadorTemaConfig | null) ?? {} };
@@ -8,6 +11,9 @@ function toDTO(tema: { id: string; nome: string; config: unknown }): MapeadorTem
 
 export const mapeadorTemaService = {
   async list(organizationId: string): Promise<MapeadorTemaDTO[]> {
+    // Guarantees the org's editable "Padrão" tema always shows up (self-heals if ever deleted) —
+    // see `getOrCreatePadrao`.
+    await this.getOrCreatePadrao(organizationId);
     const temas = await prisma.mapeadorTema.findMany({ where: { organizationId }, orderBy: { nome: "asc" } });
     return temas.map(toDTO);
   },
@@ -38,5 +44,20 @@ export const mapeadorTemaService = {
     if (!tema) throw new Error("Tema não encontrado");
 
     return prisma.mapeadorTema.delete({ where: { id } });
+  },
+
+  /**
+   * The org's baseline appearance for any protótipo that has no tema explicitly applied — a
+   * normal, editable `MapeadorTema` (found by its fixed name) instead of colors hardcoded in
+   * component code, so improving "the default" is just editing this tema like any other.
+   */
+  async getOrCreatePadrao(organizationId: string): Promise<MapeadorTemaDTO> {
+    const existing = await prisma.mapeadorTema.findFirst({ where: { organizationId, nome: TEMA_PADRAO_NOME } });
+    if (existing) return toDTO(existing);
+
+    const created = await prisma.mapeadorTema.create({
+      data: { organizationId, nome: TEMA_PADRAO_NOME, config: MAPEADOR_TEMA_PADRAO_CONFIG as Prisma.InputJsonValue },
+    });
+    return toDTO(created);
   },
 };

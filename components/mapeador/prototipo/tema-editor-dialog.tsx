@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/dialog"
 import { ImageInput } from "@/components/mapeador/image-input"
 import { createMapeadorTema, updateMapeadorTema } from "@/actions/mapeador-tema"
+import { MAPEADOR_TEMA_PADRAO_CONFIG } from "@/lib/mapeador/tema-defaults"
 import type { MapeadorTemaConfig, MapeadorTemaDTO } from "@/types/mapeador"
 
 interface TemaEditorDialogProps {
@@ -25,19 +26,15 @@ interface TemaEditorDialogProps {
   onSaved: (tema: MapeadorTemaDTO) => void
 }
 
-const DEFAULT_CONFIG: MapeadorTemaConfig = {
-  corMarca: "#0CC1AA",
-  corBarra: "#0AA392",
-  campoCor: "rgba(0,0,0,.04)",
-  campoRaio: 0,
-  botaoCor: "#0CC1AA",
-  botaoRaio: 5,
-}
+const DEFAULT_CONFIG = MAPEADOR_TEMA_PADRAO_CONFIG
 
 export function TemaEditorDialog({ open, onOpenChange, tema, onSaved }: TemaEditorDialogProps) {
   const [nome, setNome] = useState(tema?.nome ?? "")
   const [config, setConfig] = useState<MapeadorTemaConfig>(tema?.config ?? DEFAULT_CONFIG)
   const [loading, setLoading] = useState(false)
+  // The org's baseline tema is found by this exact name (`mapeadorTemaService.getOrCreatePadrao`)
+  // — renaming it would orphan it and silently spawn a fresh "Padrão" next time it's needed.
+  const isPadrao = tema?.nome === "Padrão"
 
   function patch(p: Partial<MapeadorTemaConfig>) {
     setConfig((prev) => ({ ...prev, ...p }))
@@ -63,12 +60,12 @@ export function TemaEditorDialog({ open, onOpenChange, tema, onSaved }: TemaEdit
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>{tema ? "Editar tema" : "Criar novo tema"}</DialogTitle>
+          <DialogTitle>{isPadrao ? "Editar tema padrão" : tema ? "Editar tema" : "Criar novo tema"}</DialogTitle>
         </DialogHeader>
         <DialogBody className="space-y-4">
           <div className="space-y-1">
             <Label>Nome do tema</Label>
-            <Input value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Ex: UNISINOS" />
+            <Input value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Ex: UNISINOS" disabled={isPadrao} />
           </div>
 
           <div className="grid grid-cols-2 gap-4">

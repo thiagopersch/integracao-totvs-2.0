@@ -4,12 +4,13 @@ import { useState } from "react"
 import { useDroppable } from "@dnd-kit/core"
 import { SortableContext, verticalListSortingStrategy, useSortable } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
-import { AlignCenter, AlignLeft, AlignRight, GripVertical, Plus, Trash2 } from "lucide-react"
+import { AlignCenter, AlignLeft, AlignRight, ChevronDown, GripVertical, Plus, Trash2 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 import { colunaContainerId } from "@/lib/mapeador/campo-containers"
 import { MAPEADOR_CAMPO_TIPO_LABELS, normalizeLargura, type MapeadorCampo, type MapeadorCampoTipo, type MapeadorColuna, type MapeadorEtapaDTO } from "@/types/mapeador"
@@ -45,11 +46,12 @@ interface CampoRowProps {
   passoCampos: MapeadorCampo[]
   onChange: (patch: Partial<MapeadorCampo>) => void
   onRemove: () => void
-  /** false inside a coluna's campo list — an agrupamento cannot nest inside another agrupamento. */
-  allowAgrupamento?: boolean
+  /** id of the campo currently being dragged in the shared DndContext (passo-editor.tsx), or null
+   *  when nothing is dragging. See `isDragSource` below for why this matters. */
+  activeId?: string | null
 }
 
-export function CampoRow({ campo, etapas, passoCampos, onChange, onRemove, allowAgrupamento = true }: CampoRowProps) {
+export function CampoRow({ campo, etapas, passoCampos, onChange, onRemove, activeId = null }: CampoRowProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: campo.id })
   const dragStyle = { transform: CSS.Transform.toString(transform), transition }
   const [expanded, setExpanded] = useState(false)
@@ -58,12 +60,18 @@ export function CampoRow({ campo, etapas, passoCampos, onChange, onRemove, allow
   const mostraEstiloTexto = TEXTO_ESTILIZAVEL_TIPOS.includes(campo.tipo)
   const mostraColunas = campo.tipo === "agrupamento"
   const colunas = campo.colunas ?? []
+  // While THIS agrupamento is the item being dragged, its own DOM node is being CSS-transformed by
+  // `useSortable` every frame. If its coluna(s) kept mounting a live `useDroppable`+`SortableContext`
+  // (via `ColunaCamposArea`) they'd get re-measured every one of those frames — that remeasure can
+  // shift the collision result, re-firing `onDragOver`, which re-renders this same subtree with new
+  // object identities, which triggers another remeasure, looping until React's update-depth guard
+  // trips. Freezing the coluna content to a static, non-interactive list for the drag's duration
+  // (dnd-kit's own "Sortable Tree" example does the same for a dragged item's children) breaks the loop.
+  const isDragSource = campo.id === activeId
   const candidatos = passoCampos.filter((c) => c.id !== campo.id && !NAO_REFERENCIAVEIS.includes(c.tipo))
   const refCampo = candidatos.find((c) => c.id === campo.condicaoRefCampoId)
   const refKind: "opcoes" | "check" | "texto" = refCampo?.opcoesLista?.length ? "opcoes" : refCampo?.tipo === "check" ? "check" : "texto"
-  const tipoOpcoes = allowAgrupamento
-    ? Object.entries(MAPEADOR_CAMPO_TIPO_LABELS)
-    : Object.entries(MAPEADOR_CAMPO_TIPO_LABELS).filter(([value]) => value !== "agrupamento")
+  const tipoOpcoes = Object.entries(MAPEADOR_CAMPO_TIPO_LABELS)
 
   function applyCondicao(refCampoId: string | null, valor: string | boolean | undefined) {
     const ref = candidatos.find((c) => c.id === refCampoId)
@@ -99,8 +107,12 @@ export function CampoRow({ campo, etapas, passoCampos, onChange, onRemove, allow
   }
 
   return (
-    <div ref={setNodeRef} style={dragStyle} className={cn("rounded-md border bg-background p-2", isDragging && "opacity-50")}>
-      <div className="flex items-center gap-2">
+    <div
+      ref={setNodeRef}
+      style={dragStyle}
+      className={cn("@container/campo-row rounded-md border bg-background p-2", isDragging && "opacity-50")}
+    >
+      <div className="flex flex-wrap items-center gap-2">
         <button
           type="button"
           {...attributes}
@@ -110,7 +122,7 @@ export function CampoRow({ campo, etapas, passoCampos, onChange, onRemove, allow
           <GripVertical className="h-4 w-4 shrink-0" />
         </button>
         <Select items={tipoOpcoes.map(([value, label]) => ({ value, label }))} value={campo.tipo} onValueChange={(v) => onChange({ tipo: v as MapeadorCampoTipo, colunas: v === "agrupamento" ? (campo.colunas ?? [newColuna()]) : campo.colunas })}>
-          <SelectTrigger className="w-56 shrink-0">
+          <SelectTrigger className="w-full @xs/campo-row:w-56 @xs/campo-row:shrink-0">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -121,23 +133,30 @@ export function CampoRow({ campo, etapas, passoCampos, onChange, onRemove, allow
             ))}
           </SelectContent>
         </Select>
-        <Input value={campo.label} onChange={(e) => onChange({ label: e.target.value })} placeholder={mostraColunas ? "Nome do agrupamento (uso interno)" : "Nome do campo"} className="flex-1" />
+        <Input value={campo.label} onChange={(e) => onChange({ label: e.target.value })} placeholder={mostraColunas ? "Nome do agrupamento (uso interno)" : "Nome do campo"} className="min-w-[120px] flex-1" />
         {!mostraColunas && (
           <Label className="flex shrink-0 items-center gap-1 text-xs">
             <Checkbox checked={!!campo.obrigatorio} onCheckedChange={(v) => onChange({ obrigatorio: !!v })} /> obrig.
           </Label>
         )}
-        <Button variant="ghost" size="sm" onClick={() => setExpanded((v) => !v)}>
-          {expanded ? "Menos" : "Mais"}
-        </Button>
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <Button variant="ghost" size="icon-sm" onClick={() => setExpanded((v) => !v)} aria-label={expanded ? "Recolher configurações" : "Mais configurações"}>
+                <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", !expanded && "-rotate-90")} />
+              </Button>
+            }
+          />
+          <TooltipContent>{expanded ? "Recolher configurações" : "Mais configurações"}</TooltipContent>
+        </Tooltip>
         <Button variant="ghost" size="icon-sm" onClick={onRemove}>
           <Trash2 className="h-3.5 w-3.5 text-destructive" />
         </Button>
       </div>
 
       {expanded && (
-        <div className="mt-2 grid gap-2 border-t pt-2 sm:grid-cols-2">
-          <div className="space-y-1 sm:col-span-2">
+        <div className="@container/campo-settings mt-2 grid gap-2 border-t pt-2 @sm/campo-settings:grid-cols-2">
+          <div className="space-y-1 @sm/campo-settings:col-span-2">
             <div className="flex items-center justify-between">
               <Label className="text-xs">Condição de exibição</Label>
               {campo.condicaoRefCampoId && (
@@ -247,7 +266,7 @@ export function CampoRow({ campo, etapas, passoCampos, onChange, onRemove, allow
             </Select>
           </div>
           {mostraOpcoesLista && (
-            <div className="space-y-1 sm:col-span-2">
+            <div className="space-y-1 @sm/campo-settings:col-span-2">
               <Label className="text-xs">Opções da lista (separadas por vírgula)</Label>
               <Input
                 value={opcoesText}
@@ -299,7 +318,7 @@ export function CampoRow({ campo, etapas, passoCampos, onChange, onRemove, allow
             </>
           )}
           {mostraColunas && (
-            <div className="space-y-2 sm:col-span-2">
+            <div className="space-y-2 @sm/campo-settings:col-span-2">
               <div className="flex items-center justify-between">
                 <Label className="text-xs">Colunas ({colunas.length}/{MAX_COLUNAS})</Label>
                 <Button variant="outline" size="sm" onClick={addColuna} disabled={colunas.length >= MAX_COLUNAS}>
@@ -331,13 +350,18 @@ export function CampoRow({ campo, etapas, passoCampos, onChange, onRemove, allow
                       </Button>
                     </div>
 
-                    <ColunaCamposArea
-                      coluna={coluna}
-                      etapas={etapas}
-                      onCamposChange={(campos) => setColunaCampos(coluna.id, campos)}
-                    />
+                    {isDragSource ? (
+                      <StaticColunaCampos coluna={coluna} />
+                    ) : (
+                      <ColunaCamposArea
+                        coluna={coluna}
+                        etapas={etapas}
+                        activeId={activeId}
+                        onCamposChange={(campos) => setColunaCampos(coluna.id, campos)}
+                      />
+                    )}
 
-                    <Button variant="outline" size="sm" onClick={() => setColunaCampos(coluna.id, [...coluna.campos, newCampoFilho()])}>
+                    <Button variant="outline" size="sm" onClick={() => setColunaCampos(coluna.id, [...coluna.campos, newCampoFilho()])} disabled={isDragSource}>
                       <Plus className="h-3.5 w-3.5" /> Adicionar campo
                     </Button>
                   </div>
@@ -355,6 +379,7 @@ interface ColunaCamposAreaProps {
   coluna: MapeadorColuna
   etapas: MapeadorEtapaDTO[]
   onCamposChange: (campos: MapeadorCampo[]) => void
+  activeId?: string | null
 }
 
 /**
@@ -364,7 +389,7 @@ interface ColunaCamposAreaProps {
  * rendered under the single shared `DndContext` in passo-editor.tsx, so campos can be dragged between
  * this coluna, other colunas, and the passo's top-level list.
  */
-function ColunaCamposArea({ coluna, etapas, onCamposChange }: ColunaCamposAreaProps) {
+function ColunaCamposArea({ coluna, etapas, onCamposChange, activeId = null }: ColunaCamposAreaProps) {
   const { setNodeRef } = useDroppable({ id: colunaContainerId(coluna.id) })
 
   return (
@@ -379,7 +404,7 @@ function ColunaCamposArea({ coluna, etapas, onCamposChange }: ColunaCamposAreaPr
               campo={campoFilho}
               etapas={etapas}
               passoCampos={coluna.campos}
-              allowAgrupamento={false}
+              activeId={activeId}
               onChange={(patch) => onCamposChange(coluna.campos.map((c) => (c.id === campoFilho.id ? { ...c, ...patch } : c)))}
               onRemove={() => onCamposChange(coluna.campos.filter((c) => c.id !== campoFilho.id))}
             />
@@ -387,5 +412,27 @@ function ColunaCamposArea({ coluna, etapas, onCamposChange }: ColunaCamposAreaPr
         )}
       </div>
     </SortableContext>
+  )
+}
+
+/**
+ * Non-interactive stand-in for `ColunaCamposArea`, rendered instead of it for the duration of a
+ * drag whose source is THIS coluna's own agrupamento — see `isDragSource` in `CampoRow`. Registers
+ * no dnd-kit hooks at all, so it can't feed the remeasure loop that motivated it.
+ */
+function StaticColunaCampos({ coluna }: { coluna: MapeadorColuna }) {
+  if (coluna.campos.length === 0) {
+    return <div className="rounded-md border border-dashed p-3 text-center text-xs text-muted-foreground">Arraste um campo para cá</div>
+  }
+  return (
+    <div className="space-y-2 opacity-60">
+      {coluna.campos.map((campoFilho) => (
+        <div key={campoFilho.id} className="flex items-center gap-2 rounded-md border bg-background p-2 text-sm">
+          <GripVertical className="h-4 w-4 shrink-0 text-muted-foreground" />
+          <span className="flex-1 truncate">{campoFilho.label || "Campo"}</span>
+          <span className="shrink-0 text-xs text-muted-foreground">{MAPEADOR_CAMPO_TIPO_LABELS[campoFilho.tipo]}</span>
+        </div>
+      ))}
+    </div>
   )
 }

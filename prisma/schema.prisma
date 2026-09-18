@@ -146,6 +146,7 @@ model Organization {
   fichaAutomationRuns FichaAutomationRun[]
   mapeadorProjetos   MapeadorProjeto[]
   mapeadorTemas      MapeadorTema[]
+  mapeadorTemplates  MapeadorTemplateProjeto[]
 
   @@map("organizations")
 }
@@ -978,6 +979,25 @@ model MapeadorTema {
   organization Organization @relation(fields: [organizationId], references: [id])
 
   @@map("mapeador_temas")
+}
+
+/** A reusable snapshot of a MapeadorProjeto's etapas/campos structure, saved by the user from an
+ *  existing project ("Salvar como modelo") — sits alongside the static "Padrão Rubeus" templates
+ *  as a starting point for new projects, but authored and owned by the organization instead of
+ *  shipped in code. No FK to the source MapeadorProjeto — it's a point-in-time copy, same as the
+ *  static templates. */
+model MapeadorTemplateProjeto {
+  id                    String   @id @default(uuid())
+  organizationId        String   @map("organization_id")
+  nome                  String
+  informacoesAdicionais Json?    @map("informacoes_adicionais")
+  etapas                Json
+  createdAt             DateTime @default(now()) @map("created_at")
+  updatedAt             DateTime @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@map("mapeador_templates_projeto")
 }
 
 /** SMTP credentials for the EMAIL notification channel — configured per organization here instead of fixed .env vars. */

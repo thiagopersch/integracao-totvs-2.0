@@ -25,8 +25,8 @@ export async function listMapeadorProjetos() {
 }
 
 export async function listMapeadorTemplates() {
-  await requirePermission("mapeador_projetos", "read");
-  return mapeadorService.listTemplates();
+  const { organizationId } = await requirePermission("mapeador_projetos", "read");
+  return mapeadorService.listTemplates(organizationId);
 }
 
 export async function createMapeadorProjetosFromTemplates(templateIds: string[]) {

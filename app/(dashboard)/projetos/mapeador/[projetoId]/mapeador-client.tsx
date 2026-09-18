@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react"
 import { toast } from "sonner"
-import { ArrowLeft, Download, FileJson, Loader2, MoreVertical, Upload } from "lucide-react"
+import { ArrowLeft, BookmarkPlus, Download, FileJson, Loader2, MoreVertical, Upload } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -12,7 +12,16 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import {
+  Dialog,
+  DialogBody,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { renameMapeadorProjeto, importMapeadorProjeto } from "@/actions/mapeador"
+import { createMapeadorTemplateModelo } from "@/actions/mapeador-template"
 import { exportMapeadorProjetoJson, exportMapeadorProjetoXlsx } from "@/actions/mapeador-export"
 import { useMapeadorStore } from "@/store/mapeador.store"
 import { useDebounce } from "@/hooks/use-debounce"
@@ -59,6 +68,9 @@ export function MapeadorClient({ initialProjeto }: MapeadorClientProps) {
   const setNome = useMapeadorStore((s) => s.setNome)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [exporting, setExporting] = useState<"json" | "xlsx" | null>(null)
+  const [saveModeloOpen, setSaveModeloOpen] = useState(false)
+  const [modeloNome, setModeloNome] = useState("")
+  const [savingModelo, setSavingModelo] = useState(false)
 
   useEffect(() => {
     hydrate(initialProjeto)
@@ -105,6 +117,20 @@ export function MapeadorClient({ initialProjeto }: MapeadorClientProps) {
     const result = await importMapeadorProjeto(text)
     if (!result.success) return toast.error(result.error || "Erro ao importar JSON")
     router.push(`/projetos/mapeador/${result.data.id}`)
+  }
+
+  async function handleSaveModelo() {
+    if (!modeloNome.trim()) return
+    setSavingModelo(true)
+    try {
+      const result = await createMapeadorTemplateModelo(projeto!.id, modeloNome)
+      if (!result.success) return toast.error(result.error || "Erro ao salvar modelo")
+      toast.success(`Modelo "${result.data.nome}" salvo — disponível ao criar um novo projeto`)
+      setSaveModeloOpen(false)
+      setModeloNome("")
+    } finally {
+      setSavingModelo(false)
+    }
   }
 
   return (
@@ -157,9 +183,34 @@ export function MapeadorClient({ initialProjeto }: MapeadorClientProps) {
               <DropdownMenuItem onClick={handleExportXlsx} disabled={exporting !== null}>
                 {exporting === "xlsx" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />} Exportar Excel
               </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setSaveModeloOpen(true)}>
+                <BookmarkPlus className="h-4 w-4" /> Salvar como modelo
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
+
+        <Dialog open={saveModeloOpen} onOpenChange={setSaveModeloOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Salvar como modelo</DialogTitle>
+            </DialogHeader>
+            <DialogBody>
+              <p className="mb-2 text-sm text-muted-foreground">
+                Salva a estrutura atual de etapas e campos como um modelo reutilizável, disponível ao criar um novo projeto.
+              </p>
+              <Input value={modeloNome} onChange={(e) => setModeloNome(e.target.value)} placeholder="Nome do modelo" autoFocus />
+            </DialogBody>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setSaveModeloOpen(false)} disabled={savingModelo}>
+                Cancelar
+              </Button>
+              <Button onClick={handleSaveModelo} disabled={savingModelo || !modeloNome.trim()}>
+                {savingModelo && <Loader2 className="h-4 w-4 animate-spin" />} Salvar modelo
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         <div className="flex-1 overflow-auto p-4">
           <TabsContent value="mapeamento" className="mt-0">
