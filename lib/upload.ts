@@ -1,4 +1,6 @@
 import { randomUUID } from "crypto"
+import { mkdir, writeFile } from "fs/promises"
+import path from "path"
 import { put } from "@vercel/blob"
 
 export type ImageKind = "logo" | "favicon" | "background"
@@ -25,6 +27,28 @@ function sanitizeFileName(name: string): string {
   return name.replace(/[^a-zA-Z0-9.-]/g, "_")
 }
 
+/**
+ * Em desenvolvimento local os arquivos ficam em public/storage (sem depender de
+ * credenciais do Vercel Blob); em produção (Vercel) vão para o Vercel Blob, já
+ * que o filesystem do deploy é somente leitura.
+ */
+export async function storeUploadedFile(file: File, relativePath: string): Promise<string> {
+  if (process.env.NODE_ENV === "development") {
+    const filePath = path.join(process.cwd(), "public", "storage", relativePath)
+    await mkdir(path.dirname(filePath), { recursive: true })
+    await writeFile(filePath, Buffer.from(await file.arrayBuffer()))
+    return `/storage/${relativePath}`
+  }
+
+  const blob = await put(`uploads/${relativePath}`, file, {
+    access: "public",
+    addRandomSuffix: false,
+    contentType: file.type,
+  })
+
+  return blob.url
+}
+
 export async function saveImageUpload(file: File, kind: ImageKind = "logo"): Promise<string> {
   const rule = IMAGE_RULES[kind]
 
@@ -36,11 +60,5 @@ export async function saveImageUpload(file: File, kind: ImageKind = "logo"): Pro
   }
 
   const fileName = `${randomUUID()}-${sanitizeFileName(file.name)}`
-  const blob = await put(`uploads/${kind}/${fileName}`, file, {
-    access: "public",
-    addRandomSuffix: false,
-    contentType: file.type,
-  })
-
-  return blob.url
+  return storeUploadedFile(file, `${kind}/${fileName}`)
 }

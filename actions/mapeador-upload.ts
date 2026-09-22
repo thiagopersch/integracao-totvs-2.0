@@ -2,8 +2,8 @@
 
 import { randomUUID } from "crypto";
 import path from "path";
-import { put } from "@vercel/blob";
 import { requirePermission } from "@/lib/rbac";
+import { storeUploadedFile } from "@/lib/upload";
 
 const MAX_SIZE_BY_KIND = {
   logo: 5 * 1024 * 1024,
@@ -30,13 +30,9 @@ export async function uploadMapeadorImagem(formData: FormData) {
   try {
     const ext = path.extname(file.name) || ".png";
     const fileName = `${randomUUID()}${ext}`;
-    const blob = await put(`uploads/mapeador/${kind}/${fileName}`, file, {
-      access: "public",
-      addRandomSuffix: false,
-      contentType: file.type,
-    });
+    const url = await storeUploadedFile(file, `mapeador/${kind}/${fileName}`);
 
-    return { success: true as const, url: blob.url };
+    return { success: true as const, url };
   } catch (error) {
     return { success: false as const, error: (error as Error).message };
   }
