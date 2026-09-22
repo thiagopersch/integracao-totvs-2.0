@@ -3,6 +3,8 @@ import { emailSchema, phoneSchema, documentSchema } from "@/lib/validators";
 
 export const createClientSchema = z.object({
   image: z.string().optional(),
+  favicon: z.string().optional(),
+  background: z.string().optional(),
   name: z.string().min(2, "Nome deve ter no mínimo 2 caracteres"),
   legalName: z.string().max(155).optional(),
   document: documentSchema(false),
@@ -19,6 +21,8 @@ export const createClientSchema = z.object({
 
 export const updateClientSchema = z.object({
   image: z.string().optional(),
+  favicon: z.string().optional(),
+  background: z.string().optional(),
   name: z.string().min(2, "Nome deve ter no mínimo 2 caracteres").optional(),
   legalName: z.string().max(155).optional(),
   document: documentSchema(false),

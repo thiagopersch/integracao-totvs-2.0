@@ -38,15 +38,22 @@ export async function getClientById(id: string, organizationId: string, allowedC
   return clientService.getById(id, organizationId, allowedClientIds);
 }
 
+async function parseImageField(formData: FormData, field: string, kind: Parameters<typeof saveImageUpload>[1]) {
+  const value = formData.get(field);
+  return value instanceof File && value.size > 0 ? await saveImageUpload(value, kind) : (value as string) || undefined;
+}
+
 async function parseClientForm(formData: FormData) {
-  const imageValue = formData.get("image");
-  const image =
-    imageValue instanceof File && imageValue.size > 0
-      ? await saveImageUpload(imageValue)
-      : (imageValue as string) || undefined;
+  const [image, favicon, background] = await Promise.all([
+    parseImageField(formData, "image", "logo"),
+    parseImageField(formData, "favicon", "favicon"),
+    parseImageField(formData, "background", "background"),
+  ]);
 
   return {
     image,
+    favicon,
+    background,
     name: formData.get("name") as string,
     legalName: (formData.get("legalName") as string) || undefined,
     document: (formData.get("document") as string) || "",

@@ -16,19 +16,22 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Checkbox } from "@/components/ui/checkbox"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { ImageUploadPreview } from "@/components/shared/image-upload-preview"
 import { formatDocument, formatPhone } from "@/lib/masks"
 import { createClientSchema, updateClientSchema, type CreateClientInput } from "@/schemas/client.schema"
 import type { PaginationMeta } from "@/types/common"
 import { zodResolver } from "@hookform/resolvers/zod"
 import type { Client } from "@/generated/prisma/client"
 import type { ColumnDef } from "@tanstack/react-table"
-import { ImagePlus, Loader2, Plus, Star, Upload, X } from "lucide-react"
-import { useEffect, useMemo, useRef, useState } from "react"
+import { Loader2, Pencil, Plus, Star } from "lucide-react"
+import { useMemo, useRef, useState } from "react"
 import { Controller, useForm, type Resolver } from "react-hook-form"
 import { toast } from "sonner"
 import { useCrudTable } from "@/hooks/use-crud-table"
+import { useImageField } from "@/hooks/use-image-field"
 import { useHasPermission } from "@/hooks/use-permissions"
 
 interface ClientTableProps {
@@ -65,18 +68,10 @@ export function ClientTable({ data, meta }: ClientTableProps) {
   const [statusFilter, setStatusFilter] = useState(searchParams.get("status") || "")
   const [favoriteFilter, setFavoriteFilter] = useState(searchParams.get("favorite") || "")
   const [hasImageFilter, setHasImageFilter] = useState(searchParams.get("hasImage") || "")
-  const [imageFile, setImageFile] = useState<File | null>(null)
-  const [imageObjectUrl, setImageObjectUrl] = useState<string | null>(null)
-  const [imageRemoved, setImageRemoved] = useState(false)
-  const imageInputRef = useRef<HTMLInputElement>(null)
-  const imagePreview = imageFile ? imageObjectUrl : imageRemoved ? null : editDialog.entity?.image || null
-
-  useEffect(() => {
-    if (!imageFile) return
-    const url = URL.createObjectURL(imageFile)
-    setImageObjectUrl(url)
-    return () => URL.revokeObjectURL(url)
-  }, [imageFile])
+  const colorInputRef = useRef<HTMLInputElement>(null)
+  const logoField = useImageField(editDialog.entity?.image)
+  const faviconField = useImageField(editDialog.entity?.favicon)
+  const backgroundField = useImageField(editDialog.entity?.background)
 
   const form = useForm<CreateClientInput>({
     mode: "onChange",
@@ -84,6 +79,8 @@ export function ClientTable({ data, meta }: ClientTableProps) {
     values: editDialog.entity
       ? {
           image: editDialog.entity.image || "",
+          favicon: editDialog.entity.favicon || "",
+          background: editDialog.entity.background || "",
           name: editDialog.entity.name,
           legalName: editDialog.entity.legalName || "",
           document: editDialog.entity.document || "",
@@ -99,6 +96,8 @@ export function ClientTable({ data, meta }: ClientTableProps) {
         }
       : {
           image: "",
+          favicon: "",
+          background: "",
           name: "",
           legalName: "",
           document: "",
@@ -114,23 +113,29 @@ export function ClientTable({ data, meta }: ClientTableProps) {
         },
   })
 
+  function resetImageFields() {
+    logoField.reset()
+    faviconField.reset()
+    backgroundField.reset()
+  }
+
   async function onSubmit(data: CreateClientInput) {
     setLoading(true)
     const formData = new FormData()
     Object.entries(data).forEach(([key, value]) => {
-      if (key === "image") return
+      if (key === "image" || key === "favicon" || key === "background") return
       if (value !== undefined) formData.append(key, String(value))
     })
-    if (imageFile) formData.append("image", imageFile)
-    else formData.append("image", imageRemoved ? "" : data.image || "")
+    formData.append("image", logoField.toFormValue(data.image))
+    formData.append("favicon", faviconField.toFormValue(data.favicon))
+    formData.append("background", backgroundField.toFormValue(data.background))
 
     const result = editDialog.entity ? await updateClient(editDialog.entity.id, formData) : await createClient(formData)
 
     if (result.success) {
       toast.success(editDialog.entity ? "Cliente atualizado" : "Cliente criado")
       form.reset()
-      setImageFile(null)
-      setImageRemoved(false)
+      resetImageFields()
       setEditDialog({ open: false })
       router.refresh()
     } else {
@@ -141,19 +146,8 @@ export function ClientTable({ data, meta }: ClientTableProps) {
 
   function handleCancel() {
     form.reset()
-    setImageFile(null)
-    setImageRemoved(false)
+    resetImageFields()
     setEditDialog({ open: false })
-  }
-
-  function handleRemoveImage() {
-    setImageFile(null)
-    setImageRemoved(true)
-    if (imageInputRef.current) imageInputRef.current.value = ""
-  }
-
-  function handleReplaceImage() {
-    imageInputRef.current?.click()
   }
 
   const columns: ColumnDef<Client>[] = useMemo(() => {
@@ -236,8 +230,7 @@ export function ClientTable({ data, meta }: ClientTableProps) {
         setEditDialog({ open, entity: open ? editDialog.entity : undefined })
         if (!open) {
           form.reset()
-          setImageFile(null)
-          setImageRemoved(false)
+          resetImageFields()
         }
       }}
     >
@@ -254,194 +247,229 @@ export function ClientTable({ data, meta }: ClientTableProps) {
         </DialogHeader>
         <form onSubmit={form.handleSubmit(onSubmit)} className="flex min-h-0 flex-1 flex-col overflow-hidden">
         <DialogBody>
-          <div className="flex items-center gap-6">
-            <div className="flex items-center gap-2">
-              <Controller
-                control={form.control}
-                name="favorite"
-                render={({ field }) => (
-                  <button
-                    type="button"
-                    onClick={() => field.onChange(!field.value)}
-                    aria-pressed={!!field.value}
-                    aria-label="Favoritar"
-                    className="flex items-center justify-center cursor-pointer"
-                  >
-                    <Star
-                      className={
-                        field.value ? "h-5 w-5 fill-yellow-400 text-yellow-400" : "h-5 w-5 text-muted-foreground"
-                      }
-                    />
-                  </button>
-                )}
-              />
-              <Label>Favorito</Label>
-            </div>
-            <div className="flex items-center gap-2">
-              <Controller
-                control={form.control}
-                name="status"
-                render={({ field }) => (
-                  <Checkbox id="status" checked={field.value ?? true} onCheckedChange={(v) => field.onChange(!!v)} />
-                )}
-              />
-              <Label htmlFor="status">Cliente ativo</Label>
-            </div>
-          </div>
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <Field>
-              <FieldLabel htmlFor="name">Nome</FieldLabel>
-              <Input
-                id="name"
-                {...form.register("name")}
-                placeholder="Nome do cliente"
-                aria-invalid={!!form.formState.errors.name}
-              />
-              <FieldError errors={[form.formState.errors.name]} />
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="legalName">Razão Social</FieldLabel>
-              <Input id="legalName" {...form.register("legalName")} placeholder="Razão social (opcional)" />
-            </Field>
-          </div>
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <Field>
-              <FieldLabel htmlFor="document">CPF/CNPJ</FieldLabel>
-              <Controller
-                control={form.control}
-                name="document"
-                render={({ field }) => (
-                  <Input
-                    id="document"
-                    value={field.value ?? ""}
-                    onChange={(e) => field.onChange(formatDocument(e.target.value))}
-                    placeholder="Documento (opcional)"
-                    aria-invalid={!!form.formState.errors.document}
+          <Tabs defaultValue="identificacao">
+            <TabsList className="w-full">
+              <TabsTrigger value="identificacao" className="flex-1">
+                Identificação
+              </TabsTrigger>
+              <TabsTrigger value="totvs" className="flex-1">
+                Integração TOTVS
+              </TabsTrigger>
+              <TabsTrigger value="visual" className="flex-1">
+                Identidade visual
+              </TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="identificacao" className="mt-4 space-y-4">
+              <div className="flex items-center gap-6">
+                <div className="flex items-center gap-2">
+                  <Controller
+                    control={form.control}
+                    name="favorite"
+                    render={({ field }) => (
+                      <button
+                        type="button"
+                        onClick={() => field.onChange(!field.value)}
+                        aria-pressed={!!field.value}
+                        aria-label="Favoritar"
+                        className="flex items-center justify-center cursor-pointer"
+                      >
+                        <Star
+                          className={
+                            field.value ? "h-5 w-5 fill-yellow-400 text-yellow-400" : "h-5 w-5 text-muted-foreground"
+                          }
+                        />
+                      </button>
+                    )}
                   />
-                )}
-              />
-              <FieldError errors={[form.formState.errors.document]} />
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="responsible">Responsável</FieldLabel>
-              <Input id="responsible" {...form.register("responsible")} placeholder="Responsável (opcional)" />
-            </Field>
-          </div>
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <Field>
-              <FieldLabel htmlFor="email">E-mail</FieldLabel>
-              <Input
-                id="email"
-                type="email"
-                {...form.register("email")}
-                placeholder="email@exemplo.com"
-                aria-invalid={!!form.formState.errors.email}
-              />
-              <FieldError errors={[form.formState.errors.email]} />
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="phone">Telefone</FieldLabel>
-              <Controller
-                control={form.control}
-                name="phone"
-                render={({ field }) => (
-                  <Input
-                    id="phone"
-                    value={field.value ?? ""}
-                    onChange={(e) => field.onChange(formatPhone(e.target.value))}
-                    placeholder="(00) 00000-0000"
-                    aria-invalid={!!form.formState.errors.phone}
+                  <Label>Favorito</Label>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Controller
+                    control={form.control}
+                    name="status"
+                    render={({ field }) => (
+                      <Checkbox
+                        id="status"
+                        checked={field.value ?? true}
+                        onCheckedChange={(v) => field.onChange(!!v)}
+                      />
+                    )}
                   />
-                )}
-              />
-              <FieldError errors={[form.formState.errors.phone]} />
-            </Field>
-          </div>
-          <fieldset className="space-y-3 rounded-lg border border-input p-3">
-            <legend className="px-1 text-sm font-medium text-muted-foreground">Integração TOTVS (opcional)</legend>
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  <Label htmlFor="status">Cliente ativo</Label>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <Field>
+                  <FieldLabel htmlFor="name">Nome</FieldLabel>
+                  <Input
+                    id="name"
+                    {...form.register("name")}
+                    placeholder="Nome do cliente"
+                    aria-invalid={!!form.formState.errors.name}
+                  />
+                  <FieldError errors={[form.formState.errors.name]} />
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor="legalName">Razão Social</FieldLabel>
+                  <Input id="legalName" {...form.register("legalName")} placeholder="Razão social (opcional)" />
+                </Field>
+              </div>
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <Field>
+                  <FieldLabel htmlFor="document">CPF/CNPJ</FieldLabel>
+                  <Controller
+                    control={form.control}
+                    name="document"
+                    render={({ field }) => (
+                      <Input
+                        id="document"
+                        value={field.value ?? ""}
+                        onChange={(e) => field.onChange(formatDocument(e.target.value))}
+                        placeholder="Documento (opcional)"
+                        aria-invalid={!!form.formState.errors.document}
+                      />
+                    )}
+                  />
+                  <FieldError errors={[form.formState.errors.document]} />
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor="responsible">Responsável</FieldLabel>
+                  <Input id="responsible" {...form.register("responsible")} placeholder="Responsável (opcional)" />
+                </Field>
+              </div>
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <Field>
+                  <FieldLabel htmlFor="email">E-mail</FieldLabel>
+                  <Input
+                    id="email"
+                    type="email"
+                    {...form.register("email")}
+                    placeholder="email@exemplo.com"
+                    aria-invalid={!!form.formState.errors.email}
+                  />
+                  <FieldError errors={[form.formState.errors.email]} />
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor="phone">Telefone</FieldLabel>
+                  <Controller
+                    control={form.control}
+                    name="phone"
+                    render={({ field }) => (
+                      <Input
+                        id="phone"
+                        value={field.value ?? ""}
+                        onChange={(e) => field.onChange(formatPhone(e.target.value))}
+                        placeholder="(00) 00000-0000"
+                        aria-invalid={!!form.formState.errors.phone}
+                      />
+                    )}
+                  />
+                  <FieldError errors={[form.formState.errors.phone]} />
+                </Field>
+              </div>
               <Field>
+                <FieldLabel htmlFor="notes">Observações</FieldLabel>
+                <Textarea id="notes" {...form.register("notes")} placeholder="Observações (opcional)" />
+              </Field>
+            </TabsContent>
+
+            <TabsContent value="totvs" className="mt-4 space-y-4">
+              <Field className="w-full">
                 <FieldLabel htmlFor="linkCrm">Link CRM</FieldLabel>
                 <Input
                   id="linkCrm"
+                  className="w-full"
                   {...form.register("linkCrm")}
                   placeholder="https://crm.exemplo.com"
                   aria-invalid={!!form.formState.errors.linkCrm}
                 />
                 <FieldError errors={[form.formState.errors.linkCrm]} />
               </Field>
-              <Field>
+              <hr className="border-input" />
+              <Field className="w-full">
                 <FieldLabel htmlFor="site">Site</FieldLabel>
                 <Input
                   id="site"
+                  className="w-full"
                   {...form.register("site")}
                   placeholder="https://site.com.br"
                   aria-invalid={!!form.formState.errors.site}
                 />
                 <FieldError errors={[form.formState.errors.site]} />
               </Field>
-            </div>
-            <Field>
-              <FieldLabel htmlFor="image">Imagem</FieldLabel>
-              <input
-                ref={imageInputRef}
-                id="image"
-                type="file"
-                accept="image/png,image/jpeg,image/webp,image/gif"
-                onChange={(e) => {
-                  const file = e.target.files?.[0] ?? null
-                  setImageFile(file)
-                  if (file) setImageRemoved(false)
-                }}
-                className="hidden"
+            </TabsContent>
+
+            <TabsContent value="visual" className="mt-4 space-y-6">
+              <ImageUploadPreview
+                label="Logo"
+                preview={logoField.preview}
+                previewClassName="h-[45px] w-[165px]"
+                accept="image/webp,image/svg+xml,image/jpeg,image/png"
+                dimensionHint="A dimensão recomendada é de 165 x 45 pixels"
+                formatHint="Formato WEBP, SVG, JPEG e PNG de no máximo 2MB"
+                onSelect={logoField.select}
+                onRemove={logoField.remove}
+                changeLabel="Trocar logo"
               />
-              {imagePreview ? (
-                <div className="mt-2 space-y-2">
-                  <div className="h-40 w-full overflow-hidden rounded-md border border-input">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={imagePreview} alt="Pré-visualização" className="h-full w-full object-cover" />
-                  </div>
-                  <div className="flex gap-2">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={handleReplaceImage}
-                      className="cursor-pointer"
-                    >
-                      <Upload className="h-4 w-4 mr-2" /> Substituir
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={handleRemoveImage}
-                      className="cursor-pointer text-destructive hover:text-destructive"
-                    >
-                      <X className="h-4 w-4 mr-2" /> Remover
-                    </Button>
-                  </div>
+              <ImageUploadPreview
+                label="Favicon"
+                preview={faviconField.preview}
+                previewClassName="h-16 w-16"
+                accept="image/jpeg,image/png,image/x-icon,image/vnd.microsoft.icon"
+                dimensionHint="A dimensão recomendada é de 32 x 32 pixels"
+                formatHint="Formato JPEG, PNG e ICO de no máximo 2MB"
+                onSelect={faviconField.select}
+                onRemove={faviconField.remove}
+                changeLabel="Trocar favicon"
+              />
+              <div className="space-y-2">
+                <p className="text-sm font-medium">Cor</p>
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
+                  <Controller
+                    control={form.control}
+                    name="color"
+                    render={({ field }) => (
+                      <div className="flex shrink-0 items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => colorInputRef.current?.click()}
+                          aria-label="Selecionar cor"
+                          className="h-10 w-10 rounded-full border border-input cursor-pointer"
+                          style={{ backgroundColor: field.value ?? "#22c55e" }}
+                        />
+                        <input
+                          ref={colorInputRef}
+                          type="color"
+                          className="sr-only"
+                          value={field.value ?? "#22c55e"}
+                          onChange={(e) => field.onChange(e.target.value)}
+                        />
+                        <Button type="button" variant="ghost" size="sm" onClick={() => colorInputRef.current?.click()}>
+                          <Pencil className="h-3.5 w-3.5 mr-1" /> Editar
+                        </Button>
+                      </div>
+                    )}
+                  />
+                  <p className="flex-1 text-xs text-muted-foreground">
+                    A definição da cor norteará a identidade visual do sistema entre títulos, botões e demais ícones
+                    de todas as páginas.
+                  </p>
                 </div>
-              ) : (
-                <button
-                  type="button"
-                  onClick={handleReplaceImage}
-                  className="mt-2 flex h-40 w-full flex-col items-center justify-center gap-1 rounded-md border border-dashed border-input text-muted-foreground transition-colors hover:border-primary hover:text-primary cursor-pointer"
-                >
-                  <ImagePlus className="h-6 w-6" />
-                  <span className="text-xs">Anexar imagem</span>
-                </button>
-              )}
-            </Field>
-            <Field className="w-[30%]">
-              <FieldLabel htmlFor="color">Cor</FieldLabel>
-              <Input id="color" type="color" className="h-9 w-20 p-1" {...form.register("color")} />
-            </Field>
-          </fieldset>
-          <Field>
-            <FieldLabel htmlFor="notes">Observações</FieldLabel>
-            <Textarea id="notes" {...form.register("notes")} placeholder="Observações (opcional)" />
-          </Field>
+              </div>
+              <ImageUploadPreview
+                label="Background"
+                preview={backgroundField.preview}
+                previewClassName="h-24 w-40"
+                accept="image/webp,image/jpeg,image/png,image/svg+xml"
+                dimensionHint="A dimensão recomendada é de 1920 x 1080 pixels"
+                formatHint="Formato WEBP, JPEG ou PNG de no máximo 5MB"
+                onSelect={backgroundField.select}
+                onRemove={backgroundField.remove}
+                changeLabel="Trocar imagem"
+              />
+            </TabsContent>
+          </Tabs>
         </DialogBody>
         <DialogFooter>
           <Button

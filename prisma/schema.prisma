@@ -267,6 +267,8 @@ model Client {
   id             String    @id @default(uuid())
   organizationId String    @map("organization_id")
   image          String?
+  favicon        String?
+  background     String?
   name           String
   legalName      String?   @map("legal_name")
   document       String?
