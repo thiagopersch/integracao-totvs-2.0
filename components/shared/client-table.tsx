@@ -8,6 +8,7 @@ import { EntityActionsCell } from "@/components/shared/entity-actions-cell"
 import { PageHeader } from "@/components/shared/page-header"
 import { createSelectColumn } from "@/components/shared/select-column"
 import { TruncatedText } from "@/components/shared/truncated-text"
+import { ColorBadge } from "@/components/shared/color-badge"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
@@ -181,13 +182,13 @@ export function ClientTable({ data, meta }: ClientTableProps) {
                 <img
                   src={image}
                   alt={row.original.name}
-                  className="h-10 w-10 rounded-md border border-input object-cover"
+                  className="h-10 w-10 rounded-md border border-input bg-muted/30 object-contain p-1"
                 />
               }
             />
-            <TooltipContent side="right" className="max-w-none p-1">
+            <TooltipContent variant="surface" side="right" className="max-w-none p-2">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={image} alt={row.original.name} className="h-48 w-48 rounded-md object-cover" />
+              <img src={image} alt={row.original.name} className="h-48 w-48 rounded-md object-contain" />
             </TooltipContent>
           </Tooltip>
         )
@@ -202,6 +203,11 @@ export function ClientTable({ data, meta }: ClientTableProps) {
           <TruncatedText text={row.original.name} />
         </div>
       ),
+    },
+    {
+      accessorKey: "color",
+      header: "Cor",
+      cell: ({ row }) => <ColorBadge label={row.original.color} color={row.original.color} solid />,
     },
     { accessorKey: "linkCrm", header: "Link CRM", cell: ({ row }) => row.getValue("linkCrm") || "-" },
     { accessorKey: "document", header: "CPF/CNPJ", cell: ({ row }) => row.getValue("document") || "-" },

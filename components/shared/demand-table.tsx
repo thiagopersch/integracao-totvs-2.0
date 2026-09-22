@@ -12,6 +12,7 @@ import { PageHeader } from "@/components/shared/page-header"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
 import { EntityActionsCell } from "@/components/shared/entity-actions-cell"
 import { createSelectColumn } from "@/components/shared/select-column"
+import { ColorBadge } from "@/components/shared/color-badge"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -117,27 +118,6 @@ const PRIORITY_COLORS: Record<string, string> = {
   MEDIUM: "#3b82f6",
   HIGH: "#f97316",
   URGENT: "#ef4444",
-}
-
-function getContrastTextColor(hexColor: string): string {
-  const hex = hexColor.replace("#", "")
-  const r = parseInt(hex.substring(0, 2), 16)
-  const g = parseInt(hex.substring(2, 4), 16)
-  const b = parseInt(hex.substring(4, 6), 16)
-  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255
-  return luminance > 0.6 ? "#1f2937" : "#ffffff"
-}
-
-function ColorBadge({ label, color, solid = false }: { label: string; color: string; solid?: boolean }) {
-  const style = solid
-    ? { backgroundColor: color, borderColor: color, color: getContrastTextColor(color) }
-    : { backgroundColor: `${color}22`, borderColor: color, color }
-
-  return (
-    <Badge style={style} variant="outline">
-      {label}
-    </Badge>
-  )
 }
 
 function ColorDot({ color }: { color: string }) {
