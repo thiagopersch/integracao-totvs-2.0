@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { BaseRepository } from "@/repositories/base.repository";
 import { computeNextRunAt } from "@/lib/backup-schedule";
-import { auditService } from "@/services/audit.service";
+import { auditService, RESTORE_ERROR_ACTION } from "@/services/audit.service";
 import { notificationService } from "@/services/notification.service";
 import { buildBackupRunFailedNotification, buildBackupRunSucceededNotification } from "@/lib/notification-types";
 import { classifyError } from "@/lib/error-kind";
@@ -27,23 +27,41 @@ function hashContent(content: string): string {
   return createHash("sha256").update(content).digest("hex");
 }
 
-async function restoreBackupRows(backups: Backup[], targetTbcId: string, organizationId: string, userId: string) {
+export type RestoreResult = { count: number; restored: number; failed: { code: string; error: string }[] };
+
+/**
+ * Writes each backup row to the target TBC by its exact GConsSql key (CODCOLIGADA + APLICACAO +
+ * CODSENTENCA taken from the backup itself) — only codes present in the backup are ever touched.
+ * A failing row never stops the rest; each failure is logged as RESTORE_ERROR so it shows up in
+ * Rastreamento de Atividades with the consulta and the reason.
+ */
+async function restoreBackupRows(
+  backups: Backup[],
+  targetTbcId: string,
+  organizationId: string,
+  userId: string
+): Promise<RestoreResult> {
   const targetTbc = await prisma.tbc.findFirst({
     where: { id: targetTbcId, organizationId, status: true, deletedAt: null },
   });
   if (!targetTbc) throw new Error("TBC de destino não encontrado ou inativo");
 
-  let failures = 0;
+  const failed: RestoreResult["failed"] = [];
+  let restored = 0;
   for (const backup of backups) {
     try {
+      // Never send a partial key — SaveRecord would then match (or create) the wrong consulta.
+      if (!backup.codColigada || !backup.codSystem || !backup.codeSentence) {
+        throw new Error("Chave incompleta no backup (coligada, aplicação ou código da sentença vazio)");
+      }
       await restoreSentenceToTbc(
         targetTbc,
         {
-          codeSentence: backup.codeSentence || "",
-          codColigada: backup.codColigada || "",
-          codSystem: backup.codSystem || "",
+          codeSentence: backup.codeSentence,
+          codColigada: backup.codColigada,
+          codSystem: backup.codSystem,
           nameSentence: backup.nameSentence || "",
-          contentSentence: backup.contentSentence || "",
+          contentSentence: backup.contentSentence ?? "",
         },
         organizationId
       );
@@ -56,8 +74,11 @@ async function restoreBackupRows(backups: Backup[], targetTbcId: string, organiz
           restoredToTbcId: targetTbcId,
         },
       });
-    } catch {
-      failures += 1;
+      restored += 1;
+    } catch (error) {
+      const code = backup.codeSentence || "(sem código)";
+      const message = (error as Error).message;
+      failed.push({ code, error: message });
       await prisma.backup.update({
         where: { id: backup.id },
         data: {
@@ -67,14 +88,30 @@ async function restoreBackupRows(backups: Backup[], targetTbcId: string, organiz
           restoredToTbcId: targetTbcId,
         },
       });
+      await auditService.log({
+        action: RESTORE_ERROR_ACTION,
+        entity: "Backup",
+        entityId: backup.id,
+        organizationId,
+        userId,
+        newData: {
+          code,
+          codColigada: backup.codColigada,
+          codSystem: backup.codSystem,
+          nameSentence: backup.nameSentence,
+          filterId: backup.filterId,
+          targetTbcId,
+          targetTbcName: targetTbc.name,
+          error: message,
+        },
+      });
     }
   }
 
-  if (failures > 0) {
-    throw new Error(`${failures} de ${backups.length} sentença(s) falharam ao restaurar`);
-  }
-  return { count: backups.length };
+  return { count: backups.length, restored, failed };
 }
+
+const NO_BACKUP_MESSAGE = "Nenhum backup encontrado para este filtro. Realize um backup antes de restaurar.";
 
 export const backupService = {
   async list(params: Parameters<typeof backupRepository.findAll>[0], organizationId: string) {
@@ -128,8 +165,17 @@ export const backupService = {
       // for that sentence's version history) rather than deleted.
       for (const sentence of sentences) {
         const hash = hashContent(sentence.contentSentence);
+        // Versioned by the full GConsSql key — the same CODSENTENCA can exist under another
+        // coligada/aplicação and must not demote (and so drop from restores) that other consulta.
         const current = await prisma.backup.findFirst({
-          where: { filterId, codeSentence: sentence.codeSentence, isLatest: true, deletedAt: null },
+          where: {
+            filterId,
+            codColigada: sentence.codColigada,
+            codSystem: sentence.codSystem,
+            codeSentence: sentence.codeSentence,
+            isLatest: true,
+            deletedAt: null,
+          },
         });
 
         if (current && current.hash === hash) continue;
@@ -342,6 +388,7 @@ export const backupService = {
     const backups = await prisma.backup.findMany({
       where: { filterId, organizationId, isLatest: true, deletedAt: null },
     });
+    if (backups.length === 0) throw new Error(NO_BACKUP_MESSAGE);
     return restoreBackupRows(backups, targetTbcId, organizationId, userId);
   },
 
@@ -349,6 +396,7 @@ export const backupService = {
     const backups = await prisma.backup.findMany({
       where: { backupRunId, organizationId, deletedAt: null },
     });
+    if (backups.length === 0) throw new Error("Nenhuma sentença encontrada nesta execução de backup.");
     return restoreBackupRows(backups, targetTbcId, organizationId, userId);
   },
 

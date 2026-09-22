@@ -8,6 +8,7 @@ export const ACTION_LABELS: Record<string, string> = {
   RESTORE: "restaurou",
   BULK_DELETE: "excluiu em massa",
   BULK_RESTORE: "restaurou em massa",
+  RESTORE_ERROR: "falhou ao restaurar",
   ACTIVATE: "ativou",
   DEACTIVATE: "desativou",
   IMPORT_STANDARD_SENTENCES: "importou sentenças padrões para",

@@ -16,7 +16,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { ImageInput } from "@/components/mapeador/image-input"
-import { createMapeadorTema, updateMapeadorTema, listClientesParaTema } from "@/actions/mapeador-tema"
+import { createMapeadorTema, updateMapeadorTema, listClientesParaTema, getClienteVisualIdentity } from "@/actions/mapeador-tema"
 import { MAPEADOR_TEMA_PADRAO_CONFIG } from "@/lib/mapeador/tema-defaults"
 import { cn } from "@/lib/utils"
 import type { MapeadorTemaConfig, MapeadorTemaDTO } from "@/types/mapeador"
@@ -65,14 +65,24 @@ export function TemaEditorDialog({ open, onOpenChange, tema, onSaved }: TemaEdit
   function handleClienteChange(clienteId: string) {
     const cliente = clientes.find((c) => c.id === clienteId)
     if (!cliente) return
-    patch({ clienteId: cliente.id, corMarca: cliente.color, logoUrl: cliente.image, bgImageUrl: cliente.background })
+    patch({ clienteId: cliente.id, corMarca: cliente.color, corBarra: cliente.color, botaoCor: cliente.color, logoUrl: cliente.image, bgImageUrl: cliente.background })
   }
 
   async function handleSave() {
     if (!nome.trim()) return
     setLoading(true)
     try {
-      const result = tema ? await updateMapeadorTema(tema.id, { nome, config }) : await createMapeadorTema(nome, config)
+      // Re-fetch instead of trusting the state snapshotted when the client was picked — the
+      // client's registration may have changed while this dialog was still open, and "salvar
+      // tema" is the point where the client's current visual identity should be committed.
+      let finalConfig = config
+      if (config.origem === "cliente" && config.clienteId) {
+        const cliente = await getClienteVisualIdentity(config.clienteId)
+        if (cliente) {
+          finalConfig = { ...config, corMarca: cliente.color, corBarra: cliente.color, botaoCor: cliente.color, logoUrl: cliente.image, bgImageUrl: cliente.background }
+        }
+      }
+      const result = tema ? await updateMapeadorTema(tema.id, { nome, config: finalConfig }) : await createMapeadorTema(nome, finalConfig)
       if (!result.success) {
         toast.error(result.error || "Erro ao salvar tema")
         return
@@ -154,14 +164,18 @@ export function TemaEditorDialog({ open, onOpenChange, tema, onSaved }: TemaEdit
           )}
 
           <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Cor da barra</Label>
-              <Input type="color" value={config.corBarra} onChange={(e) => patch({ corBarra: e.target.value })} className="h-8 w-full p-1" />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Cor do botão</Label>
-              <Input type="color" value={config.botaoCor} onChange={(e) => patch({ botaoCor: e.target.value })} className="h-8 w-full p-1" />
-            </div>
+            {origem === "manual" && (
+              <>
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">Cor da barra</Label>
+                  <Input type="color" value={config.corBarra} onChange={(e) => patch({ corBarra: e.target.value })} className="h-8 w-full p-1" />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">Cor do botão</Label>
+                  <Input type="color" value={config.botaoCor} onChange={(e) => patch({ botaoCor: e.target.value })} className="h-8 w-full p-1" />
+                </div>
+              </>
+            )}
             <div className="space-y-1">
               <Label className="text-xs text-muted-foreground">Raio da borda do botão (px)</Label>
               <Input type="number" min={0} max={30} value={config.botaoRaio ?? 5} onChange={(e) => patch({ botaoRaio: Number(e.target.value) })} />

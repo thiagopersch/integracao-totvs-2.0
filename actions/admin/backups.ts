@@ -235,10 +235,10 @@ export async function restoreLatestBackupsForFilter(filterId: string, targetTbcI
       action: "RESTORE",
       entity: "Backup",
       entityId: filterId,
-      newData: { scope: "filter-latest", targetTbcId, count: result.count },
+      newData: { scope: "filter-latest", targetTbcId, count: result.count, restored: result.restored, failedCount: result.failed.length },
     });
     invalidateBackupTags(filterId);
-    return { success: true };
+    return { success: true, restored: result.restored, failed: result.failed };
   } catch (error) {
     return { success: false, error: (error as Error).message };
   }
@@ -259,10 +259,10 @@ export async function restoreBackupsForRun(backupRunId: string, targetTbcId: str
       action: "RESTORE",
       entity: "Backup",
       entityId: backupRunId,
-      newData: { scope: "run", targetTbcId, count: result.count },
+      newData: { scope: "run", targetTbcId, count: result.count, restored: result.restored, failedCount: result.failed.length },
     });
     invalidateBackupTags(run.filterId);
-    return { success: true };
+    return { success: true, restored: result.restored, failed: result.failed };
   } catch (error) {
     return { success: false, error: (error as Error).message };
   }
@@ -283,10 +283,10 @@ export async function restoreSingleBackup(backupId: string, targetTbcId: string)
       action: "RESTORE",
       entity: "Backup",
       entityId: backupId,
-      newData: { scope: "single", targetTbcId, count: result.count },
+      newData: { scope: "single", targetTbcId, count: result.count, restored: result.restored, failedCount: result.failed.length },
     });
     invalidateBackupTags(backup.filterId);
-    return { success: true };
+    return { success: true, restored: result.restored, failed: result.failed };
   } catch (error) {
     return { success: false, error: (error as Error).message };
   }

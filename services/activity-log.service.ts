@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { ENTITY_LABELS, formatBlockingReferences, type BlockingReference } from "@/lib/entity-relations";
 import { ACTION_LABELS } from "@/lib/audit-labels";
-import { BULK_DELETE_BLOCKED_ACTION } from "@/services/audit.service";
+import { BULK_DELETE_BLOCKED_ACTION, RESTORE_ERROR_ACTION } from "@/services/audit.service";
 import { STATUS_SYMBOLS } from "@/lib/activity-status";
 import { SoapMethod, type AuditLog, type SoapLog, type EmailLog, type ApiLog, type Prisma } from "@/generated/prisma/client";
 
@@ -62,7 +62,28 @@ const API_INTEGRATIONS = [
   { code: "CIELO", label: "Cielo" },
 ] as const;
 
+type RestoreErrorData = {
+  code?: string;
+  codColigada?: string | null;
+  codSystem?: string | null;
+  targetTbcName?: string;
+  error?: string;
+};
+
 function normalizeAudit(row: AuditLogWithUser): ActivityRow {
+  if (row.action === RESTORE_ERROR_ACTION) {
+    const d = (row.newData as RestoreErrorData | null) ?? {};
+    return {
+      id: row.id,
+      source: "CRUD",
+      summary: `Falha ao restaurar consulta ${d.code ?? "?"} (${d.codColigada ?? "?"}/${d.codSystem ?? "?"}) no TBC ${d.targetTbcName ?? "?"}: ${d.error ?? "erro desconhecido"}`,
+      actorName: row.user?.name ?? "Sistema",
+      status: "ERROR",
+      durationMs: null,
+      createdAt: row.createdAt,
+      raw: row,
+    };
+  }
   const entityLabel = ENTITY_LABELS[row.entity] ?? row.entity;
   const actionLabel = ACTION_LABELS[row.action] ?? row.action.toLowerCase();
   return {

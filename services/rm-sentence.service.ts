@@ -248,11 +248,15 @@ export async function restoreSentenceToTbc(
   // Filtro. Untested live (restricted to AutenticaAcesso/CheckServiceActivity/IsValidDataServer) —
   // flagging this inference so it gets verified before relying on it.
   const dataServerName = env.RM_GCONSSQL_DATASERVER_NAME || GLB_CONS_SQL_DATA;
+  // The whole record is wrapped in an outer CDATA below, so field values are XML-escaped instead of
+  // nested in their own CDATA — an inner `]]>` would close the outer section and break the envelope.
+  // SENTENCA may legitimately be empty (tree-only consultas in the RM view), so it's sent as-is.
   const recordXml = `<${GCONSSQL_TABLE}>
   <CODCOLIGADA>${escapeXml(sentence.codColigada)}</CODCOLIGADA>
   <APLICACAO>${escapeXml(sentence.codSystem)}</APLICACAO>
   <CODSENTENCA>${escapeXml(sentence.codeSentence)}</CODSENTENCA>
-  <SENTENCA><![CDATA[${sentence.contentSentence}]]></SENTENCA>
+  <TITULO>${escapeXml(sentence.nameSentence || sentence.codeSentence)}</TITULO>
+  <SENTENCA>${escapeXml(sentence.contentSentence ?? "")}</SENTENCA>
 </${GCONSSQL_TABLE}>`;
 
   const methodXml = `<SaveRecord>

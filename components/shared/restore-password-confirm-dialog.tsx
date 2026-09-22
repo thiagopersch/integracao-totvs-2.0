@@ -60,7 +60,15 @@ export function RestorePasswordConfirmDialog({
 
     setLoading(false)
     if (result.success) {
-      toast.success("Restauração realizada com sucesso")
+      const restored = result.restored ?? 0
+      const failedCount = result.failed?.length ?? 0
+      if (failedCount === 0) {
+        toast.success(`${restored} consulta(s) restaurada(s) com sucesso`)
+      } else {
+        toast.warning(
+          `${restored} consulta(s) restaurada(s), ${failedCount} com erro. Veja os detalhes em Rastreamento de Atividades.`
+        )
+      }
       reset()
       onOpenChange(false)
       onSuccess()

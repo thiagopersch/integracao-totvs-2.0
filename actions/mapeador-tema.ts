@@ -49,6 +49,11 @@ export async function listClientesParaTema() {
   return clientService.listAll(organizationId, allowedClientIds);
 }
 
+export async function getClienteVisualIdentity(clienteId: string) {
+  const { organizationId, allowedClientIds } = await requirePermission("mapeador_temas", "read");
+  return clientService.getById(clienteId, organizationId, allowedClientIds);
+}
+
 export async function checkClienteIdentidadeTema(config: {
   origem?: string;
   clienteId?: string | null;

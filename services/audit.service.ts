@@ -72,6 +72,9 @@ export type AuditInput = {
 };
 
 export const BULK_DELETE_BLOCKED_ACTION = "BULK_DELETE_BLOCKED";
+/** One row per consulta that failed during a backup restore — shown in Rastreamento de Atividades.
+ *  Not broadcast: the aggregate RESTORE log of the same run already notifies the organization. */
+export const RESTORE_ERROR_ACTION = "RESTORE_ERROR";
 
 export const auditService = {
   async log(input: AuditInput): Promise<void> {
@@ -115,7 +118,7 @@ export const auditService = {
     // BULK_DELETE_BLOCKED is an internal bookkeeping marker for the deletion-errors log page, not
     // a real user action — never worth a notification, and a blocked bulk delete already surfaces
     // its own toast to the user who triggered it.
-    if (organizationId && input.action !== BULK_DELETE_BLOCKED_ACTION) {
+    if (organizationId && input.action !== BULK_DELETE_BLOCKED_ACTION && input.action !== RESTORE_ERROR_ACTION) {
       try {
         const entityLabel = ENTITY_LABELS[input.entity] ?? input.entity;
         const actionLabel = ACTION_LABELS[input.action] ?? input.action.toLowerCase();
