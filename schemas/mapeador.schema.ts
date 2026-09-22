@@ -2,6 +2,7 @@ import { z } from "zod";
 
 export const createMapeadorProjetoSchema = z.object({
   nome: z.string().min(2, "Nome deve ter no mínimo 2 caracteres"),
+  clienteId: z.string().min(1).nullable().optional(),
 });
 
 export const renameMapeadorProjetoSchema = z.object({

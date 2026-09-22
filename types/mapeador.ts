@@ -209,6 +209,9 @@ export interface MapeadorProjetoSummary {
   id: string
   nome: string
   etapasCount: number
+  /** Etapa names, used only to power the listing's search-by-etapa-name filter — not rendered directly. */
+  etapaNomes: string[]
+  cliente: { id: string; name: string; color: string } | null
   updatedAt: string
 }
 

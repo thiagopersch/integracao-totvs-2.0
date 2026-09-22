@@ -285,12 +285,13 @@ model Client {
   updatedAt      DateTime  @updatedAt @map("updated_at")
   deletedAt      DateTime? @map("deleted_at")
 
-  organization Organization      @relation(fields: [organizationId], references: [id])
-  tbcs         Tbc[]
-  filters      Filter[]
-  contracts    ClientContract[]
-  demands      Demand[]
-  userClients  UserClient[]
+  organization     Organization      @relation(fields: [organizationId], references: [id])
+  tbcs             Tbc[]
+  filters          Filter[]
+  contracts        ClientContract[]
+  demands          Demand[]
+  userClients      UserClient[]
+  mapeadorProjetos MapeadorProjeto[]
 
   @@unique([organizationId, linkCrm])
   @@map("clients")
@@ -938,6 +939,7 @@ model NotificationSetting {
 model MapeadorProjeto {
   id                    String    @id @default(uuid())
   organizationId        String    @map("organization_id")
+  clienteId             String?   @map("cliente_id")
   nome                  String
   informacoesAdicionais Json?     @map("informacoes_adicionais")
   prototipoConfig       Json?     @map("prototipo_config")
@@ -946,6 +948,7 @@ model MapeadorProjeto {
   deletedAt             DateTime? @map("deleted_at")
 
   organization Organization    @relation(fields: [organizationId], references: [id])
+  cliente      Client?         @relation(fields: [clienteId], references: [id])
   etapas       MapeadorEtapa[]
 
   @@map("mapeador_projetos")

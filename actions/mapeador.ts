@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { mapeadorService } from "@/services/mapeador.service";
 import { auditService } from "@/services/audit.service";
+import { clientService } from "@/services/client.service";
 import { requirePermission } from "@/lib/rbac";
 import {
   createEtapaSchema,
@@ -29,12 +30,17 @@ export async function listMapeadorTemplates() {
   return mapeadorService.listTemplates(organizationId);
 }
 
-export async function createMapeadorProjetosFromTemplates(templateIds: string[]) {
+export async function listClientesParaMapeador() {
+  const { organizationId, allowedClientIds } = await requirePermission("mapeador_projetos", "read");
+  return clientService.listAll(organizationId, allowedClientIds);
+}
+
+export async function createMapeadorProjetosFromTemplates(templateIds: string[], clienteId?: string | null) {
   const { organizationId } = await requirePermission("mapeador_projetos", "create");
   if (!templateIds.length) return fail(new Error("Selecione ao menos uma forma de ingresso"));
 
   try {
-    const created = await mapeadorService.createProjetosFromTemplates(templateIds, organizationId);
+    const created = await mapeadorService.createProjetosFromTemplates(templateIds, organizationId, clienteId ?? null);
     for (const projeto of created) {
       await auditService.log({ action: "CREATE", entity: "MapeadorProjeto", entityId: projeto.id, newData: { nome: projeto.nome, fromTemplate: true } });
     }
@@ -50,13 +56,13 @@ export async function getMapeadorProjeto(id: string) {
   return mapeadorService.getProjeto(id, organizationId);
 }
 
-export async function createMapeadorProjeto(nome: string) {
+export async function createMapeadorProjeto(nome: string, clienteId?: string | null) {
   const { organizationId } = await requirePermission("mapeador_projetos", "create");
-  const parsed = createMapeadorProjetoSchema.safeParse({ nome });
+  const parsed = createMapeadorProjetoSchema.safeParse({ nome, clienteId });
   if (!parsed.success) return fail(new Error("Nome inválido"));
 
   try {
-    const projeto = await mapeadorService.createProjeto(parsed.data.nome, organizationId);
+    const projeto = await mapeadorService.createProjeto(parsed.data.nome, organizationId, parsed.data.clienteId ?? null);
     await auditService.log({ action: "CREATE", entity: "MapeadorProjeto", entityId: projeto.id, newData: { nome: projeto.nome } });
     revalidatePath("/projetos/mapeador");
     return { success: true as const, data: projeto };

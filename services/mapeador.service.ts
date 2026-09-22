@@ -39,12 +39,18 @@ export const mapeadorService = {
     const projetos = await prisma.mapeadorProjeto.findMany({
       where: { organizationId, deletedAt: null },
       orderBy: { updatedAt: "desc" },
-      include: { _count: { select: { etapas: true } } },
+      include: {
+        _count: { select: { etapas: true } },
+        etapas: { select: { nome: true } },
+        cliente: { select: { id: true, name: true, color: true } },
+      },
     });
     return projetos.map((p) => ({
       id: p.id,
       nome: p.nome,
       etapasCount: p._count.etapas,
+      etapaNomes: p.etapas.map((e) => e.nome),
+      cliente: p.cliente ? { id: p.cliente.id, name: p.cliente.name, color: p.cliente.color } : null,
       updatedAt: p.updatedAt.toISOString(),
     }));
   },
@@ -65,8 +71,8 @@ export const mapeadorService = {
     };
   },
 
-  async createProjeto(nome: string, organizationId: string) {
-    return prisma.mapeadorProjeto.create({ data: { nome, organizationId } });
+  async createProjeto(nome: string, organizationId: string, clienteId?: string | null) {
+    return prisma.mapeadorProjeto.create({ data: { nome, organizationId, clienteId: clienteId || null } });
   },
 
   async renameProjeto(id: string, nome: string, organizationId: string) {
@@ -204,7 +210,7 @@ export const mapeadorService = {
     return [...rubeus, ...modelos];
   },
 
-  async createProjetosFromTemplates(templateIds: string[], organizationId: string) {
+  async createProjetosFromTemplates(templateIds: string[], organizationId: string, clienteId?: string | null) {
     const created: { id: string; nome: string }[] = [];
     for (const templateId of templateIds) {
       // Static "Padrão Rubeus" templates are checked first (fixed slug ids, e.g.
@@ -215,6 +221,7 @@ export const mapeadorService = {
       const projeto = await prisma.mapeadorProjeto.create({
         data: {
           organizationId,
+          clienteId: clienteId || null,
           nome: template.nome,
           informacoesAdicionais: template.informacoesAdicionais as Prisma.InputJsonValue,
           etapas: {
