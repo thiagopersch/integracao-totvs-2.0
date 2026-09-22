@@ -1,5 +1,6 @@
 "use client"
 
+import { memo } from "react"
 import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
@@ -17,7 +18,7 @@ interface PageSizeSelectProps {
   onPageSizeChange: (pageSize: number) => void
 }
 
-export function PageSizeSelect({ pageSize, onPageSizeChange }: PageSizeSelectProps) {
+export const PageSizeSelect = memo(function PageSizeSelect({ pageSize, onPageSizeChange }: PageSizeSelectProps) {
   return (
     <Select
       items={PAGE_SIZE_OPTIONS.map((size) => ({ value: `${size}`, label: `${size} itens por página` }))}
@@ -36,7 +37,7 @@ export function PageSizeSelect({ pageSize, onPageSizeChange }: PageSizeSelectPro
       </SelectContent>
     </Select>
   )
-}
+})
 
 interface DataTablePaginationProps {
   page: number
@@ -45,7 +46,7 @@ interface DataTablePaginationProps {
   onPageChange: (page: number) => void
 }
 
-export function DataTablePagination({
+export const DataTablePagination = memo(function DataTablePagination({
   page,
   pageCount,
   total,
@@ -99,4 +100,4 @@ export function DataTablePagination({
       </div>
     </div>
   )
-}
+})

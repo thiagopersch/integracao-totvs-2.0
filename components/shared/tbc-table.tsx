@@ -36,7 +36,7 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import type { Client } from "@/generated/prisma/client"
 import type { ColumnDef } from "@tanstack/react-table"
 import { ListChecks, Loader2, Plus, ShieldCheck } from "lucide-react"
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import { Controller, useForm, type Resolver } from "react-hook-form"
 import { toast } from "sonner"
 
@@ -151,7 +151,8 @@ export function TbcTable({ data, meta, clients, filterClients }: TbcTableProps) 
   const canSubmit = coreFieldsFilled && (isEditingWithoutPasswordChange || !!watchedPassword)
   const canValidate = coreFieldsFilled && !!watchedPassword
 
-  const columns: ColumnDef<TbcRow>[] = [
+  const columns: ColumnDef<TbcRow>[] = useMemo(() => {
+    const columns: ColumnDef<TbcRow>[] = [
     createSelectColumn<TbcRow>(),
     {
       accessorKey: "status",
@@ -219,7 +220,9 @@ export function TbcTable({ data, meta, clients, filterClients }: TbcTableProps) 
       />
     ),
   }
-  columns.push(actionsColumn)
+    columns.push(actionsColumn)
+    return columns
+  }, [canUpdate, canDelete, setEditDialog, setDeleteDialog, handleToggleStatus, validatingRowId, router])
 
   const newDialog = (
     <Dialog

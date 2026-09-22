@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import type { ColumnDef } from "@tanstack/react-table"
 import { useForm, Controller, type Resolver } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -123,7 +123,8 @@ export function AnalystTable({ data, meta }: AnalystTableProps) {
     setEditDialog({ open: false })
   }
 
-  const columns: ColumnDef<AnalystRow>[] = [
+  const columns: ColumnDef<AnalystRow>[] = useMemo(() => {
+    const columns: ColumnDef<AnalystRow>[] = [
     createSelectColumn<AnalystRow>(),
     {
       accessorKey: "status",
@@ -160,7 +161,9 @@ export function AnalystTable({ data, meta }: AnalystTableProps) {
       />
     ),
   }
-  if (canUpdate || canDelete) columns.push(actionsColumn)
+    if (canUpdate || canDelete) columns.push(actionsColumn)
+    return columns
+  }, [canUpdate, canDelete, setEditDialog, setDeleteDialog, handleToggleStatus])
 
   const newDialog = (
     <Dialog

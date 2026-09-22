@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import type { ColumnDef } from "@tanstack/react-table"
 import { useForm, type Resolver } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -100,7 +100,8 @@ export function DemandTypeTable({ data, meta }: DemandTypeTableProps) {
     setEditDialog({ open: false })
   }
 
-  const columns: ColumnDef<DemandType>[] = [
+  const columns: ColumnDef<DemandType>[] = useMemo(() => {
+    const columns: ColumnDef<DemandType>[] = [
     createSelectColumn<DemandType>(),
     {
       accessorKey: "name",
@@ -128,7 +129,9 @@ export function DemandTypeTable({ data, meta }: DemandTypeTableProps) {
       />
     ),
   }
-  if (canUpdate || canDelete) columns.push(actionsColumn)
+    if (canUpdate || canDelete) columns.push(actionsColumn)
+    return columns
+  }, [canUpdate, canDelete, setEditDialog, setDeleteDialog])
 
   const newDialog = (
     <Dialog

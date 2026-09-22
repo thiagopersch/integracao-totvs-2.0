@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { format } from "date-fns"
 import type { DateRange } from "react-day-picker"
@@ -386,7 +386,7 @@ export function ActivityLogTable({
     </DataTableFilterPanel>
   )
 
-  const columns: ColumnDef<ActivityRow>[] = [
+  const columns: ColumnDef<ActivityRow>[] = useMemo(() => [
     {
       id: "source",
       header: "Fonte",
@@ -439,7 +439,7 @@ export function ActivityLogTable({
         )
       },
     },
-  ]
+  ], [canReexecuteSoap, executing])
 
   return (
     <>

@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Filter as FilterIcon } from "lucide-react"
 import { useDebounce } from "@/hooks/use-debounce"
-import { useState, useEffect, useRef } from "react"
+import { memo, useState, useEffect, useRef } from "react"
 import { cn } from "@/utils/cn"
 
 interface DataTableToolbarProps {
@@ -19,7 +19,7 @@ interface DataTableToolbarProps {
   onToggleFilters?: () => void
 }
 
-export function DataTableToolbar({
+export const DataTableToolbar = memo(function DataTableToolbar({
   searchable = true,
   searchPlaceholder = "Buscar...",
   searchDefaultValue = "",
@@ -73,4 +73,4 @@ export function DataTableToolbar({
       <div className="ml-auto flex items-center gap-2 sm:ml-0">{toolbarActions}</div>
     </div>
   )
-}
+})

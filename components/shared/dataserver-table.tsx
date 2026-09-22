@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import type { ColumnDef } from "@tanstack/react-table"
 import { useForm, type Resolver } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -134,7 +134,8 @@ export function DataserverTable({ data, meta, tbcs }: DataserverTableProps) {
     setEditDialog({ open: false })
   }
 
-  const columns: ColumnDef<Dataserver>[] = [
+  const columns: ColumnDef<Dataserver>[] = useMemo(() => {
+    const columns: ColumnDef<Dataserver>[] = [
     createSelectColumn<Dataserver>(),
     {
       accessorKey: "code",
@@ -161,7 +162,9 @@ export function DataserverTable({ data, meta, tbcs }: DataserverTableProps) {
       />
     ),
   }
-  if (canUpdate || canDelete) columns.push(actionsColumn)
+    if (canUpdate || canDelete) columns.push(actionsColumn)
+    return columns
+  }, [canUpdate, canDelete, setEditDialog, setDeleteDialog])
 
   const newDialog = (
     <Dialog

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import type { ColumnDef } from "@tanstack/react-table"
 import { useForm, Controller, type Resolver } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -111,7 +111,8 @@ export function SentenceCategoryTable({ data, meta }: SentenceCategoryTableProps
     setEditDialog({ open: false })
   }
 
-  const columns: ColumnDef<SentenceCategory>[] = [
+  const columns: ColumnDef<SentenceCategory>[] = useMemo(() => {
+    const columns: ColumnDef<SentenceCategory>[] = [
     createSelectColumn<SentenceCategory>(),
     {
       accessorKey: "status",
@@ -143,7 +144,9 @@ export function SentenceCategoryTable({ data, meta }: SentenceCategoryTableProps
       />
     ),
   }
-  if (canUpdate || canDelete) columns.push(actionsColumn)
+    if (canUpdate || canDelete) columns.push(actionsColumn)
+    return columns
+  }, [canUpdate, canDelete, setEditDialog, setDeleteDialog, handleToggleStatus])
 
   const newDialog = (
     <Dialog open={editDialog.open} onOpenChange={(open) => { setEditDialog({ open, entity: open ? editDialog.entity : undefined }); if (!open) form.reset() }}>

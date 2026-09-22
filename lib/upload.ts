@@ -1,6 +1,5 @@
 import { randomUUID } from "crypto"
-import { mkdir, writeFile } from "fs/promises"
-import path from "path"
+import { put } from "@vercel/blob"
 
 const ALLOWED_IMAGE_TYPES = ["image/png", "image/jpeg", "image/webp", "image/gif"]
 const MAX_IMAGE_SIZE = 5 * 1024 * 1024
@@ -17,12 +16,12 @@ export async function saveImageUpload(file: File): Promise<string> {
     throw new Error("Imagem muito grande. O tamanho máximo é 5MB.")
   }
 
-  const uploadsDir = path.join(process.cwd(), "public", "uploads")
-  await mkdir(uploadsDir, { recursive: true })
-
   const fileName = `${randomUUID()}-${sanitizeFileName(file.name)}`
-  const buffer = Buffer.from(await file.arrayBuffer())
-  await writeFile(path.join(uploadsDir, fileName), buffer)
+  const blob = await put(`uploads/${fileName}`, file, {
+    access: "public",
+    addRandomSuffix: false,
+    contentType: file.type,
+  })
 
-  return `/uploads/${fileName}`
+  return blob.url
 }

@@ -40,6 +40,7 @@ import {
 } from "@/utils/soap-schema"
 import { formatDuration } from "@/utils/format"
 import { useSoapStore } from "@/store/soap.store"
+import { buildDefaultFiltro } from "@/lib/tbc-checklist-filtro"
 
 type EndpointMethod = {
   id: string
@@ -199,6 +200,11 @@ export function SoapBuilderClient({
   const [guidedParamsLoading, setGuidedParamsLoading] = useState(false)
   const [guidedParamsLoadedFor, setGuidedParamsLoadedFor] = useState<string | null>(null)
   const [readViewFiltro, setReadViewFiltro] = useState("")
+  // Table/field names for the Filtro CodeEditor's SQL autocomplete, built from the same GetSchema
+  // call below — bumped alongside readViewFiltro's own resetKey so a prefill and its autocomplete
+  // schema always land in the editor together.
+  const [readViewSqlSchema, setReadViewSqlSchema] = useState<{ tables: Record<string, string[]>; defaultTable?: string } | null>(null)
+  const [filtroResetKey, setFiltroResetKey] = useState(0)
   const [primaryKeyFields, setPrimaryKeyFields] = useState<{ name: string; caption: string }[]>([])
   const [primaryKeyValues, setPrimaryKeyValues] = useState<Record<string, string>>({})
   // RealizarConsultaSQL(Contexto) guided params — codSistema is never typed here, it's always the
@@ -324,6 +330,8 @@ export function SoapBuilderClient({
   function resetGuidedParams() {
     setGuidedParamsLoadedFor(null)
     setReadViewFiltro("")
+    setReadViewSqlSchema(null)
+    setFiltroResetKey((v) => v + 1)
     setPrimaryKeyFields([])
     setPrimaryKeyValues({})
     setDataserverSchemaTables(null)
@@ -594,10 +602,19 @@ export function SoapBuilderClient({
             )
             toast.success("Chave primária carregada — preencha os valores antes de executar")
           } else if (isReadViewMethod) {
-            // Purely informational — the Filtro box already builds its own request XML
-            // (handleFiltroChange), so this only tells the user which table(s) the dataserver
-            // reads from (and their column names) for writing the SQL condition.
+            // Tells the user which table(s) the dataserver reads from, feeds the Filtro
+            // CodeEditor's SQL autocomplete (TABELA.CAMPO) with those tables/fields, and — when
+            // the user hasn't typed a Filtro yet — prefills it with the main table's primary-key
+            // condition template (buildDefaultFiltro), same convention as tbc-checklist.
             setDataserverSchemaTables(allTables)
+            setReadViewSqlSchema({
+              tables: Object.fromEntries(allTables.map((t) => [t.name, t.fields.map((f) => f.name)])),
+              defaultTable: mainTable.name,
+            })
+            if (!readViewFiltro.trim()) {
+              handleFiltroChange(buildDefaultFiltro(allTables))
+            }
+            setFiltroResetKey((v) => v + 1)
             toast.success(
               allTables.length === 1
                 ? `Tabela identificada: ${allTables[0].name}`
@@ -611,7 +628,16 @@ export function SoapBuilderClient({
         }
         setGuidedParamsLoadedFor(guidedParamsKey)
       } catch (err) {
-        toast.error(axios.isAxiosError(err) ? err.response?.data?.error || err.message : (err as Error).message)
+        const message = axios.isAxiosError(err) ? err.response?.data?.error || err.message : (err as Error).message
+        toast.error(`Falha ao carregar o schema (GetSchema): ${message}`, {
+          description: "O TBC foi limpo — selecione-o novamente para tentar de novo.",
+        })
+        // Clearing the TBC (part of guidedParamsKey) is what actually lets the user retry: it
+        // forces guidedParamsPending back to a normal "not loaded yet" state instead of getting
+        // stuck forever on the same failed key, and re-selecting a TBC re-triggers this effect
+        // for a fresh GetSchema attempt.
+        setSelectedTbcId("")
+        resetGuidedParams()
       } finally {
         setGuidedParamsLoading(false)
       }
@@ -1238,7 +1264,14 @@ export function SoapBuilderClient({
                   <Label>
                     Filtro (apenas a condição SQL — sem SELECT, ex.: CODCOLIGADA = 1 AND RA = &apos;123&apos;)
                   </Label>
-                  <CodeEditor value={readViewFiltro} onChange={handleFiltroChange} language="sql" minHeight="120px" />
+                  <CodeEditor
+                    value={readViewFiltro}
+                    onChange={handleFiltroChange}
+                    language="sql"
+                    minHeight="120px"
+                    resetKey={filtroResetKey}
+                    sqlSchema={readViewSqlSchema ?? undefined}
+                  />
                 </div>
               )}
 

@@ -13,7 +13,8 @@ import {
   type VisibilityState,
   type PaginationState,
 } from "@tanstack/react-table"
-import { Fragment, useState } from "react"
+import { Fragment, useRef, useState } from "react"
+import { useVirtualizer } from "@tanstack/react-virtual"
 import { ArrowDown, ArrowUp, ArrowUpDown, Trash2 } from "lucide-react"
 import { toast } from "sonner"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -24,6 +25,12 @@ import { ConfirmDialog } from "./confirm-dialog"
 import { Skeleton } from "@/components/ui/skeleton"
 
 type SortState = { field: string; direction: "asc" | "desc" }
+
+// Above this many rows, the body switches to windowed rendering (@tanstack/react-virtual) instead
+// of rendering every <tr> — most tables page at <=100 rows so this rarely engages, but the
+// PAGE_SIZE_OPTIONS 50/100 choices (and any future non-paginated large dataset) benefit from it.
+const VIRTUALIZE_ROW_THRESHOLD = 50
+const ESTIMATED_ROW_HEIGHT = 45
 
 export interface BulkDeleteActionResult {
   success: boolean
@@ -152,6 +159,30 @@ export function DataTable<TData, TValue>({
 
   const selectedRows = table.getSelectedRowModel().rows
   const selectedCount = selectedRows.length
+  const rows = table.getRowModel().rows
+
+  // Disabled for `expandable` tables — interleaving variable-height detail rows into the
+  // virtualizer's windowing would need per-row dynamic measurement wired through a second config
+  // surface for comparatively little payoff, since expandable tables tend to be smaller lists.
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
+  const virtualizationEnabled = !loading && !expandable && rows.length > VIRTUALIZE_ROW_THRESHOLD
+  const rowVirtualizer = useVirtualizer({
+    count: virtualizationEnabled ? rows.length : 0,
+    getScrollElement: () => scrollContainerRef.current,
+    estimateSize: () => ESTIMATED_ROW_HEIGHT,
+    overscan: 10,
+  })
+  const virtualRows = virtualizationEnabled ? rowVirtualizer.getVirtualItems() : null
+
+  // Real <table> layout can't reconcile absolutely-positioned virtual rows with the header's
+  // auto-computed column widths, so virtualized mode switches every row (header + body) to a flex
+  // row sharing this same per-column sizing — the "actions" column keeps its natural width,
+  // everything else splits the remaining space evenly.
+  function virtualCellStyle(columnId: string): React.CSSProperties {
+    return columnId === "actions"
+      ? { display: "flex", alignItems: "center", flex: "0 0 auto" }
+      : { display: "flex", alignItems: "center", flex: "1 1 0%", minWidth: 0, overflow: "hidden" }
+  }
 
   async function handleBulkDelete() {
     if (!bulkDelete) return
@@ -213,18 +244,46 @@ export function DataTable<TData, TValue>({
           </Button>
         </div>
       )}
-      <div className="rounded-md border">
-        <Table>
-          <TableHeader>
+      <div
+        ref={scrollContainerRef}
+        className={
+          virtualizationEnabled
+            ? // `<Table>`'s own wrapper div sets only `overflow-x-auto` — per the CSS overflow spec,
+              // pairing an explicit axis with the other's default `visible` computes that other axis
+              // to `auto` too, silently turning that div into ANOTHER scrolling ancestor. That breaks
+              // the sticky header, which then sticks to that (never-scrolling) box instead of to this
+              // one. Forcing it back to `overflow-visible` here restores this div as the single real
+              // scroll container.
+              "rounded-md border max-h-[70vh] overflow-auto [&_[data-slot=table-container]]:overflow-visible"
+            : "rounded-md border"
+        }
+      >
+        <Table style={virtualizationEnabled ? { display: "block" } : undefined}>
+          {/* Sticky lives on <thead> itself, not the individual <th> cells — a <th>'s containing
+              block is its immediate flex-row parent (only one row tall, so it'd have nowhere to
+              stay pinned), whereas <thead>'s containing block is the full-height <table>. The
+              "actions" column additionally gets its own (horizontal) sticky so it stays pinned to
+              the right within that already-vertically-pinned header row. */}
+          <TableHeader
+            style={virtualizationEnabled ? { display: "block", position: "sticky", top: 0, zIndex: 20 } : undefined}
+            className={virtualizationEnabled ? "bg-background" : undefined}
+          >
             {table.getHeaderGroups().map((headerGroup) => (
-              <TableRow key={headerGroup.id}>
+              <TableRow key={headerGroup.id} style={virtualizationEnabled ? { display: "flex", width: "100%" } : undefined}>
                 {headerGroup.headers.map((header) => {
-                  const stickyActionsClass = header.column.id === "actions" ? "sticky right-0 z-10 border-l bg-background" : undefined
-                  if (header.isPlaceholder) return <TableHead key={header.id} className={stickyActionsClass} />
+                  const isActionsColumn = header.column.id === "actions"
+                  const stickyActionsClass = isActionsColumn ? "sticky right-0 z-10 border-l bg-background" : undefined
+                  const virtualStyle = virtualizationEnabled ? virtualCellStyle(header.column.id) : undefined
+                  if (header.isPlaceholder) return <TableHead key={header.id} className={stickyActionsClass} style={virtualStyle} />
 
                   const content = flexRender(header.column.columnDef.header, header.getContext())
                   const sortEligible = sortableColumns?.includes(header.column.id)
-                  if (!sortEligible) return <TableHead key={header.id} className={stickyActionsClass}>{content}</TableHead>
+                  if (!sortEligible)
+                    return (
+                      <TableHead key={header.id} className={stickyActionsClass} style={virtualStyle}>
+                        {content}
+                      </TableHead>
+                    )
 
                   // Server-driven sort (sort/onSortChange passed in): caller re-fetches with the new orderBy.
                   if (onSortChange) {
@@ -232,7 +291,7 @@ export function DataTable<TData, TValue>({
                     const direction = isActive ? sort.direction : undefined
 
                     return (
-                      <TableHead key={header.id} className={stickyActionsClass}>
+                      <TableHead key={header.id} className={stickyActionsClass} style={virtualStyle}>
                         <button
                           type="button"
                           className="flex items-center gap-1 hover:text-foreground cursor-pointer"
@@ -260,7 +319,7 @@ export function DataTable<TData, TValue>({
                   const clientDirection = header.column.getIsSorted()
 
                   return (
-                    <TableHead key={header.id} className={stickyActionsClass}>
+                    <TableHead key={header.id} className={stickyActionsClass} style={virtualStyle}>
                       <button
                         type="button"
                         className="flex items-center gap-1 hover:text-foreground cursor-pointer"
@@ -281,7 +340,13 @@ export function DataTable<TData, TValue>({
               </TableRow>
             ))}
           </TableHeader>
-          <TableBody>
+          <TableBody
+            style={
+              virtualizationEnabled
+                ? { display: "block", position: "relative", height: `${rowVirtualizer.getTotalSize()}px` }
+                : undefined
+            }
+          >
             {loading ? (
               Array.from({ length: 5 }).map((_, i) => (
                 <TableRow key={i}>
@@ -292,8 +357,50 @@ export function DataTable<TData, TValue>({
                   ))}
                 </TableRow>
               ))
-            ) : table.getRowModel().rows.length ? (
-              table.getRowModel().rows.map((row) => (
+            ) : !rows.length ? (
+              <TableRow>
+                <TableCell colSpan={columns.length} className="h-24 text-center">
+                  {emptyMessage}
+                </TableCell>
+              </TableRow>
+            ) : virtualRows ? (
+              virtualRows.map((virtualRow) => {
+                const row = rows[virtualRow.index]
+                return (
+                  <TableRow
+                    key={row.id}
+                    data-index={virtualRow.index}
+                    ref={rowVirtualizer.measureElement}
+                    data-state={row.getIsSelected() && "selected"}
+                    onClick={onRowClick ? () => onRowClick(row.original) : undefined}
+                    className={onRowClick ? "cursor-pointer hover:bg-muted/50" : undefined}
+                    style={{
+                      display: "flex",
+                      position: "absolute",
+                      top: 0,
+                      left: 0,
+                      width: "100%",
+                      transform: `translateY(${virtualRow.start}px)`,
+                    }}
+                  >
+                    {row.getVisibleCells().map((cell) => (
+                      <TableCell
+                        key={cell.id}
+                        className={
+                          cell.column.id === "actions"
+                            ? "sticky right-0 z-10 border-l bg-background group-hover:bg-muted/50 group-data-[state=selected]:bg-muted"
+                            : undefined
+                        }
+                        style={virtualCellStyle(cell.column.id)}
+                      >
+                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                )
+              })
+            ) : (
+              rows.map((row) => (
                 <Fragment key={row.id}>
                   <TableRow
                     data-state={row.getIsSelected() && "selected"}
@@ -322,12 +429,6 @@ export function DataTable<TData, TValue>({
                   )}
                 </Fragment>
               ))
-            ) : (
-              <TableRow>
-                <TableCell colSpan={columns.length} className="h-24 text-center">
-                  {emptyMessage}
-                </TableCell>
-              </TableRow>
             )}
           </TableBody>
         </Table>

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import type { ColumnDef } from "@tanstack/react-table"
 import { DataTable } from "@/components/shared/data-table"
 import { DataTableFilterPanel } from "@/components/shared/data-table-filter-panel"
@@ -141,7 +141,8 @@ export function UsersTable({ data, meta, clients }: UsersTableProps) {
     setSavingClients(false)
   }
 
-  const columns: ColumnDef<UserRow>[] = [
+  const columns: ColumnDef<UserRow>[] = useMemo(() => {
+    const columns: ColumnDef<UserRow>[] = [
     createSelectColumn<UserRow>(),
     {
       accessorKey: "status",
@@ -216,7 +217,9 @@ export function UsersTable({ data, meta, clients }: UsersTableProps) {
       />
     ),
   }
-  if (canUpdate || canDelete) columns.push(actionsColumn)
+    if (canUpdate || canDelete) columns.push(actionsColumn)
+    return columns
+  }, [canUpdate, canDelete, setEditDialog, setDeleteDialog, handleToggleStatus, openClientsDialog, setResetConfirm])
 
   const newDialog = (
     <Dialog open={editDialog.open} onOpenChange={(open) => setEditDialog({ open, entity: open ? editDialog.entity : undefined })}>

@@ -1,11 +1,10 @@
 "use server";
 
 import { randomUUID } from "crypto";
-import { mkdir, writeFile } from "fs/promises";
 import path from "path";
+import { put } from "@vercel/blob";
 import { requirePermission } from "@/lib/rbac";
 
-const UPLOAD_DIR = path.join(process.cwd(), "public", "uploads", "mapeador");
 const MAX_SIZE_BY_KIND = {
   logo: 5 * 1024 * 1024,
   background: 10 * 1024 * 1024,
@@ -29,13 +28,15 @@ export async function uploadMapeadorImagem(formData: FormData) {
   }
 
   try {
-    await mkdir(UPLOAD_DIR, { recursive: true });
     const ext = path.extname(file.name) || ".png";
     const fileName = `${randomUUID()}${ext}`;
-    const buffer = Buffer.from(await file.arrayBuffer());
-    await writeFile(path.join(UPLOAD_DIR, fileName), buffer);
+    const blob = await put(`uploads/mapeador/${kind}/${fileName}`, file, {
+      access: "public",
+      addRandomSuffix: false,
+      contentType: file.type,
+    });
 
-    return { success: true as const, url: `/uploads/mapeador/${fileName}` };
+    return { success: true as const, url: blob.url };
   } catch (error) {
     return { success: false as const, error: (error as Error).message };
   }

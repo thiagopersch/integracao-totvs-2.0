@@ -136,7 +136,8 @@ export function RoleTable({ data, permissions }: RoleTableProps) {
     form.setValue("permissionIds", [])
   }
 
-  const columns: ColumnDef<RoleRow>[] = [
+  const columns: ColumnDef<RoleRow>[] = useMemo(() => {
+    const columns: ColumnDef<RoleRow>[] = [
     {
       accessorKey: "name",
       header: "Nome",
@@ -173,7 +174,9 @@ export function RoleTable({ data, permissions }: RoleTableProps) {
       />
     ),
   }
-  if (canUpdate || canDelete) columns.push(actionsColumn)
+    if (canUpdate || canDelete) columns.push(actionsColumn)
+    return columns
+  }, [canUpdate, canDelete, setEditDialog, setDeleteDialog])
 
   const newDialog = (
     <Dialog

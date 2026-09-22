@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { format } from "date-fns"
 import type { DateRange } from "react-day-picker"
@@ -88,7 +88,7 @@ export function BackupsSentencesTable({ filterId, data, meta, onRestoreSingle }:
     }
   }
 
-  const columns: ColumnDef<Backup>[] = [
+  const columns: ColumnDef<Backup>[] = useMemo(() => [
     { accessorKey: "codeSentence", header: "Código da consulta", cell: ({ row }) => row.getValue("codeSentence") || "-" },
     { accessorKey: "codColigada", header: "Coligada", cell: ({ row }) => row.getValue("codColigada") || "-" },
     { accessorKey: "codSystem", header: "Sistema TOTVS", cell: ({ row }) => row.getValue("codSystem") || "-" },
@@ -129,7 +129,7 @@ export function BackupsSentencesTable({ filterId, data, meta, onRestoreSingle }:
         </DropdownMenu>
       ),
     },
-  ]
+  ], [viewingCode, handleView])
 
   const filterPanel = (
     <DataTableFilterPanel

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import { useForm, type Resolver } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import type { ColumnDef } from "@tanstack/react-table"
@@ -187,7 +187,8 @@ export function SoapEndpointTable({ data, meta, filterOptions }: SoapEndpointTab
     setEditDialog({ open: false })
   }
 
-  const columns: ColumnDef<SoapEndpointTypeWithMethods>[] = [
+  const columns: ColumnDef<SoapEndpointTypeWithMethods>[] = useMemo(() => {
+    const columns: ColumnDef<SoapEndpointTypeWithMethods>[] = [
     {
       id: "expand",
       header: "",
@@ -229,7 +230,9 @@ export function SoapEndpointTable({ data, meta, filterOptions }: SoapEndpointTab
       />
     ),
   }
-  if (canManage) columns.push(actionsColumn)
+    if (canManage) columns.push(actionsColumn)
+    return columns
+  }, [expandedTypeId, setExpandedTypeId, canManage, setEditDialog, setDeleteDialog])
 
   const newDialog = (
     <Dialog open={editDialog.open} onOpenChange={(open) => { setEditDialog({ open, entity: open ? editDialog.entity : undefined }); if (!open) typeForm.reset() }}>

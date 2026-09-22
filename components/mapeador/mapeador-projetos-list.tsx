@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import { Card, CardContent, CardFooter, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import {
   Dialog,
   DialogBody,
@@ -166,13 +166,24 @@ export function MapeadorProjetosList({ initialProjetos, templates }: MapeadorPro
       </div>
 
       <Dialog open={step === "choice"} onOpenChange={(open) => !open && setStep("closed")}>
-        <DialogContent className="sm:max-w-2xl">
+        <DialogContent className="h-auto max-h-[90vh] sm:max-w-4xl">
           <DialogHeader>
             <DialogTitle>Novo projeto</DialogTitle>
             <DialogDescription>Como você quer começar este mapeamento?</DialogDescription>
           </DialogHeader>
           <DialogBody className="grid gap-4 sm:grid-cols-2">
-            <Card className="flex flex-col">
+            <Card
+              role="button"
+              tabIndex={0}
+              onClick={() => setStep("templates")}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault()
+                  setStep("templates")
+                }
+              }}
+              className="h-full cursor-pointer transition-colors hover:ring-primary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+            >
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <CardTitle className="flex items-center gap-2">
@@ -185,13 +196,25 @@ export function MapeadorProjetosList({ initialProjetos, templates }: MapeadorPro
                   feedbacks. Depois você ajusta o que muda para este cliente.
                 </CardDescription>
               </CardHeader>
-              <CardContent className="mt-auto">
+              <CardContent className="flex-1" />
+              <CardFooter>
                 <Button className="w-full" onClick={() => setStep("templates")}>
                   Escolher formas de ingresso
                 </Button>
-              </CardContent>
+              </CardFooter>
             </Card>
-            <Card className="flex flex-col">
+            <Card
+              role="button"
+              tabIndex={0}
+              onClick={() => setStep("blank")}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault()
+                  setStep("blank")
+                }
+              }}
+              className="h-full cursor-pointer transition-colors hover:ring-primary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+            >
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <FilePlus2 className="h-4 w-4" /> Criar do zero
@@ -201,11 +224,12 @@ export function MapeadorProjetosList({ initialProjetos, templates }: MapeadorPro
                   passos e os campos manualmente.
                 </CardDescription>
               </CardHeader>
-              <CardContent className="mt-auto">
+              <CardContent className="flex-1" />
+              <CardFooter>
                 <Button variant="outline" className="w-full" onClick={() => setStep("blank")}>
                   Criar processo em branco
                 </Button>
-              </CardContent>
+              </CardFooter>
             </Card>
           </DialogBody>
         </DialogContent>

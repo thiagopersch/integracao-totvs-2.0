@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import type { ColumnDef } from "@tanstack/react-table"
 import { Eye, RotateCcw, MoreHorizontal } from "lucide-react"
@@ -49,7 +49,7 @@ export function BackupsHistoryTable({ data, meta, onRestoreRun, onRestoreSingle 
     ? { field: runsSortParam.split(":")[0], direction: runsSortParam.split(":")[1] as "asc" | "desc" }
     : { field: "startedAt", direction: "desc" as const }
 
-  const columns: ColumnDef<BackupRun>[] = [
+  const columns: ColumnDef<BackupRun>[] = useMemo(() => [
     {
       accessorKey: "startedAt",
       header: "Data do backup",
@@ -78,7 +78,7 @@ export function BackupsHistoryTable({ data, meta, onRestoreRun, onRestoreSingle 
         </DropdownMenu>
       ),
     },
-  ]
+  ], [onRestoreRun])
 
   return (
     <>

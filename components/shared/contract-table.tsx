@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import type { ColumnDef } from "@tanstack/react-table"
 import { useForm, Controller, type Resolver } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -149,7 +149,8 @@ export function ContractTable({ data, meta, clients }: ContractTableProps) {
     setEditDialog({ open: false })
   }
 
-  const columns: ColumnDef<ContractRow>[] = [
+  const columns: ColumnDef<ContractRow>[] = useMemo(() => {
+    const columns: ColumnDef<ContractRow>[] = [
     createSelectColumn<ContractRow>(),
     {
       accessorKey: "status",
@@ -202,7 +203,9 @@ export function ContractTable({ data, meta, clients }: ContractTableProps) {
       />
     ),
   }
-  if (canUpdate || canDelete) columns.push(actionsColumn)
+    if (canUpdate || canDelete) columns.push(actionsColumn)
+    return columns
+  }, [canUpdate, canDelete, setEditDialog, setDeleteDialog])
 
   const newDialog = (
     <Dialog open={editDialog.open} onOpenChange={(open) => { setEditDialog({ open, entity: open ? editDialog.entity : undefined }); if (!open) form.reset() }}>

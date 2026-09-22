@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import type { ColumnDef } from "@tanstack/react-table"
 import { useForm, Controller, type Resolver } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -103,7 +103,8 @@ export function RequesterTable({ data, meta }: RequesterTableProps) {
     setEditDialog({ open: false })
   }
 
-  const columns: ColumnDef<Requester>[] = [
+  const columns: ColumnDef<Requester>[] = useMemo(() => {
+    const columns: ColumnDef<Requester>[] = [
     createSelectColumn<Requester>(),
     {
       accessorKey: "status",
@@ -129,7 +130,9 @@ export function RequesterTable({ data, meta }: RequesterTableProps) {
       />
     ),
   }
-  if (canUpdate || canDelete) columns.push(actionsColumn)
+    if (canUpdate || canDelete) columns.push(actionsColumn)
+    return columns
+  }, [canUpdate, canDelete, setEditDialog, setDeleteDialog, handleToggleStatus])
 
   const newDialog = (
     <Dialog open={editDialog.open} onOpenChange={(open) => { setEditDialog({ open, entity: open ? editDialog.entity : undefined }); if (!open) form.reset() }}>

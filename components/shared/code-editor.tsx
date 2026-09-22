@@ -30,9 +30,13 @@ import { toast } from "sonner"
 
 export type CodeEditorLanguage = "sql" | "html" | "css" | "javascript" | "php" | "json" | "xml"
 
+/** Table/field names to feed `@codemirror/lang-sql`'s built-in schema autocomplete (suggests
+ *  `TABLE.FIELD`) — e.g. from a TOTVS Data Server's parsed GetSchema response. */
+export type SqlSchema = { tables: Record<string, string[]>; defaultTable?: string }
+
 const FORMATTABLE_LANGUAGES = new Set<CodeEditorLanguage>(["json", "xml", "sql"])
 
-function languageExtension(language: CodeEditorLanguage): Extension {
+function languageExtension(language: CodeEditorLanguage, sqlSchema?: SqlSchema): Extension {
   switch (language) {
     case "json":
       return [json(), linter(jsonParseLinter())]
@@ -40,7 +44,7 @@ function languageExtension(language: CodeEditorLanguage): Extension {
       return xml({ autoCloseTags: true })
     // TOTVS RM sentences run against SQL Server — MSSQL dialect gives the closest keyword set.
     case "sql":
-      return sql({ dialect: MSSQL })
+      return sql({ dialect: MSSQL, schema: sqlSchema?.tables, defaultTable: sqlSchema?.defaultTable })
     case "html":
       return html()
     case "css":
@@ -68,6 +72,10 @@ interface CodeEditorProps {
   minHeight?: string
   /** "auto" (default) follows the app's light/dark toggle; "dark" always renders One Dark Pro regardless of it. */
   theme?: "auto" | "dark"
+  /** language="sql" only — table/field names for autocomplete (`TABLE.FIELD`). May arrive after
+   *  the editor is already mounted (e.g. once a GetSchema call resolves); pass a bumped `resetKey`
+   *  alongside it if you also want the doc itself refreshed. */
+  sqlSchema?: SqlSchema
 }
 
 export function CodeEditor({
@@ -83,16 +91,20 @@ export function CodeEditor({
   containerClassName,
   minHeight = "180px",
   theme = "auto",
+  sqlSchema,
 }: CodeEditorProps) {
   const { theme: appTheme } = useTheme()
   const [editorEl, setEditorEl] = useState<HTMLDivElement | null>(null)
   const viewRef = useRef<EditorView | null>(null)
+  // Stable string form so a same-shaped-but-new sqlSchema object (e.g. re-derived on every render)
+  // doesn't force the editor to rebuild its EditorState on every keystroke.
+  const sqlSchemaKey = sqlSchema ? JSON.stringify(sqlSchema) : ""
 
   useEffect(() => {
     if (!editorEl) return
     const isDark = theme === "dark" || appTheme === "dark"
 
-    const extensions: Extension[] = [basicSetup, languageExtension(language), isDark ? oneDark : []]
+    const extensions: Extension[] = [basicSetup, languageExtension(language, sqlSchema), isDark ? oneDark : []]
     if (readOnly) {
       extensions.push(EditorState.readOnly.of(true), EditorView.editable.of(false))
     } else if (onChange) {
@@ -113,7 +125,7 @@ export function CodeEditor({
       viewRef.current = null
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [editorEl, resetKey, language, readOnly, theme, appTheme])
+  }, [editorEl, resetKey, language, readOnly, theme, appTheme, sqlSchemaKey])
 
   useEffect(() => {
     requestAnimationFrame(() => viewRef.current?.requestMeasure())

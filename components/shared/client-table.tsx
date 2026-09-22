@@ -25,7 +25,7 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import type { Client } from "@/generated/prisma/client"
 import type { ColumnDef } from "@tanstack/react-table"
 import { ImagePlus, Loader2, Plus, Star, Upload, X } from "lucide-react"
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { Controller, useForm, type Resolver } from "react-hook-form"
 import { toast } from "sonner"
 import { useCrudTable } from "@/hooks/use-crud-table"
@@ -156,7 +156,8 @@ export function ClientTable({ data, meta }: ClientTableProps) {
     imageInputRef.current?.click()
   }
 
-  const columns: ColumnDef<Client>[] = [
+  const columns: ColumnDef<Client>[] = useMemo(() => {
+    const columns: ColumnDef<Client>[] = [
     createSelectColumn<Client>(),
     {
       accessorKey: "status",
@@ -224,7 +225,9 @@ export function ClientTable({ data, meta }: ClientTableProps) {
       />
     ),
   }
-  if (canUpdate || canDelete) columns.push(actionsColumn)
+    if (canUpdate || canDelete) columns.push(actionsColumn)
+    return columns
+  }, [canUpdate, canDelete, setEditDialog, setDeleteDialog, handleToggleStatus])
 
   const newDialog = (
     <Dialog

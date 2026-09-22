@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import type { ColumnDef } from "@tanstack/react-table"
 import { useForm, type Resolver } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -96,7 +96,8 @@ export function TagTable({ data, meta }: TagTableProps) {
     setEditDialog({ open: false })
   }
 
-  const columns: ColumnDef<Tag>[] = [
+  const columns: ColumnDef<Tag>[] = useMemo(() => {
+    const columns: ColumnDef<Tag>[] = [
     createSelectColumn<Tag>(),
     {
       accessorKey: "name",
@@ -118,7 +119,9 @@ export function TagTable({ data, meta }: TagTableProps) {
       />
     ),
   }
-  if (canUpdate || canDelete) columns.push(actionsColumn)
+    if (canUpdate || canDelete) columns.push(actionsColumn)
+    return columns
+  }, [canUpdate, canDelete, setEditDialog, setDeleteDialog])
 
   const newDialog = (
     <Dialog

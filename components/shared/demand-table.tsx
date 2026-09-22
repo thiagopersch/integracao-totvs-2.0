@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import dynamic from "next/dynamic"
 import type { ColumnDef } from "@tanstack/react-table"
 import { useForm, Controller, type Resolver } from "react-hook-form"
@@ -272,7 +272,8 @@ export function DemandTable({
     setEditDialog({ open: false })
   }
 
-  const columns: ColumnDef<DemandRow>[] = [
+  const columns: ColumnDef<DemandRow>[] = useMemo(() => {
+    const columns: ColumnDef<DemandRow>[] = [
     createSelectColumn<DemandRow>(),
     {
       accessorKey: "name",
@@ -378,7 +379,9 @@ export function DemandTable({
       />
     ),
   }
-  if (canUpdate || canDelete) columns.push(actionsColumn)
+    if (canUpdate || canDelete) columns.push(actionsColumn)
+    return columns
+  }, [canUpdate, canDelete, setEditDialog, setDeleteDialog])
 
   const newDialog = (
     <Dialog open={editDialog.open} onOpenChange={(open) => { setEditDialog({ open, entity: open ? editDialog.entity : undefined }); if (!open) { form.reset(); setExpanded(false) } }}>

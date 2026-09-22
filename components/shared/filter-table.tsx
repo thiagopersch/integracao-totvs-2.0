@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import type { ColumnDef } from "@tanstack/react-table"
 import { useForm, Controller, type Resolver } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -238,7 +238,8 @@ export function FilterTable({ data, meta, clients, tbcs, sistemas, categories, f
     setBackupCategoryId("")
   }
 
-  const columns: ColumnDef<FilterRow>[] = [
+  const columns: ColumnDef<FilterRow>[] = useMemo(() => {
+    const columns: ColumnDef<FilterRow>[] = [
     createSelectColumn<FilterRow>(),
     {
       accessorKey: "status",
@@ -362,7 +363,21 @@ export function FilterTable({ data, meta, clients, tbcs, sistemas, categories, f
       />
     ),
   }
-  if (canUpdate || canDelete || canViewBackups || canRunBackup || canRestoreBackup) columns.push(actionsColumn)
+    if (canUpdate || canDelete || canViewBackups || canRunBackup || canRestoreBackup) columns.push(actionsColumn)
+    return columns
+  }, [
+    canUpdate,
+    canDelete,
+    canViewBackups,
+    canRunBackup,
+    canRestoreBackup,
+    setEditDialog,
+    setDeleteDialog,
+    handleToggleStatus,
+    router,
+    setBackupDialog,
+    setRestoreDialog,
+  ])
 
   const newDialog = (
     <Dialog open={editDialog.open} onOpenChange={(open) => { setEditDialog({ open, entity: open ? editDialog.entity : undefined }); if (!open) form.reset() }}>

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import type { ColumnDef } from "@tanstack/react-table"
 import { useForm, type Resolver } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -95,7 +95,8 @@ export function SistemaTable({ data, meta }: SistemaTableProps) {
     setEditDialog({ open: false })
   }
 
-  const columns: ColumnDef<TotvsSystem>[] = [
+  const columns: ColumnDef<TotvsSystem>[] = useMemo(() => {
+    const columns: ColumnDef<TotvsSystem>[] = [
     createSelectColumn<TotvsSystem>(),
     {
       accessorKey: "code",
@@ -120,7 +121,9 @@ export function SistemaTable({ data, meta }: SistemaTableProps) {
       />
     ),
   }
-  if (canUpdate || canDelete) columns.push(actionsColumn)
+    if (canUpdate || canDelete) columns.push(actionsColumn)
+    return columns
+  }, [canUpdate, canDelete, setEditDialog, setDeleteDialog])
 
   const newDialog = (
     <Dialog open={editDialog.open} onOpenChange={(open) => { setEditDialog({ open, entity: open ? editDialog.entity : undefined }); if (!open) form.reset() }}>

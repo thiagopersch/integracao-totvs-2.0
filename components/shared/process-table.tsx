@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import type { ColumnDef } from "@tanstack/react-table"
 import { useForm, type Resolver } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -96,7 +96,8 @@ export function ProcessTable({ data, meta }: ProcessTableProps) {
     setEditDialog({ open: false })
   }
 
-  const columns: ColumnDef<Process>[] = [
+  const columns: ColumnDef<Process>[] = useMemo(() => {
+    const columns: ColumnDef<Process>[] = [
     createSelectColumn<Process>(),
     {
       accessorKey: "code",
@@ -123,7 +124,9 @@ export function ProcessTable({ data, meta }: ProcessTableProps) {
       />
     ),
   }
-  if (canUpdate || canDelete) columns.push(actionsColumn)
+    if (canUpdate || canDelete) columns.push(actionsColumn)
+    return columns
+  }, [canUpdate, canDelete, setEditDialog, setDeleteDialog])
 
   const newDialog = (
     <Dialog open={editDialog.open} onOpenChange={(open) => { setEditDialog({ open, entity: open ? editDialog.entity : undefined }); if (!open) form.reset() }}>

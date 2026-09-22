@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import type { ColumnDef } from "@tanstack/react-table"
 import { DataTable } from "@/components/shared/data-table"
@@ -61,7 +61,7 @@ export function NotificationTable({ data, meta, unreadCount }: NotificationTable
     setDetail(notification)
   }
 
-  const columns: ColumnDef<Notification>[] = [
+  const columns: ColumnDef<Notification>[] = useMemo(() => [
     {
       id: "unread",
       header: "",
@@ -108,7 +108,7 @@ export function NotificationTable({ data, meta, unreadCount }: NotificationTable
           </div>
         ),
     },
-  ]
+  ], [handleRowClick, handleRead])
 
   return (
     <>
