@@ -1,6 +1,8 @@
 "use client"
 
 import { useMemo, useState } from "react"
+import { TriangleAlert } from "lucide-react"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { PrototipoPreview } from "@/components/mapeador/prototipo/prototipo-preview"
 import { PrototipoNavbar } from "@/components/mapeador/prototipo/prototipo-navbar"
 import { buildScreens } from "@/components/mapeador/prototipo/screens"
@@ -11,7 +13,12 @@ function isVoltarButton(label: string) {
   return /voltar/i.test(label)
 }
 
-export function PreviewClient({ projetos }: { projetos: MapeadorProjetoDTO[] }) {
+interface PreviewClientProps {
+  projetos: MapeadorProjetoDTO[]
+  clienteIdentidade?: { clienteNome: string; mudou: boolean } | null
+}
+
+export function PreviewClient({ projetos, clienteIdentidade }: PreviewClientProps) {
   const screens = useMemo(() => buildScreens(projetos), [projetos])
   const [screenIndex, setScreenIndex] = useState(0)
   const [values, setValues] = useState<Record<string, unknown>>({})
@@ -29,6 +36,16 @@ export function PreviewClient({ projetos }: { projetos: MapeadorProjetoDTO[] }) 
   return (
     <div className="mapeador-proto flex h-screen w-full flex-col overflow-y-auto bg-white">
       <style dangerouslySetInnerHTML={{ __html: prototipoCss(".mapeador-proto") }} />
+      {clienteIdentidade?.mudou && (
+        <Alert variant="warning" className="m-2">
+          <TriangleAlert />
+          <AlertTitle>Identidade visual do cliente foi alterada</AlertTitle>
+          <AlertDescription>
+            A identidade visual adicionada no protótipo, buscada do cliente &quot;{clienteIdentidade.clienteNome}&quot;, foi alterada no cadastro do cliente. Caso queira
+            utilizar a nova identidade visual, será necessário adicionar um novo tema ao protótipo.
+          </AlertDescription>
+        </Alert>
+      )}
       <div
         className="mapeador-proto flex min-h-0 flex-1 flex-col"
         data-visualizacao={config.visualizacao ?? "desktop"}

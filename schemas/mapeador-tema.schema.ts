@@ -9,6 +9,8 @@ export const temaConfigSchema = z.object({
   botaoRaio: z.number().optional(),
   logoUrl: z.string().nullable().optional(),
   bgImageUrl: z.string().nullable().optional(),
+  origem: z.enum(["manual", "cliente"]).optional(),
+  clienteId: z.string().nullable().optional(),
 });
 
 export const createMapeadorTemaSchema = z.object({

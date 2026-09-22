@@ -17,6 +17,8 @@ export const updatePrototipoConfigSchema = z.object({
   visualizacao: z.enum(["desktop", "mobile"]).optional(),
   logoUrl: z.string().nullable().optional(),
   bgImageUrl: z.string().nullable().optional(),
+  origem: z.enum(["manual", "cliente"]).optional(),
+  clienteId: z.string().nullable().optional(),
   textos: z.record(z.string(), z.string()).optional(),
   gerarPara: z.enum(["atual", "todos"]).optional(),
   exportVisualizacao: z.enum(["desktop", "mobile"]).optional(),

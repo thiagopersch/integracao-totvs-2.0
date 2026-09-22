@@ -149,6 +149,8 @@ export interface MapeadorFeedback {
 
 export type MapeadorGerarPara = "atual" | "todos"
 
+export type MapeadorIdentidadeOrigem = "manual" | "cliente"
+
 export interface MapeadorPrototipoConfig {
   temaId?: string | null
   corMarca?: string
@@ -156,6 +158,9 @@ export interface MapeadorPrototipoConfig {
   visualizacao?: "desktop" | "mobile"
   logoUrl?: string | null
   bgImageUrl?: string | null
+  /** Where corMarca/logoUrl/bgImageUrl came from — "cliente" means they were snapshotted from a Client's visual identity at selection time (see lib/mapeador/cliente-identidade.ts for drift detection). */
+  origem?: MapeadorIdentidadeOrigem
+  clienteId?: string | null
   /** Inline text overrides from the "Editar textos" click-to-edit mode, keyed by a fixed identifier (e.g. "btn.avancar"). */
   textos?: Record<string, string>
   gerarPara?: MapeadorGerarPara
@@ -171,6 +176,9 @@ export interface MapeadorTemaConfig {
   botaoRaio?: number
   logoUrl?: string | null
   bgImageUrl?: string | null
+  /** Where corMarca/logoUrl/bgImageUrl came from — "cliente" means they were snapshotted from a Client's visual identity at save time. */
+  origem?: MapeadorIdentidadeOrigem
+  clienteId?: string | null
 }
 
 export interface MapeadorTemaDTO {

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react"
 import { toast } from "sonner"
-import { Download, ExternalLink, FileText, Loader2, Pencil, Ruler } from "lucide-react"
+import { Download, ExternalLink, FileText, Loader2, Pencil, Ruler, TriangleAlert } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -10,7 +10,8 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { updateMapeadorPrototipoConfig, updateMapeadorEtapa, listMapeadorProjetos, getMapeadorProjeto } from "@/actions/mapeador"
 import { exportMapeadorPrototipoHtml } from "@/actions/mapeador-export"
-import { listMapeadorTemas } from "@/actions/mapeador-tema"
+import { listMapeadorTemas, checkClienteIdentidadeTema } from "@/actions/mapeador-tema"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { useMapeadorStore } from "@/store/mapeador.store"
 import { cn } from "@/lib/utils"
 import { ImageInput } from "@/components/mapeador/image-input"
@@ -62,10 +63,26 @@ export function PrototipoTab() {
   const [screenIndex, setScreenIndex] = useState(0)
   const [values, setValues] = useState<Record<string, unknown>>({})
   const [exporting, setExporting] = useState<"html" | "pdf" | null>(null)
+  const [clienteIdentidade, setClienteIdentidade] = useState<{ clienteNome: string; mudou: boolean } | null>(null)
 
   useEffect(() => {
     listMapeadorTemas().then(setTemas)
   }, [])
+
+  useEffect(() => {
+    if (config.origem !== "cliente" || !config.clienteId) return
+    let cancelled = false
+    checkClienteIdentidadeTema(config).then((result) => {
+      if (!cancelled) setClienteIdentidade(result)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [config.origem, config.clienteId, config.corMarca, config.logoUrl, config.bgImageUrl])
+
+  // origem/clienteId gate this instead of resetting clienteIdentidade to null in the effect above
+  // (setState synchronously inside an effect body triggers a lint error for cascading renders).
+  const showClienteIdentidadeAviso = config.origem === "cliente" && !!config.clienteId && clienteIdentidade?.mudou
 
   useEffect(() => {
     let cancelled = false
@@ -181,6 +198,16 @@ export function PrototipoTab() {
 
   return (
     <div className="space-y-4">
+      {showClienteIdentidadeAviso && (
+        <Alert variant="warning">
+          <TriangleAlert />
+          <AlertTitle>Identidade visual do cliente foi alterada</AlertTitle>
+          <AlertDescription>
+            A identidade visual adicionada no protótipo, buscada do cliente &quot;{clienteIdentidade.clienteNome}&quot;, foi alterada no cadastro do cliente. Caso queira
+            utilizar a nova identidade visual, será necessário adicionar um novo tema ao protótipo.
+          </AlertDescription>
+        </Alert>
+      )}
       <Card>
         <CardContent className="space-y-4 py-4">
           <div>
@@ -277,6 +304,8 @@ export function PrototipoTab() {
                               corBarra: tema.config.corBarra,
                               logoUrl: tema.config.logoUrl,
                               bgImageUrl: tema.config.bgImageUrl,
+                              origem: tema.config.origem,
+                              clienteId: tema.config.clienteId,
                             }
                           : {}),
                       })
@@ -401,7 +430,15 @@ export function PrototipoTab() {
           // match any option — and the color fallbacks already read `temaPadrao.config` live, so
           // the edit takes effect immediately without copying anything into this project's config.
           if (tema.nome === "Padrão" && !config.temaId) return
-          saveConfig({ temaId: tema.id, corMarca: tema.config.corMarca, corBarra: tema.config.corBarra, logoUrl: tema.config.logoUrl, bgImageUrl: tema.config.bgImageUrl })
+          saveConfig({
+            temaId: tema.id,
+            corMarca: tema.config.corMarca,
+            corBarra: tema.config.corBarra,
+            logoUrl: tema.config.logoUrl,
+            bgImageUrl: tema.config.bgImageUrl,
+            origem: tema.config.origem,
+            clienteId: tema.config.clienteId,
+          })
         }}
       />
     </div>

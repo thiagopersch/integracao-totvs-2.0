@@ -1,6 +1,7 @@
 import { Suspense } from "react"
 import { notFound } from "next/navigation"
 import { getMapeadorProjeto, listMapeadorProjetos } from "@/actions/mapeador"
+import { checkClienteIdentidadeTema } from "@/actions/mapeador-tema"
 import { PreviewClient } from "./preview-client"
 
 export default function PrototipoPreviewPage({
@@ -36,5 +37,7 @@ async function PrototipoPreviewContent({
     projetos = all.filter((p): p is NonNullable<typeof p> => !!p)
   }
 
-  return <PreviewClient projetos={projetos} />
+  const clienteIdentidade = await checkClienteIdentidadeTema(projeto.prototipoConfig)
+
+  return <PreviewClient projetos={projetos} clienteIdentidade={clienteIdentidade} />
 }

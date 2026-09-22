@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { mapeadorTemaService } from "@/services/mapeador-tema.service";
+import { clientService } from "@/services/client.service";
 import { requirePermission } from "@/lib/rbac";
 import { createMapeadorTemaSchema, updateMapeadorTemaSchema } from "@/schemas/mapeador-tema.schema";
 import type { MapeadorTemaConfig } from "@/types/mapeador";
@@ -41,6 +42,22 @@ export async function updateMapeadorTema(id: string, data: { nome?: string; conf
   } catch (error) {
     return fail(error);
   }
+}
+
+export async function listClientesParaTema() {
+  const { organizationId, allowedClientIds } = await requirePermission("mapeador_temas", "read");
+  return clientService.listAll(organizationId, allowedClientIds);
+}
+
+export async function checkClienteIdentidadeTema(config: {
+  origem?: string;
+  clienteId?: string | null;
+  corMarca?: string;
+  logoUrl?: string | null;
+  bgImageUrl?: string | null;
+}) {
+  const { organizationId, allowedClientIds } = await requirePermission("mapeador_temas", "read");
+  return mapeadorTemaService.checkClienteIdentidade(config, organizationId, allowedClientIds);
 }
 
 export async function deleteMapeadorTema(id: string) {

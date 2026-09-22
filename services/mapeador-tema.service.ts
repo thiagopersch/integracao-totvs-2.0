@@ -1,5 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { MAPEADOR_TEMA_PADRAO_CONFIG } from "@/lib/mapeador/tema-defaults";
+import { clienteIdentidadeMudou } from "@/lib/mapeador/cliente-identidade";
+import { clientService } from "@/services/client.service";
 import type { Prisma } from "@/generated/prisma/client";
 import type { MapeadorTemaConfig, MapeadorTemaDTO } from "@/types/mapeador";
 
@@ -59,5 +61,21 @@ export const mapeadorTemaService = {
       data: { organizationId, nome: TEMA_PADRAO_NOME, config: MAPEADOR_TEMA_PADRAO_CONFIG as Prisma.InputJsonValue },
     });
     return toDTO(created);
+  },
+
+  /**
+   * Compares a tema/protótipo config snapshotted from a Client against that client's current
+   * registration. Returns null when the config isn't client-sourced (or the client is no longer
+   * in the caller's scope) — that's the "nothing to warn about" case for the drift banner.
+   */
+  async checkClienteIdentidade(
+    config: { origem?: string; clienteId?: string | null; corMarca?: string; logoUrl?: string | null; bgImageUrl?: string | null },
+    organizationId: string,
+    allowedClientIds: string[],
+  ): Promise<{ clienteNome: string; mudou: boolean } | null> {
+    if (config.origem !== "cliente" || !config.clienteId) return null;
+    const cliente = await clientService.getById(config.clienteId, organizationId, allowedClientIds);
+    if (!cliente) return null;
+    return { clienteNome: cliente.name, mudou: clienteIdentidadeMudou(config, cliente) };
   },
 };
