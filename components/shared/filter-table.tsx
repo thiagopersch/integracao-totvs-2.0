@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useMemo, useState, useTransition } from "react"
 import type { ColumnDef } from "@tanstack/react-table"
 import { useForm, Controller, type Resolver } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -111,6 +111,9 @@ export function FilterTable({ data, meta, clients, tbcs, sistemas, categories, f
   const [coligadaSentencaFilter, setColigadaSentencaFilter] = useState(searchParams.get("codColigadaSentenca") || "")
   const [sistemaSentencaFilter, setSistemaSentencaFilter] = useState(searchParams.get("codSistemaSentenca") || "")
   const [backupDialog, setBackupDialog] = useState<{ open: boolean; filterId?: string }>({ open: false })
+  const [runningBackup, setRunningBackup] = useState(false)
+  const [isNavigatingBackups, startNavigatingBackups] = useTransition()
+  const [navigatingFilterId, setNavigatingFilterId] = useState<string | null>(null)
   const [restoreDialog, setRestoreDialog] = useState<{
     open: boolean
     scope: RestoreScope | null
@@ -227,15 +230,20 @@ export function FilterTable({ data, meta, clients, tbcs, sistemas, categories, f
   }
 
   async function handleBackup(filterId: string, sentenceCategoryId?: string) {
-    const result = await createBackupFromFilter(filterId, sentenceCategoryId)
-    if (result.success) {
-      toast.success("Backup realizado com sucesso")
-      router.refresh()
-    } else {
-      toast.error(result.error || "Erro ao realizar backup")
+    setRunningBackup(true)
+    try {
+      const result = await createBackupFromFilter(filterId, sentenceCategoryId)
+      if (result.success) {
+        toast.success("Backup realizado com sucesso")
+        router.refresh()
+      } else {
+        toast.error(result.error || "Erro ao realizar backup")
+      }
+      setBackupDialog({ open: false })
+      setBackupCategoryId("")
+    } finally {
+      setRunningBackup(false)
     }
-    setBackupDialog({ open: false })
-    setBackupCategoryId("")
   }
 
   const columns: ColumnDef<FilterRow>[] = useMemo(() => {
@@ -333,8 +341,19 @@ export function FilterTable({ data, meta, clients, tbcs, sistemas, categories, f
         beforeEdit={
           <>
             {canViewBackups && (
-              <DropdownMenuItem onClick={() => router.push(`/admin/backups/${row.original.id}`)}>
-                <History className="h-4 w-4 mr-2" /> Backups
+              <DropdownMenuItem
+                disabled={isNavigatingBackups && navigatingFilterId === row.original.id}
+                onClick={() => {
+                  setNavigatingFilterId(row.original.id)
+                  startNavigatingBackups(() => router.push(`/admin/backups/${row.original.id}`))
+                }}
+              >
+                {isNavigatingBackups && navigatingFilterId === row.original.id ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <History className="h-4 w-4 mr-2" />
+                )}
+                Backups
               </DropdownMenuItem>
             )}
             {canRunBackup && (
@@ -805,6 +824,8 @@ export function FilterTable({ data, meta, clients, tbcs, sistemas, categories, f
         title="Realizar Backup"
         description="Selecione a categoria que será vinculada às sentenças deste backup."
         confirmLabel="Realizar Backup"
+        loading={runningBackup}
+        loadingLabel="Realizando backup..."
         onConfirm={() => backupDialog.filterId && handleBackup(backupDialog.filterId, backupCategoryId || undefined)}
       >
         <div className="space-y-2">
