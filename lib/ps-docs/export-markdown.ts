@@ -1,4 +1,7 @@
-import type { AcaoBotaoSpec, CampoDetalhado, ColunaDataserverSpec, ConsultaSqlSpec, DocumentacaoPS, EncaminhamentoSpec, FonteDadosSpec, ItemSpec, LogicaSpec, ParametroAcaoSpec, PopupSpec, PortalOverviewSpec, RegraLogicaItem } from "./types";
+import type { AcaoBotaoSpec, CampoDetalhado, ColunaDataserverSpec, ConsultaSqlSpec, DocumentacaoPS, EncaminhamentoSpec, FonteDadosSpec, ItemSpec, LogicaSpec, ParametroAcaoSpec, PopupSpec, PortalOverviewSpec, RegraLogicaItem, StyleConfig } from "./types";
+import { DEFAULT_STYLE } from "./types";
+import { logicColor } from "./logic-color";
+import { detectLang, fenceTag } from "./code-highlight";
 
 const sim = (v: boolean | undefined) => (v ? "Sim" : "Não");
 
@@ -8,7 +11,15 @@ const sim = (v: boolean | undefined) => (v ? "Sim" : "Não");
 const BASE = "  ";
 
 /** "- Label: **value**" — the highlighted-value bullet format used everywhere. */
-const kv = (indent: string, label: string, value: string) => `${indent}- ${label}: **${value}**`;
+/** Colors used for logical values (Sim/Ativado/Não/Desativado…); set by each exported entry point
+ *  from the user's StyleConfig. Markdown has no color, so it is emitted as an inline HTML span. */
+let logicColors: Pick<StyleConfig, "positiveColor" | "negativeColor"> = { positiveColor: DEFAULT_STYLE.positiveColor, negativeColor: DEFAULT_STYLE.negativeColor };
+const colorValue = (value: string) => {
+  const color = logicColor(value, logicColors);
+  return color ? `<span style="color:${color}">${value}</span>` : value;
+};
+
+const kv = (indent: string, label: string, value: string) => `${indent}- ${label}: **${colorValue(value)}**`;
 const kvCode = (indent: string, label: string, value: string) => `${indent}- ${label}: \`${value}\``;
 
 /** A resolved field ref reads "Label (id)" (`formatFieldRef`) — bolds the whole thing, italicizing
@@ -114,7 +125,7 @@ function colunasLines(colunas: ColunaDataserverSpec[], indent: string): string[]
  *  dataserver + Coluna/Tabela/Correspondente table; Ação Rubeus shows campos configurados +
  *  eventos + pessoa vinculada, no parâmetros table. */
 function acaoLines(acao: AcaoBotaoSpec, indent: string): string[] {
-  const lines = [`${indent}- [${acao.ordem}] Tipo da ação: **${acao.tipoAcao}**${acao.ativada ? "" : " **[desativada]**"}`];
+  const lines = [`${indent}- [${acao.ordem}] Tipo da ação: **${acao.tipoAcao}**${acao.ativada ? "" : ` **<span style="color:${logicColors.negativeColor}">[desativada]</span>**`}`];
   const body = indent + "  ";
   lines.push(kv(body, "Descrição", acao.descricao));
   if (acao.mensagemErro) lines.push(kv(body, "Mensagem de erro", acao.mensagemErro));
@@ -212,7 +223,7 @@ function validacaoLines(detalhes: CampoDetalhado): string[] {
     if (v.inverter !== undefined) lines.push(kv(BASE + "  ", "Inverter", sim(v.inverter)));
     if (v.codigo) {
       lines.push(`${BASE}  - Código:`);
-      lines.push(`${BASE}    \`\`\``);
+      lines.push(`${BASE}    \`\`\`js`);
       lines.push(`${BASE}    ${v.codigo.split("\n").join(`\n${BASE}    `)}`);
       lines.push(`${BASE}    \`\`\``);
     }
@@ -357,7 +368,7 @@ function renderItem(item: ItemSpec, out: string[], depth = 0): void {
       out.push("###### Geral", "");
       if (item.classeCss) out.push(kvCode(BASE, "Classe CSS", item.classeCss));
       if (totvs) out.push(kv(BASE, "TOTVS", totvs));
-      if (item.cssCodigo) out.push(`${BASE}- CSS:`, `${BASE}  \`\`\``, `${BASE}  ${item.cssCodigo.split("\n").join(`\n${BASE}  `)}`, `${BASE}  \`\`\``);
+      if (item.cssCodigo) out.push(`${BASE}- CSS:`, `${BASE}  \`\`\`css`, `${BASE}  ${item.cssCodigo.split("\n").join(`\n${BASE}  `)}`, `${BASE}  \`\`\``);
       out.push("");
 
       if (item.camposAgrupados && item.camposAgrupados.length > 0) {
@@ -443,7 +454,7 @@ function renderItem(item: ItemSpec, out: string[], depth = 0): void {
       out.push(kv(BASE, "Tipo", item.tipoHtml === "script" ? "Script" : "HTML"));
       if (item.classeCss) out.push(kvCode(BASE, "Classe CSS", item.classeCss));
       out.push("");
-      out.push("###### Conteúdo", "", `${BASE}\`\`\``, `${BASE}${(item.conteudoHtml ?? "").split("\n").join(`\n${BASE}`)}`, `${BASE}\`\`\``, "");
+      out.push("###### Conteúdo", "", `${BASE}\`\`\`${fenceTag(detectLang(item.conteudoHtml ?? "", item.tipoHtml))}`, `${BASE}${(item.conteudoHtml ?? "").split("\n").join(`\n${BASE}`)}`, `${BASE}\`\`\``, "");
       break;
     }
     case "upload": {
@@ -468,7 +479,8 @@ function renderItem(item: ItemSpec, out: string[], depth = 0): void {
  *  (regex, custom-validation scripts, HTML/CSS/JS component content) use code blocks/backticks.
  *  Markdown carries no color/font, only this structural emphasis. Used for the ".md" download and
  *  as the `text/plain` fallback when copying for Google Docs. */
-export function documentToMarkdown(doc: DocumentacaoPS): string {
+export function documentToMarkdown(doc: DocumentacaoPS, style: StyleConfig = DEFAULT_STYLE): string {
+  logicColors = style;
   const lines: string[] = [];
   lines.push(`# ${doc.tituloPortal}`, "");
 
@@ -504,7 +516,8 @@ export function documentToMarkdown(doc: DocumentacaoPS): string {
 
 /** Same idea as `documentToMarkdown`, but for the portal-level "Geral/Consultas/Scripts/
  *  Integrações/Segurança/Domínio/TOTVS" overview instead of a single processo seletivo. */
-export function portalOverviewToMarkdown(overview: PortalOverviewSpec): string {
+export function portalOverviewToMarkdown(overview: PortalOverviewSpec, style: StyleConfig = DEFAULT_STYLE): string {
+  logicColors = style;
   const sim = (v: boolean | undefined) => (v ? "Sim" : "Não");
   const lines: string[] = [];
   const { geral, consultas, scripts, integracoes, seguranca, dominio, totvs } = overview;
@@ -516,7 +529,7 @@ export function portalOverviewToMarkdown(overview: PortalOverviewSpec): string {
   lines.push(kv(BASE, "Ativo", sim(geral.ativo)));
   if (geral.paginaEdicaoInscricao) lines.push(kv(BASE, "Página de edição da inscrição", geral.paginaEdicaoInscricao.nome));
   if (geral.paginaDetalhesUsuario) lines.push(kv(BASE, "Página de detalhes do usuário", geral.paginaDetalhesUsuario.nome));
-  lines.push(kv(BASE, "Carregamento inteligente", sim(geral.carregamentoInteligente)));
+  lines.push(kv(BASE, "Carregamento inteligente", geral.carregamentoInteligente ? "Ativado" : "Desativado"));
   lines.push(kv(BASE, "VLibras ativo", sim(geral.vlibrasAtivo)));
   lines.push(kv(BASE, "Cabeçalho ativo", sim(geral.cabecalhoAtivo)));
   if (geral.cabecalhoAtivo && geral.cabecalhoTexto) lines.push(kv(BASE, "Texto do cabeçalho", geral.cabecalhoTexto));
@@ -545,6 +558,16 @@ export function portalOverviewToMarkdown(overview: PortalOverviewSpec): string {
     campoDetalhesBlock(geral.campoLocalOferta.detalhes, lines);
   }
 
+  if (geral.camposDetalhesInscricao && geral.camposDetalhesInscricao.length > 0) {
+    const cell = (v: string | number | undefined) => String(v ?? "").replace(/\|/g, "\\|").replace(/\n/g, " ");
+    lines.push("#### Campos dos detalhes da inscrição", "");
+    lines.push("| Nome | Tipo | Posição | Alias | Valor fixo | Campo do sistema |", "| --- | --- | --- | --- | --- | --- |");
+    for (const f of geral.camposDetalhesInscricao) {
+      lines.push(`| ${cell(f.nome)} | ${cell(f.tipo)} | ${f.posicao} | ${cell(f.alias)} | ${cell(f.valorFixo)} | ${cell(f.campoSistema)} |`);
+    }
+    lines.push("");
+  }
+
   lines.push("## Consultas TOTVS", "");
   if (consultas.length === 0) lines.push("Nenhuma consulta configurada.", "");
   for (const c of consultas) {
@@ -568,8 +591,8 @@ export function portalOverviewToMarkdown(overview: PortalOverviewSpec): string {
   lines.push(kv(BASE, "Script do Head usa cookies", sim(scripts.scriptHeadComCookies)));
   lines.push(kv(BASE, "Script do Body usa cookies", sim(scripts.scriptBodyComCookies)));
   lines.push("");
-  if (scripts.scriptHead) lines.push("**Script (Head)**", "", "```", scripts.scriptHead, "```", "");
-  if (scripts.scriptBody) lines.push("**Script (Body)**", "", "```", scripts.scriptBody, "```", "");
+  if (scripts.scriptHead) lines.push("**Script (Head)**", "", "```" + fenceTag(detectLang(scripts.scriptHead, "html")), scripts.scriptHead, "```", "");
+  if (scripts.scriptBody) lines.push("**Script (Body)**", "", "```" + fenceTag(detectLang(scripts.scriptBody, "html")), scripts.scriptBody, "```", "");
 
   lines.push("## Integrações", "");
   lines.push("Consultas vinculadas ao portal a partir do app Integração TOTVS, na ordem configurada.", "");

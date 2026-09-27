@@ -1,9 +1,10 @@
 "use client"
 
+import { CredentialsFields } from "@/components/ps-docs/credentials-fields"
+import { EMPTY_CREDENTIALS, hasRequiredCredentials, type PsCredentials } from "@/lib/ps-docs/credential"
 import { useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { PasswordInput } from "@/components/ui/password-input"
 import { Field, FieldLabel } from "@/components/ui/field"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -77,7 +78,7 @@ function StatusIcon({ status }: { status: CheckStatus }) {
 }
 
 export default function PsFichaTestPage() {
-  const [tokenPs, setTokenPs] = useState("")
+  const [credentials, setCredentials] = useState<PsCredentials>(EMPTY_CREDENTIALS)
   const [idPs, setIdPs] = useState("")
   const [pageUrl, setPageUrl] = useState("")
   const [crmDomain, setCrmDomain] = useState("")
@@ -116,8 +117,8 @@ export default function PsFichaTestPage() {
 
   async function handleRunTests(e: React.FormEvent) {
     e.preventDefault()
-    if (!tokenPs.trim() || !idPs.trim()) {
-      toast.error("Informe o Token PS e o ID do Processo Seletivo")
+    if (!hasRequiredCredentials(credentials) || !idPs.trim()) {
+      toast.error("Preencha os 4 cookies da sessão e o ID do Processo Seletivo")
       return
     }
 
@@ -144,7 +145,7 @@ export default function PsFichaTestPage() {
 
       updateCheck("discovery", { status: "running" })
       const discoveryStart = Date.now()
-      const listRes = await listSelectiveProcessStages({ tokenPs, idPs, crmDomain: crmDomain.trim() || undefined })
+      const listRes = await listSelectiveProcessStages({ credentials, idPs, crmDomain: crmDomain.trim() || undefined })
       const discoveryDuration = Date.now() - discoveryStart
       if (!listRes.success || !listRes.stages || !listRes.fieldCatalogEntries) {
         updateCheck("discovery", { status: "failed", durationMs: discoveryDuration, error: listRes.error || "Erro ao consultar o processo seletivo" })
@@ -168,7 +169,7 @@ export default function PsFichaTestPage() {
         updateCheck(id, { status: "running" })
         const stageStart = Date.now()
         const stageRes = await fetchStageDocumentation({
-          tokenPs,
+          credentials,
           idPs,
           stage: stage.ref,
           fieldCatalogEntries: listRes.fieldCatalogEntries,
@@ -271,8 +272,8 @@ export default function PsFichaTestPage() {
   /** Consulta a estrutura, monta o plano de testes completo (mostrado na tela ANTES de qualquer
    *  preenchimento real, por explícita instrução), abre o navegador e começa a executar. */
   async function handleStartAutomation() {
-    if (!tokenPs.trim() || !idPs.trim() || !pageUrl.trim()) {
-      toast.error("Informe o Token PS, o ID do Processo Seletivo e o Link da página para rodar a automação")
+    if (!hasRequiredCredentials(credentials) || !idPs.trim() || !pageUrl.trim()) {
+      toast.error("Preencha os 4 cookies da sessão, o ID do Processo Seletivo e o Link da página para rodar a automação")
       return
     }
 
@@ -289,7 +290,7 @@ export default function PsFichaTestPage() {
     ])
 
     try {
-      const startRes = await startFichaAutomationRun({ tokenPs, idPs, pageUrl: pageUrl.trim(), crmDomain: crmDomain.trim() || undefined })
+      const startRes = await startFichaAutomationRun({ credentials, idPs, pageUrl: pageUrl.trim(), crmDomain: crmDomain.trim() || undefined })
       if (!startRes.success || !startRes.runId || !startRes.testPlan) {
         updateAutomationCheck("starting", { status: "failed", resultReason: startRes.error || "Erro ao iniciar a automação" })
         setAutomationAborted(true)
@@ -404,10 +405,7 @@ export default function PsFichaTestPage() {
       <Card>
         <CardContent className="pt-6">
           <form onSubmit={handleRunTests} className="space-y-4">
-            <Field>
-              <FieldLabel htmlFor="tokenPs">Token PS</FieldLabel>
-              <PasswordInput id="tokenPs" value={tokenPs} onChange={setTokenPs} placeholder="Copiado do localStorage do portal admin" />
-            </Field>
+            <CredentialsFields value={credentials} onChange={setCredentials} />
 
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <Field>

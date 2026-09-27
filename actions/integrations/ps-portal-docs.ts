@@ -2,9 +2,10 @@
 
 import axios from "axios";
 import { requirePermission } from "@/lib/rbac";
-import { authHeaders, unwrapData, asArray, logApiCall, logAndNotifyFailure, type Raw } from "@/lib/ps-docs/api-helpers";
+import { hasRequiredCredentials, type PsCredentials } from "@/lib/ps-docs/credential";
+import { authHeaders, sessionErrorMessage, unwrapData, asArray, logApiCall, logAndNotifyFailure, type Raw } from "@/lib/ps-docs/api-helpers";
 import { buildIdTitleCatalog, buildFieldCatalog, formatFieldRefOptional, formatCacheInterval, parsePopup, mapItem, EMPTY_CATALOGS } from "@/lib/ps-docs/parse-structure";
-import type { PortalOverviewSpec, PortalConsultaSpec, PortalIntegracaoSpec, PortalSegurancaCampoSpec, PortalGeralSpec, PortalCampoResumo, PortalProcessRef } from "@/lib/ps-docs/types";
+import type { PortalOverviewSpec, PortalConsultaSpec, PortalIntegracaoSpec, PortalSegurancaCampoSpec, PortalGeralSpec, PortalApplymentDetailFieldSpec, PortalCampoResumo, PortalProcessRef } from "@/lib/ps-docs/types";
 
 /**
  * Documents an entire portal — `admin.portal.apprbs.com.br/api/portal/*`, `/api/settings/*` and
@@ -63,15 +64,15 @@ export interface FetchPortalOverviewResult {
   overview?: PortalOverviewSpec;
 }
 
-export async function fetchPortalOverview(input: { tokenPs: string; idPortal: string; localId?: string }): Promise<FetchPortalOverviewResult> {
+export async function fetchPortalOverview(input: { credentials: PsCredentials; idPortal: string; localId?: string }): Promise<FetchPortalOverviewResult> {
   const { organizationId, userId } = await requirePermission("ps_docs", "execute");
 
   const idPortal = input.idPortal.trim();
-  const tokenPs = input.tokenPs.trim();
+  const credentials = input.credentials;
   const localId = Number(input.localId?.trim() || "2") || 2;
-  if (!idPortal || !tokenPs) return { success: false, error: "Informe o Token PS e o ID do Portal" };
+  if (!idPortal || !hasRequiredCredentials(credentials)) return { success: false, error: "Informe os cookies da sessão e o ID do Portal" };
 
-  const headers = authHeaders(tokenPs);
+  const headers = authHeaders(credentials);
   const generalUrl = `${API_ROOT}/portal/general/${idPortal}`;
 
   try {
@@ -150,13 +151,28 @@ export async function fetchPortalOverview(input: { tokenPs: string; idPortal: st
       fetchCampoResumo(general.local_offer_field_id, headers, fieldCatalog, warnings, "Campo de local de oferta"),
     ]);
 
+    const camposDetalhesInscricao: PortalApplymentDetailFieldSpec[] = asArray(general.applyment_details_fields)
+      .map((f) => {
+        const typeId = Number(f.parameter_type_id);
+        const tipo = typeId === 1 ? "Campo do sistema" : typeId === 2 ? "Valor fixo" : typeId === 4 ? "Consulta" : `Tipo ${f.parameter_type_id ?? "?"}`;
+        return {
+          nome: firstString(f, ["name"]) ?? "",
+          tipo,
+          posicao: Number(f.position) || 0,
+          alias: typeId === 4 ? firstString(f, ["alias"]) : undefined,
+          valorFixo: typeId === 2 ? firstString(f, ["fixed_value"]) : undefined,
+          campoSistema: typeId === 1 ? formatFieldRefOptional(f.field_id, fieldCatalog) : undefined,
+        };
+      })
+      .sort((a, b) => a.posicao - b.posicao);
+
     const geral: PortalGeralSpec = {
       nome: firstString(general, ["name"]) ?? `Portal ${idPortal}`,
       titulo: firstString(general, ["title"]) ?? "",
       ativo: general.status === 1,
       paginaEdicaoInscricao: resolvePagina(general.applyment_edit_page_id),
       paginaDetalhesUsuario: resolvePagina(general.user_details_page_id),
-      carregamentoInteligente: general.disable_loaders === 0,
+      carregamentoInteligente: general.disable_loaders === 1,
       vlibrasAtivo: general.enable_Vlibras === 1,
       cabecalhoAtivo: headerAtivo,
       cabecalhoTexto: headerAtivo ? firstString(general, ["header_message"]) : undefined,
@@ -165,6 +181,7 @@ export async function fetchPortalOverview(input: { tokenPs: string; idPortal: st
       campoRegistro,
       campoOfertaCurso,
       campoLocalOferta,
+      camposDetalhesInscricao: camposDetalhesInscricao.length > 0 ? camposDetalhesInscricao : undefined,
       tituloSelectInscricoes: firstString(general, ["open_processes_title"]) ?? "",
       tituloBarraEtapas: firstString(general, ["title"]) ?? "",
       tituloBarraPortalInscrito: firstString(general, ["title_register_portal"]) ?? "",
@@ -278,7 +295,7 @@ export async function fetchPortalOverview(input: { tokenPs: string; idPortal: st
     };
   } catch (error) {
     await logAndNotifyFailure({ organizationId, userId, url: generalUrl, method: "GET", idPs: idPortal, error });
-    return { success: false, error: (error as Error).message };
+    return { success: false, error: sessionErrorMessage(error) ?? (error as Error).message };
   }
 }
 
@@ -288,14 +305,14 @@ export interface ListPortalProcessesResult {
   processes?: PortalProcessRef[];
 }
 
-export async function listPortalSelectiveProcesses(input: { tokenPs: string; idPortal: string }): Promise<ListPortalProcessesResult> {
+export async function listPortalSelectiveProcesses(input: { credentials: PsCredentials; idPortal: string }): Promise<ListPortalProcessesResult> {
   const { organizationId, userId } = await requirePermission("ps_docs", "execute");
 
   const idPortal = input.idPortal.trim();
-  const tokenPs = input.tokenPs.trim();
-  if (!idPortal || !tokenPs) return { success: false, error: "Informe o Token PS e o ID do Portal" };
+  const credentials = input.credentials;
+  if (!idPortal || !hasRequiredCredentials(credentials)) return { success: false, error: "Informe os cookies da sessão e o ID do Portal" };
 
-  const headers = authHeaders(tokenPs);
+  const headers = authHeaders(credentials);
   const url = `${API_ROOT}/portal/selective-process-local/${idPortal}`;
 
   try {
@@ -312,6 +329,6 @@ export async function listPortalSelectiveProcesses(input: { tokenPs: string; idP
     return { success: true, processes };
   } catch (error) {
     await logAndNotifyFailure({ organizationId, userId, url, method: "GET", idPs: idPortal, error });
-    return { success: false, error: (error as Error).message };
+    return { success: false, error: sessionErrorMessage(error) ?? (error as Error).message };
   }
 }

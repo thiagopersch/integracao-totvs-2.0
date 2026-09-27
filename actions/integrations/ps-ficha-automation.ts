@@ -1,5 +1,6 @@
 "use server";
 
+import { hasRequiredCredentials, type PsCredentials } from "@/lib/ps-docs/credential";
 import { requirePermission } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
 import { listSelectiveProcessStages, fetchStageDocumentation } from "@/actions/integrations/ps-docs";
@@ -39,15 +40,15 @@ export interface StartAutomationResult {
   testPlan?: PlannedCheck[];
 }
 
-export async function startFichaAutomationRun(input: { tokenPs: string; idPs: string; pageUrl: string; crmDomain?: string }): Promise<StartAutomationResult> {
+export async function startFichaAutomationRun(input: { credentials: PsCredentials; idPs: string; pageUrl: string; crmDomain?: string }): Promise<StartAutomationResult> {
   const { organizationId, userId } = await requirePermission("ps_ficha_test", "execute");
 
-  const tokenPs = input.tokenPs.trim();
+  const credentials = input.credentials;
   const idPs = input.idPs.trim();
   const pageUrl = input.pageUrl.trim();
-  if (!tokenPs || !idPs || !pageUrl) return { success: false, error: "Informe o Token PS, o ID do Processo Seletivo e o link da página" };
+  if (!hasRequiredCredentials(credentials) || !idPs || !pageUrl) return { success: false, error: "Informe os cookies da sessão, o ID do Processo Seletivo e o link da página" };
 
-  const listRes = await listSelectiveProcessStages({ tokenPs, idPs, crmDomain: input.crmDomain?.trim() || undefined });
+  const listRes = await listSelectiveProcessStages({ credentials, idPs, crmDomain: input.crmDomain?.trim() || undefined });
   if (!listRes.success || !listRes.stages || !listRes.fieldCatalogEntries) {
     return { success: false, error: listRes.error || "Erro ao consultar o processo seletivo" };
   }
@@ -55,7 +56,7 @@ export async function startFichaAutomationRun(input: { tokenPs: string; idPs: st
   const etapas: EtapaSpec[] = [];
   for (const stage of listRes.stages) {
     const stageRes = await fetchStageDocumentation({
-      tokenPs,
+      credentials,
       idPs,
       stage: stage.ref,
       fieldCatalogEntries: listRes.fieldCatalogEntries,

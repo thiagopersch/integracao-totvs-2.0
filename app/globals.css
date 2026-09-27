@@ -150,3 +150,17 @@
     @apply font-sans;
   }
 }
+/* Preview da documentação PS: sempre claro (as cores da Estilização assumem fundo claro), mesmo com
+   o app em tema escuro — a menos que o usuário ative "usar o tema do app" na Estilização. */
+.doc-preview-light {
+  color-scheme: light;
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.145 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.145 0 0);
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.556 0 0);
+  --border: oklch(0.922 0 0);
+  background-color: #fff;
+  color: #171717;
+}

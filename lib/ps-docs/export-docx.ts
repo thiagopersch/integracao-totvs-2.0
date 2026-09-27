@@ -1,7 +1,30 @@
-import { Document, Packer, Paragraph, TextRun } from "docx";
+import { BorderStyle, Document, Packer, Paragraph, Table, TableCell, TableRow, TextRun, WidthType } from "docx";
 import type { AcaoBotaoSpec, CampoDetalhado, ColunaDataserverSpec, ConsultaSqlSpec, DocumentacaoPS, EncaminhamentoSpec, FonteDadosSpec, ItemSpec, LogicaSpec, ParametroAcaoSpec, PopupSpec, PortalOverviewSpec, RegraLogicaItem, StyleConfig } from "./types";
+import { logicColor } from "./logic-color";
+import { CODE_BACKGROUND, CODE_BORDER, CODE_FONT, CODE_PLAIN_COLOR, detectLang, themeFor, tokenLines, type CodeLang } from "./code-highlight";
 
 const hex = (color: string) => color.replace("#", "");
+
+/** One shaded, monospace paragraph per source line, with a TextRun per highlighted token. */
+function codeParagraphs(code: string, lang: CodeLang, indent = 0): Paragraph[] {
+  const lines = tokenLines(code, lang);
+  return lines.map(
+    (tokens, i) =>
+      new Paragraph({
+        spacing: { before: i === 0 ? 60 : 0, after: i === lines.length - 1 ? 120 : 0, line: 264 },
+        indent: { left: 240 + indent * 360 },
+        shading: { fill: hex(CODE_BACKGROUND) },
+        border: { left: { style: BorderStyle.SINGLE, size: 12, color: hex(CODE_BORDER), space: 6 } },
+        children:
+          tokens.length === 0
+            ? [new TextRun({ text: " ", font: CODE_FONT, bold: true, size: 19, color: hex(CODE_PLAIN_COLOR) })]
+            : tokens.map((t) => {
+                const th = themeFor(t.kind);
+                return new TextRun({ text: t.text, font: CODE_FONT, size: 19, color: hex(th.color), bold: true, italics: th.italic });
+              }),
+      })
+  );
+}
 const sim = (v: boolean | undefined) => (v ? "Sim" : "Não");
 
 const CATEGORIA_LABEL: Record<ItemSpec["categoria"], string> = {
@@ -63,7 +86,7 @@ export async function buildDocx(doc: DocumentacaoPS, style: StyleConfig): Promis
       bullet: { level: indent },
       children: [
         new TextRun({ text: `${label}: `, font: style.bodyFont, color: hex(style.bodyColor), size: 22 }),
-        new TextRun({ text: value, bold: true, font: style.bodyFont, color: hex(style.bodyColor), size: 22 }),
+        new TextRun({ text: value, bold: true, font: style.bodyFont, color: hex(logicColor(value, style) ?? style.bodyColor), size: 22 }),
       ],
     });
 
@@ -199,7 +222,8 @@ export async function buildDocx(doc: DocumentacaoPS, style: StyleConfig): Promis
         bullet: { level: 0 },
         children: [
           new TextRun({ text: `[${acao.ordem}] Tipo da ação: `, font: style.bodyFont, color: hex(style.bodyColor), size: 22 }),
-          new TextRun({ text: `${acao.tipoAcao}${acao.ativada ? "" : " [desativada]"}`, bold: true, font: style.bodyFont, color: hex(style.bodyColor), size: 22 }),
+          new TextRun({ text: acao.tipoAcao, bold: true, font: style.bodyFont, color: hex(style.bodyColor), size: 22 }),
+          ...(acao.ativada ? [] : [new TextRun({ text: " [desativada]", bold: true, font: style.bodyFont, color: hex(style.negativeColor), size: 22 })]),
         ],
       }),
     ];
@@ -283,7 +307,7 @@ export async function buildDocx(doc: DocumentacaoPS, style: StyleConfig): Promis
       if (v.inverter !== undefined) out.push(kv("Inverter", sim(v.inverter), 1));
       if (v.codigo) {
         out.push(titledBullet("Código:", 1));
-        out.push(body(v.codigo, { indent: 2 }));
+        out.push(...codeParagraphs(v.codigo, "javascript", 1));
       }
     }
     return out;
@@ -417,7 +441,7 @@ export async function buildDocx(doc: DocumentacaoPS, style: StyleConfig): Promis
         if (totvs) out.push(kv("TOTVS", totvs));
         if (item.cssCodigo) {
           out.push(titledBullet("CSS:"));
-          out.push(body(item.cssCodigo, { indent: 1 }));
+          out.push(...codeParagraphs(item.cssCodigo, "css"));
         }
 
         if (item.camposAgrupados && item.camposAgrupados.length > 0) {
@@ -497,7 +521,7 @@ export async function buildDocx(doc: DocumentacaoPS, style: StyleConfig): Promis
         out.push(kv("Tipo", item.tipoHtml === "script" ? "Script" : "HTML"));
         if (item.classeCss) out.push(kvCode("Classe CSS", item.classeCss));
         out.push(h6("Conteúdo"));
-        out.push(new Paragraph({ spacing: { after: 80 }, children: [new TextRun({ text: item.conteudoHtml ?? "", font: "Courier New", color: hex(style.bodyColor), size: 20 })] }));
+        out.push(...codeParagraphs(item.conteudoHtml ?? "", detectLang(item.conteudoHtml ?? "", item.tipoHtml)));
         break;
       case "upload": {
         out.push(h6("Geral"));
@@ -559,7 +583,7 @@ function renderCampoDetalhadoDocx(detalhes: CampoDetalhado, style: StyleConfig):
       bullet: { level: indent },
       children: [
         new TextRun({ text: `${label}: `, font: style.bodyFont, color: hex(style.bodyColor), size: 22 }),
-        new TextRun({ text: value, bold: true, font: style.bodyFont, color: hex(style.bodyColor), size: 22 }),
+        new TextRun({ text: value, bold: true, font: style.bodyFont, color: hex(logicColor(value, style) ?? style.bodyColor), size: 22 }),
       ],
     });
   const kvCode = (label: string, value: string, indent = 0) =>
@@ -631,7 +655,7 @@ function renderCampoDetalhadoDocx(detalhes: CampoDetalhado, style: StyleConfig):
       if (v.inverter !== undefined) out.push(kv("Inverter", sim(v.inverter), 1));
       if (v.codigo) {
         out.push(titledBullet("Código:", 1));
-        out.push(body(v.codigo, 2));
+        out.push(...codeParagraphs(v.codigo, "javascript", 1));
       }
     }
   }
@@ -680,7 +704,7 @@ function renderCampoDetalhadoDocx(detalhes: CampoDetalhado, style: StyleConfig):
  *  heading. Runs entirely in the browser via `Packer.toBlob`. */
 export async function buildPortalOverviewDocx(overview: PortalOverviewSpec, style: StyleConfig): Promise<Blob> {
   const sim = (v: boolean | undefined) => (v ? "Sim" : "Não");
-  const paragraphs: Paragraph[] = [];
+  const paragraphs: (Paragraph | Table)[] = [];
 
   paragraphs.push(new Paragraph({ spacing: { after: 200 }, children: [new TextRun({ text: overview.geral.nome, bold: true, font: style.titleFont, color: hex(style.titleColor), size: 52 })] }));
 
@@ -693,10 +717,9 @@ export async function buildPortalOverviewDocx(overview: PortalOverviewSpec, styl
       bullet: { level: indent },
       children: [
         new TextRun({ text: `${label}: `, font: style.bodyFont, color: hex(style.bodyColor), size: 22 }),
-        new TextRun({ text: value, bold: true, font: style.bodyFont, color: hex(style.bodyColor), size: 22 }),
+        new TextRun({ text: value, bold: true, font: style.bodyFont, color: hex(logicColor(value, style) ?? style.bodyColor), size: 22 }),
       ],
     });
-  const code = (text: string) => new Paragraph({ spacing: { after: 80 }, children: [new TextRun({ text, font: "Courier New", color: hex(style.bodyColor), size: 20 })] });
   const titledBullet = (text: string, indent = 0) =>
     new Paragraph({ spacing: { after: 80 }, bullet: { level: indent }, children: [new TextRun({ text, font: style.bodyFont, color: hex(style.bodyColor), size: 22 })] });
 
@@ -707,7 +730,7 @@ export async function buildPortalOverviewDocx(overview: PortalOverviewSpec, styl
   paragraphs.push(kv("Ativo", sim(geral.ativo)));
   if (geral.paginaEdicaoInscricao) paragraphs.push(kv("Página de edição da inscrição", geral.paginaEdicaoInscricao.nome));
   if (geral.paginaDetalhesUsuario) paragraphs.push(kv("Página de detalhes do usuário", geral.paginaDetalhesUsuario.nome));
-  paragraphs.push(kv("Carregamento inteligente", sim(geral.carregamentoInteligente)));
+  paragraphs.push(kv("Carregamento inteligente", geral.carregamentoInteligente ? "Ativado" : "Desativado"));
   paragraphs.push(kv("VLibras ativo", sim(geral.vlibrasAtivo)));
   paragraphs.push(kv("Cabeçalho ativo", sim(geral.cabecalhoAtivo)));
   if (geral.cabecalhoAtivo && geral.cabecalhoTexto) paragraphs.push(kv("Texto do cabeçalho", geral.cabecalhoTexto));
@@ -732,6 +755,24 @@ export async function buildPortalOverviewDocx(overview: PortalOverviewSpec, styl
   if (geral.campoLocalOferta) {
     paragraphs.push(h4("Campo de local de oferta"));
     paragraphs.push(...renderCampoDetalhadoDocx(geral.campoLocalOferta.detalhes, style));
+  }
+
+  if (geral.camposDetalhesInscricao && geral.camposDetalhesInscricao.length > 0) {
+    paragraphs.push(h4("Campos dos detalhes da inscrição"));
+    const tCell = (text: string, bold = false) =>
+      new TableCell({ children: [new Paragraph({ children: [new TextRun({ text, bold, font: style.bodyFont, color: hex(style.bodyColor), size: 20 })] })] });
+    const header = ["Nome", "Tipo", "Posição", "Alias", "Valor fixo", "Campo do sistema"];
+    paragraphs.push(
+      new Table({
+        width: { size: 100, type: WidthType.PERCENTAGE },
+        rows: [
+          new TableRow({ tableHeader: true, children: header.map((h) => tCell(h, true)) }),
+          ...geral.camposDetalhesInscricao.map(
+            (f) => new TableRow({ children: [f.nome, f.tipo, String(f.posicao), f.alias ?? "", f.valorFixo ?? "", f.campoSistema ?? ""].map((v) => tCell(v)) })
+          ),
+        ],
+      })
+    );
   }
 
   paragraphs.push(h2("Consultas TOTVS"));
@@ -759,11 +800,11 @@ export async function buildPortalOverviewDocx(overview: PortalOverviewSpec, styl
   paragraphs.push(kv("Script do Body usa cookies", sim(scripts.scriptBodyComCookies)));
   if (scripts.scriptHead) {
     paragraphs.push(body("Script (Head):"));
-    paragraphs.push(code(scripts.scriptHead));
+    paragraphs.push(...codeParagraphs(scripts.scriptHead, detectLang(scripts.scriptHead, "html")));
   }
   if (scripts.scriptBody) {
     paragraphs.push(body("Script (Body):"));
-    paragraphs.push(code(scripts.scriptBody));
+    paragraphs.push(...codeParagraphs(scripts.scriptBody, detectLang(scripts.scriptBody, "html")));
   }
 
   paragraphs.push(h2("Integrações"));

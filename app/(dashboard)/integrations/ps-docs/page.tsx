@@ -1,10 +1,11 @@
 "use client"
 
 import { useState } from "react"
+import { useForm, useWatch, type Resolver } from "react-hook-form"
+import { zodResolver } from "@hookform/resolvers/zod"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { PasswordInput } from "@/components/ui/password-input"
-import { Field, FieldLabel } from "@/components/ui/field"
+import { Field, FieldError, FieldLabel } from "@/components/ui/field"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
 import { Label } from "@/components/ui/label"
@@ -12,21 +13,33 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/components/ui/accordion"
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip"
 import { Skeleton } from "@/components/ui/skeleton"
+import { CredentialsFormFields } from "@/components/ps-docs/credentials-form-fields"
+import { StylePanel } from "@/components/ps-docs/style-panel"
 import { ProcessDocResult } from "@/components/ps-docs/process-doc-result"
 import { PortalOverviewPreview } from "@/components/ps-docs/portal-overview-preview"
 import { FileText, Loader2, Info, CheckCircle2, AlertCircle } from "lucide-react"
 import { toast } from "sonner"
 import { listSelectiveProcessStages, fetchStageDocumentation } from "@/actions/integrations/ps-docs"
 import { fetchPortalOverview, listPortalSelectiveProcesses } from "@/actions/integrations/ps-portal-docs"
+import type { PsCredentials } from "@/lib/ps-docs/credential"
+import { psDocsSchema, type PsDocsFormInput } from "@/schemas/ps-docs.schema"
 import { DEFAULT_STYLE, type DocumentacaoPS, type PortalOverviewSpec, type PortalProcessDocState, type PortalProcessRef, type StyleConfig } from "@/lib/ps-docs/types"
 
 type DocMode = "processo" | "portal"
 
 export default function PsDocsPage() {
-  const [docMode, setDocMode] = useState<DocMode>("processo")
-  const [tokenPs, setTokenPs] = useState("")
-  const [idPs, setIdPs] = useState("")
-  const [crmDomain, setCrmDomain] = useState("")
+  const {
+    register,
+    control,
+    handleSubmit,
+    setValue,
+    formState: { errors, isValid },
+  } = useForm<PsDocsFormInput>({
+    mode: "onChange",
+    resolver: zodResolver(psDocsSchema) as Resolver<PsDocsFormInput>,
+    defaultValues: { docMode: "processo", branch: "master", clientId: "", session: "", xsrf: "", idPs: "", crmDomain: "", idPortal: "", localId: "2" },
+  })
+  const docMode = useWatch({ control, name: "docMode" }) as DocMode
   const [style, setStyle] = useState<StyleConfig>(DEFAULT_STYLE)
 
   // Modo "processo seletivo específico" — inalterado em relação ao comportamento anterior.
@@ -37,8 +50,6 @@ export default function PsDocsPage() {
   const [error, setError] = useState<string | null>(null)
 
   // Modo "portal inteiro".
-  const [idPortal, setIdPortal] = useState("")
-  const [localId, setLocalId] = useState("2")
   const [portalSubmitting, setPortalSubmitting] = useState(false)
   const [portalOverviewLoading, setPortalOverviewLoading] = useState(false)
   const [portalOverview, setPortalOverview] = useState<PortalOverviewSpec | null>(null)
@@ -48,12 +59,12 @@ export default function PsDocsPage() {
     setProcessDocs((prev) => prev.map((p) => (p.ref.id === id ? { ...p, ...(typeof patch === "function" ? patch(p) : patch) } : p)))
   }
 
-  async function handleSubmitProcesso(e: React.FormEvent) {
-    e.preventDefault()
-    if (!tokenPs.trim() || !idPs.trim()) {
-      toast.error("Informe o Token PS e o ID PS")
-      return
-    }
+  const toCredentials = (d: PsDocsFormInput): PsCredentials => ({ session: d.session, xsrf: d.xsrf, clientId: d.clientId, branch: d.branch })
+
+  async function handleSubmitProcesso(data: PsDocsFormInput) {
+    const credentials = toCredentials(data)
+    const idPs = data.idPs
+    const crmDomain = data.crmDomain
 
     setLoading(true)
     setError(null)
@@ -62,7 +73,7 @@ export default function PsDocsPage() {
     setProgress(null)
 
     try {
-      const listRes = await listSelectiveProcessStages({ tokenPs, idPs, crmDomain: crmDomain.trim() || undefined })
+      const listRes = await listSelectiveProcessStages({ credentials, idPs, crmDomain: crmDomain.trim() || undefined })
       if (!listRes.success || !listRes.stages || !listRes.fieldCatalogEntries) {
         setError(listRes.error || "Erro ao consultar o processo seletivo")
         toast.error(listRes.error || "Erro ao consultar o processo seletivo")
@@ -76,7 +87,7 @@ export default function PsDocsPage() {
       const allWarnings: string[] = [...(listRes.catalogWarnings ?? [])]
       for (const stage of listRes.stages) {
         const stageRes = await fetchStageDocumentation({
-          tokenPs,
+          credentials,
           idPs,
           stage: stage.ref,
           fieldCatalogEntries: listRes.fieldCatalogEntries,
@@ -102,10 +113,10 @@ export default function PsDocsPage() {
   /** Gera a documentação de UM processo seletivo do portal — chamada em paralelo para todos os
    *  processos ativos, cada uma atualizando só a própria entrada de `processDocs` conforme
    *  progride, para que o usuário não precise esperar todas terminarem para ver as primeiras. */
-  async function generateOneProcessDoc(ref: PortalProcessRef) {
+  async function generateOneProcessDoc(ref: PortalProcessRef, credentials: PsCredentials, crmDomain: string) {
     updateProcessDoc(ref.id, { status: "loading" })
     try {
-      const listRes = await listSelectiveProcessStages({ tokenPs, idPs: ref.id, crmDomain: crmDomain.trim() || undefined })
+      const listRes = await listSelectiveProcessStages({ credentials, idPs: ref.id, crmDomain: crmDomain.trim() || undefined })
       if (!listRes.success || !listRes.stages || !listRes.fieldCatalogEntries) {
         updateProcessDoc(ref.id, { status: "error", error: listRes.error || "Erro ao consultar o processo seletivo" })
         return
@@ -117,7 +128,7 @@ export default function PsDocsPage() {
       const allWarnings: string[] = [...(listRes.catalogWarnings ?? [])]
       for (const stage of listRes.stages) {
         const stageRes = await fetchStageDocumentation({
-          tokenPs,
+          credentials,
           idPs: ref.id,
           stage: stage.ref,
           fieldCatalogEntries: listRes.fieldCatalogEntries,
@@ -138,12 +149,9 @@ export default function PsDocsPage() {
     }
   }
 
-  async function handleSubmitPortal(e: React.FormEvent) {
-    e.preventDefault()
-    if (!tokenPs.trim() || !idPortal.trim() || !crmDomain.trim()) {
-      toast.error("Informe o Token PS, o ID do Portal e o Link do CRM")
-      return
-    }
+  async function handleSubmitPortal(data: PsDocsFormInput) {
+    const credentials = toCredentials(data)
+    const { idPortal, localId, crmDomain } = data
 
     setPortalSubmitting(true)
     setPortalOverviewLoading(true)
@@ -152,8 +160,8 @@ export default function PsDocsPage() {
 
     try {
       const [overviewRes, listRes] = await Promise.all([
-        fetchPortalOverview({ tokenPs, idPortal, localId }),
-        listPortalSelectiveProcesses({ tokenPs, idPortal }),
+        fetchPortalOverview({ credentials, idPortal, localId }),
+        listPortalSelectiveProcesses({ credentials, idPortal }),
       ])
 
       if (overviewRes.success && overviewRes.overview) setPortalOverview(overviewRes.overview)
@@ -175,11 +183,17 @@ export default function PsDocsPage() {
 
       // Dispara a geração de cada processo em paralelo, sem aguardar aqui — cada uma atualiza sua
       // própria aba conforme progride.
-      for (const ref of listRes.processes) void generateOneProcessDoc(ref)
+      for (const ref of listRes.processes) void generateOneProcessDoc(ref, credentials, crmDomain)
     } finally {
       setPortalSubmitting(false)
     }
   }
+
+  // A Estilização só aparece depois que o usuário pede para gerar a documentação.
+  const showStylePanel =
+    docMode === "processo"
+      ? loading || !!model || !!error
+      : portalSubmitting || portalOverviewLoading || !!portalOverview || processDocs.length > 0
 
   return (
     <div className="p-6 space-y-4">
@@ -189,17 +203,17 @@ export default function PsDocsPage() {
         </h1>
         <p className="text-sm text-muted-foreground">
           Lê a estrutura completa de um processo seletivo (etapas, passos, campos, componentes, ações TOTVS/Rubeus e
-          feedbacks) ou de um portal inteiro a partir do Token PS, e gera a documentação técnica no padrão do
+          feedbacks) ou de um portal inteiro a partir da sessão do portal admin, e gera a documentação técnica no padrão do
           mapeamento de ficha.
         </p>
       </div>
 
       <Card>
         <CardContent className="pt-6">
-          <form onSubmit={docMode === "processo" ? handleSubmitProcesso : handleSubmitPortal} className="space-y-4">
+          <form onSubmit={handleSubmit((d) => (d.docMode === "processo" ? handleSubmitProcesso(d) : handleSubmitPortal(d)))} className="space-y-4" noValidate>
             <Field>
               <FieldLabel>Deseja realizar a documentação de um processo seletivo específico ou do portal inteiro?</FieldLabel>
-              <RadioGroup value={docMode} onValueChange={(v) => setDocMode(v as DocMode)} className="flex-row gap-6 pt-1">
+              <RadioGroup value={docMode} onValueChange={(v) => setValue("docMode", v as DocMode, { shouldValidate: true })} className="flex-row gap-6 pt-1">
                 <div className="flex items-center gap-2">
                   <RadioGroupItem value="processo" id="mode-processo" />
                   <Label htmlFor="mode-processo" className="font-normal cursor-pointer">
@@ -216,31 +230,32 @@ export default function PsDocsPage() {
             </Field>
 
             <div className="space-y-4">
-              <Field>
-                <FieldLabel htmlFor="tokenPs">Token PS</FieldLabel>
-                <PasswordInput id="tokenPs" value={tokenPs} onChange={setTokenPs} placeholder="Copiado do localStorage do portal admin" />
-              </Field>
+              <CredentialsFormFields control={control} errors={errors} />
 
               {docMode === "processo" ? (
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                   <Field>
-                    <FieldLabel htmlFor="idPs">idPS do I&M</FieldLabel>
-                    <Input id="idPs" value={idPs} onChange={(e) => setIdPs(e.target.value)} placeholder="Ex: 5537" />
+                    <FieldLabel htmlFor="idPs">ID do Processo Seletivo no I&M</FieldLabel>
+                    <Input id="idPs" inputMode="numeric" {...register("idPs")} placeholder="Ex: 5537" aria-invalid={!!errors.idPs} />
+                    <FieldError errors={[errors.idPs]} />
                   </Field>
                   <Field>
-                    <FieldLabel htmlFor="crmDomain">Link do CRM (opcional)</FieldLabel>
-                    <Input id="crmDomain" value={crmDomain} onChange={(e) => setCrmDomain(e.target.value)} placeholder="Ex: https://crmtoledo.apprubeus.com.br/" />
+                    <FieldLabel htmlFor="crmDomain">Link do CRM</FieldLabel>
+                    <Input id="crmDomain" {...register("crmDomain")} placeholder="Ex: https://crmtoledo.apprubeus.com.br/" aria-invalid={!!errors.crmDomain} />
+                    <FieldError errors={[errors.crmDomain]} />
                   </Field>
                 </div>
               ) : (
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                   <Field>
-                    <FieldLabel htmlFor="idPortal">ID do Portal</FieldLabel>
-                    <Input id="idPortal" value={idPortal} onChange={(e) => setIdPortal(e.target.value)} placeholder="Ex: 3734" />
+                    <FieldLabel htmlFor="idPortal">ID do portal no I&M</FieldLabel>
+                    <Input id="idPortal" inputMode="numeric" {...register("idPortal")} placeholder="Ex: 3734" aria-invalid={!!errors.idPortal} />
+                    <FieldError errors={[errors.idPortal]} />
                   </Field>
                   <Field>
                     <FieldLabel htmlFor="crmDomainPortal">Link do CRM</FieldLabel>
-                    <Input id="crmDomainPortal" value={crmDomain} onChange={(e) => setCrmDomain(e.target.value)} placeholder="Ex: https://crmtoledo.apprubeus.com.br/" />
+                    <Input id="crmDomainPortal" {...register("crmDomain")} placeholder="Ex: https://crmtoledo.apprubeus.com.br/" aria-invalid={!!errors.crmDomain} />
+                    <FieldError errors={[errors.crmDomain]} />
                   </Field>
                   <Field>
                     <FieldLabel htmlFor="localId" className="flex items-center gap-1.5">
@@ -256,14 +271,15 @@ export default function PsDocsPage() {
                         <TooltipContent>Necessário para a listagem das consultas do portal.</TooltipContent>
                       </Tooltip>
                     </FieldLabel>
-                    <Input id="localId" value={localId} onChange={(e) => setLocalId(e.target.value)} placeholder="2" />
+                    <Input id="localId" inputMode="numeric" {...register("localId")} placeholder="2" aria-invalid={!!errors.localId} />
+                    <FieldError errors={[errors.localId]} />
                   </Field>
                 </div>
               )}
             </div>
 
             <div className="flex flex-col items-center gap-2">
-              <Button type="submit" disabled={docMode === "processo" ? loading : portalSubmitting}>
+              <Button type="submit" disabled={!isValid || (docMode === "processo" ? loading : portalSubmitting)}>
                 {(docMode === "processo" ? loading : portalSubmitting) && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
                 Gerar documentação
               </Button>
@@ -280,7 +296,9 @@ export default function PsDocsPage() {
         </CardContent>
       </Card>
 
-      {docMode === "processo" && model && <ProcessDocResult model={model} warnings={warnings} style={style} onStyleChange={setStyle} />}
+      {showStylePanel && <StylePanel style={style} onChange={setStyle} />}
+
+      {docMode === "processo" && model && <ProcessDocResult model={model} warnings={warnings} style={style} />}
 
       {docMode === "processo" && error && (
         <Card>
@@ -354,7 +372,7 @@ export default function PsDocsPage() {
                             </p>
                           </div>
                         )}
-                        <ProcessDocResult model={p.doc} warnings={p.warnings} style={style} onStyleChange={setStyle} />
+                        <ProcessDocResult model={p.doc} warnings={p.warnings} style={style} />
                       </div>
                     )}
                   </AccordionContent>

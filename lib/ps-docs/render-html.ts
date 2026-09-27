@@ -1,4 +1,11 @@
 import type { AcaoBotaoSpec, CampoDetalhado, ColunaDataserverSpec, ConsultaSqlSpec, DocumentacaoPS, EncaminhamentoSpec, FonteDadosSpec, ItemSpec, LogicaSpec, ParametroAcaoSpec, PopupSpec, PortalOverviewSpec, RegraLogicaItem, StyleConfig } from "./types";
+import { logicColor } from "./logic-color";
+import { codeBlockHtml, detectLang } from "./code-highlight";
+
+function logicStyleAttr(value: string, style: StyleConfig): string {
+  const color = logicColor(value, style);
+  return color ? ` style="color:${color}"` : "";
+}
 
 function esc(text: string): string {
   return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -54,7 +61,6 @@ export function renderDocumentHtml(doc: DocumentacaoPS, style: StyleConfig): str
   const h5Style = `font-family:'${style.bodyFont}',sans-serif;color:${style.subheadingColor};font-size:11pt;font-weight:700;margin-top:10pt;`;
   const h6Style = `font-family:'${style.bodyFont}',sans-serif;color:${style.subheadingColor};font-size:10pt;font-weight:700;margin-top:8pt;`;
   const bodyStyle = `font-family:'${style.bodyFont}',sans-serif;color:${style.bodyColor};font-size:11pt;line-height:1.5;`;
-  const codeStyle = `font-family:monospace;font-size:9.5pt;background:rgba(127,127,127,0.12);padding:8px;display:block;white-space:pre-wrap;`;
   const inlineCodeStyle = `font-family:monospace;font-size:9.5pt;background:rgba(127,127,127,0.12);padding:1px 4px;`;
   // Explicit list styling: the host page (Tailwind preflight) zeroes out `ul`/`ol` margin/padding
   // and sets `list-style:none` by default, which collapses raw `<ul><li>` markup into flat,
@@ -65,7 +71,7 @@ export function renderDocumentHtml(doc: DocumentacaoPS, style: StyleConfig): str
   const h4Tag = `<h4 style="${h4Style}">`;
 
   /** "Label: <strong>value</strong>" — the highlighted-value line format used everywhere. */
-  const kv = (label: string, value: string) => `${esc(label)}: <strong>${esc(value)}</strong>`;
+  const kv = (label: string, value: string) => `${esc(label)}: <strong${logicStyleAttr(value, style)}>${esc(value)}</strong>`;
   const kvCode = (label: string, value: string) => `${esc(label)}: <code style="${inlineCodeStyle}">${esc(value)}</code>`;
 
   /** One `<li>` per sub-item — used for the handful of places that still need list nesting
@@ -166,7 +172,7 @@ export function renderDocumentHtml(doc: DocumentacaoPS, style: StyleConfig): str
    *  Coluna/Tabela/Correspondente table; Ação Rubeus shows campos configurados + eventos + pessoa
    *  vinculada, no parâmetros table. */
   function acaoHtml(acao: AcaoBotaoSpec): string {
-    const header = `[${acao.ordem}] Tipo da ação: <strong>${esc(acao.tipoAcao)}</strong>${acao.ativada ? "" : " <strong>[desativada]</strong>"}`;
+    const header = `[${acao.ordem}] Tipo da ação: <strong>${esc(acao.tipoAcao)}</strong>${acao.ativada ? "" : ` <strong style="color:${style.negativeColor}">[desativada]</strong>`}`;
     const condicao = logicaSpecHtml(acao.logica) || null;
 
     let body: (string | null)[];
@@ -232,7 +238,7 @@ export function renderDocumentHtml(doc: DocumentacaoPS, style: StyleConfig): str
       v.mensagem ? kv("Mensagem", v.mensagem) : null,
       v.valor ? (isRegex ? kvCode("Valor", v.valor) : kv("Valor", v.valor)) : null,
       v.inverter !== undefined ? kv("Inverter", sim(v.inverter)) : null,
-      v.codigo ? `${esc("Código")}<code style="${codeStyle}">${esc(v.codigo)}</code>` : null,
+      v.codigo ? `${esc("Código")}${codeBlockHtml(v.codigo, "javascript")}` : null,
     ]);
     return `<li style="${bodyStyle}">${kv(v.tipo, sim(v.ativado))}${children}</li>`;
   }
@@ -348,7 +354,7 @@ export function renderDocumentHtml(doc: DocumentacaoPS, style: StyleConfig): str
         const geral = subList([
           item.classeCss ? kvCode("Classe CSS", item.classeCss) : null,
           totvs ? kv("TOTVS", totvs) : null,
-          item.cssCodigo ? `${esc("CSS")}<code style="${codeStyle}">${esc(item.cssCodigo)}</code>` : null,
+          item.cssCodigo ? `${esc("CSS")}${codeBlockHtml(item.cssCodigo, "css")}` : null,
         ]);
         const campos =
           item.camposAgrupados && item.camposAgrupados.length > 0
@@ -407,7 +413,7 @@ export function renderDocumentHtml(doc: DocumentacaoPS, style: StyleConfig): str
       }
       case "html": {
         const geral = subList([kv("Tipo", item.tipoHtml === "script" ? "Script" : "HTML"), item.classeCss ? kvCode("Classe CSS", item.classeCss) : null]);
-        const conteudo = `<code style="${codeStyle}">${esc(item.conteudoHtml ?? "")}</code>`;
+        const conteudo = codeBlockHtml(item.conteudoHtml ?? "", detectLang(item.conteudoHtml ?? "", item.tipoHtml));
         return heading + h6("Geral", geral) + h6("Conteúdo", conteudo);
       }
       case "upload": {
@@ -471,11 +477,10 @@ export function renderDocumentHtml(doc: DocumentacaoPS, style: StyleConfig): str
 export function renderCampoDetalhadoHtml(detalhes: CampoDetalhado, style: StyleConfig): string {
   const h6Style = `font-family:'${style.bodyFont}',sans-serif;color:${style.subheadingColor};font-size:10pt;font-weight:700;margin-top:8pt;`;
   const bodyStyle = `font-family:'${style.bodyFont}',sans-serif;color:${style.bodyColor};font-size:11pt;line-height:1.5;`;
-  const codeStyle = `font-family:monospace;font-size:9.5pt;background:rgba(127,127,127,0.12);padding:8px;display:block;white-space:pre-wrap;`;
   const inlineCodeStyle = `font-family:monospace;font-size:9.5pt;background:rgba(127,127,127,0.12);padding:1px 4px;`;
   const ulStyle = `margin:2px 0 8px 0;padding-left:22px;list-style-type:disc;`;
   const sim = (v: boolean | undefined) => (v ? "Sim" : "Não");
-  const kv = (label: string, value: string) => `${esc(label)}: <strong>${esc(value)}</strong>`;
+  const kv = (label: string, value: string) => `${esc(label)}: <strong${logicStyleAttr(value, style)}>${esc(value)}</strong>`;
   const kvCode = (label: string, value: string) => `${esc(label)}: <code style="${inlineCodeStyle}">${esc(value)}</code>`;
 
   function subList(items: (string | null | undefined | false)[]): string {
@@ -492,7 +497,7 @@ export function renderCampoDetalhadoHtml(detalhes: CampoDetalhado, style: StyleC
       v.mensagem ? kv("Mensagem", v.mensagem) : null,
       v.valor ? (isRegex ? kvCode("Valor", v.valor) : kv("Valor", v.valor)) : null,
       v.inverter !== undefined ? kv("Inverter", sim(v.inverter)) : null,
-      v.codigo ? `${esc("Código")}<code style="${codeStyle}">${esc(v.codigo)}</code>` : null,
+      v.codigo ? `${esc("Código")}${codeBlockHtml(v.codigo, "javascript")}` : null,
     ]);
     return `<li style="${bodyStyle}">${kv(v.tipo, sim(v.ativado))}${children}</li>`;
   }
@@ -587,10 +592,9 @@ export function renderPortalOverviewHtml(overview: PortalOverviewSpec, style: St
   const h3Style = `font-family:'${style.bodyFont}',sans-serif;color:${style.subheadingColor};font-size:13pt;font-weight:700;margin-top:20pt;`;
   const h4Style = `font-family:'${style.bodyFont}',sans-serif;color:${style.subheadingColor};font-size:12pt;font-weight:700;margin-top:14pt;`;
   const bodyStyle = `font-family:'${style.bodyFont}',sans-serif;color:${style.bodyColor};font-size:11pt;line-height:1.5;`;
-  const codeStyle = `font-family:monospace;font-size:9.5pt;background:rgba(127,127,127,0.12);padding:8px;display:block;white-space:pre-wrap;`;
   const ulStyle = `margin:2px 0 8px 0;padding-left:22px;list-style-type:disc;`;
   const sim = (v: boolean | undefined) => (v ? "Sim" : "Não");
-  const kv = (label: string, value: string) => `${esc(label)}: <strong>${esc(value)}</strong>`;
+  const kv = (label: string, value: string) => `${esc(label)}: <strong${logicStyleAttr(value, style)}>${esc(value)}</strong>`;
 
   function subList(items: (string | null | undefined | false)[]): string {
     const filtered = items.filter((i): i is string => !!i);
@@ -609,7 +613,7 @@ export function renderPortalOverviewHtml(overview: PortalOverviewSpec, style: St
       kv("Ativo", sim(geral.ativo)),
       geral.paginaEdicaoInscricao ? kv("Página de edição da inscrição", geral.paginaEdicaoInscricao.nome) : null,
       geral.paginaDetalhesUsuario ? kv("Página de detalhes do usuário", geral.paginaDetalhesUsuario.nome) : null,
-      kv("Carregamento inteligente", sim(geral.carregamentoInteligente)),
+      kv("Carregamento inteligente", geral.carregamentoInteligente ? "Ativado" : "Desativado"),
       kv("VLibras ativo", sim(geral.vlibrasAtivo)),
       kv("Cabeçalho ativo", sim(geral.cabecalhoAtivo)),
       geral.cabecalhoAtivo && geral.cabecalhoTexto ? kv("Texto do cabeçalho", geral.cabecalhoTexto) : null,
@@ -635,6 +639,20 @@ export function renderPortalOverviewHtml(overview: PortalOverviewSpec, style: St
   if (geral.campoLocalOferta) {
     parts.push(`<h4 style="${h4Style}">Campo de local de oferta</h4>`);
     parts.push(renderCampoDetalhadoHtml(geral.campoLocalOferta.detalhes, style));
+  }
+
+  if (geral.camposDetalhesInscricao && geral.camposDetalhesInscricao.length > 0) {
+    const cell = `${bodyStyle}border:1px solid #999;padding:4px 8px;text-align:left;vertical-align:top;`;
+    const rows = geral.camposDetalhesInscricao
+      .map(
+        (f) =>
+          `<tr><td style="${cell}">${esc(f.nome)}</td><td style="${cell}">${esc(f.tipo)}</td><td style="${cell}">${f.posicao}</td><td style="${cell}">${esc(f.alias ?? "")}</td><td style="${cell}">${esc(f.valorFixo ?? "")}</td><td style="${cell}">${esc(f.campoSistema ?? "")}</td></tr>`
+      )
+      .join("");
+    parts.push(`<h4 style="${h4Style}">Campos dos detalhes da inscrição</h4>`);
+    parts.push(
+      `<table style="border-collapse:collapse;width:100%;margin-bottom:8px;"><thead><tr>${["Nome", "Tipo", "Posição", "Alias", "Valor fixo", "Campo do sistema"].map((h) => `<th style="${cell}font-weight:700;">${h}</th>`).join("")}</tr></thead><tbody>${rows}</tbody></table>`
+    );
   }
 
   parts.push(`<h2 style="${h3Style}">Consultas TOTVS</h2>`);
@@ -672,8 +690,8 @@ export function renderPortalOverviewHtml(overview: PortalOverviewSpec, style: St
       kv("Script do Body usa cookies", sim(scripts.scriptBodyComCookies)),
     ])
   );
-  if (scripts.scriptHead) parts.push(`<p style="${bodyStyle}"><strong>Script (Head)</strong></p><code style="${codeStyle}">${esc(scripts.scriptHead)}</code>`);
-  if (scripts.scriptBody) parts.push(`<p style="${bodyStyle}"><strong>Script (Body)</strong></p><code style="${codeStyle}">${esc(scripts.scriptBody)}</code>`);
+  if (scripts.scriptHead) parts.push(`<p style="${bodyStyle}"><strong>Script (Head)</strong></p>${codeBlockHtml(scripts.scriptHead, detectLang(scripts.scriptHead, "html"))}`);
+  if (scripts.scriptBody) parts.push(`<p style="${bodyStyle}"><strong>Script (Body)</strong></p>${codeBlockHtml(scripts.scriptBody, detectLang(scripts.scriptBody, "html"))}`);
 
   parts.push(`<h2 style="${h3Style}">Integrações</h2>`);
   parts.push(`<p style="${bodyStyle}">Consultas vinculadas ao portal a partir do app Integração TOTVS, na ordem configurada.</p>`);

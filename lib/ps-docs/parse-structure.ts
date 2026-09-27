@@ -1135,7 +1135,7 @@ export function parseEtapa(stage: StageRef, payload: StagePayload, fieldCatalog:
     return mapPasso(stepName, content, enrichedCatalog, catalogs, consultaSqlPasso);
   });
 
-  if (passos.length === 0) warnings.push(`Etapa "${stage.name}" não retornou passos com conteúdo — verifique se o Token PS ainda é válido.`);
+  if (passos.length === 0) warnings.push(`Etapa "${stage.name}" não retornou passos com conteúdo — verifique se a sessão do portal admin ainda é válida.`);
 
   const etapa: EtapaSpec = {
     nome: stage.name,

@@ -2,7 +2,8 @@
 
 import axios from "axios";
 import { requirePermission } from "@/lib/rbac";
-import { authHeaders, unwrapData, asArray, logApiCall, logAndNotifyFailure, type Raw } from "@/lib/ps-docs/api-helpers";
+import { hasRequiredCredentials, type PsCredentials } from "@/lib/ps-docs/credential";
+import { authHeaders, sessionErrorMessage, unwrapData, asArray, logApiCall, logAndNotifyFailure } from "@/lib/ps-docs/api-helpers";
 import {
   buildFieldCatalog,
   buildIdTitleCatalog,
@@ -54,9 +55,9 @@ const BASE_URL = "https://admin.portal.apprbs.com.br/api/selective-process";
  *  simply contributes nothing new, same as before this fallback existed. Best case (right
  *  institution, `standard-fields` just missing an id `settings/fields` happens to have): it
  *  closes a residual gap that would otherwise render as "campo #id". */
-function settingsFieldsHeaders(tokenPs: string) {
+function settingsFieldsHeaders(credentials: PsCredentials) {
   return {
-    ...authHeaders(tokenPs),
+    ...authHeaders(credentials),
     Accept: "application/json, text/plain, */*",
     "Accept-Language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",
     "Cache-Control": "no-cache",
@@ -73,25 +74,6 @@ function settingsFieldsHeaders(tokenPs: string) {
     "User-Agent":
       "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
   };
-}
-
-/** `list-rubeus-events` needs a `crm_domain` body param the admin SPA builds from the logged-in
- *  tenant (e.g. `https://crmtoledo.apprubeus.com.br/`) — pulled from the token's own
- *  `nomeInstituicao` claim (decoded, not verified: this only reads a claim off the user's own
- *  token to shape one outgoing request, never used for auth). Returns `undefined` if the token
- *  isn't a well-formed JWT or doesn't carry that claim, in which case the events catalog is just
- *  skipped rather than blocking the rest of the document. */
-function crmDomainFromToken(tokenPs: string): string | undefined {
-  try {
-    const payload = tokenPs.split(".")[1];
-    if (!payload) return undefined;
-    const json = Buffer.from(payload.replace(/-/g, "+").replace(/_/g, "/"), "base64").toString("utf-8");
-    const claims = JSON.parse(json) as Raw;
-    const nomeInstituicao = typeof claims.nomeInstituicao === "string" ? claims.nomeInstituicao : undefined;
-    return nomeInstituicao ? `https://crm${nomeInstituicao}.apprubeus.com.br/` : undefined;
-  } catch {
-    return undefined;
-  }
 }
 
 export interface StageListItem {
@@ -139,19 +121,19 @@ export interface ListStagesResult {
  *  id->name catalogs needed to describe button actions/encaminhamentos (`list-totvs-action-types`,
  *  `list-data-server-types`, `list-process-types`, `popups`, `pages` — all confirmed live, each a
  *  small one-shot `{id, title|name}` list, fetched once for the whole process). */
-export async function listSelectiveProcessStages(input: { tokenPs: string; idPs: string; crmDomain?: string }): Promise<ListStagesResult> {
+export async function listSelectiveProcessStages(input: { credentials: PsCredentials; idPs: string; crmDomain?: string }): Promise<ListStagesResult> {
   const { organizationId, userId } = await requirePermission("ps_docs", "execute");
 
   const idPs = input.idPs.trim();
-  const tokenPs = input.tokenPs.trim();
-  if (!idPs || !tokenPs) return { success: false, error: "Informe o Token PS e o ID PS" };
+  const credentials = input.credentials;
+  if (!idPs || !hasRequiredCredentials(credentials)) return { success: false, error: "Informe os cookies da sessão e o ID PS" };
 
-  const headers = authHeaders(tokenPs);
+  const headers = authHeaders(credentials);
   const stageListUrl = `${BASE_URL}/opening-page-stages/${idPs}`;
   // Prefer the user-supplied CRM link (most reliable) over the one guessed from the token's own
   // `nomeInstituicao` claim — some tenants' CRM subdomain doesn't match the portal's institution
   // slug exactly, so the guess is only a fallback.
-  const crmDomain = input.crmDomain?.trim() || crmDomainFromToken(tokenPs);
+  const crmDomain = input.crmDomain?.trim();
 
   try {
     const [processRes, stageListRes, standardFieldsRes, settingsFieldsRes, actionTypesRes, dataServerTypesRes, processTypesRes, popupsRes, pagesRes, rubeusEventsRes, personTypesRes] = await Promise.all([
@@ -162,7 +144,7 @@ export async function listSelectiveProcessStages(input: { tokenPs: string; idPs:
       // covers ids `standard-fields` doesn't (e.g. 316191 "IDPS", 316210 "CPF"). Best-effort: a
       // failure here still leaves `standard-fields` results intact, just fewer ids resolved.
       // Needs `settingsFieldsHeaders` (Referer + no-cache), not just the Bearer token — see there.
-      axios.get("https://admin.portal.apprbs.com.br/api/settings/fields", { headers: settingsFieldsHeaders(tokenPs), validateStatus: () => true, timeout: 30_000 }),
+      axios.get("https://admin.portal.apprbs.com.br/api/settings/fields", { headers: settingsFieldsHeaders(credentials), validateStatus: () => true, timeout: 30_000 }),
       axios.get(`${BASE_URL}/list-totvs-action-types`, { headers, validateStatus: () => true, timeout: 30_000 }),
       axios.get(`${BASE_URL}/list-data-server-types`, { headers, validateStatus: () => true, timeout: 30_000 }),
       axios.get(`${BASE_URL}/list-process-types`, { headers, validateStatus: () => true, timeout: 30_000 }),
@@ -285,7 +267,7 @@ export async function listSelectiveProcessStages(input: { tokenPs: string; idPs:
     };
   } catch (error) {
     await logAndNotifyFailure({ organizationId, userId, url: stageListUrl, method: "GET", idPs, error });
-    return { success: false, error: (error as Error).message };
+    return { success: false, error: sessionErrorMessage(error) ?? (error as Error).message };
   }
 }
 
@@ -300,7 +282,7 @@ export interface FetchStageResult {
  *  `listSelectiveProcessStages`, so the page can append each etapa to the documentation as soon
  *  as it's ready. */
 export async function fetchStageDocumentation(input: {
-  tokenPs: string;
+  credentials: PsCredentials;
   idPs: string;
   stage: StageRef;
   fieldCatalogEntries: [number, string][];
@@ -309,9 +291,9 @@ export async function fetchStageDocumentation(input: {
   const { organizationId, userId } = await requirePermission("ps_docs", "execute");
 
   const idPs = input.idPs.trim();
-  const tokenPs = input.tokenPs.trim();
+  const credentials = input.credentials;
   const stageId = String(input.stage.list.id);
-  const headers = authHeaders(tokenPs);
+  const headers = authHeaders(credentials);
   const url = `${BASE_URL}/selected-stage/${idPs}`;
 
   try {
@@ -404,6 +386,6 @@ export async function fetchStageDocumentation(input: {
     return { success: true, etapa, warnings };
   } catch (error) {
     await logAndNotifyFailure({ organizationId, userId, url, method: "POST", idPs, error });
-    return { success: false, error: (error as Error).message };
+    return { success: false, error: sessionErrorMessage(error) ?? (error as Error).message };
   }
 }

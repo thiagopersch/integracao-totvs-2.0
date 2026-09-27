@@ -2,14 +2,28 @@ import { notificationService } from "@/services/notification.service";
 import { buildIntegrationTestFailedNotification } from "@/lib/notification-types";
 import { classifyError } from "@/lib/error-kind";
 import { prisma } from "@/lib/prisma";
+import { ADMIN_ORIGIN, buildCookieHeader, decodeXsrf, type PsCredentials } from "@/lib/ps-docs/credential";
 import type { Prisma } from "@/generated/prisma/client";
 
 /** Shared by every PS Docs server action (`actions/integrations/ps-docs.ts` and
  *  `actions/integrations/ps-portal-docs.ts`) — extracted here so both call the same
  *  auth/unwrap/logging plumbing instead of duplicating it. */
 
-export function authHeaders(tokenPs: string) {
-  return { Authorization: `Bearer ${tokenPs}`, "Content-Type": "application/json" };
+export function authHeaders(credentials: PsCredentials): Record<string, string> {
+  return {
+    "Content-Type": "application/json",
+    Accept: "application/json, text/plain, */*",
+    Cookie: buildCookieHeader(credentials),
+    "X-XSRF-TOKEN": decodeXsrf(credentials.xsrf),
+    Referer: `${ADMIN_ORIGIN}/administrativo/home`,
+    Origin: ADMIN_ORIGIN,
+  };
+}
+
+/** Friendlier message for 401/419 (expired/invalid session) — HTTP 419 is Laravel's CSRF/session expiry. */
+export function sessionErrorMessage(error: unknown): string | undefined {
+  const status = (error as { response?: { status?: number } } | null)?.response?.status;
+  return status === 401 || status === 419 ? "Sessão expirada ou inválida — faça login no portal admin e copie os cookies novamente." : undefined;
 }
 
 export type Raw = Record<string, unknown>;

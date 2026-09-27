@@ -28,12 +28,12 @@ export function PortalOverviewPreview({ overview, style }: PortalOverviewPreview
   }
 
   function handleDownloadMarkdown() {
-    const markdown = portalOverviewToMarkdown(overview)
+    const markdown = portalOverviewToMarkdown(overview, style)
     downloadBlob(new Blob([markdown], { type: "text/markdown" }), `portal-${slugify(overview.geral.nome)}.md`)
   }
 
   async function handleCopyForGoogleDocs() {
-    const markdown = portalOverviewToMarkdown(overview)
+    const markdown = portalOverviewToMarkdown(overview, style)
     try {
       await navigator.clipboard.write([
         new ClipboardItem({
@@ -61,7 +61,7 @@ export function PortalOverviewPreview({ overview, style }: PortalOverviewPreview
           <ClipboardCopy className="h-4 w-4 mr-2" /> Copiar para Google Docs
         </Button>
       </div>
-      <Card>
+      <Card className={style.followAppTheme ? undefined : "doc-preview-light"}>
         <CardContent className="pt-6">
           <div className="max-w-none" dangerouslySetInnerHTML={{ __html: html }} />
         </CardContent>

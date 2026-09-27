@@ -14,7 +14,7 @@ export function PsDocPreview({ model, style }: PsDocPreviewProps) {
   const html = useMemo(() => renderDocumentHtml(model, style), [model, style])
 
   return (
-    <Card>
+    <Card className={style.followAppTheme ? undefined : "doc-preview-light"}>
       <CardContent className="pt-6">
         <div className="max-w-none" dangerouslySetInnerHTML={{ __html: html }} />
       </CardContent>

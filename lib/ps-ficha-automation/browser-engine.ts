@@ -4,7 +4,7 @@ import type { FichaFieldFillStrategy } from "./field-data-generator";
 
 /**
  * Camada fina sobre o `playwright-core` que sabe preencher/avançar a ficha PÚBLICA de verdade
- * (não a API administrativa — essa página não exige Token PS/login). Confirmado ao vivo
+ * (não a API administrativa — essa página não exige login). Confirmado ao vivo
  * (navegador) em `https://portal.apprbs.com.br/senai-exemplo?idPs=17869...`:
  *  - Todo campo tem `name="data[<field_id>]"`, o MESMO id já resolvido pela Documentação PS.
  *  - Campos de data (flatpickr) têm um input OCULTO com o `name`, e um input de TEXTO visível

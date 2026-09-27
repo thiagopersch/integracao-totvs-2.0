@@ -3,7 +3,6 @@
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { StylePanel } from "@/components/ps-docs/style-panel"
 import { PsDocPreview } from "@/components/ps-docs/ps-doc-preview"
 import { Download, ClipboardCopy } from "lucide-react"
 import { toast } from "sonner"
@@ -17,13 +16,12 @@ interface ProcessDocResultProps {
   model: DocumentacaoPS
   warnings: string[]
   style: StyleConfig
-  onStyleChange: (style: StyleConfig) => void
 }
 
-/** The badge/download-buttons/warnings/StylePanel+preview block used to show one generated
+/** The badge/download-buttons/warnings+preview block used to show one generated
  *  processo seletivo documentation — shared between the "processo específico" mode and each
  *  process's tab in the "portal inteiro" mode, so both stay in sync (same exports, same preview). */
-export function ProcessDocResult({ model, warnings, style, onStyleChange }: ProcessDocResultProps) {
+export function ProcessDocResult({ model, warnings, style }: ProcessDocResultProps) {
   const hasResult = model.etapas.length > 0
 
   async function handleDownloadDocx() {
@@ -32,13 +30,13 @@ export function ProcessDocResult({ model, warnings, style, onStyleChange }: Proc
   }
 
   function handleDownloadMarkdown() {
-    const markdown = documentToMarkdown(model)
+    const markdown = documentToMarkdown(model, style)
     downloadBlob(new Blob([markdown], { type: "text/markdown" }), `mapeamento-ps-${slugify(model.tituloPortal)}.md`)
   }
 
   async function handleCopyForGoogleDocs() {
     const html = renderDocumentHtml(model, style)
-    const markdown = documentToMarkdown(model)
+    const markdown = documentToMarkdown(model, style)
     try {
       await navigator.clipboard.write([
         new ClipboardItem({
@@ -88,10 +86,7 @@ export function ProcessDocResult({ model, warnings, style, onStyleChange }: Proc
         </Card>
       )}
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[300px_1fr]">
-        <StylePanel style={style} onChange={onStyleChange} />
-        <PsDocPreview model={model} style={style} />
-      </div>
+      <PsDocPreview model={model} style={style} />
     </div>
   )
 }

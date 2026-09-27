@@ -2,7 +2,7 @@
  *  the reference document (`[RB-33] [SENAI] - Documentação técnica_ Mapeamento da ficha.docx`):
  *  Etapa -> Lógica de exibição -> Descrição -> Passos (itens em ordem) -> Feedbacks.
  *
- *  Confirmed live against a real Token PS: fields/components inside a passo come from the
+ *  Confirmed live against a real portal session: fields/components inside a passo come from the
  *  `content` array of `POST /selected-stage/{idPs}`, and a button's action pipeline (the docx's
  *  "RB.PS.IM.007 | Pré-Inscrição: ..." narrative) comes from that same content item's
  *  `button_actions` (ordered groups of TOTVS/Rubeus actions) and `forwardData` (redirect actions). */
@@ -332,6 +332,10 @@ export interface StyleConfig {
   subheadingColor: string;
   bodyColor: string;
   bodyFont: string;
+  positiveColor: string;
+  negativeColor: string;
+  /** Quando true, o preview da documentação acompanha o tema (claro/escuro) do app. */
+  followAppTheme: boolean;
 }
 
 export const DEFAULT_STYLE: StyleConfig = {
@@ -341,6 +345,9 @@ export const DEFAULT_STYLE: StyleConfig = {
   subheadingColor: "#666666",
   bodyColor: "#1a1a1a",
   bodyFont: "Poppins",
+  positiveColor: "#16a34a",
+  negativeColor: "#dc2626",
+  followAppTheme: false,
 };
 
 export const FONT_OPTIONS = ["Poppins", "Roboto", "Arial", "Times New Roman", "Calibri"] as const;
@@ -368,6 +375,15 @@ export interface PortalCampoResumo {
   detalhes: CampoDetalhado;
 }
 
+export interface PortalApplymentDetailFieldSpec {
+  nome: string;
+  tipo: string;
+  posicao: number;
+  alias?: string;
+  valorFixo?: string;
+  campoSistema?: string;
+}
+
 export interface PortalGeralSpec {
   nome: string;
   titulo: string;
@@ -383,6 +399,7 @@ export interface PortalGeralSpec {
   campoRegistro?: PortalCampoResumo;
   campoOfertaCurso?: PortalCampoResumo;
   campoLocalOferta?: PortalCampoResumo;
+  camposDetalhesInscricao?: PortalApplymentDetailFieldSpec[];
   tituloSelectInscricoes: string;
   tituloBarraEtapas: string;
   tituloBarraPortalInscrito: string;
