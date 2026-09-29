@@ -19,7 +19,7 @@ interface Props {
 }
 
 const ALL_CLIENTS_VALUE = "all"
-const ALL_CLIENTS_LABEL = "Todos os clientes ativos e com contrato vigente"
+const ALL_CLIENTS_LABEL = "Todos os clientes"
 
 export function DemandExportForm({ clients, years, monthsByYear }: Props) {
   const [clientId, setClientId] = useState(ALL_CLIENTS_VALUE)

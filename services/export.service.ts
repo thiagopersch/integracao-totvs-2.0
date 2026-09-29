@@ -10,25 +10,23 @@ const DEMAND_STATUS_LABELS: Record<string, string> = {
 };
 
 export const exportService = {
-  /** Clients the requesting user is allowed to see AND that are currently active with a valid contract. */
+  /** Every non-deleted client the requesting user is allowed to see, regardless of active/inactive
+   *  status or whether it currently has a valid contract — the export's real data filter is the
+   *  chosen period, applied separately to the demands themselves. */
   async getExportableClients(organizationId: string, allowedClientIds: string[]) {
-    const today = new Date();
     return prisma.client.findMany({
       where: {
         deletedAt: null,
         organizationId,
-        status: true,
         id: { in: allowedClientIds },
-        contracts: { some: { status: "ACTIVE", startDate: { lte: today }, OR: [{ endDate: null }, { endDate: { gte: today } }] } },
       },
       orderBy: { name: "asc" },
     });
   },
 
   /**
-   * `clientId === "all"` never means literally every client in the org — it resolves to the
-   * intersection of `allowedClientIds` and "active with a valid contract", so exports can never
-   * surface a client outside the requesting user's scope.
+   * `clientId === "all"` never means literally every client in the DB — it resolves to
+   * `allowedClientIds`, so exports can never surface a client outside the requesting user's scope.
    */
   async getEffectiveClientIds(organizationId: string, allowedClientIds: string[], clientId: string) {
     if (clientId === "all") {
