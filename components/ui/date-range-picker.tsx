@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { CalendarIcon } from "lucide-react"
+import { CalendarIcon, X } from "lucide-react"
 import { format } from "date-fns"
 import { ptBR } from "date-fns/locale"
 import type { DateRange } from "react-day-picker"
@@ -47,7 +47,22 @@ export function DateRangePicker({
         }
       >
         <CalendarIcon className="mr-2 h-4 w-4 shrink-0" />
-        <span className="truncate">{label}</span>
+        <span className="flex-1 truncate text-left">{label}</span>
+        {value?.from && !disabled && (
+          <span
+            role="button"
+            tabIndex={0}
+            aria-label="Limpar período"
+            className="-mr-1 ml-2 shrink-0 rounded-sm p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+            onClick={(e) => {
+              e.stopPropagation()
+              setOpen(false)
+              onValueChange(undefined)
+            }}
+          >
+            <X className="h-3.5 w-3.5" />
+          </span>
+        )}
       </PopoverTrigger>
       <PopoverContent className="w-auto p-0" align="start">
         <Calendar

@@ -5,12 +5,12 @@ import { requirePermission } from "@/lib/rbac";
 import { getDemandAnalystScope } from "@/lib/demand-scope";
 import { exportService } from "@/services/export.service";
 import { toExportRow } from "@/lib/export-mappers";
-import { periodToDateRange, type Period } from "@/lib/period";
+import { resolveExportPeriodRange, type ExportPeriod } from "@/lib/export-period";
 
-async function resolveExportContext(clientId: string, period: Period | null) {
+async function resolveExportContext(clientId: string, period: ExportPeriod | null) {
   const ctx = await requirePermission("reports", "read");
   const analystScope = await getDemandAnalystScope(ctx);
-  const range = periodToDateRange(period);
+  const range = resolveExportPeriodRange(period);
   const { demands, effectiveClientIds } = await exportService.getExportDemands(
     ctx.organizationId,
     ctx.allowedClientIds,
@@ -21,7 +21,7 @@ async function resolveExportContext(clientId: string, period: Period | null) {
   return { organizationId: ctx.organizationId, demands, effectiveClientIds, range };
 }
 
-export async function getDemandExportData(clientId: string, period: Period | null) {
+export async function getDemandExportData(clientId: string, period: ExportPeriod | null) {
   try {
     const { demands, effectiveClientIds, range, organizationId } = await resolveExportContext(clientId, period);
     const rows = demands.map(toExportRow);
@@ -32,7 +32,7 @@ export async function getDemandExportData(clientId: string, period: Period | nul
   }
 }
 
-export async function exportDemandsXlsx(clientId: string, period: Period | null) {
+export async function exportDemandsXlsx(clientId: string, period: ExportPeriod | null) {
   try {
     const { demands } = await resolveExportContext(clientId, period);
     const rows = demands.map(toExportRow);

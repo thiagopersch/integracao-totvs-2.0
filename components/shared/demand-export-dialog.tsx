@@ -23,7 +23,7 @@ export function DemandExportDialog({ clients, years, monthsByYear }: Props) {
         Exportar Demandas
       </Button>
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent>
+        <DialogContent className="h-auto max-h-[85vh] sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Exportar Demandas</DialogTitle>
           </DialogHeader>

@@ -4,10 +4,9 @@ import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { PeriodSelect } from "@/components/shared/period-select"
+import { ExportPeriodSelect, isExportPeriodPending, toExportPeriod, type ExportPeriodSelection } from "@/components/shared/export-period-select"
 import { DemandExportPdfBuilder } from "@/components/shared/demand-export-pdf-builder"
 import { exportDemandsXlsx, getDemandExportData } from "@/actions/export"
-import type { Period } from "@/lib/period"
 import type { Client } from "@/generated/prisma/client"
 import { Loader2, FileSpreadsheet, FileText } from "lucide-react"
 import { toast } from "sonner"
@@ -23,10 +22,13 @@ const ALL_CLIENTS_LABEL = "Todos os clientes"
 
 export function DemandExportForm({ clients, years, monthsByYear }: Props) {
   const [clientId, setClientId] = useState(ALL_CLIENTS_VALUE)
-  const [period, setPeriod] = useState<Period | null>(null)
+  const [periodSelection, setPeriodSelection] = useState<ExportPeriodSelection>({ kind: "none" })
   const [loadingXlsx, setLoadingXlsx] = useState(false)
   const [loadingPdf, setLoadingPdf] = useState(false)
   const [pdfExportData, setPdfExportData] = useState<Awaited<ReturnType<typeof getDemandExportData>> | null>(null)
+
+  const period = toExportPeriod(periodSelection)
+  const periodPending = isExportPeriodPending(periodSelection)
 
   async function handleXlsx() {
     setLoadingXlsx(true)
@@ -89,16 +91,15 @@ export function DemandExportForm({ clients, years, monthsByYear }: Props) {
 
       <div className="space-y-2">
         <Label>Período</Label>
-        <PeriodSelect years={years} monthsByYear={monthsByYear} value={period} onChange={setPeriod} />
-        <p className="text-xs text-muted-foreground">Deixe em branco para exportar todos os períodos.</p>
+        <ExportPeriodSelect years={years} monthsByYear={monthsByYear} value={periodSelection} onChange={setPeriodSelection} />
       </div>
 
       <div className="flex gap-2">
-        <Button type="button" variant="outline" onClick={handleXlsx} disabled={loadingXlsx}>
+        <Button type="button" variant="outline" onClick={handleXlsx} disabled={loadingXlsx || periodPending}>
           {loadingXlsx ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <FileSpreadsheet className="h-4 w-4 mr-2" />}
           Exportar XLSX
         </Button>
-        <Button type="button" onClick={handlePdf} disabled={loadingPdf}>
+        <Button type="button" onClick={handlePdf} disabled={loadingPdf || periodPending}>
           {loadingPdf ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <FileText className="h-4 w-4 mr-2" />}
           Exportar PDF
         </Button>
