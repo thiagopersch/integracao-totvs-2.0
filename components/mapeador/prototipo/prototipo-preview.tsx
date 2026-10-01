@@ -493,7 +493,7 @@ export function PrototipoPreview({
             Pedro <ChevronDown className="h-3.5 w-3.5" />
           </button>
         </div>
-        <div className="p-portal" style={{ backgroundImage: `url(${bg})` }}>
+        <div className="p-portal overflow-y-auto" style={{ backgroundImage: `url(${bg})` }}>
           <div className="w-[32%] min-w-[280px] max-w-md shrink-0 space-y-4">
             <div className="p-card">
               <div className="p-card-title">Minhas inscrições</div>
