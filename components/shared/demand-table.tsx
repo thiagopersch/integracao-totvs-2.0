@@ -82,6 +82,7 @@ interface DemandTableProps {
   meta: PaginationMeta
   analysts: Analyst[]
   clients: Client[]
+  periodClients: Client[]
   requesters: Requester[]
   departments: Department[]
   demandTypes: DemandType[]
@@ -120,10 +121,6 @@ const PRIORITY_COLORS: Record<string, string> = {
   URGENT: "#ef4444",
 }
 
-function ColorDot({ color }: { color: string }) {
-  return <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: color }} />
-}
-
 function toTimeInputValue(d: string | Date | null): string {
   if (!d) return ""
   const date = typeof d === "string" ? new Date(d) : d
@@ -144,6 +141,7 @@ export function DemandTable({
   meta,
   analysts,
   clients,
+  periodClients,
   requesters,
   departments,
   demandTypes,
@@ -261,12 +259,6 @@ export function DemandTable({
       cell: ({ row }) => <TruncatedText text={row.original.name} />,
     },
     {
-      accessorKey: "description",
-      header: "Descrição",
-      cell: ({ row }) => <TruncatedText text={row.original.description} />,
-    },
-    { id: "analyst", header: "Analista", cell: ({ row }) => row.original.analyst?.name || "-" },
-    {
       id: "client",
       header: "Cliente",
       cell: ({ row }) =>
@@ -275,14 +267,6 @@ export function DemandTable({
         ) : (
           "-"
         ),
-    },
-    { id: "requester", header: "Solicitante", cell: ({ row }) => row.original.requester?.name || "-" },
-    { id: "department", header: "Departamento", cell: ({ row }) => row.original.department?.name || "-" },
-    {
-      id: "demandType",
-      header: "Tipo",
-      cell: ({ row }) =>
-        row.original.demandType ? <ColorBadge label={row.original.demandType.name} color={row.original.demandType.color} /> : "-",
     },
     {
       accessorKey: "date",
@@ -296,6 +280,20 @@ export function DemandTable({
       accessorKey: "durationMinutes",
       header: "Duração (h)",
       cell: ({ row }) => `${formatDurationHours(row.getValue("durationMinutes") as number)}h`,
+    },
+    {
+      id: "analyst",
+      header: "Analista",
+      cell: ({ row }) =>
+        row.original.analyst ? <ColorBadge label={row.original.analyst.name} color={row.original.analyst.color} /> : "-",
+    },
+    { id: "requester", header: "Solicitante", cell: ({ row }) => row.original.requester?.name || "-" },
+    { id: "department", header: "Departamento", cell: ({ row }) => row.original.department?.name || "-" },
+    {
+      id: "demandType",
+      header: "Tipo",
+      cell: ({ row }) =>
+        row.original.demandType ? <ColorBadge label={row.original.demandType.name} color={row.original.demandType.color} /> : "-",
     },
     {
       accessorKey: "priority",
@@ -335,7 +333,7 @@ export function DemandTable({
                     </Badge>
                   }
                 />
-                <TooltipContent>
+                <TooltipContent variant="surface">
                   <div className="flex flex-col gap-1">
                     {hidden.map(({ tag }) => (
                       <ColorBadge key={tag.id} label={tag.name} color={tag.color} />
@@ -419,15 +417,17 @@ export function DemandTable({
                 onValueChange={(v) => form.setValue("analystId", v || "", { shouldValidate: true })}
               >
                 <SelectTrigger className="w-full" aria-invalid={!!form.formState.errors.analystId}>
-                  <SelectValue placeholder="Selecione um analista" />
+                  <SelectValue placeholder="Selecione um analista">
+                    {(value: string) => {
+                      const analyst = analysts.find((a) => a.id === value)
+                      return analyst ? <ColorBadge label={analyst.name} color={analyst.color} /> : "Selecione um analista"
+                    }}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {analysts.map((a) => (
                     <SelectItem key={a.id} value={a.id}>
-                      <div className="flex items-center gap-2">
-                        {a.color && <ColorDot color={a.color} />}
-                        {a.name}
-                      </div>
+                      <ColorBadge label={a.name} color={a.color} />
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -442,15 +442,17 @@ export function DemandTable({
                 onValueChange={(v) => form.setValue("clientId", v || "", { shouldValidate: true })}
               >
                 <SelectTrigger className="w-full" aria-invalid={!!form.formState.errors.clientId}>
-                  <SelectValue placeholder="Selecione um cliente" />
+                  <SelectValue placeholder="Selecione um cliente">
+                    {(value: string) => {
+                      const client = clients.find((c) => c.id === value)
+                      return client ? <ColorBadge label={client.name} color={client.color} solid /> : "Selecione um cliente"
+                    }}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {clients.map((c) => (
                     <SelectItem key={c.id} value={c.id}>
-                      <div className="flex items-center gap-2">
-                        {c.color && <ColorDot color={c.color} />}
-                        {c.name}
-                      </div>
+                      <ColorBadge label={c.name} color={c.color} solid />
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -504,15 +506,17 @@ export function DemandTable({
                 onValueChange={(v) => form.setValue("demandTypeId", v || "", { shouldValidate: true })}
               >
                 <SelectTrigger className="w-full" aria-invalid={!!form.formState.errors.demandTypeId}>
-                  <SelectValue placeholder="Selecione um tipo" />
+                  <SelectValue placeholder="Selecione um tipo">
+                    {(value: string) => {
+                      const demandType = demandTypes.find((d) => d.id === value)
+                      return demandType ? <ColorBadge label={demandType.name} color={demandType.color} /> : "Selecione um tipo"
+                    }}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {demandTypes.map((d) => (
                     <SelectItem key={d.id} value={d.id}>
-                      <div className="flex items-center gap-2">
-                        {d.color && <ColorDot color={d.color} />}
-                        {d.name}
-                      </div>
+                      <ColorBadge label={d.name} color={d.color} />
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -687,7 +691,7 @@ export function DemandTable({
         toolbarActions={
           <>
             {canCreate && newDialog}
-            <DemandExportDialog clients={clients} years={years} monthsByYear={monthsByYear} />
+            <DemandExportDialog clients={periodClients} years={years} monthsByYear={monthsByYear} />
             {canCreate && (
               <DemandImportDialog
                 clients={clients}

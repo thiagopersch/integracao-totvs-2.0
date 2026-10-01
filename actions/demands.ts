@@ -36,6 +36,23 @@ async function getCachedDemandPeriodOptions(organizationId: string, allowedClien
   return demandService.getAvailablePeriods(organizationId, allowedClientIds, analystScope);
 }
 
+export async function listClientsForDemandPeriod(period?: Period | null) {
+  const ctx = await getRequestContext();
+  const analystScope = await getDemandAnalystScope(ctx);
+  return getCachedClientsForDemandPeriod(ctx.organizationId, ctx.allowedClientIds, analystScope, period ?? null);
+}
+
+async function getCachedClientsForDemandPeriod(
+  organizationId: string,
+  allowedClientIds: string[],
+  analystScope: string | undefined,
+  period: Period | null
+) {
+  "use cache";
+  cacheTag("demands");
+  return demandService.listClientsInPeriod(organizationId, allowedClientIds, analystScope, periodToDateRange(period));
+}
+
 function parseDemandForm(formData: FormData) {
   return {
     name: formData.get("name") as string,

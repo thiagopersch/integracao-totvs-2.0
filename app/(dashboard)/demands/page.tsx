@@ -1,6 +1,6 @@
 import { Suspense } from "react"
 import { cookies } from "next/headers"
-import { listDemands, getDemandPeriodOptions } from "@/actions/demands"
+import { listDemands, getDemandPeriodOptions, listClientsForDemandPeriod } from "@/actions/demands"
 import { listAllAnalysts } from "@/actions/analysts"
 import { listAllClients } from "@/actions/admin/clients"
 import { listAllRequesters } from "@/actions/requesters"
@@ -35,7 +35,7 @@ async function DemandsContent({ searchParams }: { searchParams: Promise<Record<s
   const cookieStore = await cookies()
   const period = resolvePeriod(params, cookieStore.get(PERIOD_COOKIE_NAME)?.value)
 
-  const [{ data, meta, totalsByClient }, analysts, clients, requesters, departments, demandTypes, tags, periodOptions] = await Promise.all([
+  const [{ data, meta, totalsByClient }, analysts, clients, periodClients, requesters, departments, demandTypes, tags, periodOptions] = await Promise.all([
     listDemands({
       page: Number(params.page) || 1,
       pageSize: Number(params.pageSize) || 10,
@@ -45,6 +45,7 @@ async function DemandsContent({ searchParams }: { searchParams: Promise<Record<s
     }, ctx.organizationId, ctx.allowedClientIds, analystScope, period),
     listAllAnalysts(),
     listAllClients(),
+    listClientsForDemandPeriod(period),
     listAllRequesters(),
     listAllDepartments(),
     listAllDemandTypes(),
@@ -58,6 +59,7 @@ async function DemandsContent({ searchParams }: { searchParams: Promise<Record<s
       meta={meta}
       analysts={analysts}
       clients={clients}
+      periodClients={periodClients}
       requesters={requesters}
       departments={departments}
       demandTypes={demandTypes}

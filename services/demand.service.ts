@@ -45,7 +45,9 @@ export const demandService = {
     if (analystScope) (where as Record<string, unknown>).analystId = analystScope;
     (where as Record<string, unknown>).clientId = { in: allowedClientIds };
     if (period) (where as Record<string, unknown>).date = period;
-    const orderBy = params.sort ? { [params.sort.field]: params.sort.direction } : { date: "desc" as const };
+    const orderBy = params.sort
+      ? [{ [params.sort.field]: params.sort.direction }, { createdAt: "asc" as const }]
+      : [{ date: "desc" as const }, { createdAt: "asc" as const }];
 
     const [data, total, totalsRaw] = await Promise.all([
       prisma.demand.findMany({ where, orderBy, skip: (page - 1) * pageSize, take: pageSize, include: demandIncludeRelations }),
@@ -67,6 +69,29 @@ export const demandService = {
       .sort((a, b) => b.hours - a.hours);
 
     return { data, meta: { page, pageSize, total, totalPages: Math.ceil(total / pageSize) }, totalsByClient };
+  },
+
+  /** Clients that have at least one demand within `period`, for scoping the export dialog's client picker. */
+  async listClientsInPeriod(
+    organizationId: string,
+    allowedClientIds: string[],
+    analystScope: string | undefined,
+    period?: { gte: Date; lt: Date }
+  ) {
+    if (allowedClientIds.length === 0) return [];
+
+    const where: Prisma.DemandWhereInput = {
+      deletedAt: null,
+      organizationId,
+      clientId: { in: allowedClientIds },
+      ...(analystScope ? { analystId: analystScope } : {}),
+      ...(period ? { date: period } : {}),
+    };
+    const distinct = await prisma.demand.findMany({ where, distinct: ["clientId"], select: { clientId: true } });
+    const clientIds = distinct.map((d) => d.clientId);
+    if (clientIds.length === 0) return [];
+
+    return prisma.client.findMany({ where: { id: { in: clientIds }, deletedAt: null }, orderBy: { name: "asc" } });
   },
 
   /** Distinct year/month combos present in the user's visible demands, for the dynamic period picker. */

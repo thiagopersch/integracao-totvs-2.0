@@ -4,6 +4,7 @@ import { useMemo, useState } from "react"
 import type { ColumnDef } from "@tanstack/react-table"
 import { useForm, Controller, type Resolver } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
+import { useTheme } from "next-themes"
 import { DataTable } from "@/components/shared/data-table"
 import { DataTableFilterPanel } from "@/components/shared/data-table-filter-panel"
 import { PageHeader } from "@/components/shared/page-header"
@@ -31,6 +32,7 @@ import { Plus, Loader2 } from "lucide-react"
 import { deleteAnalyst, createAnalyst, updateAnalyst, bulkDeleteAnalysts, setAnalystStatus } from "@/actions/analysts"
 import { createAnalystSchema, updateAnalystSchema, type CreateAnalystInput } from "@/schemas/analyst.schema"
 import { formatPhone, formatDecimal } from "@/lib/masks"
+import { getBadgeTextColor } from "@/lib/colors"
 import { toast } from "sonner"
 import { useCrudTable } from "@/hooks/use-crud-table"
 import { useHasPermission } from "@/hooks/use-permissions"
@@ -53,6 +55,7 @@ function randomColor() {
 const SORTABLE_COLUMNS = ["name", "role", "team", "level", "status"]
 
 export function AnalystTable({ data, meta }: AnalystTableProps) {
+  const { resolvedTheme } = useTheme()
   const {
     router,
     searchParams,
@@ -138,10 +141,16 @@ export function AnalystTable({ data, meta }: AnalystTableProps) {
       accessorKey: "name",
       header: "Nome",
       cell: ({ row }) => (
-        <div className="flex items-center gap-2">
-          <span className="h-3 w-3 rounded-full shrink-0" style={{ backgroundColor: row.original.color }} />
+        <Badge
+          style={{
+            backgroundColor: `${row.original.color}22`,
+            borderColor: row.original.color,
+            color: getBadgeTextColor(row.original.color, resolvedTheme === "dark"),
+          }}
+          variant="outline"
+        >
           <TruncatedText text={row.original.name} />
-        </div>
+        </Badge>
       ),
     },
     { accessorKey: "role", header: "Cargo", cell: ({ row }) => row.getValue("role") || "-" },
@@ -163,7 +172,7 @@ export function AnalystTable({ data, meta }: AnalystTableProps) {
   }
     if (canUpdate || canDelete) columns.push(actionsColumn)
     return columns
-  }, [canUpdate, canDelete, setEditDialog, setDeleteDialog, handleToggleStatus])
+  }, [canUpdate, canDelete, setEditDialog, setDeleteDialog, handleToggleStatus, resolvedTheme])
 
   const newDialog = (
     <Dialog

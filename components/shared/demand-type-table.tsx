@@ -4,6 +4,7 @@ import { useMemo, useState } from "react"
 import type { ColumnDef } from "@tanstack/react-table"
 import { useForm, type Resolver } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
+import { useTheme } from "next-themes"
 import { DataTable } from "@/components/shared/data-table"
 import { PageHeader } from "@/components/shared/page-header"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
@@ -13,7 +14,9 @@ import { TruncatedText } from "@/components/shared/truncated-text"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
+import { Badge } from "@/components/ui/badge"
 import { Field, FieldLabel, FieldError } from "@/components/ui/field"
+import { getBadgeTextColor } from "@/lib/colors"
 import {
   Dialog,
   DialogBody,
@@ -44,6 +47,7 @@ function randomColor() {
 }
 
 export function DemandTypeTable({ data, meta }: DemandTypeTableProps) {
+  const { resolvedTheme } = useTheme()
   const {
     router,
     deleteDialog,
@@ -107,10 +111,16 @@ export function DemandTypeTable({ data, meta }: DemandTypeTableProps) {
       accessorKey: "name",
       header: "Nome",
       cell: ({ row }) => (
-        <div className="flex items-center gap-2">
-          <span className="h-3 w-3 rounded-full shrink-0" style={{ backgroundColor: row.original.color }} />
+        <Badge
+          style={{
+            backgroundColor: `${row.original.color}22`,
+            borderColor: row.original.color,
+            color: getBadgeTextColor(row.original.color, resolvedTheme === "dark"),
+          }}
+          variant="outline"
+        >
           <TruncatedText text={row.original.name} />
-        </div>
+        </Badge>
       ),
     },
     {
@@ -131,7 +141,7 @@ export function DemandTypeTable({ data, meta }: DemandTypeTableProps) {
   }
     if (canUpdate || canDelete) columns.push(actionsColumn)
     return columns
-  }, [canUpdate, canDelete, setEditDialog, setDeleteDialog])
+  }, [canUpdate, canDelete, setEditDialog, setDeleteDialog, resolvedTheme])
 
   const newDialog = (
     <Dialog

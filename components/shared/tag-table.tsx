@@ -4,6 +4,7 @@ import { useMemo, useState } from "react"
 import type { ColumnDef } from "@tanstack/react-table"
 import { useForm, type Resolver } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
+import { useTheme } from "next-themes"
 import { DataTable } from "@/components/shared/data-table"
 import { PageHeader } from "@/components/shared/page-header"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
@@ -14,6 +15,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Field, FieldLabel, FieldError } from "@/components/ui/field"
 import { Badge } from "@/components/ui/badge"
+import { getBadgeTextColor } from "@/lib/colors"
 import {
   Dialog,
   DialogBody,
@@ -44,6 +46,7 @@ function randomColor() {
 }
 
 export function TagTable({ data, meta }: TagTableProps) {
+  const { resolvedTheme } = useTheme()
   const {
     router,
     deleteDialog,
@@ -103,7 +106,14 @@ export function TagTable({ data, meta }: TagTableProps) {
       accessorKey: "name",
       header: "Nome",
       cell: ({ row }) => (
-        <Badge style={{ backgroundColor: `${row.original.color}22`, borderColor: row.original.color, color: row.original.color }} variant="outline">
+        <Badge
+          style={{
+            backgroundColor: `${row.original.color}22`,
+            borderColor: row.original.color,
+            color: getBadgeTextColor(row.original.color, resolvedTheme === "dark"),
+          }}
+          variant="outline"
+        >
           <TruncatedText text={row.original.name} />
         </Badge>
       ),
@@ -121,7 +131,7 @@ export function TagTable({ data, meta }: TagTableProps) {
   }
     if (canUpdate || canDelete) columns.push(actionsColumn)
     return columns
-  }, [canUpdate, canDelete, setEditDialog, setDeleteDialog])
+  }, [canUpdate, canDelete, setEditDialog, setDeleteDialog, resolvedTheme])
 
   const newDialog = (
     <Dialog

@@ -2,8 +2,10 @@
 
 import * as React from "react"
 import { ChevronsUpDown, X } from "lucide-react"
+import { useTheme } from "next-themes"
 
 import { cn } from "@/lib/utils"
+import { getBadgeTextColor } from "@/lib/colors"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -26,8 +28,8 @@ export interface MultiSelectItem {
   color?: string
 }
 
-function colorBadgeStyle(color: string): React.CSSProperties {
-  return { backgroundColor: `${color}22`, borderColor: color, color }
+function colorBadgeStyle(color: string, isDarkTheme: boolean): React.CSSProperties {
+  return { backgroundColor: `${color}22`, borderColor: color, color: getBadgeTextColor(color, isDarkTheme) }
 }
 
 interface MultiSelectProps {
@@ -51,6 +53,8 @@ export function MultiSelect({
   disabled,
   className,
 }: MultiSelectProps) {
+  const { resolvedTheme } = useTheme()
+  const isDarkTheme = resolvedTheme === "dark"
   const [open, setOpen] = React.useState(false)
   const selected = items.filter((item) => value.includes(item.value))
 
@@ -82,7 +86,7 @@ export function MultiSelect({
               <Badge
                 key={item.value}
                 variant={item.color ? "outline" : "secondary"}
-                style={item.color ? colorBadgeStyle(item.color) : undefined}
+                style={item.color ? colorBadgeStyle(item.color, isDarkTheme) : undefined}
                 className="h-auto max-w-full gap-1 overflow-visible whitespace-normal break-words"
                 onClick={(e) => {
                   e.stopPropagation()
@@ -112,7 +116,7 @@ export function MultiSelect({
                     onSelect={() => toggle(item.value)}
                   >
                     <Checkbox checked={isSelected} className="pointer-events-none mr-2" />
-                    {item.render ?? (item.color ? <Badge variant="outline" style={colorBadgeStyle(item.color)}>{item.label}</Badge> : item.label)}
+                    {item.render ?? (item.color ? <Badge variant="outline" style={colorBadgeStyle(item.color, isDarkTheme)}>{item.label}</Badge> : item.label)}
                   </CommandItem>
                 )
               })}
