@@ -23,6 +23,23 @@ export const updatePrototipoConfigSchema = z.object({
   textos: z.record(z.string(), z.string()).optional(),
   gerarPara: z.enum(["atual", "todos"]).optional(),
   exportVisualizacao: z.enum(["desktop", "mobile"]).optional(),
+  detalhesInscricao: z
+    .object({
+      titulo: z.string().optional(),
+      minhasInscricoesLabel: z.string().optional(),
+      campos: z
+        .array(
+          z.object({
+            id: z.string(),
+            nome: z.string(),
+            tipo: z.enum(["consulta", "valorFixo", "campoSistema"]),
+            alias: z.string().optional(),
+            valorExemplo: z.string().optional(),
+          })
+        )
+        .optional(),
+    })
+    .optional(),
 });
 
 export const createEtapaSchema = z.object({

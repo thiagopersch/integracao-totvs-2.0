@@ -18,10 +18,19 @@ import { ImageInput } from "@/components/mapeador/image-input"
 import { PrototipoPreview } from "@/components/mapeador/prototipo/prototipo-preview"
 import { PrototipoNavbar } from "@/components/mapeador/prototipo/prototipo-navbar"
 import { TemaEditorDialog } from "@/components/mapeador/prototipo/tema-editor-dialog"
+import { DetalhesCamposEditor } from "@/components/mapeador/prototipo/detalhes-campos-editor"
 import { buildScreens } from "@/components/mapeador/prototipo/screens"
 import { prototipoCss } from "@/components/mapeador/prototipo/styles"
 import { exportPrototipoPdf } from "@/components/mapeador/prototipo/export-pdf"
-import { updateCampoDeep, type MapeadorCampo, type MapeadorCampoLargura, type MapeadorGerarPara, type MapeadorProjetoDTO, type MapeadorTemaDTO } from "@/types/mapeador"
+import {
+  updateCampoDeep,
+  DEFAULT_DETALHES_CAMPOS,
+  type MapeadorCampo,
+  type MapeadorCampoLargura,
+  type MapeadorGerarPara,
+  type MapeadorProjetoDTO,
+  type MapeadorTemaDTO,
+} from "@/types/mapeador"
 
 function isVoltarButton(label: string) {
   return /voltar/i.test(label)
@@ -172,6 +181,10 @@ export function PrototipoTab() {
     saveConfig({ textos: { ...(config.textos ?? {}), [id]: value } })
   }
 
+  function handleDetalhesInscricaoChange(patch: Partial<NonNullable<typeof config.detalhesInscricao>>) {
+    saveConfig({ detalhesInscricao: { ...config.detalhesInscricao, ...patch } })
+  }
+
   async function handleExportHtml() {
     setExporting("html")
     try {
@@ -277,6 +290,34 @@ export function PrototipoTab() {
                   : 'Modo de edição de texto ativo: clique em um texto fixo da prévia (ex. "AVANÇAR", título do Portal do candidato) para reescrevê-lo.'}
               </p>
             )}
+          </div>
+
+          <div>
+            <p className="mb-2 text-xs font-semibold uppercase text-muted-foreground">Detalhes da inscrição</p>
+            <div className="flex flex-wrap items-end gap-4">
+              <div className="min-w-[220px] flex-1 space-y-1">
+                <Label className="text-xs text-muted-foreground">Label da lista de inscrições</Label>
+                <Input
+                  value={config.detalhesInscricao?.minhasInscricoesLabel ?? ""}
+                  onChange={(e) => handleDetalhesInscricaoChange({ minhasInscricoesLabel: e.target.value })}
+                  placeholder="Minhas inscrições"
+                />
+              </div>
+              <div className="min-w-[220px] flex-1 space-y-1">
+                <Label className="text-xs text-muted-foreground">Título do bloco</Label>
+                <Input
+                  value={config.detalhesInscricao?.titulo ?? ""}
+                  onChange={(e) => handleDetalhesInscricaoChange({ titulo: e.target.value })}
+                  placeholder="Detalhes da inscrição"
+                />
+              </div>
+            </div>
+            <div className="mt-3">
+              <DetalhesCamposEditor
+                campos={config.detalhesInscricao?.campos?.length ? config.detalhesInscricao.campos : DEFAULT_DETALHES_CAMPOS}
+                onChange={(campos) => handleDetalhesInscricaoChange({ campos })}
+              />
+            </div>
           </div>
 
           <div>
@@ -410,6 +451,7 @@ export function PrototipoTab() {
               textos={config.textos ?? {}}
               onTextoChange={handleTextoChange}
               editingTextos={editingTextos}
+              detalhesInscricao={config.detalhesInscricao}
               adjustMode={adjustMode}
               onLarguraChange={handleLarguraChange}
               onNovaLinhaChange={handleNovaLinhaChange}

@@ -1,5 +1,5 @@
 import { prototipoCss } from "@/components/mapeador/prototipo/styles";
-import { normalizeLargura, type MapeadorCampo, type MapeadorProjetoDTO } from "@/types/mapeador";
+import { normalizeLargura, DEFAULT_DETALHES_CAMPOS, type MapeadorCampo, type MapeadorDetalheCampo, type MapeadorProjetoDTO } from "@/types/mapeador";
 
 interface MappedCampo {
   tipo: string;
@@ -33,7 +33,23 @@ function mapCampo(c: MapeadorCampo): MappedCampo {
  * tokens as the live preview (components/mapeador/prototipo/styles.ts) but with a small vanilla-JS
  * renderer instead of React, so it opens and navigates on its own with no server/build step.
  */
-export function renderPrototipoHtml(projetos: MapeadorProjetoDTO[], options: { corMarca?: string; corBarra?: string; bgImageUrl?: string; logoUrl?: string }) {
+export function renderPrototipoHtml(
+  projetos: MapeadorProjetoDTO[],
+  options: {
+    corMarca?: string;
+    corBarra?: string;
+    bgImageUrl?: string;
+    logoUrl?: string;
+    detalhesTitulo?: string;
+    minhasInscricoesLabel?: string;
+    detalhesCampos?: MapeadorDetalheCampo[];
+  }
+) {
+  const detalhesTitulo = options.detalhesTitulo || "Detalhes da inscrição";
+  const minhasInscricoesLabel = options.minhasInscricoesLabel || "Minhas inscrições";
+  const detalhesCampos = options.detalhesCampos?.length ? options.detalhesCampos : DEFAULT_DETALHES_CAMPOS;
+  const detalhesRows = detalhesCampos.map((c) => [c.alias || c.nome, c.valorExemplo || "—"]);
+
   const data = projetos.map((p) => ({
     nome: p.nome,
     etapas: p.etapas.map((e) => ({
@@ -74,6 +90,9 @@ ${prototipoCss(".mapeador-proto")}
 const DATA = ${JSON.stringify(data)};
 const BG = ${JSON.stringify(bg)};
 const LOGO = ${JSON.stringify(options.logoUrl || "")};
+const DETALHES_TITULO = ${JSON.stringify(detalhesTitulo)};
+const MINHAS_INSCRICOES_LABEL = ${JSON.stringify(minhasInscricoesLabel)};
+const DETALHES_ROWS = ${JSON.stringify(detalhesRows)};
 const screens = [{kind:"landing"}];
 DATA.forEach((projeto, pi) => {
   projeto.etapas.forEach((etapa, ei) => {
@@ -172,13 +191,13 @@ function render(){
   if (s.kind === 'portal') {
     const done = projeto.etapas.slice(0, s.ei+1);
     const next = projeto.etapas[s.ei+1];
-    const detalhes = [['Curso','Administração'],['Modalidade','Presencial'],['Campus','Sede'],['Forma de Ingresso','Vestibular Presencial']]
-      .map(([l,v]) => '<div class="p-detail-row"><div class="p-detail-lbl">'+l+'</div><div class="p-detail-val">'+v+'</div></div>').join('');
+    const detalhes = DETALHES_ROWS
+      .map(([l,v]) => '<div class="p-detail-row"><div class="p-detail-lbl">'+esc(l)+'</div><div class="p-detail-val">'+esc(v)+'</div></div>').join('');
     function pickFeedback(e){ return (e.feedbacks||[]).find(f=>f.tipo==='positivo') || (e.feedbacks||[])[0]; }
     el.innerHTML = topbarProfile + '<div class="p-portal" style="background-image:url('+BG+')">'
       + '<div style="width:32%;min-width:280px;max-width:380px;display:flex;flex-direction:column;gap:16px">'
-      + '<div class="p-card"><div class="p-card-title">Minhas inscrições</div><div class="p-card-value">'+esc(projeto.nome)+'</div></div>'
-      + '<div class="p-card"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px"><div class="p-card-value">Detalhes da inscrição</div></div>'+detalhes+'</div>'
+      + '<div class="p-card"><div class="p-card-title">'+esc(MINHAS_INSCRICOES_LABEL)+'</div><div class="p-card-value">'+esc(projeto.nome)+'</div></div>'
+      + '<div class="p-card"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px"><div class="p-card-value">'+esc(DETALHES_TITULO)+'</div></div>'+detalhes+'</div>'
       + '</div>'
       + '<div class="p-card" style="min-width:280px;flex:1;padding:0;overflow:hidden">'
       + '<div style="background:var(--brand);padding:16px;text-align:center;font-weight:600;color:#fff;font-size:14px">Acompanhe aqui o status da sua inscrição</div>'

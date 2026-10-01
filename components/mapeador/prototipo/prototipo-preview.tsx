@@ -9,7 +9,15 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { cn } from "@/lib/utils"
-import { normalizeLargura, type MapeadorCampo, type MapeadorCampoLargura, type MapeadorEtapaDTO, type MapeadorProjetoDTO } from "@/types/mapeador"
+import {
+  normalizeLargura,
+  DEFAULT_DETALHES_CAMPOS,
+  type MapeadorCampo,
+  type MapeadorCampoLargura,
+  type MapeadorDetalhesInscricaoConfig,
+  type MapeadorEtapaDTO,
+  type MapeadorProjetoDTO,
+} from "@/types/mapeador"
 import type { PrototipoScreen } from "@/components/mapeador/prototipo/screens"
 
 const DEFAULT_BG =
@@ -21,14 +29,6 @@ const LARGURA_PRESETS: { label: string; largura: MapeadorCampoLargura }[] = [
   { label: "33%", largura: 4 },
   { label: "50%", largura: 6 },
   { label: "100%", largura: 12 },
-]
-
-/** Illustrative-only enrollment details shown on the portal screen's "Detalhes da inscrição" card — there's no real candidate data to show in a prototype. */
-const PORTAL_DETALHES_MOCK = [
-  { label: "Curso", value: "Administração" },
-  { label: "Modalidade", value: "Presencial" },
-  { label: "Campus", value: "Sede" },
-  { label: "Forma de Ingresso", value: "Vestibular Presencial" },
 ]
 
 /** Width for an N/12 column span, discounting a share of the row gap so columns still line up flush — mirrors the fixed .p-span-* rules this replaces. */
@@ -201,6 +201,7 @@ interface PrototipoPreviewProps {
   adjustMode: boolean
   onLarguraChange: (campoId: string, largura: MapeadorCampoLargura) => void
   onNovaLinhaChange: (campoId: string, novaLinha: boolean) => void
+  detalhesInscricao?: MapeadorDetalhesInscricaoConfig
 }
 
 export function PrototipoPreview({
@@ -219,9 +220,13 @@ export function PrototipoPreview({
   adjustMode,
   onLarguraChange,
   onNovaLinhaChange,
+  detalhesInscricao,
 }: PrototipoPreviewProps) {
   const bg = bgImageUrl || DEFAULT_BG
   const t = (id: string, fallback: string) => textos[id] ?? fallback
+  const minhasInscricoesLabel = detalhesInscricao?.minhasInscricoesLabel || "Minhas inscrições"
+  const detalhesTitulo = detalhesInscricao?.titulo || "Detalhes da inscrição"
+  const detalhesCampos = detalhesInscricao?.campos?.length ? detalhesInscricao.campos : DEFAULT_DETALHES_CAMPOS
   const [loginOpen, setLoginOpen] = useState(false)
 
   function isCampoVisible(campo: MapeadorCampo): boolean {
@@ -496,7 +501,7 @@ export function PrototipoPreview({
         <div className="p-portal overflow-y-auto" style={{ backgroundImage: `url(${bg})` }}>
           <div className="w-[32%] min-w-[280px] max-w-md shrink-0 space-y-4">
             <div className="p-card">
-              <div className="p-card-title">Minhas inscrições</div>
+              <div className="p-card-title">{minhasInscricoesLabel}</div>
               <div className="flex items-center justify-between">
                 <div className="p-card-value">{projeto?.nome}</div>
                 <ChevronDown className="h-4 w-4 text-muted-foreground" />
@@ -504,15 +509,15 @@ export function PrototipoPreview({
             </div>
             <div className="p-card">
               <div className="mb-3 flex items-center justify-between">
-                <div className="p-card-value">Detalhes da inscrição</div>
+                <div className="p-card-value">{detalhesTitulo}</div>
                 <button className="p-btn ghost !shadow-none !bg-white border !px-2.5 !py-1.5 !text-xs">
                   <Pencil className="mr-1 inline h-3 w-3" /> Editar
                 </button>
               </div>
-              {PORTAL_DETALHES_MOCK.map((d) => (
-                <div className="p-detail-row" key={d.label}>
-                  <div className="p-detail-lbl">{d.label}</div>
-                  <div className="p-detail-val">{d.value}</div>
+              {detalhesCampos.map((c) => (
+                <div className="p-detail-row" key={c.id}>
+                  <div className="p-detail-lbl">{c.alias || c.nome}</div>
+                  <div className="p-detail-val">{c.valorExemplo || "—"}</div>
                 </div>
               ))}
             </div>

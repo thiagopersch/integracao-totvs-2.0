@@ -151,6 +151,42 @@ export type MapeadorGerarPara = "atual" | "todos"
 
 export type MapeadorIdentidadeOrigem = "manual" | "cliente"
 
+export type MapeadorDetalheCampoTipo = "consulta" | "valorFixo" | "campoSistema"
+
+export const MAPEADOR_DETALHE_CAMPO_TIPO_LABELS: Record<MapeadorDetalheCampoTipo, string> = {
+  consulta: "Consulta",
+  valorFixo: "Valor fixo",
+  campoSistema: "Campo do sistema",
+}
+
+/** One row of the "Detalhes da inscrição" card on the portal screen — mirrors PortalApplymentDetailFieldSpec (lib/ps-docs/types.ts), the real TOTVS/Rubeus admin config this prototype feature replicates. */
+export interface MapeadorDetalheCampo {
+  id: string
+  /** "Nome campo" — internal/technical name. */
+  nome: string
+  tipo: MapeadorDetalheCampoTipo
+  /** Display label shown in the preview's details table (falls back to nome). */
+  alias?: string
+  /** Illustrative value shown in the preview — there's no real candidate data in a prototype. */
+  valorExemplo?: string
+}
+
+export interface MapeadorDetalhesInscricaoConfig {
+  /** "Título do bloco" — default "Detalhes da inscrição". */
+  titulo?: string
+  /** Label of the card above it (listing the candidate's enrollments) — default "Minhas inscrições". */
+  minhasInscricoesLabel?: string
+  campos?: MapeadorDetalheCampo[]
+}
+
+/** Fallback rows for projects that never configured detalhesInscricao.campos — keeps today's illustrative content unchanged and gives the editor a sensible starting point. */
+export const DEFAULT_DETALHES_CAMPOS: MapeadorDetalheCampo[] = [
+  { id: "curso", nome: "Curso", tipo: "consulta", alias: "Curso", valorExemplo: "Administração" },
+  { id: "modalidade", nome: "Modalidade", tipo: "consulta", alias: "Modalidade", valorExemplo: "Presencial" },
+  { id: "campus", nome: "Campus", tipo: "consulta", alias: "Campus", valorExemplo: "Sede" },
+  { id: "forma-ingresso", nome: "Forma de Ingresso", tipo: "consulta", alias: "Forma de Ingresso", valorExemplo: "Vestibular Presencial" },
+]
+
 export interface MapeadorPrototipoConfig {
   temaId?: string | null
   corMarca?: string
@@ -165,6 +201,8 @@ export interface MapeadorPrototipoConfig {
   textos?: Record<string, string>
   gerarPara?: MapeadorGerarPara
   exportVisualizacao?: "desktop" | "mobile"
+  /** Customizable title/label/fields for the portal's "Detalhes da inscrição" card. */
+  detalhesInscricao?: MapeadorDetalhesInscricaoConfig
 }
 
 export interface MapeadorTemaConfig {

@@ -13,7 +13,7 @@ ${scope} .p-topbar{display:flex;align-items:center;justify-content:space-between
 ${scope} .p-brand{font-size:20px;font-weight:800;color:var(--brand);letter-spacing:.02em}
 ${scope} .p-login{border:1px solid rgba(0,0,0,.15);background:#fff;padding:8px 16px;border-radius:5px;font-size:13px;font-weight:600}
 ${scope} .p-profile{border:1px solid rgba(255,255,255,.4);background:var(--bar);color:#fff;padding:8px 16px;border-radius:5px;font-size:13px;font-weight:600;display:inline-flex;align-items:center;gap:6px;cursor:pointer}
-${scope} .p-body{display:flex;min-height:520px;flex:1 1 auto}
+${scope} .p-body{display:flex;min-height:520px;flex:1 1 auto;flex-shrink:0}
 ${scope} .p-side{width:320px;flex:none;background-size:cover;background-position:center;color:#fff;padding:34px 30px;position:relative}
 ${scope} .p-side:before{content:'';position:absolute;inset:0;background:rgba(20,20,30,.45)}
 ${scope} .p-side>*{position:relative}

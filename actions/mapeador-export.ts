@@ -86,6 +86,9 @@ export async function exportMapeadorPrototipoHtml(id: string, gerarPara: "atual"
       corBarra: projeto.prototipoConfig.corBarra ?? temaPadrao.config.corBarra,
       bgImageUrl: projeto.prototipoConfig.bgImageUrl ?? undefined,
       logoUrl: projeto.prototipoConfig.logoUrl ?? undefined,
+      detalhesTitulo: projeto.prototipoConfig.detalhesInscricao?.titulo,
+      minhasInscricoesLabel: projeto.prototipoConfig.detalhesInscricao?.minhasInscricoesLabel,
+      detalhesCampos: projeto.prototipoConfig.detalhesInscricao?.campos,
     });
 
     return { success: true as const, html, fileName: `${projeto.nome.toLowerCase().replace(/\s+/g, "-")}-prototipo.html` };
