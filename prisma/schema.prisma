@@ -997,6 +997,8 @@ model MapeadorTemplateProjeto {
   nome                  String
   informacoesAdicionais Json?    @map("informacoes_adicionais")
   etapas                Json
+  /** When true, this modelo replaces the static "Padrão Rubeus" template of the same `nome` for the organization — see mapeadorTemplateService.setPadrao. */
+  isPadrao              Boolean  @default(false) @map("is_padrao")
   createdAt             DateTime @default(now()) @map("created_at")
   updatedAt             DateTime @updatedAt @map("updated_at")
 

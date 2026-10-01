@@ -86,6 +86,18 @@ export async function renameMapeadorProjeto(id: string, nome: string) {
   }
 }
 
+export async function updateMapeadorProjetoCliente(id: string, clienteId: string | null) {
+  const { organizationId } = await requirePermission("mapeador_projetos", "update");
+  try {
+    const projeto = await mapeadorService.updateCliente(id, clienteId, organizationId);
+    revalidatePath("/projetos/mapeador");
+    revalidatePath(`/projetos/mapeador/${id}`);
+    return { success: true as const, data: projeto };
+  } catch (error) {
+    return fail(error);
+  }
+}
+
 export async function deleteMapeadorProjeto(id: string) {
   const { organizationId } = await requirePermission("mapeador_projetos", "delete");
   try {

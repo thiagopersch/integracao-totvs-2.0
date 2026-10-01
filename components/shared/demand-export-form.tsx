@@ -3,7 +3,7 @@
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
+import { MultiSelect } from "@/components/ui/multi-select"
 import { ExportPeriodSelect, isExportPeriodPending, toExportPeriod, type ExportPeriodSelection } from "@/components/shared/export-period-select"
 import { DemandExportPdfBuilder } from "@/components/shared/demand-export-pdf-builder"
 import { exportDemandsXlsx, getDemandExportData } from "@/actions/export"
@@ -33,17 +33,21 @@ export function DemandExportForm({ clients, years, monthsByYear }: Props) {
   const periodPending = isExportPeriodPending(periodSelection)
   const clientIds = clientSelection.mode === "all" ? [ALL_CLIENTS_VALUE] : Array.from(clientSelection.ids)
 
-  function toggleClient(id: string) {
-    if (clientSelection.mode === "all") {
-      setClientSelection({ mode: "custom", ids: new Set([id]) })
+  const clientMultiSelectItems = [
+    { value: ALL_CLIENTS_VALUE, label: ALL_CLIENTS_LABEL },
+    ...clients.map((c) => ({ value: c.id, label: c.name, color: c.color })),
+  ]
+
+  function handleClientSelectionChange(next: string[]) {
+    const hadAll = clientIds.includes(ALL_CLIENTS_VALUE)
+    const hasAll = next.includes(ALL_CLIENTS_VALUE)
+    // Picking "Todos os clientes existentes" always resets to "all", clearing any other selection —
+    // it behaves like a radio even though it lives inside a checkbox multi-select.
+    if (hasAll && !hadAll) {
+      setClientSelection({ mode: "all" })
       return
     }
-    const ids = new Set(clientSelection.ids)
-    if (ids.has(id)) {
-      ids.delete(id)
-    } else {
-      ids.add(id)
-    }
+    const ids = new Set(next.filter((v) => v !== ALL_CLIENTS_VALUE))
     setClientSelection(ids.size === 0 ? { mode: "all" } : { mode: "custom", ids })
   }
 
@@ -93,27 +97,14 @@ export function DemandExportForm({ clients, years, monthsByYear }: Props) {
     <div className="max-w-xl space-y-6">
       <div className="space-y-2">
         <Label>Cliente(s)</Label>
-        <Command className="rounded-lg border border-input">
-          <CommandInput placeholder="Buscar cliente..." />
-          <CommandList>
-            <CommandEmpty>Nenhum cliente encontrado.</CommandEmpty>
-            <CommandGroup>
-              <CommandItem value={ALL_CLIENTS_LABEL} data-checked={clientSelection.mode === "all"} onSelect={() => setClientSelection({ mode: "all" })}>
-                {ALL_CLIENTS_LABEL}
-              </CommandItem>
-              {clients.map((c) => (
-                <CommandItem
-                  key={c.id}
-                  value={c.name}
-                  data-checked={clientSelection.mode === "custom" && clientSelection.ids.has(c.id)}
-                  onSelect={() => toggleClient(c.id)}
-                >
-                  {c.name}
-                </CommandItem>
-              ))}
-            </CommandGroup>
-          </CommandList>
-        </Command>
+        <MultiSelect
+          items={clientMultiSelectItems}
+          value={clientIds}
+          onValueChange={handleClientSelectionChange}
+          placeholder="Selecione o(s) cliente(s)"
+          searchPlaceholder="Buscar cliente..."
+          emptyText="Nenhum cliente encontrado."
+        />
       </div>
 
       <div className="space-y-2">

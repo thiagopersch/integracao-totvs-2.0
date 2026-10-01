@@ -11,7 +11,7 @@ function fail(error: unknown) {
 
 /** Snapshots a project's current etapas/campos into a new reusable "modelo" — appears alongside
  *  the static "Padrão Rubeus" templates (`listMapeadorTemplates`) when creating a new project. */
-export async function createMapeadorTemplateModelo(projetoId: string, nome: string) {
+export async function createMapeadorTemplateModelo(projetoId: string, nome: string, definirComoPadrao?: boolean) {
   const { organizationId } = await requirePermission("mapeador_projetos", "read");
   if (!nome.trim()) return fail(new Error("Informe um nome para o modelo"));
 
@@ -19,7 +19,8 @@ export async function createMapeadorTemplateModelo(projetoId: string, nome: stri
     const projeto = await mapeadorService.getProjeto(projetoId, organizationId);
     if (!projeto) return fail(new Error("Projeto não encontrado"));
 
-    const modelo = await mapeadorTemplateService.createFromProjeto(projeto, nome.trim(), organizationId);
+    let modelo = await mapeadorTemplateService.createFromProjeto(projeto, nome.trim(), organizationId);
+    if (definirComoPadrao) modelo = await mapeadorTemplateService.setPadrao(modelo.id, organizationId);
     revalidatePath("/projetos/mapeador");
     return { success: true as const, data: modelo };
   } catch (error) {

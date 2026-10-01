@@ -46,7 +46,7 @@ function EtapaRow({ etapa, index, total, onMove, onDuplicate, onDelete, onFieldB
 
   return (
     <div ref={setNodeRef} style={style} className={cn("mb-3 last:mb-0", isDragging && "opacity-50")}>
-      <AccordionItem value={etapa.id} className="rounded-lg border px-2">
+      <AccordionItem value={etapa.id} className="rounded-lg border px-2 last:border-b">
         <div className="flex flex-wrap items-center gap-2 py-2">
           <button type="button" {...attributes} {...listeners} className="cursor-grab touch-none text-muted-foreground hover:text-foreground active:cursor-grabbing">
             <GripVertical className="h-4 w-4" />

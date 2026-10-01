@@ -69,4 +69,30 @@ export const mapeadorTemplateService = {
     if (!row) throw new Error("Modelo não encontrado");
     return prisma.mapeadorTemplateProjeto.delete({ where: { id } });
   },
+
+  /** Marks this modelo as the org's default for its `nome` — it then replaces the static "Padrão
+   *  Rubeus" template of the same name wherever a new project is created from it (see
+   *  `findPadraoByNomes`, used by mapeadorService.listTemplates/createProjetosFromTemplates). Only
+   *  one modelo per `nome` can be the default, so any sibling is unset first. */
+  async setPadrao(id: string, organizationId: string): Promise<MapeadorTemplateModelo> {
+    const row = await prisma.mapeadorTemplateProjeto.findFirst({ where: { id, organizationId } });
+    if (!row) throw new Error("Modelo não encontrado");
+
+    const [, updated] = await prisma.$transaction([
+      prisma.mapeadorTemplateProjeto.updateMany({
+        where: { organizationId, nome: row.nome, isPadrao: true, id: { not: id } },
+        data: { isPadrao: false },
+      }),
+      prisma.mapeadorTemplateProjeto.update({ where: { id }, data: { isPadrao: true } }),
+    ]);
+    return toModelo(updated);
+  },
+
+  /** Looks up, by `nome`, any org-saved modelo flagged as the default override for a static
+   *  "Padrão Rubeus" template of the same name. */
+  async findPadraoByNomes(nomes: string[], organizationId: string): Promise<Map<string, MapeadorTemplateModelo>> {
+    if (!nomes.length) return new Map();
+    const rows = await prisma.mapeadorTemplateProjeto.findMany({ where: { organizationId, isPadrao: true, nome: { in: nomes } } });
+    return new Map(rows.map((row) => [row.nome, toModelo(row)]));
+  },
 };

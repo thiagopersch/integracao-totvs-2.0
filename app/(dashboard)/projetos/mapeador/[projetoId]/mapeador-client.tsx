@@ -2,9 +2,12 @@
 
 import { useEffect, useRef, useState } from "react"
 import { toast } from "sonner"
-import { ArrowLeft, BookmarkPlus, Download, FileJson, Loader2, MoreVertical, Upload } from "lucide-react"
+import { ArrowLeft, BookmarkPlus, CheckCircle2, Download, FileJson, Loader2, MoreVertical, Upload } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   DropdownMenu,
@@ -16,11 +19,12 @@ import {
   Dialog,
   DialogBody,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { renameMapeadorProjeto, importMapeadorProjeto } from "@/actions/mapeador"
+import { renameMapeadorProjeto, importMapeadorProjeto, listClientesParaMapeador, updateMapeadorProjetoCliente } from "@/actions/mapeador"
 import { createMapeadorTemplateModelo } from "@/actions/mapeador-template"
 import { exportMapeadorProjetoJson, exportMapeadorProjetoXlsx } from "@/actions/mapeador-export"
 import { useMapeadorStore } from "@/store/mapeador.store"
@@ -55,6 +59,14 @@ function downloadText(text: string, fileName: string) {
   URL.revokeObjectURL(url)
 }
 
+interface ClienteOption {
+  id: string
+  name: string
+  color: string
+}
+
+type FinalizarStep = "closed" | "pergunta" | "cliente" | "destino"
+
 interface MapeadorClientProps {
   initialProjeto: MapeadorProjetoDTO
 }
@@ -70,12 +82,21 @@ export function MapeadorClient({ initialProjeto }: MapeadorClientProps) {
   const [exporting, setExporting] = useState<"json" | "xlsx" | null>(null)
   const [saveModeloOpen, setSaveModeloOpen] = useState(false)
   const [modeloNome, setModeloNome] = useState("")
+  const [modeloComoPadrao, setModeloComoPadrao] = useState(false)
   const [savingModelo, setSavingModelo] = useState(false)
+  const [finalizarStep, setFinalizarStep] = useState<FinalizarStep>("closed")
+  const [clientes, setClientes] = useState<ClienteOption[]>([])
+  const [finalizarClienteId, setFinalizarClienteId] = useState<string | null>(null)
+  const [savingFinalizar, setSavingFinalizar] = useState(false)
 
   useEffect(() => {
     hydrate(initialProjeto)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialProjeto.id])
+
+  useEffect(() => {
+    listClientesParaMapeador().then((data) => setClientes(data as ClienteOption[]))
+  }, [])
 
   const debouncedNome = useDebounce(projeto?.nome ?? "", 600)
   const firstRenameRun = useRef(true)
@@ -123,14 +144,48 @@ export function MapeadorClient({ initialProjeto }: MapeadorClientProps) {
     if (!modeloNome.trim()) return
     setSavingModelo(true)
     try {
-      const result = await createMapeadorTemplateModelo(projeto!.id, modeloNome)
+      const result = await createMapeadorTemplateModelo(projeto!.id, modeloNome, modeloComoPadrao)
       if (!result.success) return toast.error(result.error || "Erro ao salvar modelo")
-      toast.success(`Modelo "${result.data.nome}" salvo — disponível ao criar um novo projeto`)
+      toast.success(
+        modeloComoPadrao
+          ? `Modelo "${result.data.nome}" definido como padrão para novos projetos`
+          : `Modelo "${result.data.nome}" salvo — disponível ao criar um novo projeto`
+      )
       setSaveModeloOpen(false)
       setModeloNome("")
+      setModeloComoPadrao(false)
     } finally {
       setSavingModelo(false)
     }
+  }
+
+  function openFinalizar() {
+    setFinalizarClienteId(null)
+    setFinalizarStep("pergunta")
+  }
+
+  async function handleFinalizarCliente() {
+    if (!finalizarClienteId) return
+    setSavingFinalizar(true)
+    try {
+      const result = await updateMapeadorProjetoCliente(projeto!.id, finalizarClienteId)
+      if (!result.success) return toast.error(result.error || "Erro ao definir o cliente")
+      const cliente = clientes.find((c) => c.id === finalizarClienteId)
+      toast.success(cliente ? `Projeto vinculado ao cliente "${cliente.name}"` : "Cliente definido")
+      setFinalizarStep("closed")
+    } finally {
+      setSavingFinalizar(false)
+    }
+  }
+
+  function handleFinalizarRascunho() {
+    toast.success("Projeto mantido como rascunho")
+    setFinalizarStep("closed")
+  }
+
+  function handleFinalizarModelo() {
+    setFinalizarStep("closed")
+    setSaveModeloOpen(true)
   }
 
   return (
@@ -165,6 +220,9 @@ export function MapeadorClient({ initialProjeto }: MapeadorClientProps) {
               e.target.value = ""
             }}
           />
+          <Button variant="outline" onClick={openFinalizar}>
+            <CheckCircle2 className="h-4 w-4" /> Finalizar
+          </Button>
           <DropdownMenu>
             <DropdownMenuTrigger
               render={
@@ -200,6 +258,15 @@ export function MapeadorClient({ initialProjeto }: MapeadorClientProps) {
                 Salva a estrutura atual de etapas e campos como um modelo reutilizável, disponível ao criar um novo projeto.
               </p>
               <Input value={modeloNome} onChange={(e) => setModeloNome(e.target.value)} placeholder="Nome do modelo" autoFocus />
+              <Label className="mt-3 flex items-center gap-2 font-normal">
+                <Checkbox checked={modeloComoPadrao} onCheckedChange={(v) => setModeloComoPadrao(!!v)} />
+                Definir como modelo padrão para &quot;{modeloNome || projeto.nome}&quot;
+              </Label>
+              {modeloComoPadrao && (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Passa a ser usado no lugar do template &quot;Padrão Rubeus&quot; de mesmo nome para os próximos projetos criados.
+                </p>
+              )}
             </DialogBody>
             <DialogFooter>
               <Button variant="outline" onClick={() => setSaveModeloOpen(false)} disabled={savingModelo}>
@@ -209,6 +276,79 @@ export function MapeadorClient({ initialProjeto }: MapeadorClientProps) {
                 {savingModelo && <Loader2 className="h-4 w-4 animate-spin" />} Salvar modelo
               </Button>
             </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={finalizarStep !== "closed"} onOpenChange={(open) => !open && setFinalizarStep("closed")}>
+          <DialogContent>
+            {finalizarStep === "pergunta" && (
+              <>
+                <DialogHeader>
+                  <DialogTitle>Finalizar layout</DialogTitle>
+                  <DialogDescription>Este layout é para um cliente específico?</DialogDescription>
+                </DialogHeader>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setFinalizarStep("destino")}>
+                    Não
+                  </Button>
+                  <Button onClick={() => setFinalizarStep("cliente")}>Sim</Button>
+                </DialogFooter>
+              </>
+            )}
+
+            {finalizarStep === "cliente" && (
+              <>
+                <DialogHeader>
+                  <DialogTitle>Selecione o cliente</DialogTitle>
+                </DialogHeader>
+                <DialogBody>
+                  <Select
+                    items={clientes.map((c) => ({ value: c.id, label: c.name }))}
+                    value={finalizarClienteId}
+                    onValueChange={(v) => setFinalizarClienteId(v as string)}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Selecione um cliente" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {clientes.map((c) => (
+                        <SelectItem key={c.id} value={c.id}>
+                          {c.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </DialogBody>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setFinalizarStep("pergunta")} disabled={savingFinalizar}>
+                    Voltar
+                  </Button>
+                  <Button onClick={handleFinalizarCliente} disabled={savingFinalizar || !finalizarClienteId}>
+                    {savingFinalizar && <Loader2 className="h-4 w-4 animate-spin" />} Confirmar
+                  </Button>
+                </DialogFooter>
+              </>
+            )}
+
+            {finalizarStep === "destino" && (
+              <>
+                <DialogHeader>
+                  <DialogTitle>Finalizar layout</DialogTitle>
+                  <DialogDescription>Como você quer guardar este layout?</DialogDescription>
+                </DialogHeader>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setFinalizarStep("pergunta")}>
+                    Voltar
+                  </Button>
+                  <Button variant="outline" onClick={handleFinalizarRascunho}>
+                    Salvar como rascunho
+                  </Button>
+                  <Button onClick={handleFinalizarModelo}>
+                    <BookmarkPlus className="h-4 w-4" /> Salvar como modelo
+                  </Button>
+                </DialogFooter>
+              </>
+            )}
           </DialogContent>
         </Dialog>
 

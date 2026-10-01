@@ -18,7 +18,7 @@ export function CollapsibleSection({ title, description, defaultOpen = true, chi
   return (
     <Card>
       <CardHeader
-        className="cursor-pointer select-none flex-row items-center justify-between space-y-0"
+        className="flex cursor-pointer select-none items-center justify-between gap-4 space-y-0"
         onClick={() => setOpen((v) => !v)}
       >
         <div>

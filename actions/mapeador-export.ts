@@ -89,6 +89,7 @@ export async function exportMapeadorPrototipoHtml(id: string, gerarPara: "atual"
       detalhesTitulo: projeto.prototipoConfig.detalhesInscricao?.titulo,
       minhasInscricoesLabel: projeto.prototipoConfig.detalhesInscricao?.minhasInscricoesLabel,
       detalhesCampos: projeto.prototipoConfig.detalhesInscricao?.campos,
+      textos: projeto.prototipoConfig.textos,
     });
 
     return { success: true as const, html, fileName: `${projeto.nome.toLowerCase().replace(/\s+/g, "-")}-prototipo.html` };

@@ -79,6 +79,10 @@ export const mapeadorService = {
     return prisma.mapeadorProjeto.update({ where: { id, organizationId }, data: { nome } });
   },
 
+  async updateCliente(id: string, clienteId: string | null, organizationId: string) {
+    return prisma.mapeadorProjeto.update({ where: { id, organizationId }, data: { clienteId } });
+  },
+
   async softDeleteProjeto(id: string, organizationId: string) {
     return prisma.mapeadorProjeto.update({ where: { id, organizationId }, data: { deletedAt: new Date() } });
   },
@@ -199,13 +203,24 @@ export const mapeadorService = {
   },
 
   async listTemplates(organizationId: string): Promise<MapeadorTemplateSummary[]> {
-    const rubeus: MapeadorTemplateSummary[] = MAPEADOR_RUBEUS_TEMPLATES.map((t) => ({
-      id: t.id,
-      nome: t.nome,
-      etapasCount: t.etapas.length,
-      itensCount: t.etapas.reduce((sum, e) => sum + e.camposPorEtapa.reduce((s, p) => s + flattenCampos(p.campos).length, 0), 0),
-      origem: "rubeus" as const,
-    }));
+    const padroes = await mapeadorTemplateService.findPadraoByNomes(
+      MAPEADOR_RUBEUS_TEMPLATES.map((t) => t.nome),
+      organizationId
+    );
+    // When the org saved a modelo as the default for a "Padrão Rubeus" nome (see
+    // mapeadorTemplateService.setPadrao), its content silently replaces the static JSON template of
+    // the same name — same id/origem, so the selection UI doesn't change, just what gets created.
+    const rubeus: MapeadorTemplateSummary[] = MAPEADOR_RUBEUS_TEMPLATES.map((t) => {
+      const override = padroes.get(t.nome);
+      const etapas = override?.etapas ?? t.etapas;
+      return {
+        id: t.id,
+        nome: t.nome,
+        etapasCount: etapas.length,
+        itensCount: etapas.reduce((sum, e) => sum + e.camposPorEtapa.reduce((s, p) => s + flattenCampos(p.campos).length, 0), 0),
+        origem: "rubeus" as const,
+      };
+    });
     const modelos = await mapeadorTemplateService.listSummaries(organizationId);
     return [...rubeus, ...modelos];
   },
@@ -215,7 +230,10 @@ export const mapeadorService = {
     for (const templateId of templateIds) {
       // Static "Padrão Rubeus" templates are checked first (fixed slug ids, e.g.
       // "vestibular-presencial"); anything else is looked up as a user-saved modelo (UUID id).
-      const template = getMapeadorTemplate(templateId) ?? (await mapeadorTemplateService.get(templateId, organizationId));
+      const staticTemplate = getMapeadorTemplate(templateId);
+      const template = staticTemplate
+        ? ((await mapeadorTemplateService.findPadraoByNomes([staticTemplate.nome], organizationId)).get(staticTemplate.nome) ?? staticTemplate)
+        : await mapeadorTemplateService.get(templateId, organizationId);
       if (!template) continue;
 
       const projeto = await prisma.mapeadorProjeto.create({

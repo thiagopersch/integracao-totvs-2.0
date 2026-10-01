@@ -51,8 +51,10 @@ export function renderPrototipoHtml(
     detalhesTitulo?: string;
     minhasInscricoesLabel?: string;
     detalhesCampos?: MapeadorDetalheCampo[];
+    textos?: Record<string, string>;
   }
 ) {
+  const textos = options.textos ?? {};
   const detalhesTitulo = options.detalhesTitulo || "Detalhes da inscrição";
   const minhasInscricoesLabel = options.minhasInscricoesLabel || "Minhas inscrições";
   const detalhesCampos = options.detalhesCampos?.length ? options.detalhesCampos : DEFAULT_DETALHES_CAMPOS;
@@ -109,6 +111,8 @@ const BG = ${JSON.stringify(bg)};
 const LOGO = ${JSON.stringify(options.logoUrl || "")};
 const DETALHES_TITULO = ${JSON.stringify(detalhesTitulo)};
 const MINHAS_INSCRICOES_LABEL = ${JSON.stringify(minhasInscricoesLabel)};
+const TEXTOS = ${JSON.stringify(textos)};
+function tx(key, fallback){ return TEXTOS[key] || fallback; }
 const DETALHES_ROWS = ${JSON.stringify(detalhesRows)};
 const screens = [{kind:"landing"}];
 DATA.forEach((projeto, pi) => {
@@ -234,17 +238,17 @@ function fieldHtml(c, path){
 function render(){
   const s = screens[current];
   const el = document.getElementById('screen');
-  const brandMark = LOGO ? '<img src="'+LOGO+'" style="height:32px">' : '<span class="p-brand">EXEMPLO</span>';
-  const topbar = '<div class="p-topbar">'+brandMark+'<button class="p-login">LOGIN</button></div>';
-  const topbarProfile = '<div class="p-topbar">'+brandMark+'<button class="p-profile">Pedro ▾</button></div>';
+  const brandMark = LOGO ? '<img src="'+LOGO+'" style="height:32px">' : '<span class="p-brand">'+esc(tx('brand.fallback','EXEMPLO'))+'</span>';
+  const topbar = '<div class="p-topbar">'+brandMark+'<button class="p-login">'+esc(tx('btn.login','LOGIN'))+'</button></div>';
+  const topbarProfile = '<div class="p-topbar">'+brandMark+'<button class="p-profile">'+esc(tx('portal.perfilNome','Pedro'))+' ▾</button></div>';
 
   if (s.kind === 'landing') {
     const opts = DATA.map((p,i)=>'<option value="'+i+'">'+esc(p.nome)+'</option>').join('');
     el.innerHTML = topbar + '<div style="min-height:420px;display:flex;align-items:center;padding:40px;background:linear-gradient(rgba(0,0,0,.4),rgba(0,0,0,.4)),url('+BG+') center/cover">'
-      + '<div style="max-width:420px;color:#fff"><h2 style="font-size:24px;margin-bottom:16px">Escolha o processo seletivo</h2>'
-      + '<label class="p-lbl" style="color:#fff">Selecione uma opção *</label>'
+      + '<div style="max-width:420px;color:#fff"><h2 style="font-size:24px;margin-bottom:16px">'+esc(tx('landing.titulo','Escolha o processo seletivo'))+'</h2>'
+      + '<label class="p-lbl" style="color:#fff">'+esc(tx('landing.selectLabel','Selecione uma opção *'))+'</label>'
       + '<select class="p-ctl" style="background:#fff;margin-bottom:16px">'+opts+'</select>'
-      + '<div><button class="p-btn solid" id="landing-next">AVANÇAR</button></div></div></div>';
+      + '<div><button class="p-btn solid" id="landing-next">'+esc(tx('btn.avancar','AVANÇAR'))+'</button></div></div></div>';
     document.getElementById('landing-next').onclick = () => go(current+1);
     return;
   }
@@ -264,7 +268,7 @@ function render(){
       + '<div class="p-card"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px"><div class="p-card-value">'+esc(DETALHES_TITULO)+'</div></div>'+detalhes+'</div>'
       + '</div>'
       + '<div class="p-card" style="min-width:280px;flex:1;padding:0;overflow:hidden">'
-      + '<div style="background:var(--brand);padding:16px;text-align:center;font-weight:600;color:#fff;font-size:14px">Acompanhe aqui o status da sua inscrição</div>'
+      + '<div style="background:var(--brand);padding:16px;text-align:center;font-weight:600;color:#fff;font-size:14px">'+esc(tx('portal.titulo','Acompanhe aqui o status da sua inscrição'))+'</div>'
       + '<div style="padding:20px">'
       + done.map((e, index) => {
           const fb = pickFeedback(e);
@@ -279,7 +283,7 @@ function render(){
           const subStyle = isPositivo ? 'color:rgba(255,255,255,.85)' : 'color:#8a8a95';
           return '<div class="p-status-row" style="'+rowStyle+'"><span class="p-status-ic" style="'+icStyle+'">'+icone+'</span><div><div class="p-card-value" style="'+titleStyle+'">'+esc(e.nome)+'</div><div style="font-size:12px;font-style:italic;'+subStyle+'">'+esc(label)+'</div></div></div>';
         }).join('')
-      + (next ? '<div class="p-status-row" style="justify-content:space-between"><div style="display:flex;align-items:center;gap:12px"><span class="p-status-ic">!</span><div><div class="p-card-value">'+esc(next.nome)+'</div><div style="font-size:12px;font-style:italic;color:#8a8a95">Aguardando conclusão</div></div></div><button class="p-btn ghost" id="portal-next" style="border:1px solid var(--brand)">Acessar</button></div>' : '')
+      + (next ? '<div class="p-status-row" style="justify-content:space-between"><div style="display:flex;align-items:center;gap:12px"><span class="p-status-ic">!</span><div><div class="p-card-value">'+esc(next.nome)+'</div><div style="font-size:12px;font-style:italic;color:#8a8a95">'+esc(tx('portal.statusAguardando','Aguardando conclusão'))+'</div></div></div><button class="p-btn ghost" id="portal-next" style="border:1px solid var(--brand)">'+esc(tx('portal.btnAcessarPadrao','Acessar'))+'</button></div>' : '')
       + '</div></div></div>';
     const btn = document.getElementById('portal-next');
     if (btn) btn.onclick = () => go(current+1);
@@ -289,8 +293,8 @@ function render(){
   const passo = etapa.passos[s.si];
   const steps = etapa.passos.map((p,i)=>{
     if (p.tipo === 'popup') return '';
-    const status = i<s.si?'Concluído':(i===s.si?'Aguardando conclusão':'Pendente');
-    return '<li'+(i>s.si?' style="opacity:.45"':'')+'><span class="ic'+(i<s.si?' done':'')+'">'+(i<s.si?'✓':(i+1))+'</span><div><div class="nm">'+esc(p.titulo)+'</div><div class="st">'+status+'</div></div></li>';
+    const status = i<s.si?tx('portal.statusConcluido','Concluído'):(i===s.si?tx('portal.statusAguardando','Aguardando conclusão'):tx('portal.statusPendente','Pendente'));
+    return '<li'+(i>s.si?' style="opacity:.45"':'')+'><span class="ic'+(i<s.si?' done':'')+'">'+(i<s.si?'✓':(i+1))+'</span><div><div class="nm">'+esc(p.titulo)+'</div><div class="st">'+esc(status)+'</div></div></li>';
   }).join('');
 
   if (!passo) {
@@ -309,7 +313,7 @@ function render(){
         else attrs = ' data-nav="'+(isVoltar?'prev':'next')+'"';
         return '<button class="p-btn '+(isVoltar?'ghost':'solid')+'"'+attrs+'>'+esc(b.label.toUpperCase())+'</button>';
       }).join('')
-    : (passo.ocultarBotaoAvancar ? '' : '<button class="p-btn solid" data-nav="next" style="margin-left:auto">AVANÇAR</button>');
+    : (passo.ocultarBotaoAvancar ? '' : '<button class="p-btn solid" data-nav="next" style="margin-left:auto">'+esc(tx('btn.avancar','AVANÇAR'))+'</button>');
 
   el.innerHTML = topbar + '<div class="p-body"><div class="p-side" style="background-image:url('+BG+')"><div class="proc">'+esc(projeto.nome)+'</div><div class="etapa">'+esc(etapa.nome)+'</div><ul class="p-stepper">'+steps+'</ul></div>'
     + '<div class="p-main"><h2 class="p-h1">'+esc(passo.titulo)+'</h2><div class="p-grid">'+fields+'</div><div class="p-actions">'+botoesHtml+'</div></div></div>';

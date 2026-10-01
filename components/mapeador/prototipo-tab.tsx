@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react"
 import { toast } from "sonner"
 import { Download, ExternalLink, FileText, Loader2, Pencil, Ruler, TriangleAlert } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
+import { CollapsibleSection } from "@/components/mapeador/collapsible-section"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -292,8 +293,7 @@ export function PrototipoTab() {
             )}
           </div>
 
-          <div>
-            <p className="mb-2 text-xs font-semibold uppercase text-muted-foreground">Detalhes da inscrição</p>
+          <CollapsibleSection title="Detalhes da inscrição" defaultOpen>
             <div className="flex flex-wrap items-end gap-4">
               <div className="min-w-[220px] flex-1 space-y-1">
                 <Label className="text-xs text-muted-foreground">Label da lista de inscrições</Label>
@@ -318,7 +318,7 @@ export function PrototipoTab() {
                 onChange={(campos) => handleDetalhesInscricaoChange({ campos })}
               />
             </div>
-          </div>
+          </CollapsibleSection>
 
           <div>
             <p className="mb-2 text-xs font-semibold uppercase text-muted-foreground">Aparência</p>

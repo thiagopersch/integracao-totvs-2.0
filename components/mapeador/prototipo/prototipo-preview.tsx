@@ -420,6 +420,7 @@ export function PrototipoPreview({
           <button
             key={campo.id}
             className={cn("p-btn", isVoltarButton(campo.label) ? "ghost" : "solid")}
+            disabled={adjustMode}
             onClick={() => {
               if (campo.acaoBotao === "popup" && campo.popupPassoId) return setPopupPassoId(campo.popupPassoId)
               if (campo.acaoBotao === "download") {
@@ -586,7 +587,7 @@ export function PrototipoPreview({
         onPickLargura={(l) => onLarguraChange(campo.id, l)}
         onToggleNovaLinha={(n) => onNovaLinhaChange(campo.id, n)}
       >
-        {content}
+        <div className="pointer-events-none">{content}</div>
       </WidthPicker>
     ) : (
       content
@@ -617,9 +618,20 @@ export function PrototipoPreview({
     return (
       <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
         <div className="p-topbar">
-          {logoUrl ? <img src={logoUrl} alt="Logo" className="h-8" /> : <span className="p-brand">EXEMPLO</span>}
-          <button className="p-login" onClick={() => setLoginOpen(true)}>
-            LOGIN
+          {logoUrl ? (
+            <img src={logoUrl} alt="Logo" className="h-8" />
+          ) : (
+            <EditableText id="brand.fallback" value={t("brand.fallback", "EXEMPLO")} editing={editingTextos} onChange={onTextoChange} className="p-brand" />
+          )}
+          <button
+            className="p-login"
+            disabled={adjustMode}
+            onClick={() => {
+              if (editingTextos) return
+              setLoginOpen(true)
+            }}
+          >
+            <EditableText id="btn.login" value={t("btn.login", "LOGIN")} editing={editingTextos} onChange={onTextoChange} />
           </button>
         </div>
         <div
@@ -627,9 +639,13 @@ export function PrototipoPreview({
           style={{ backgroundImage: `linear-gradient(rgba(0,0,0,.4),rgba(0,0,0,.4)), url(${bg})`, backgroundSize: "cover", backgroundPosition: "center" }}
         >
           <div className="mx-auto max-w-md text-white">
-            <h2 className="mb-4 text-2xl font-bold">Escolha o processo seletivo</h2>
-            <label className="p-lbl !text-white text-left block">Selecione uma opção *</label>
-            <select className="p-ctl mb-4" style={{ background: "#fff" }} disabled={projetos.length <= 1} defaultValue={projetos[0]?.id}>
+            <h2 className="mb-4 text-2xl font-bold">
+              <EditableText id="landing.titulo" value={t("landing.titulo", "Escolha o processo seletivo")} editing={editingTextos} onChange={onTextoChange} />
+            </h2>
+            <label className="p-lbl !text-white text-left block">
+              <EditableText id="landing.selectLabel" value={t("landing.selectLabel", "Selecione uma opção *")} editing={editingTextos} onChange={onTextoChange} />
+            </label>
+            <select className="p-ctl mb-4" style={{ background: "#fff" }} disabled={adjustMode || projetos.length <= 1} defaultValue={projetos[0]?.id}>
               {projetos.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.nome}
@@ -637,8 +653,15 @@ export function PrototipoPreview({
               ))}
             </select>
             <div>
-              <button className="p-btn solid" onClick={onAdvanceFromPortal}>
-                {t("btn.avancar", "AVANÇAR")}
+              <button
+                className="p-btn solid"
+                disabled={adjustMode}
+                onClick={() => {
+                  if (editingTextos) return
+                  onAdvanceFromPortal()
+                }}
+              >
+                <EditableText id="btn.avancar" value={t("btn.avancar", "AVANÇAR")} editing={editingTextos} onChange={onTextoChange} />
               </button>
             </div>
           </div>
@@ -658,9 +681,13 @@ export function PrototipoPreview({
     return (
       <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
         <div className="p-topbar">
-          {logoUrl ? <img src={logoUrl} alt="Logo" className="h-8" /> : <span className="p-brand">EXEMPLO</span>}
-          <button className="p-profile">
-            Pedro <ChevronDown className="h-3.5 w-3.5" />
+          {logoUrl ? (
+            <img src={logoUrl} alt="Logo" className="h-8" />
+          ) : (
+            <EditableText id="brand.fallback" value={t("brand.fallback", "EXEMPLO")} editing={editingTextos} onChange={onTextoChange} className="p-brand" />
+          )}
+          <button className="p-profile" disabled={adjustMode}>
+            <EditableText id="portal.perfilNome" value={t("portal.perfilNome", "Pedro")} editing={editingTextos} onChange={onTextoChange} /> <ChevronDown className="h-3.5 w-3.5" />
           </button>
         </div>
         <div className="p-portal overflow-y-auto" style={{ backgroundImage: `url(${bg})` }}>
@@ -675,8 +702,9 @@ export function PrototipoPreview({
             <div className="p-card">
               <div className="mb-3 flex items-center justify-between">
                 <div className="p-card-value">{detalhesTitulo}</div>
-                <button className="p-btn ghost !shadow-none !bg-white border !px-2.5 !py-1.5 !text-xs">
-                  <Pencil className="mr-1 inline h-3 w-3" /> Editar
+                <button className="p-btn ghost !shadow-none !bg-white border !px-2.5 !py-1.5 !text-xs" disabled={adjustMode}>
+                  <Pencil className="mr-1 inline h-3 w-3" />{" "}
+                  <EditableText id="portal.editarDetalhes" value={t("portal.editarDetalhes", "Editar")} editing={editingTextos} onChange={onTextoChange} />
                 </button>
               </div>
               {detalhesCampos.map((c) => (
@@ -726,13 +754,24 @@ export function PrototipoPreview({
                     <div>
                       <div className="p-card-value">{nextEtapa.nome}</div>
                       <StatusRowTooltip etapa={nextEtapa}>
-                        <div className="text-xs italic text-muted-foreground">Aguardando conclusão</div>
+                        <div className="text-xs italic text-muted-foreground">
+                          <EditableText id="portal.statusAguardando" value={t("portal.statusAguardando", "Aguardando conclusão")} editing={editingTextos} onChange={onTextoChange} />
+                        </div>
                       </StatusRowTooltip>
                     </div>
                   </div>
                   {(feedbackPositivo?.botaoNoPortal ?? true) && (
-                    <button className="p-btn ghost !shadow-none !bg-white border border-[var(--brand)]" onClick={onAdvanceFromPortal}>
-                      {feedbackPositivo?.botaoLabel || "Acessar"}
+                    <button
+                      className="p-btn ghost !shadow-none !bg-white border border-[var(--brand)]"
+                      disabled={adjustMode}
+                      onClick={() => {
+                        if (editingTextos) return
+                        onAdvanceFromPortal()
+                      }}
+                    >
+                      {feedbackPositivo?.botaoLabel || (
+                        <EditableText id="portal.btnAcessarPadrao" value={t("portal.btnAcessarPadrao", "Acessar")} editing={editingTextos} onChange={onTextoChange} />
+                      )}
                     </button>
                   )}
                 </div>
@@ -750,9 +789,20 @@ export function PrototipoPreview({
   return (
     <div ref={formRootRef} className="flex min-h-0 flex-1 flex-col overflow-y-auto">
       <div className="p-topbar">
-        {logoUrl ? <img src={logoUrl} alt="Logo" className="h-8" /> : <span className="p-brand">EXEMPLO</span>}
-        <button className="p-login" onClick={() => setLoginOpen(true)}>
-          LOGIN
+        {logoUrl ? (
+          <img src={logoUrl} alt="Logo" className="h-8" />
+        ) : (
+          <EditableText id="brand.fallback" value={t("brand.fallback", "EXEMPLO")} editing={editingTextos} onChange={onTextoChange} className="p-brand" />
+        )}
+        <button
+          className="p-login"
+          disabled={adjustMode}
+          onClick={() => {
+            if (editingTextos) return
+            setLoginOpen(true)
+          }}
+        >
+          <EditableText id="btn.login" value={t("btn.login", "LOGIN")} editing={editingTextos} onChange={onTextoChange} />
         </button>
       </div>
       <div className="p-body">
@@ -766,7 +816,15 @@ export function PrototipoPreview({
                   <span className={cn("ic", i < screen.passoIndex && "done")}>{i < screen.passoIndex ? "✓" : i + 1}</span>
                   <div>
                     <div className="nm">{p.titulo}</div>
-                    <div className="st">{i < screen.passoIndex ? "Concluído" : i === screen.passoIndex ? "Aguardando conclusão" : "Pendente"}</div>
+                    <div className="st">
+                      {i < screen.passoIndex ? (
+                        <EditableText id="portal.statusConcluido" value={t("portal.statusConcluido", "Concluído")} editing={editingTextos} onChange={onTextoChange} />
+                      ) : i === screen.passoIndex ? (
+                        <EditableText id="portal.statusAguardando" value={t("portal.statusAguardando", "Aguardando conclusão")} editing={editingTextos} onChange={onTextoChange} />
+                      ) : (
+                        <EditableText id="portal.statusPendente" value={t("portal.statusPendente", "Pendente")} editing={editingTextos} onChange={onTextoChange} />
+                      )}
+                    </div>
                   </div>
                 </li>
               )
@@ -783,8 +841,15 @@ export function PrototipoPreview({
                   passo.campos.filter((c) => c.tipo === "botao").map(renderCampo)
                 ) : (
                   !passo.ocultarBotaoAvancar && (
-                    <button className="p-btn solid ml-auto" onClick={() => onBotaoClick({ id: "__auto__", tipo: "botao", label: t("btn.avancar", "Avançar") })}>
-                      {t("btn.avancar", "AVANÇAR")}
+                    <button
+                      className="p-btn solid ml-auto"
+                      disabled={adjustMode}
+                      onClick={() => {
+                        if (editingTextos) return
+                        onBotaoClick({ id: "__auto__", tipo: "botao", label: t("btn.avancar", "Avançar") })
+                      }}
+                    >
+                      <EditableText id="btn.avancar" value={t("btn.avancar", "AVANÇAR")} editing={editingTextos} onChange={onTextoChange} />
                     </button>
                   )
                 )}
