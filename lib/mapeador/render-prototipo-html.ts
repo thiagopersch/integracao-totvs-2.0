@@ -10,6 +10,10 @@ interface MappedCampo {
   alinhamento?: string;
   cor?: string;
   colunas: { largura: number; campos: MappedCampo[] }[];
+  acaoBotao?: string;
+  popupPassoId?: string | null;
+  downloadNomeArquivo?: string;
+  downloadMensagem?: string;
 }
 
 function mapCampo(c: MapeadorCampo): MappedCampo {
@@ -25,6 +29,10 @@ function mapCampo(c: MapeadorCampo): MappedCampo {
       largura: normalizeLargura(col.largura),
       campos: col.campos.map(mapCampo),
     })),
+    acaoBotao: c.acaoBotao,
+    popupPassoId: c.popupPassoId,
+    downloadNomeArquivo: c.downloadNomeArquivo,
+    downloadMensagem: c.downloadMensagem,
   };
 }
 
@@ -56,7 +64,10 @@ export function renderPrototipoHtml(
       nome: e.nome,
       feedbacks: e.feedbacks.map((f) => ({ feedback: f.feedback, logic: f.logic, tipo: f.tipo })),
       passos: e.camposPorEtapa.map((passo) => ({
+        id: passo.id,
+        tipo: passo.tipo,
         titulo: passo.titulo,
+        ocultarBotaoAvancar: !!passo.ocultarBotaoAvancar,
         campos: passo.campos.map(mapCampo),
       })),
     })),
@@ -74,6 +85,8 @@ export function renderPrototipoHtml(
 body{margin:0;font-family:-apple-system,"system-ui","Segoe UI",Roboto,sans-serif}
 ${prototipoCss(".mapeador-proto")}
 .mapeador-proto{--brand:${options.corMarca || "#0CC1AA"};--bar:${options.corBarra || "#0AA392"};}
+.p-modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;z-index:50;padding:20px}
+.p-modal{background:#fff;border-radius:10px;padding:24px;max-width:480px;width:100%;max-height:85vh;overflow-y:auto;box-shadow:0 20px 50px rgba(0,0,0,.3)}
 </style>
 </head>
 <body>
@@ -85,6 +98,10 @@ ${prototipoCss(".mapeador-proto")}
     <button id="next">▶</button>
     <span class="cnt" id="cnt"></span>
   </div>
+  <div id="modal-overlay" class="p-modal-overlay" style="display:none">
+    <div class="p-modal" id="modal-content"></div>
+  </div>
+  <div id="download-toast" class="p-download-toast" style="display:none"></div>
 </div>
 <script>
 const DATA = ${JSON.stringify(data)};
@@ -96,8 +113,9 @@ const DETALHES_ROWS = ${JSON.stringify(detalhesRows)};
 const screens = [{kind:"landing"}];
 DATA.forEach((projeto, pi) => {
   projeto.etapas.forEach((etapa, ei) => {
-    if (etapa.passos.length === 0) screens.push({kind:"form", pi, ei, si:0});
-    etapa.passos.forEach((_, si) => screens.push({kind:"form", pi, ei, si}));
+    const naoPopup = etapa.passos.filter(p => p.tipo !== 'popup');
+    if (naoPopup.length === 0) screens.push({kind:"form", pi, ei, si:0});
+    etapa.passos.forEach((p, si) => { if (p.tipo !== 'popup') screens.push({kind:"form", pi, ei, si}); });
     screens.push({kind:"portal", pi, ei});
   });
 });
@@ -105,6 +123,45 @@ let current = 0;
 const values = {};
 
 function esc(s){ const d=document.createElement('div'); d.textContent = s==null?'':String(s); return d.innerHTML; }
+
+function findPasso(passoId){
+  for (const p of DATA) for (const e of p.etapas) { const found = e.passos.find(ps => ps.id === passoId); if (found) return found; }
+  return null;
+}
+
+function showModal(html){
+  document.getElementById('modal-content').innerHTML = html;
+  document.getElementById('modal-overlay').style.display = 'flex';
+}
+function hideModal(){
+  document.getElementById('modal-overlay').style.display = 'none';
+}
+document.getElementById('modal-overlay').addEventListener('click', (e) => { if (e.target.id === 'modal-overlay') hideModal(); });
+
+function openPopup(passoId){
+  const passo = findPasso(passoId);
+  if (!passo) return;
+  const fields = passo.campos.filter(c=>c.tipo!=='botao').map((c,i)=>fieldHtml(c, 'popup.'+passoId+'.'+i)).join('');
+  showModal('<h3 style="margin:0 0 16px;font-size:18px;font-weight:700">'+esc(passo.titulo||'Pop-up')+'</h3><div class="p-grid">'+fields+'</div><div style="margin-top:20px;text-align:right"><button class="p-btn solid" onclick="hideModal()">Fechar</button></div>');
+}
+
+function showDownloadToast(nome){
+  const toast = document.getElementById('download-toast');
+  toast.innerHTML = '<div class="hdr"><span>Histórico de downloads recentes</span><button type="button" class="close" onclick="hideDownloadToast()">✕</button></div>'
+    + '<div class="row"><span class="ic">📄</span><div class="p-upload-txt"><button type="button" class="nm" onclick="openDocPreview(this.textContent)">'+esc(nome)+'</button><div class="meta">1 MB · Concluído</div></div></div>'
+    + '<a class="link" href="#" onclick="return false">Histórico completo de downloads ↗</a>';
+  toast.style.display = 'block';
+}
+function hideDownloadToast(){
+  document.getElementById('download-toast').style.display = 'none';
+}
+function openDocPreview(nome){
+  showModal('<h3 style="margin:0 0 16px;font-size:18px;font-weight:700">'+esc(nome)+'</h3><div class="p-doc-preview"><div class="banner">Documento ilustrativo — sem valor fiscal, gerado só para demonstração</div><div class="linha" style="width:60%"></div><div class="linha"></div><div class="linha"></div><div class="linha" style="width:40%"></div></div><div style="margin-top:20px;text-align:right"><button class="p-btn solid" onclick="hideModal()">Fechar</button></div>');
+}
+function simulateDownload(nome, mensagem){
+  showDownloadToast(nome);
+  showModal('<h3 style="margin:0 0 8px;font-size:18px;font-weight:700">'+esc(mensagem)+'</h3><p style="font-size:14px;color:#6b6b7b;margin:0 0 20px">Download realizado com sucesso, caso precise, você poderá voltar e baixar novamente.</p><div style="text-align:right"><button class="p-btn solid" onclick="hideModal();go(current+1)">PORTAL DO CANDIDATO</button></div>');
+}
 
 function fieldHtml(c, path){
   const req = c.obrigatorio ? '<span class="p-req">*</span>' : '';
@@ -153,18 +210,25 @@ function fieldHtml(c, path){
       inner = '<div class="p-fld"><label class="p-lbl">'+esc(c.label)+' '+req+'</label><input type="date" class="p-ctl" data-k="'+path+'"></div>';
       break;
     case 'documento_upload':
-      inner = '<div class="p-fld"><label class="p-lbl">'+esc(c.label)+' '+req+'</label><input type="file" class="p-ctl"></div>';
+      inner = '<label class="p-upload"><span class="p-upload-icon">📄</span>'
+        + '<span class="p-upload-txt"><span class="nm">'+esc(c.label.toUpperCase())+' '+req+'</span><div class="fname" style="font-size:12px;color:#8a8a95"></div></span>'
+        + '<span class="p-upload-btn">⬆ Anexar</span>'
+        + '<input type="file" class="sr-only" data-upload="'+path+'"></label>';
       break;
     case 'pagamento_valor':
       inner = '<div class="p-money"><div class="p-mlbl">'+esc(c.label)+'</div><div class="p-mval">R$ 50,00</div></div>';
       break;
     case 'pagamento_formas':
-      inner = '<div class="p-fld"><label class="p-lbl">'+esc(c.label)+'</label><div class="p-radios">'+['Boleto','Pix','Cartão de crédito'].map(o=>'<label class="p-radio"><span class="p-dot"></span> '+o+'</label>').join('')+'</div></div>';
+      inner = '<div class="p-fld"><label class="p-lbl">'+esc(c.label)+'</label><div class="p-radios">'+(c.opcoes&&c.opcoes.length?c.opcoes:['Boleto','Pix','Cartão de crédito']).map(o=>'<label class="p-radio"><span class="p-dot"></span> '+esc(o)+'</label>').join('')+'</div></div>';
       break;
     default:
       inner = '<div class="p-fld"><label class="p-lbl">'+esc(c.label)+' '+req+'</label><input class="p-ctl" data-k="'+path+'"></div>';
   }
-  return '<div style="'+widthStyle+'">'+inner+'</div>';
+  const alinhavel = ['divisor','condicional','agrupamento','titulo_pagina','label_destaque','texto_informativo'].indexOf(c.tipo) === -1;
+  const blocoStyle = alinhavel && (c.alinhamento==='center'||c.alinhamento==='right')
+    ? widthStyle+';display:flex;justify-content:'+(c.alinhamento==='center'?'center':'flex-end')
+    : widthStyle;
+  return '<div style="'+blocoStyle+'">'+inner+'</div>';
 }
 
 function render(){
@@ -224,6 +288,7 @@ function render(){
 
   const passo = etapa.passos[s.si];
   const steps = etapa.passos.map((p,i)=>{
+    if (p.tipo === 'popup') return '';
     const status = i<s.si?'Concluído':(i===s.si?'Aguardando conclusão':'Pendente');
     return '<li'+(i>s.si?' style="opacity:.45"':'')+'><span class="ic'+(i<s.si?' done':'')+'">'+(i<s.si?'✓':(i+1))+'</span><div><div class="nm">'+esc(p.titulo)+'</div><div class="st">'+status+'</div></div></li>';
   }).join('');
@@ -236,8 +301,15 @@ function render(){
   const fields = passo.campos.filter(c=>c.tipo!=='botao').map((c,i)=>fieldHtml(c, s.pi+'.'+s.ei+'.'+s.si+'.'+i)).join('');
   const botoes = passo.campos.filter(c=>c.tipo==='botao');
   const botoesHtml = botoes.length
-    ? botoes.map(b => '<button class="p-btn '+(/voltar/i.test(b.label)?'ghost':'solid')+'" data-nav="'+(/voltar/i.test(b.label)?'prev':'next')+'">'+esc(b.label.toUpperCase())+'</button>').join('')
-    : '<button class="p-btn solid" data-nav="next" style="margin-left:auto">AVANÇAR</button>';
+    ? botoes.map(b => {
+        const isVoltar = /voltar/i.test(b.label);
+        let attrs;
+        if (b.acaoBotao === 'popup' && b.popupPassoId) attrs = ' data-popup="'+b.popupPassoId+'"';
+        else if (b.acaoBotao === 'download') attrs = ' data-download="'+esc(b.downloadNomeArquivo||'Documento.pdf')+'" data-download-msg="'+esc(b.downloadMensagem||'Arquivo gerado com sucesso!')+'"';
+        else attrs = ' data-nav="'+(isVoltar?'prev':'next')+'"';
+        return '<button class="p-btn '+(isVoltar?'ghost':'solid')+'"'+attrs+'>'+esc(b.label.toUpperCase())+'</button>';
+      }).join('')
+    : (passo.ocultarBotaoAvancar ? '' : '<button class="p-btn solid" data-nav="next" style="margin-left:auto">AVANÇAR</button>');
 
   el.innerHTML = topbar + '<div class="p-body"><div class="p-side" style="background-image:url('+BG+')"><div class="proc">'+esc(projeto.nome)+'</div><div class="etapa">'+esc(etapa.nome)+'</div><ul class="p-stepper">'+steps+'</ul></div>'
     + '<div class="p-main"><h2 class="p-h1">'+esc(passo.titulo)+'</h2><div class="p-grid">'+fields+'</div><div class="p-actions">'+botoesHtml+'</div></div></div>';
@@ -245,12 +317,25 @@ function render(){
   el.querySelectorAll('[data-nav]').forEach((b) => {
     b.addEventListener('click', () => go(b.getAttribute('data-nav') === 'prev' ? current-1 : current+1));
   });
+  el.querySelectorAll('[data-popup]').forEach((b) => {
+    b.addEventListener('click', () => openPopup(b.getAttribute('data-popup')));
+  });
+  el.querySelectorAll('[data-download]').forEach((b) => {
+    b.addEventListener('click', () => simulateDownload(b.getAttribute('data-download'), b.getAttribute('data-download-msg')));
+  });
 
   el.querySelectorAll('.p-radio, .p-chk').forEach((label) => {
     label.addEventListener('click', () => {
       const input = label.querySelector('input');
       if (input.type === 'radio') { input.checked = true; label.parentElement.querySelectorAll('.p-dot').forEach(d=>d.classList.remove('on')); label.querySelector('.p-dot').classList.add('on'); }
       else { input.checked = !input.checked; label.querySelector('.p-box').classList.toggle('on', input.checked); label.querySelector('.p-box').textContent = input.checked ? '✓' : ''; }
+    });
+  });
+
+  el.querySelectorAll('[data-upload]').forEach((input) => {
+    input.addEventListener('change', () => {
+      const fname = input.closest('.p-upload').querySelector('.fname');
+      fname.textContent = input.files && input.files[0] ? input.files[0].name : '';
     });
   });
 }

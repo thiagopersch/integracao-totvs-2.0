@@ -19,6 +19,8 @@ import { SortableContext, verticalListSortingStrategy, arrayMove } from "@dnd-ki
 import { ArrowDown, ArrowUp, ChevronDown, Plus, Trash2 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { CampoRow } from "@/components/mapeador/campo-row"
 import { cn } from "@/lib/utils"
@@ -166,6 +168,10 @@ export function PassoEditor({ passo, etapas, onChange, onRemove, onMove, canMove
 
       {!collapsed && (
         <>
+          <Label className="mb-2 flex items-center gap-2 text-xs font-normal text-muted-foreground">
+            <Checkbox checked={!!passo.ocultarBotaoAvancar} onCheckedChange={(v) => onChange({ ocultarBotaoAvancar: !!v })} />
+            Ocultar botão Avançar automático (só tem efeito se o passo não tiver nenhum campo do tipo Botão)
+          </Label>
           <DndContext sensors={sensors} collisionDetection={collisionDetection} onDragStart={handleDragStart} onDragOver={handleDragOver} onDragEnd={handleDragEnd}>
             <SortableContext items={passo.campos.map((c) => c.id)} strategy={verticalListSortingStrategy}>
               <div ref={setRootRef} className="space-y-3">

@@ -44,13 +44,16 @@ function DialogContent({
   children,
   showCloseButton = true,
   headerActions,
+  container,
   ...props
 }: DialogPrimitive.Popup.Props & {
   showCloseButton?: boolean
   headerActions?: React.ReactNode
+  /** Portal target — defaults to document.body. Pass a ref/element scoped to a CSS-scoped subtree (e.g. the mapeador prototipo preview) so descendant-selector styles still apply to the dialog's content. */
+  container?: DialogPrimitive.Portal.Props["container"]
 }) {
   return (
-    <DialogPortal>
+    <DialogPortal container={container}>
       <DialogOverlay />
       <DialogPrimitive.Popup
         data-slot="dialog-content"

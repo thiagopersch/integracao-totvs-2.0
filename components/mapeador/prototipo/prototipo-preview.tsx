@@ -1,9 +1,9 @@
 "use client"
 
-import { Fragment, useState } from "react"
-import { ChevronDown, Pencil } from "lucide-react"
+import { Fragment, useRef, useState } from "react"
+import { ChevronDown, FileText, Pencil, Upload, X } from "lucide-react"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -16,6 +16,7 @@ import {
   type MapeadorCampoLargura,
   type MapeadorDetalhesInscricaoConfig,
   type MapeadorEtapaDTO,
+  type MapeadorPasso,
   type MapeadorProjetoDTO,
 } from "@/types/mapeador"
 import type { PrototipoScreen } from "@/components/mapeador/prototipo/screens"
@@ -185,6 +186,122 @@ function LoginDialog({ open, onOpenChange }: LoginDialogProps) {
   )
 }
 
+interface PopupCampoDialogProps {
+  passo: MapeadorPasso | null
+  onClose: () => void
+  renderCampo: (campo: MapeadorCampo) => React.ReactNode
+  container: React.RefObject<HTMLElement | null>
+}
+
+/** Opens a passo marked tipo "popup" as a modal — triggered by a botao campo whose acaoBotao is "popup". Reuses the same renderCampo closure as the surrounding screen so popup fields behave identically to normal form fields. */
+function PopupCampoDialog({ passo, onClose, renderCampo, container }: PopupCampoDialogProps) {
+  return (
+    <Dialog open={!!passo} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent container={container} className="h-auto max-h-[85vh] w-auto max-w-xl">
+        <DialogHeader>
+          <DialogTitle>{passo?.titulo || "Pop-up"}</DialogTitle>
+        </DialogHeader>
+        <DialogBody className="space-y-4">
+          <div className="p-grid">{passo?.campos.filter((c) => c.tipo !== "botao").map(renderCampo)}</div>
+        </DialogBody>
+        <DialogFooter>
+          <Button onClick={onClose}>Fechar</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+interface DownloadToastProps {
+  nomeArquivo: string
+  onClose: () => void
+  onOpenPreview: () => void
+}
+
+/** Mimics a browser/portal "recent downloads" notification — appears after a botao campo with acaoBotao "download" is clicked. Clicking the file name opens DocumentoPreviewDialog. */
+function DownloadToast({ nomeArquivo, onClose, onOpenPreview }: DownloadToastProps) {
+  return (
+    <div className="p-download-toast">
+      <div className="hdr">
+        <span>Histórico de downloads recentes</span>
+        <button type="button" className="close" onClick={onClose} aria-label="Fechar notificação">
+          <X className="h-3.5 w-3.5" />
+        </button>
+      </div>
+      <div className="row">
+        <span className="ic">
+          <FileText className="h-4 w-4" />
+        </span>
+        <div className="p-upload-txt">
+          <button type="button" className="nm" onClick={onOpenPreview}>
+            {nomeArquivo}
+          </button>
+          <div className="meta">1 MB · Concluído</div>
+        </div>
+      </div>
+      <a className="link" href="#" onClick={(e) => e.preventDefault()}>
+        Histórico completo de downloads ↗
+      </a>
+    </div>
+  )
+}
+
+interface DownloadSuccessDialogProps {
+  open: boolean
+  mensagem: string
+  onClose: () => void
+  onContinuar: () => void
+  container: React.RefObject<HTMLElement | null>
+}
+
+function DownloadSuccessDialog({ open, mensagem, onClose, onContinuar, container }: DownloadSuccessDialogProps) {
+  return (
+    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent container={container} className="h-auto max-h-[85vh] w-auto max-w-md">
+        <DialogHeader>
+          <DialogTitle>{mensagem}</DialogTitle>
+          <DialogDescription>Download realizado com sucesso, caso precise, você poderá voltar e baixar novamente.</DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <Button onClick={onContinuar}>Portal do candidato</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+interface DocumentoPreviewDialogProps {
+  open: boolean
+  nomeArquivo: string
+  onClose: () => void
+  container: React.RefObject<HTMLElement | null>
+}
+
+/** Generic illustrative "paper" preview — reusable for any simulated file/report download, not boleto-specific. */
+function DocumentoPreviewDialog({ open, nomeArquivo, onClose, container }: DocumentoPreviewDialogProps) {
+  return (
+    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent container={container} className="h-auto max-h-[85vh] w-auto max-w-md">
+        <DialogHeader>
+          <DialogTitle>{nomeArquivo}</DialogTitle>
+        </DialogHeader>
+        <DialogBody className="p-doc-preview">
+          <div className="banner">Documento ilustrativo — sem valor fiscal, gerado só para demonstração</div>
+          <div className="linha" style={{ width: "60%" }} />
+          <div className="linha" />
+          <div className="linha" />
+          <div className="linha" style={{ width: "40%" }} />
+        </DialogBody>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>
+            Fechar
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 interface PrototipoPreviewProps {
   screen: PrototipoScreen
   projetos: MapeadorProjetoDTO[]
@@ -228,6 +345,24 @@ export function PrototipoPreview({
   const detalhesTitulo = detalhesInscricao?.titulo || "Detalhes da inscrição"
   const detalhesCampos = detalhesInscricao?.campos?.length ? detalhesInscricao.campos : DEFAULT_DETALHES_CAMPOS
   const [loginOpen, setLoginOpen] = useState(false)
+  const [popupPassoId, setPopupPassoId] = useState<string | null>(null)
+  // Dialogs that render .p-*-scoped content (PopupCampoDialog, DownloadSuccessDialog, DocumentoPreviewDialog)
+  // must portal inside this ref instead of document.body — otherwise their content falls outside the
+  // ".mapeador-proto" subtree that prototipoCss's descendant selectors are scoped to.
+  const formRootRef = useRef<HTMLDivElement>(null)
+  const [downloadInfo, setDownloadInfo] = useState<{ campo: MapeadorCampo; nomeArquivo: string; mensagem: string } | null>(null)
+  const [downloadSuccessOpen, setDownloadSuccessOpen] = useState(false)
+  const [docPreviewOpen, setDocPreviewOpen] = useState(false)
+
+  function findPasso(passoId: string): MapeadorPasso | undefined {
+    for (const p of projetos) {
+      for (const e of p.etapas) {
+        const found = e.camposPorEtapa.find((ps) => ps.id === passoId)
+        if (found) return found
+      }
+    }
+    return undefined
+  }
 
   function isCampoVisible(campo: MapeadorCampo): boolean {
     if (!campo.condicaoRefCampoId) return true
@@ -285,7 +420,15 @@ export function PrototipoPreview({
           <button
             key={campo.id}
             className={cn("p-btn", isVoltarButton(campo.label) ? "ghost" : "solid")}
-            onClick={() => onBotaoClick(campo)}
+            onClick={() => {
+              if (campo.acaoBotao === "popup" && campo.popupPassoId) return setPopupPassoId(campo.popupPassoId)
+              if (campo.acaoBotao === "download") {
+                setDownloadInfo({ campo, nomeArquivo: campo.downloadNomeArquivo || "Documento.pdf", mensagem: campo.downloadMensagem || "Arquivo gerado com sucesso!" })
+                setDownloadSuccessOpen(true)
+                return
+              }
+              onBotaoClick(campo)
+            }}
           >
             {campo.label.toUpperCase()}
           </button>
@@ -372,16 +515,27 @@ export function PrototipoPreview({
           </div>
         )
         break
-      case "documento_upload":
+      case "documento_upload": {
+        const nomeArquivo = (values[campo.id] as string) || ""
         content = (
-          <div className="p-fld">
-            <label className="p-lbl">
-              {campo.label} {campo.obrigatorio && <span className="p-req">*</span>}
-            </label>
-            <input type="file" className="p-ctl" onChange={(e) => setValue(campo.id, e.target.files?.[0]?.name ?? "")} />
-          </div>
+          <label className="p-upload">
+            <span className="p-upload-icon">
+              <FileText className="h-4 w-4" />
+            </span>
+            <span className="p-upload-txt">
+              <span className="nm">
+                {campo.label.toUpperCase()} {campo.obrigatorio && <span className="p-req">*</span>}
+              </span>
+              {nomeArquivo && <div className="text-xs text-muted-foreground">{nomeArquivo}</div>}
+            </span>
+            <span className="p-upload-btn">
+              <Upload className="h-3.5 w-3.5" /> Anexar
+            </span>
+            <input type="file" className="sr-only" onChange={(e) => setValue(campo.id, e.target.files?.[0]?.name ?? "")} />
+          </label>
         )
         break
+      }
       case "pagamento_valor":
         content = (
           <div className="p-money">
@@ -395,7 +549,7 @@ export function PrototipoPreview({
           <div className="p-fld">
             <label className="p-lbl">{campo.label}</label>
             <div className="p-radios">
-              {["Boleto", "Pix", "Cartão de crédito"].map((o) => (
+              {(campo.opcoesLista?.length ? campo.opcoesLista : ["Boleto", "Pix", "Cartão de crédito"]).map((o) => (
                 <label key={o} className="p-radio">
                   <span className={cn("p-dot", values[campo.id] === o && "on")} />
                   <input type="radio" className="sr-only" checked={values[campo.id] === o} onChange={() => setValue(campo.id, o)} />
@@ -438,10 +592,21 @@ export function PrototipoPreview({
       content
     )
 
+    // titulo_pagina/label_destaque/texto_informativo already align their own text via textoEstiloCss above;
+    // divisor/condicional/agrupamento have no single block worth centering. Everything else (ordinary
+    // fields, pagamento_valor, pagamento_formas, botao, documento_upload) centers/right-aligns as a whole
+    // block within its grid column when alinhamento is set, without disturbing the default (left) layout.
+    const aplicaAlinhamentoBloco =
+      (campo.alinhamento === "center" || campo.alinhamento === "right") &&
+      !["divisor", "condicional", "agrupamento", "titulo_pagina", "label_destaque", "texto_informativo"].includes(campo.tipo)
+    const wrapperStyle: React.CSSProperties = aplicaAlinhamentoBloco
+      ? { ...larguraCss, display: "flex", justifyContent: campo.alinhamento === "center" ? "center" : "flex-end" }
+      : larguraCss
+
     return (
       <Fragment key={campo.id}>
         {campo.novaLinha && <div aria-hidden className="h-0 basis-full" />}
-        <div style={larguraCss} className={campo.novaLinha ? "mt-4" : undefined} data-error={hasError || undefined}>
+        <div style={wrapperStyle} className={campo.novaLinha ? "mt-4" : undefined} data-error={hasError || undefined}>
           {wrapped}
         </div>
       </Fragment>
@@ -583,7 +748,7 @@ export function PrototipoPreview({
   const passo = etapa.camposPorEtapa[screen.passoIndex]
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+    <div ref={formRootRef} className="flex min-h-0 flex-1 flex-col overflow-y-auto">
       <div className="p-topbar">
         {logoUrl ? <img src={logoUrl} alt="Logo" className="h-8" /> : <span className="p-brand">EXEMPLO</span>}
         <button className="p-login" onClick={() => setLoginOpen(true)}>
@@ -595,15 +760,17 @@ export function PrototipoPreview({
           <div className="proc">{projeto.nome}</div>
           <div className="etapa">{etapa.nome}</div>
           <ul className="p-stepper">
-            {etapa.camposPorEtapa.map((p, i) => (
-              <li key={p.id} className={i > screen.passoIndex ? "todo" : undefined}>
-                <span className={cn("ic", i < screen.passoIndex && "done")}>{i < screen.passoIndex ? "✓" : i + 1}</span>
-                <div>
-                  <div className="nm">{p.titulo}</div>
-                  <div className="st">{i < screen.passoIndex ? "Concluído" : i === screen.passoIndex ? "Aguardando conclusão" : "Pendente"}</div>
-                </div>
-              </li>
-            ))}
+            {etapa.camposPorEtapa.map((p, i) =>
+              p.tipo === "popup" ? null : (
+                <li key={p.id} className={i > screen.passoIndex ? "todo" : undefined}>
+                  <span className={cn("ic", i < screen.passoIndex && "done")}>{i < screen.passoIndex ? "✓" : i + 1}</span>
+                  <div>
+                    <div className="nm">{p.titulo}</div>
+                    <div className="st">{i < screen.passoIndex ? "Concluído" : i === screen.passoIndex ? "Aguardando conclusão" : "Pendente"}</div>
+                  </div>
+                </li>
+              )
+            )}
           </ul>
         </div>
         <div className="p-main">
@@ -615,9 +782,11 @@ export function PrototipoPreview({
                 {passo.campos.filter((c) => c.tipo === "botao").length > 0 ? (
                   passo.campos.filter((c) => c.tipo === "botao").map(renderCampo)
                 ) : (
-                  <button className="p-btn solid ml-auto" onClick={() => onBotaoClick({ id: "__auto__", tipo: "botao", label: t("btn.avancar", "Avançar") })}>
-                    {t("btn.avancar", "AVANÇAR")}
-                  </button>
+                  !passo.ocultarBotaoAvancar && (
+                    <button className="p-btn solid ml-auto" onClick={() => onBotaoClick({ id: "__auto__", tipo: "botao", label: t("btn.avancar", "Avançar") })}>
+                      {t("btn.avancar", "AVANÇAR")}
+                    </button>
+                  )
                 )}
               </div>
             </>
@@ -627,6 +796,29 @@ export function PrototipoPreview({
         </div>
       </div>
       <LoginDialog open={loginOpen} onOpenChange={setLoginOpen} />
+      <PopupCampoDialog
+        passo={popupPassoId ? (findPasso(popupPassoId) ?? null) : null}
+        onClose={() => setPopupPassoId(null)}
+        renderCampo={renderCampo}
+        container={formRootRef}
+      />
+      {downloadInfo && <DownloadToast nomeArquivo={downloadInfo.nomeArquivo} onClose={() => setDownloadInfo(null)} onOpenPreview={() => setDocPreviewOpen(true)} />}
+      <DownloadSuccessDialog
+        open={downloadSuccessOpen}
+        mensagem={downloadInfo?.mensagem ?? ""}
+        onClose={() => setDownloadSuccessOpen(false)}
+        onContinuar={() => {
+          setDownloadSuccessOpen(false)
+          if (downloadInfo) onBotaoClick(downloadInfo.campo)
+        }}
+        container={formRootRef}
+      />
+      <DocumentoPreviewDialog
+        open={docPreviewOpen}
+        nomeArquivo={downloadInfo?.nomeArquivo ?? "Documento.pdf"}
+        onClose={() => setDocPreviewOpen(false)}
+        container={formRootRef}
+      />
     </div>
   )
 }

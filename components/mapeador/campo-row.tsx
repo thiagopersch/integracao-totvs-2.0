@@ -13,9 +13,23 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 import { colunaContainerId } from "@/lib/mapeador/campo-containers"
-import { MAPEADOR_CAMPO_TIPO_LABELS, normalizeLargura, type MapeadorCampo, type MapeadorCampoTipo, type MapeadorColuna, type MapeadorEtapaDTO } from "@/types/mapeador"
+import {
+  MAPEADOR_CAMPO_TIPO_LABELS,
+  normalizeLargura,
+  type MapeadorBotaoAcao,
+  type MapeadorCampo,
+  type MapeadorCampoTipo,
+  type MapeadorColuna,
+  type MapeadorEtapaDTO,
+} from "@/types/mapeador"
 
-const LISTA_OPCOES_TIPOS: MapeadorCampoTipo[] = ["select", "radio", "check"]
+const ACAO_BOTAO_OPCOES: { value: "__nenhuma__" | MapeadorBotaoAcao; label: string }[] = [
+  { value: "__nenhuma__", label: "Nenhuma" },
+  { value: "popup", label: "Abrir pop-up" },
+  { value: "download", label: "Simular download" },
+]
+
+const LISTA_OPCOES_TIPOS: MapeadorCampoTipo[] = ["select", "radio", "check", "pagamento_formas"]
 const TEXTO_ESTILIZAVEL_TIPOS: MapeadorCampoTipo[] = ["titulo_pagina", "label_destaque", "texto_informativo"]
 const ALINHAMENTO_OPCOES = [
   { value: "left", label: "Esquerda", icon: AlignLeft },
@@ -23,6 +37,7 @@ const ALINHAMENTO_OPCOES = [
   { value: "right", label: "Direita", icon: AlignRight },
 ] as const
 const NAO_REFERENCIAVEIS: MapeadorCampoTipo[] = ["botao", "texto_informativo", "titulo_pagina", "label_destaque", "divisor", "condicional", "popup", "agrupamento"]
+const SEM_ALINHAMENTO_TIPOS: MapeadorCampoTipo[] = ["divisor", "condicional", "agrupamento"]
 const LARGURA_OPCOES = Array.from({ length: 12 }, (_, i) => 12 - i)
 const MAX_COLUNAS = 4
 
@@ -58,6 +73,7 @@ export function CampoRow({ campo, etapas, passoCampos, onChange, onRemove, activ
   const [opcoesText, setOpcoesText] = useState(() => (campo.opcoesLista ?? []).join(", "))
   const mostraOpcoesLista = LISTA_OPCOES_TIPOS.includes(campo.tipo)
   const mostraEstiloTexto = TEXTO_ESTILIZAVEL_TIPOS.includes(campo.tipo)
+  const mostraAlinhamento = !SEM_ALINHAMENTO_TIPOS.includes(campo.tipo)
   const mostraColunas = campo.tipo === "agrupamento"
   const colunas = campo.colunas ?? []
   // While THIS agrupamento is the item being dragged, its own DOM node is being CSS-transformed by
@@ -68,6 +84,7 @@ export function CampoRow({ campo, etapas, passoCampos, onChange, onRemove, activ
   // trips. Freezing the coluna content to a static, non-interactive list for the drag's duration
   // (dnd-kit's own "Sortable Tree" example does the same for a dragged item's children) breaks the loop.
   const isDragSource = campo.id === activeId
+  const popups = etapas.flatMap((e) => e.camposPorEtapa).filter((p) => p.tipo === "popup")
   const candidatos = passoCampos.filter((c) => c.id !== campo.id && !NAO_REFERENCIAVEIS.includes(c.tipo))
   const refCampo = candidatos.find((c) => c.id === campo.condicaoRefCampoId)
   const refKind: "opcoes" | "check" | "texto" = refCampo?.opcoesLista?.length ? "opcoes" : refCampo?.tipo === "check" ? "check" : "texto"
@@ -246,6 +263,72 @@ export function CampoRow({ campo, etapas, passoCampos, onChange, onRemove, activ
               </Select>
             </div>
           )}
+          {campo.tipo === "botao" && (
+            <div className="space-y-1">
+              <Label className="text-xs">Ação especial do botão</Label>
+              <Select
+                items={ACAO_BOTAO_OPCOES}
+                value={campo.acaoBotao ?? "__nenhuma__"}
+                onValueChange={(v) => onChange({ acaoBotao: v === "__nenhuma__" ? undefined : (v as MapeadorBotaoAcao) })}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {ACAO_BOTAO_OPCOES.map(({ value, label }) => (
+                    <SelectItem key={value} value={value}>
+                      {label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+          {campo.tipo === "botao" && campo.acaoBotao === "popup" && (
+            <div className="space-y-1 @sm/campo-settings:col-span-2">
+              <Label className="text-xs">Qual pop-up</Label>
+              {popups.length === 0 ? (
+                <p className="text-xs text-muted-foreground">Nenhum passo do tipo &quot;Pop-up&quot; neste projeto ainda. Crie um na aba Mapeamento.</p>
+              ) : (
+                <Select
+                  items={popups.map((p) => ({ value: p.id, label: p.titulo || "Pop-up" }))}
+                  value={campo.popupPassoId ?? null}
+                  onValueChange={(v) => onChange({ popupPassoId: v as string })}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Selecione o pop-up" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {popups.map((p) => (
+                      <SelectItem key={p.id} value={p.id}>
+                        {p.titulo || "Pop-up"}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
+          )}
+          {campo.tipo === "botao" && campo.acaoBotao === "download" && (
+            <>
+              <div className="space-y-1">
+                <Label className="text-xs">Nome do arquivo</Label>
+                <Input
+                  value={campo.downloadNomeArquivo ?? ""}
+                  onChange={(e) => onChange({ downloadNomeArquivo: e.target.value })}
+                  placeholder="Documento.pdf"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Mensagem de sucesso</Label>
+                <Input
+                  value={campo.downloadMensagem ?? ""}
+                  onChange={(e) => onChange({ downloadMensagem: e.target.value })}
+                  placeholder="Arquivo gerado com sucesso!"
+                />
+              </div>
+            </>
+          )}
           <div className="space-y-1">
             <Label className="text-xs">Largura no protótipo</Label>
             <Select
@@ -283,39 +366,39 @@ export function CampoRow({ campo, etapas, passoCampos, onChange, onRemove, activ
               />
             </div>
           )}
+          {mostraAlinhamento && (
+            <div className="space-y-1">
+              <Label className="text-xs">Alinhamento</Label>
+              <div className="flex overflow-hidden rounded-md border">
+                {ALINHAMENTO_OPCOES.map(({ value, label, icon: Icon }) => (
+                  <button
+                    key={value}
+                    type="button"
+                    title={label}
+                    className={cn(
+                      "flex flex-1 items-center justify-center py-1.5",
+                      (campo.alinhamento ?? "left") === value ? "bg-primary text-primary-foreground" : "bg-background hover:bg-muted"
+                    )}
+                    onClick={() => onChange({ alinhamento: value })}
+                  >
+                    <Icon className="h-3.5 w-3.5" />
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
           {mostraEstiloTexto && (
-            <>
-              <div className="space-y-1">
-                <Label className="text-xs">Alinhamento do texto</Label>
-                <div className="flex overflow-hidden rounded-md border">
-                  {ALINHAMENTO_OPCOES.map(({ value, label, icon: Icon }) => (
-                    <button
-                      key={value}
-                      type="button"
-                      title={label}
-                      className={cn(
-                        "flex flex-1 items-center justify-center py-1.5",
-                        (campo.alinhamento ?? "left") === value ? "bg-primary text-primary-foreground" : "bg-background hover:bg-muted"
-                      )}
-                      onClick={() => onChange({ alinhamento: value })}
-                    >
-                      <Icon className="h-3.5 w-3.5" />
-                    </button>
-                  ))}
-                </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Cor do texto</Label>
+              <div className="flex items-center gap-2">
+                <Input type="color" value={campo.cor || "#2b2b3c"} onChange={(e) => onChange({ cor: e.target.value })} className="h-8 w-14 p-1" />
+                {campo.cor && (
+                  <button type="button" className="text-xs text-muted-foreground hover:underline" onClick={() => onChange({ cor: undefined })}>
+                    Redefinir
+                  </button>
+                )}
               </div>
-              <div className="space-y-1">
-                <Label className="text-xs">Cor do texto</Label>
-                <div className="flex items-center gap-2">
-                  <Input type="color" value={campo.cor || "#2b2b3c"} onChange={(e) => onChange({ cor: e.target.value })} className="h-8 w-14 p-1" />
-                  {campo.cor && (
-                    <button type="button" className="text-xs text-muted-foreground hover:underline" onClick={() => onChange({ cor: undefined })}>
-                      Redefinir
-                    </button>
-                  )}
-                </div>
-              </div>
-            </>
+            </div>
           )}
           {mostraColunas && (
             <div className="space-y-2 @sm/campo-settings:col-span-2">

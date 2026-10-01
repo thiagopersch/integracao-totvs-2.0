@@ -10,11 +10,14 @@ export function buildScreens(projetos: MapeadorProjetoDTO[]): PrototipoScreen[] 
 
   projetos.forEach((projeto, projetoIndex) => {
     projeto.etapas.forEach((etapa, etapaIndex) => {
-      etapa.camposPorEtapa.forEach((_, passoIndex) => {
+      // Passos "Pop-up" aren't part of the normal sequential flow — they're only reachable via a
+      // botao campo's "Abrir pop-up" action, opened as a modal over whichever screen is current.
+      etapa.camposPorEtapa.forEach((passo, passoIndex) => {
+        if (passo.tipo === "popup") return
         screens.push({ kind: "form", projetoIndex, etapaIndex, passoIndex })
       })
-      if (etapa.camposPorEtapa.length === 0) {
-        // Still give an empty etapa a screen so it's reachable/visible in the flow.
+      if (etapa.camposPorEtapa.length === 0 || etapa.camposPorEtapa.every((p) => p.tipo === "popup")) {
+        // Still give an empty (or all-popup) etapa a screen so it's reachable/visible in the flow.
         screens.push({ kind: "form", projetoIndex, etapaIndex, passoIndex: 0 })
       }
       screens.push({ kind: "portal", projetoIndex, etapaIndex })
@@ -42,5 +45,7 @@ export function findFormScreenIndex(
 ): number {
   const etapaIndex = projetos[projetoIndex]?.etapas.findIndex((e) => e.id === etapaId) ?? -1
   if (etapaIndex === -1) return -1
-  return screens.findIndex((s) => s.kind === "form" && s.projetoIndex === projetoIndex && s.etapaIndex === etapaIndex && s.passoIndex === 0)
+  // Not necessarily passoIndex 0 — that passo may be a "Pop-up" skipped by buildScreens, in which
+  // case the first screen actually generated for this etapa has a later passoIndex.
+  return screens.findIndex((s) => s.kind === "form" && s.projetoIndex === projetoIndex && s.etapaIndex === etapaIndex)
 }

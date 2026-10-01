@@ -77,13 +77,24 @@ export interface MapeadorCampo {
   largura?: MapeadorCampoLargura
   /** Forces the field onto its own row in the Protótipo visual grid, with extra top spacing, regardless of its largura. Set via the "Ajustar layout" click-to-resize mode. */
   novaLinha?: boolean
-  /** Text alignment for heading/text content types (titulo_pagina, label_destaque, texto_informativo). */
+  /** Block/text alignment within the field's grid cell. For titulo_pagina/label_destaque/texto_informativo this aligns the text itself; for every other tipo it aligns the whole field block (input/button/upload row) inside its column. */
   alinhamento?: "left" | "center" | "right"
   /** Text color (any CSS color) for heading/text content types (titulo_pagina, label_destaque, texto_informativo). */
   cor?: string
   /** Columns (1-4) for a tipo "agrupamento" campo — the group's own largura/novaLinha still place it within the parent grid, like any other campo. */
   colunas?: MapeadorColuna[]
+  /** Special click behavior for a tipo "botao" campo, beyond the default avançar/voltar navigation. */
+  acaoBotao?: MapeadorBotaoAcao
+  /** Id of the MapeadorPasso (tipo "popup") this button opens as a modal — used when acaoBotao === "popup". */
+  popupPassoId?: string | null
+  /** Illustrative file name shown in the simulated download — used when acaoBotao === "download". Defaults to "Documento.pdf". */
+  downloadNomeArquivo?: string
+  /** Success message shown after the simulated download — used when acaoBotao === "download". Defaults to "Arquivo gerado com sucesso!". */
+  downloadMensagem?: string
 }
+
+/** Special behavior a tipo "botao" campo can trigger instead of the default avançar/voltar navigation. */
+export type MapeadorBotaoAcao = "popup" | "download"
 
 /** One column inside a tipo "agrupamento" campo: its own width (same 1-12 scale as campo.largura) and an ordered list of nested campos. Agrupamento campos cannot nest inside a coluna (v1 constraint, enforced in the editor). */
 export interface MapeadorColuna {
@@ -115,6 +126,8 @@ export interface MapeadorPasso {
   tipo: MapeadorPassoTipo
   titulo: string
   campos: MapeadorCampo[]
+  /** Suppresses the automatic "Avançar" button shown when this passo has no explicit tipo "botao" campo. */
+  ocultarBotaoAvancar?: boolean
 }
 
 export type CamposPorEtapa = MapeadorPasso[]

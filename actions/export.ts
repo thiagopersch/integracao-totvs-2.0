@@ -7,7 +7,7 @@ import { exportService } from "@/services/export.service";
 import { toExportRow } from "@/lib/export-mappers";
 import { resolveExportPeriodRange, type ExportPeriod } from "@/lib/export-period";
 
-async function resolveExportContext(clientId: string, period: ExportPeriod | null) {
+async function resolveExportContext(clientIds: string[], period: ExportPeriod | null) {
   const ctx = await requirePermission("reports", "read");
   const analystScope = await getDemandAnalystScope(ctx);
   const range = resolveExportPeriodRange(period);
@@ -15,15 +15,15 @@ async function resolveExportContext(clientId: string, period: ExportPeriod | nul
     ctx.organizationId,
     ctx.allowedClientIds,
     analystScope,
-    clientId,
+    clientIds,
     range
   );
   return { organizationId: ctx.organizationId, demands, effectiveClientIds, range };
 }
 
-export async function getDemandExportData(clientId: string, period: ExportPeriod | null) {
+export async function getDemandExportData(clientIds: string[], period: ExportPeriod | null) {
   try {
-    const { demands, effectiveClientIds, range, organizationId } = await resolveExportContext(clientId, period);
+    const { demands, effectiveClientIds, range, organizationId } = await resolveExportContext(clientIds, period);
     const rows = demands.map(toExportRow);
     const charts = await exportService.getExportChartData(organizationId, effectiveClientIds, range);
     return { success: true as const, rows, ...charts };
@@ -32,9 +32,9 @@ export async function getDemandExportData(clientId: string, period: ExportPeriod
   }
 }
 
-export async function exportDemandsXlsx(clientId: string, period: ExportPeriod | null) {
+export async function exportDemandsXlsx(clientIds: string[], period: ExportPeriod | null) {
   try {
-    const { demands } = await resolveExportContext(clientId, period);
+    const { demands } = await resolveExportContext(clientIds, period);
     const rows = demands.map(toExportRow);
 
     const worksheet = XLSX.utils.json_to_sheet(rows);

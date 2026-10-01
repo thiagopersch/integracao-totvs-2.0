@@ -3,7 +3,7 @@
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
 import { ExportPeriodSelect, isExportPeriodPending, toExportPeriod, type ExportPeriodSelection } from "@/components/shared/export-period-select"
 import { DemandExportPdfBuilder } from "@/components/shared/demand-export-pdf-builder"
 import { exportDemandsXlsx, getDemandExportData } from "@/actions/export"
@@ -18,10 +18,12 @@ interface Props {
 }
 
 const ALL_CLIENTS_VALUE = "all"
-const ALL_CLIENTS_LABEL = "Todos os clientes"
+const ALL_CLIENTS_LABEL = "Todos os clientes existentes"
+
+type ClientSelection = { mode: "all" } | { mode: "custom"; ids: Set<string> }
 
 export function DemandExportForm({ clients, years, monthsByYear }: Props) {
-  const [clientId, setClientId] = useState(ALL_CLIENTS_VALUE)
+  const [clientSelection, setClientSelection] = useState<ClientSelection>({ mode: "all" })
   const [periodSelection, setPeriodSelection] = useState<ExportPeriodSelection>({ kind: "none" })
   const [loadingXlsx, setLoadingXlsx] = useState(false)
   const [loadingPdf, setLoadingPdf] = useState(false)
@@ -29,11 +31,26 @@ export function DemandExportForm({ clients, years, monthsByYear }: Props) {
 
   const period = toExportPeriod(periodSelection)
   const periodPending = isExportPeriodPending(periodSelection)
+  const clientIds = clientSelection.mode === "all" ? [ALL_CLIENTS_VALUE] : Array.from(clientSelection.ids)
+
+  function toggleClient(id: string) {
+    if (clientSelection.mode === "all") {
+      setClientSelection({ mode: "custom", ids: new Set([id]) })
+      return
+    }
+    const ids = new Set(clientSelection.ids)
+    if (ids.has(id)) {
+      ids.delete(id)
+    } else {
+      ids.add(id)
+    }
+    setClientSelection(ids.size === 0 ? { mode: "all" } : { mode: "custom", ids })
+  }
 
   async function handleXlsx() {
     setLoadingXlsx(true)
     try {
-      const result = await exportDemandsXlsx(clientId, period)
+      const result = await exportDemandsXlsx(clientIds, period)
       if (!result.success) {
         toast.error(result.error || "Erro ao exportar XLSX")
         return
@@ -55,7 +72,7 @@ export function DemandExportForm({ clients, years, monthsByYear }: Props) {
 
   async function handlePdf() {
     setLoadingPdf(true)
-    const result = await getDemandExportData(clientId, period)
+    const result = await getDemandExportData(clientIds, period)
     if (!result.success) {
       toast.error(result.error || "Erro ao exportar PDF")
       setLoadingPdf(false)
@@ -64,29 +81,39 @@ export function DemandExportForm({ clients, years, monthsByYear }: Props) {
     setPdfExportData(result)
   }
 
-  const selectedClientName = clientId === ALL_CLIENTS_VALUE ? ALL_CLIENTS_LABEL : clients.find((c) => c.id === clientId)?.name || ""
+  const selectedClientName =
+    clientSelection.mode === "all"
+      ? ALL_CLIENTS_LABEL
+      : clients
+          .filter((c) => clientSelection.ids.has(c.id))
+          .map((c) => c.name)
+          .join(", ")
 
   return (
     <div className="max-w-xl space-y-6">
       <div className="space-y-2">
-        <Label>Cliente</Label>
-        <Select
-          items={[{ value: ALL_CLIENTS_VALUE, label: ALL_CLIENTS_LABEL }, ...clients.map((c) => ({ value: c.id, label: c.name }))]}
-          value={clientId}
-          onValueChange={(v) => setClientId(v || ALL_CLIENTS_VALUE)}
-        >
-          <SelectTrigger className="w-full">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL_CLIENTS_VALUE}>{ALL_CLIENTS_LABEL}</SelectItem>
-            {clients.map((c) => (
-              <SelectItem key={c.id} value={c.id}>
-                {c.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <Label>Cliente(s)</Label>
+        <Command className="rounded-lg border border-input">
+          <CommandInput placeholder="Buscar cliente..." />
+          <CommandList>
+            <CommandEmpty>Nenhum cliente encontrado.</CommandEmpty>
+            <CommandGroup>
+              <CommandItem value={ALL_CLIENTS_LABEL} data-checked={clientSelection.mode === "all"} onSelect={() => setClientSelection({ mode: "all" })}>
+                {ALL_CLIENTS_LABEL}
+              </CommandItem>
+              {clients.map((c) => (
+                <CommandItem
+                  key={c.id}
+                  value={c.name}
+                  data-checked={clientSelection.mode === "custom" && clientSelection.ids.has(c.id)}
+                  onSelect={() => toggleClient(c.id)}
+                >
+                  {c.name}
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </CommandList>
+        </Command>
       </div>
 
       <div className="space-y-2">

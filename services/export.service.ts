@@ -25,26 +25,27 @@ export const exportService = {
   },
 
   /**
-   * `clientId === "all"` never means literally every client in the DB — it resolves to
-   * `allowedClientIds`, so exports can never surface a client outside the requesting user's scope.
+   * `clientIds` containing "all" (or empty) never means literally every client in the DB — it
+   * resolves to `allowedClientIds`, so exports can never surface a client outside the requesting
+   * user's scope.
    */
-  async getEffectiveClientIds(organizationId: string, allowedClientIds: string[], clientId: string) {
-    if (clientId === "all") {
+  async getEffectiveClientIds(organizationId: string, allowedClientIds: string[], clientIds: string[]) {
+    if (clientIds.length === 0 || clientIds.includes("all")) {
       const clients = await this.getExportableClients(organizationId, allowedClientIds);
       return clients.map((c) => c.id);
     }
-    assertClientAllowed(clientId, allowedClientIds);
-    return [clientId];
+    clientIds.forEach((id) => assertClientAllowed(id, allowedClientIds));
+    return clientIds;
   },
 
   async getExportDemands(
     organizationId: string,
     allowedClientIds: string[],
     analystScope: string | undefined,
-    clientId: string,
+    clientIds: string[],
     period?: { gte: Date; lt: Date }
   ) {
-    const effectiveClientIds = await this.getEffectiveClientIds(organizationId, allowedClientIds, clientId);
+    const effectiveClientIds = await this.getEffectiveClientIds(organizationId, allowedClientIds, clientIds);
     const where = {
       deletedAt: null,
       organizationId,
