@@ -15,6 +15,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { shadeColor } from "@/lib/colors";
 import type { ChartKind, ChartSeries } from "./chart-types";
 
 /** Fixed categorical order (blue, orange, aqua, yellow, magenta, green, violet, red) — never reassigned by rank. */
@@ -48,6 +49,10 @@ export interface MultiTypeChartProps {
   kind: ChartKind;
   colorByIndex?: boolean;
   statusColorMap?: Record<string, string>;
+  /** Field in `data` holding a per-row hex color (e.g. the client's registered color).
+   * Takes priority over `colorByIndex`/`series.color`; multi-series bars shade progressively
+   * darker per series index so comparisons stay tied to that row's identity color. */
+  colorKey?: string;
   /** Which series pie/donut encodes when there's more than one (ignored otherwise). */
   pieSeriesKey?: string;
   emptyMessage?: string;
@@ -64,17 +69,20 @@ function resolveColor(
   index: number,
   fallback: string | undefined,
   colorByIndex: boolean,
-  statusColorMap?: Record<string, string>
+  statusColorMap?: Record<string, string>,
+  rowColor?: string
 ) {
+  if (rowColor) return rowColor;
   if (colorByIndex) return CATEGORY_COLORS[index % CATEGORY_COLORS.length];
   return statusColorMap?.[name] ?? fallback ?? CATEGORY_COLORS[0];
 }
 
 /** Pie/donut slices always need visually distinct colors — unlike bars, a flat single
  * fallback color would make every slice indistinguishable, so this ignores `colorByIndex`
- * and always cycles the categorical palette (statusColorMap still takes priority). */
-function resolvePieColor(name: string, index: number, statusColorMap?: Record<string, string>) {
-  return statusColorMap?.[name] ?? CATEGORY_COLORS[index % CATEGORY_COLORS.length];
+ * and always cycles the categorical palette (statusColorMap and a per-row `colorKey` color
+ * still take priority). */
+function resolvePieColor(name: string, index: number, statusColorMap?: Record<string, string>, rowColor?: string) {
+  return rowColor || statusColorMap?.[name] || CATEGORY_COLORS[index % CATEGORY_COLORS.length];
 }
 
 export function MultiTypeChart({
@@ -84,6 +92,7 @@ export function MultiTypeChart({
   kind,
   colorByIndex = false,
   statusColorMap,
+  colorKey,
   pieSeriesKey,
   emptyMessage = "Nenhum dado disponível",
   height = 260,
@@ -174,13 +183,19 @@ export function MultiTypeChart({
               maxBarSize={series.length > 1 ? 16 : 22}
               fill={s.color ?? CATEGORY_COLORS[si % CATEGORY_COLORS.length]}
             >
-              {series.length === 1 &&
-                data.map((entry, i) => (
-                  <Cell
-                    key={String(entry[nameKey])}
-                    fill={resolveColor(String(entry[nameKey]), i, s.color, colorByIndex, statusColorMap)}
-                  />
-                ))}
+              {(series.length === 1 || colorKey) &&
+                data.map((entry, i) => {
+                  const rowColor =
+                    colorKey && entry[colorKey]
+                      ? shadeColor(String(entry[colorKey]), si === 0 ? 0 : -18 * si)
+                      : undefined;
+                  return (
+                    <Cell
+                      key={String(entry[nameKey])}
+                      fill={resolveColor(String(entry[nameKey]), i, s.color, colorByIndex, statusColorMap, rowColor)}
+                    />
+                  );
+                })}
             </Bar>
           ))}
         </BarChart>
@@ -191,7 +206,11 @@ export function MultiTypeChart({
   // pie / donut
   const measureKey = series.length > 1 ? (pieSeriesKey ?? series[0].key) : series[0].key;
   const measureSeries = series.find((s) => s.key === measureKey) ?? series[0];
-  const pieData = data.map((entry) => ({ name: String(entry[nameKey]), value: Number(entry[measureKey]) || 0 }));
+  const pieData = data.map((entry) => ({
+    name: String(entry[nameKey]),
+    value: Number(entry[measureKey]) || 0,
+    color: colorKey && entry[colorKey] ? String(entry[colorKey]) : undefined,
+  }));
 
   return (
     <ResponsiveContainer width="100%" height={height}>
@@ -203,7 +222,7 @@ export function MultiTypeChart({
         <Legend wrapperStyle={{ fontSize: 12, color: "var(--muted-foreground)" }} />
         <Pie data={pieData} dataKey="value" nameKey="name" innerRadius={kind === "donut" ? "55%" : 0} outerRadius="80%" paddingAngle={2}>
           {pieData.map((entry, i) => (
-            <Cell key={entry.name} fill={resolvePieColor(entry.name, i, statusColorMap)} />
+            <Cell key={entry.name} fill={resolvePieColor(entry.name, i, statusColorMap, entry.color)} />
           ))}
         </Pie>
       </PieChart>

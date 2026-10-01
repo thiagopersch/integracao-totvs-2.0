@@ -156,26 +156,36 @@ export const dashboardService = {
 
     const clientIdsForDemands = demandsByClientRaw.map((d) => d.clientId);
     const clientsForDemands = clientIdsForDemands.length
-      ? await prisma.client.findMany({ where: { id: { in: clientIdsForDemands } }, select: { id: true, name: true } })
+      ? await prisma.client.findMany({
+          where: { id: { in: clientIdsForDemands } },
+          select: { id: true, name: true, color: true },
+        })
       : [];
     const clientNameById = new Map(clientsForDemands.map((c) => [c.id, c.name]));
+    const clientColorById = new Map(clientsForDemands.map((c) => [c.id, c.color]));
     const demandsByClient = demandsByClientRaw.map((d) => ({
       name: clientNameById.get(d.clientId) || "Desconhecido",
       value: d._count.id,
+      color: clientColorById.get(d.clientId) || "#22c55e",
     }));
 
     const contractedHoursByClientId = new Map(contractsByClient.map((c) => [c.clientId, c._sum.contractedHours || 0]));
     const spentMinutesByClientId = new Map(demandMinutesByClient.map((d) => [d.clientId, d._sum.durationMinutes || 0]));
     const rankingClientIds = Array.from(new Set([...contractedHoursByClientId.keys(), ...spentMinutesByClientId.keys()]));
     const rankingClients = rankingClientIds.length
-      ? await prisma.client.findMany({ where: { id: { in: rankingClientIds } }, select: { id: true, name: true } })
+      ? await prisma.client.findMany({
+          where: { id: { in: rankingClientIds } },
+          select: { id: true, name: true, color: true },
+        })
       : [];
     const rankingClientNameById = new Map(rankingClients.map((c) => [c.id, c.name]));
+    const rankingClientColorById = new Map(rankingClients.map((c) => [c.id, c.color]));
     const clientHoursRanking = rankingClientIds
       .map((clientId) => ({
         name: rankingClientNameById.get(clientId) || "Desconhecido",
         contratadas: Math.round((contractedHoursByClientId.get(clientId) || 0) * 100) / 100,
         gastas: Math.round(((spentMinutesByClientId.get(clientId) || 0) / 60) * 100) / 100,
+        color: rankingClientColorById.get(clientId) || "#22c55e",
       }))
       .filter((c) => c.contratadas > 0 || c.gastas > 0)
       .sort((a, b) => b.gastas - a.gastas)

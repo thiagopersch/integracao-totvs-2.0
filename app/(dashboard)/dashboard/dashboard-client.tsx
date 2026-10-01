@@ -38,6 +38,7 @@ interface ChartCardProps {
   allowedKinds?: ChartKind[]
   colorByIndex?: boolean
   statusColorMap?: Record<string, string>
+  colorKey?: string
   measure?: string
   onMeasureChange?: (key: string) => void
   emptyMessage?: string
@@ -55,6 +56,7 @@ function ChartCard({
   allowedKinds,
   colorByIndex,
   statusColorMap,
+  colorKey,
   measure,
   onMeasureChange,
   emptyMessage,
@@ -82,6 +84,7 @@ function ChartCard({
           kind={kind}
           colorByIndex={colorByIndex}
           statusColorMap={statusColorMap}
+          colorKey={colorKey}
           pieSeriesKey={measure}
           emptyMessage={emptyMessage}
           height={height ?? 260}
@@ -120,8 +123,8 @@ interface DashboardClientProps {
   sentencesByCategory: NamedValue[]
   demandsByStatus: NamedValue[]
   demandsByAnalyst: NamedValue[]
-  demandsByClient: NamedValue[]
-  clientHoursRanking: Array<{ name: string; contratadas: number; gastas: number }>
+  demandsByClient: Array<NamedValue & { color: string }>
+  clientHoursRanking: Array<{ name: string; contratadas: number; gastas: number; color: string }>
   period: Period | null
   years: number[]
   monthsByYear: Record<number, number[]>
@@ -411,6 +414,7 @@ export function DashboardClient({
               series={clientSeries}
               kind={demandsClientKind}
               onKindChange={setDemandsClientKind}
+              colorKey="color"
               emptyMessage="Nenhuma demanda registrada"
               valueFormatter={formatNumber}
             />
@@ -423,6 +427,7 @@ export function DashboardClient({
             series={RANKING_SERIES}
             kind={rankingKind}
             onKindChange={setRankingKind}
+            colorKey="color"
             measure={rankingMeasure}
             onMeasureChange={setRankingMeasure}
             emptyMessage="Nenhum contrato ou demanda registrada"
