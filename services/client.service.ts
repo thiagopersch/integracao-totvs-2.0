@@ -58,14 +58,16 @@ export const clientService = {
     return clientRepository.findById(id, organizationId);
   },
 
-  async create(input: CreateClientInput, organizationId: string) {
+  async create(input: CreateClientInput, organizationId: string, userId: string) {
     if (input.linkCrm) {
       const existing = await prisma.client.findFirst({ where: { linkCrm: input.linkCrm, organizationId } });
       if (existing) {
         throw new Error("Link CRM já cadastrado");
       }
     }
-    return clientRepository.create({ ...input, organizationId });
+    const entity = await clientRepository.create({ ...input, organizationId });
+    await prisma.userClient.create({ data: { userId, clientId: entity.id } });
+    return entity;
   },
 
   async update(id: string, input: UpdateClientInput, organizationId: string, allowedClientIds: string[]) {

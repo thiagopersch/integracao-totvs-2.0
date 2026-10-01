@@ -70,14 +70,14 @@ async function parseClientForm(formData: FormData) {
 }
 
 export async function createClient(formData: FormData) {
-  const { organizationId } = await requirePermission("clients", "create");
+  const { organizationId, userId } = await requirePermission("clients", "create");
   const parsed = createClientSchema.safeParse(await parseClientForm(formData));
   if (!parsed.success) {
     return { success: false, error: "Dados inválidos", errors: parsed.error.flatten().fieldErrors };
   }
 
   try {
-    const entity = await clientService.create(parsed.data, organizationId);
+    const entity = await clientService.create(parsed.data, organizationId, userId);
     await auditService.log({
       action: "CREATE",
       entity: "Client",
