@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react"
 import dynamic from "next/dynamic"
 import type { ColumnDef } from "@tanstack/react-table"
-import { useForm, Controller, type Resolver } from "react-hook-form"
+import { useForm, Controller, type Resolver, type FieldErrors } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { DataTable } from "@/components/shared/data-table"
 import { DataTableFilterPanel } from "@/components/shared/data-table-filter-panel"
@@ -36,6 +36,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { MultiSelect } from "@/components/ui/multi-select"
 import { DatePicker } from "@/components/ui/date-picker"
 import { TimePicker } from "@/components/ui/time-picker"
@@ -121,6 +122,36 @@ const PRIORITY_COLORS: Record<string, string> = {
   URGENT: "#ef4444",
 }
 
+const FIELD_LABELS: Record<string, string> = {
+  name: "Nome",
+  description: "Descrição",
+  date: "Data",
+  startTime: "Hora de início",
+  endTime: "Hora de término",
+  analystId: "Analista",
+  clientId: "Cliente",
+  requesterId: "Solicitante",
+  departmentId: "Departamento",
+  demandTypeId: "Tipo",
+}
+
+const FIELD_TAB: Record<string, string> = {
+  name: "identificacao",
+  description: "identificacao",
+  analystId: "atribuicao",
+  clientId: "atribuicao",
+  requesterId: "atribuicao",
+  departmentId: "atribuicao",
+  demandTypeId: "atribuicao",
+  date: "agendamento",
+  startTime: "agendamento",
+  endTime: "agendamento",
+  priority: "agendamento",
+  status: "agendamento",
+  tagIds: "tags",
+  notes: "tags",
+}
+
 function toTimeInputValue(d: string | Date | null): string {
   if (!d) return ""
   const date = typeof d === "string" ? new Date(d) : d
@@ -173,6 +204,7 @@ export function DemandTable({
   const [loading, setLoading] = useState(false)
   const [statusFilter, setStatusFilter] = useState(searchParams.get("status") || "")
   const [expanded, setExpanded] = useState(false)
+  const [activeTab, setActiveTab] = useState("identificacao")
   const { period, setPeriod } = usePeriodFilter(initialPeriod)
 
   const form = useForm<CreateDemandInput>({
@@ -238,6 +270,7 @@ export function DemandTable({
       toast.success(editDialog.entity ? "Demanda atualizada" : "Demanda criada")
       form.reset()
       setEditDialog({ open: false })
+      setActiveTab("identificacao")
       router.refresh()
     } else {
       toast.error(result.error || "Erro ao salvar")
@@ -248,6 +281,21 @@ export function DemandTable({
   function handleCancel() {
     form.reset()
     setEditDialog({ open: false })
+    setActiveTab("identificacao")
+  }
+
+  function onInvalid(errors: FieldErrors<CreateDemandInput>) {
+    const missing = Object.keys(errors).map((key) => FIELD_LABELS[key] || key)
+    if (missing.length > 0) {
+      toast.error(
+        missing.length === 1
+          ? `Preencha o campo obrigatório: ${missing[0]}`
+          : `Preencha os campos obrigatórios: ${missing.join(", ")}`
+      )
+    }
+    const firstErrorField = Object.keys(errors)[0]
+    const tab = firstErrorField && FIELD_TAB[firstErrorField]
+    if (tab) setActiveTab(tab)
   }
 
   const columns: ColumnDef<DemandRow>[] = useMemo(() => {
@@ -352,7 +400,7 @@ export function DemandTable({
     id: "actions",
     cell: ({ row }) => (
       <EntityActionsCell
-        onEdit={canUpdate ? () => setEditDialog({ open: true, entity: row.original }) : undefined}
+        onEdit={canUpdate ? () => { setActiveTab("identificacao"); setEditDialog({ open: true, entity: row.original }) } : undefined}
         onDelete={canDelete ? () => setDeleteDialog({ open: true, id: row.original.id }) : undefined}
       />
     ),
@@ -362,7 +410,7 @@ export function DemandTable({
   }, [canUpdate, canDelete, setEditDialog, setDeleteDialog])
 
   const newDialog = (
-    <Dialog open={editDialog.open} onOpenChange={(open) => { setEditDialog({ open, entity: open ? editDialog.entity : undefined }); if (!open) { form.reset(); setExpanded(false) } }}>
+    <Dialog open={editDialog.open} onOpenChange={(open) => { setEditDialog({ open, entity: open ? editDialog.entity : undefined }); if (!open) { form.reset(); setExpanded(false); setActiveTab("identificacao") } }}>
       <DialogTrigger render={<Button><Plus className="h-4 w-4 mr-2" /> Nova Demanda</Button>} />
       <DialogContent
         className={expanded ? "h-[99vh]! max-h-[99vh]! w-[99vw]! max-w-[99vw]!" : undefined}
@@ -381,8 +429,17 @@ export function DemandTable({
         <DialogHeader>
           <DialogTitle>{editDialog.entity ? "Editar Demanda" : "Nova Demanda"}</DialogTitle>
         </DialogHeader>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="flex min-h-0 flex-1 flex-col overflow-hidden">
+        <form onSubmit={form.handleSubmit(onSubmit, onInvalid)} className="flex min-h-0 flex-1 flex-col overflow-hidden">
         <DialogBody>
+        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as string)}>
+          <TabsList className="w-full">
+            <TabsTrigger value="identificacao" className="flex-1">Identificação</TabsTrigger>
+            <TabsTrigger value="atribuicao" className="flex-1">Atribuição</TabsTrigger>
+            <TabsTrigger value="agendamento" className="flex-1">Agendamento</TabsTrigger>
+            <TabsTrigger value="tags" className="flex-1">Tags e Notas</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="identificacao" className="mt-4 space-y-4">
           <Field>
             <FieldLabel htmlFor="name">Nome da demanda</FieldLabel>
             <Input id="name" {...form.register("name")} placeholder="Nome da demanda" aria-invalid={!!form.formState.errors.name} />
@@ -407,7 +464,9 @@ export function DemandTable({
             />
             <FieldError errors={[form.formState.errors.description]} />
           </Field>
+          </TabsContent>
 
+          <TabsContent value="atribuicao" className="mt-4 space-y-4">
           <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
             <Field>
               <FieldLabel htmlFor="analystId">Analista</FieldLabel>
@@ -479,7 +538,7 @@ export function DemandTable({
             </Field>
           </div>
 
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <Field>
               <FieldLabel htmlFor="departmentId">Departamento</FieldLabel>
               <Select
@@ -523,6 +582,11 @@ export function DemandTable({
               </Select>
               <FieldError errors={[form.formState.errors.demandTypeId]} />
             </Field>
+          </div>
+          </TabsContent>
+
+          <TabsContent value="agendamento" className="mt-4 space-y-4">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
             <Field>
               <FieldLabel htmlFor="date">Data</FieldLabel>
               <DatePicker
@@ -533,9 +597,6 @@ export function DemandTable({
               />
               <FieldError errors={[form.formState.errors.date]} />
             </Field>
-          </div>
-
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
             <Field>
               <FieldLabel htmlFor="startTime">Hora de início</FieldLabel>
               <TimePicker
@@ -556,13 +617,13 @@ export function DemandTable({
               />
               <FieldError errors={[form.formState.errors.endTime]} />
             </Field>
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
             <Field>
               <FieldLabel>Duração</FieldLabel>
               <Input readOnly disabled value={previewMinutes > 0 ? `${formatDurationHours(previewMinutes)}h` : "-"} />
             </Field>
-          </div>
-
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
             <Field>
               <FieldLabel htmlFor="priority">Prioridade</FieldLabel>
               <Select
@@ -610,25 +671,29 @@ export function DemandTable({
                 </SelectContent>
               </Select>
             </Field>
-
-            <Field>
-              <FieldLabel htmlFor="tagIds">Tags</FieldLabel>
-              <MultiSelect
-                items={tags.map((tag) => ({ value: tag.id, label: tag.name, color: tag.color }))}
-                value={selectedTagIds}
-                onValueChange={(v) => form.setValue("tagIds", v)}
-                placeholder="Selecione as tags"
-                searchPlaceholder="Buscar tag..."
-                emptyText="Nenhuma tag encontrada."
-                disabled={tags.length === 0}
-              />
-            </Field>
           </div>
+          </TabsContent>
+
+          <TabsContent value="tags" className="mt-4 space-y-4">
+          <Field>
+            <FieldLabel htmlFor="tagIds">Tags</FieldLabel>
+            <MultiSelect
+              items={tags.map((tag) => ({ value: tag.id, label: tag.name, color: tag.color }))}
+              value={selectedTagIds}
+              onValueChange={(v) => form.setValue("tagIds", v)}
+              placeholder="Selecione as tags"
+              searchPlaceholder="Buscar tag..."
+              emptyText="Nenhuma tag encontrada."
+              disabled={tags.length === 0}
+            />
+          </Field>
 
           <Field>
             <FieldLabel htmlFor="notes">Notas</FieldLabel>
             <Textarea id="notes" {...form.register("notes")} placeholder="Notas adicionais (opcional)" />
           </Field>
+          </TabsContent>
+        </Tabs>
         </DialogBody>
         <DialogFooter>
           <Button type="button" variant="outline" onClick={handleCancel} disabled={loading}>Cancelar</Button>
