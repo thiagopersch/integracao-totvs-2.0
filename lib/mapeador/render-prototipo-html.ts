@@ -189,7 +189,8 @@ function render(){
           const isPositivo = tipo === 'positivo';
           const icone = isPositivo ? '✓' : (tipo === 'negativo' ? '✕' : '!');
           const label = fb ? fb.feedback : 'Concluída';
-          const rowStyle = isPositivo ? 'border-top:none;border-radius:0;padding:16px 20px;margin:'+(index===0?'-20px':'0')+' -20px 0;background:var(--brand)' : 'padding:16px 0';
+          const isLastRow = index === done.length - 1 && !next;
+          const rowStyle = isPositivo ? 'border-top:none;border-radius:0;padding:16px 20px;margin:'+(index===0?'-20px':'0')+' -20px '+(isLastRow?'-20px':'0')+';background:var(--brand)' : 'padding:16px 0';
           const icStyle = isPositivo ? 'border-color:#fff;color:#fff;background:transparent' : '';
           const titleStyle = isPositivo ? 'color:#fff' : '';
           const subStyle = isPositivo ? 'color:rgba(255,255,255,.85)' : 'color:#8a8a95';

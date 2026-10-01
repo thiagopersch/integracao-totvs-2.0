@@ -70,7 +70,7 @@ ${scope} .p-status-row{display:flex;align-items:center;gap:14px;padding:16px 0;b
 ${scope} .p-status-row:first-of-type{border-top:none}
 ${scope} .p-status-ic{width:34px;height:34px;border-radius:50%;border:2px solid var(--brand);color:var(--brand);display:flex;align-items:center;justify-content:center;flex:none;font-weight:700}
 ${scope} .p-status-ic.done{background:var(--brand);color:#fff}
-${scope} .p-navbar{position:sticky;bottom:0;left:0;right:0;background:var(--bar);color:#fff;display:flex;align-items:center;gap:12px;padding:10px 16px;font-size:13px;z-index:20}
+${scope} .p-navbar{flex:0 0 auto;background:var(--bar);color:#fff;display:flex;align-items:center;gap:12px;padding:10px 16px;font-size:13px}
 ${scope} .p-navbar select{flex:1;padding:7px;border-radius:4px;border:none;font-size:13px;background:#fff;color:#2b2b3c}
 ${scope} .p-navbar button{background:var(--brand);color:#fff;border:none;padding:8px 14px;border-radius:4px;cursor:pointer;font-size:13px}
 ${scope} .p-navbar button[disabled]{opacity:.5;cursor:not-allowed}

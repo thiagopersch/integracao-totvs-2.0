@@ -445,7 +445,7 @@ export function PrototipoPreview({
 
   if (screen.kind === "landing") {
     return (
-      <div className="flex h-full min-h-0 flex-col">
+      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
         <div className="p-topbar">
           {logoUrl ? <img src={logoUrl} alt="Logo" className="h-8" /> : <span className="p-brand">EXEMPLO</span>}
           <button className="p-login" onClick={() => setLoginOpen(true)}>
@@ -486,7 +486,7 @@ export function PrototipoPreview({
     const nextEtapa = projeto?.etapas[screen.etapaIndex + 1]
     const feedbackPositivo = etapa?.feedbacks.find((f) => f.tipo === "positivo")
     return (
-      <div className="flex h-full min-h-0 flex-col">
+      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
         <div className="p-topbar">
           {logoUrl ? <img src={logoUrl} alt="Logo" className="h-8" /> : <span className="p-brand">EXEMPLO</span>}
           <button className="p-profile">
@@ -527,12 +527,14 @@ export function PrototipoPreview({
                 const tipo = fb?.tipo ?? "positivo"
                 const isPositivo = tipo === "positivo"
                 const icone = isPositivo ? "✓" : tipo === "negativo" ? "✕" : "!"
+                const isLastRow = index === etapasConcluidas.length - 1 && !nextEtapa
                 return (
                   <div
                     className={cn(
                       "p-status-row",
                       isPositivo && "!border-t-0 !-mx-5 !my-0 !rounded-none !px-5 !py-4",
-                      isPositivo && index === 0 && "!-mt-5"
+                      isPositivo && index === 0 && "!-mt-5",
+                      isPositivo && isLastRow && "!-mb-5"
                     )}
                     style={isPositivo ? { background: "var(--brand)" } : undefined}
                     key={e.id}
@@ -576,7 +578,7 @@ export function PrototipoPreview({
   const passo = etapa.camposPorEtapa[screen.passoIndex]
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
+    <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
       <div className="p-topbar">
         {logoUrl ? <img src={logoUrl} alt="Logo" className="h-8" /> : <span className="p-brand">EXEMPLO</span>}
         <button className="p-login" onClick={() => setLoginOpen(true)}>

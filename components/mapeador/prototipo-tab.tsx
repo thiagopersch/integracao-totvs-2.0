@@ -384,7 +384,10 @@ export function PrototipoTab() {
       ) : (
         <div className="flex justify-center">
           <div
-            className={cn("mapeador-proto overflow-hidden rounded-lg border shadow-sm transition-all", config.visualizacao === "mobile" ? "w-[390px]" : "w-full")}
+            className={cn(
+              "mapeador-proto flex max-h-[75vh] flex-col overflow-hidden rounded-lg border shadow-sm transition-all",
+              config.visualizacao === "mobile" ? "w-[390px]" : "w-full"
+            )}
             data-visualizacao={config.visualizacao ?? "desktop"}
             style={
               {
