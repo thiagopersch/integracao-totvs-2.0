@@ -88,7 +88,7 @@ interface DemandTableProps {
   departments: Department[]
   demandTypes: DemandType[]
   tags: Tag[]
-  totalsByClient: { clientId: string; clientName: string; hours: number }[]
+  totalsByClient: { clientId: string; clientName: string; clientColor: string; hours: number }[]
   period: Period | null
   years: number[]
   monthsByYear: Record<number, number[]>

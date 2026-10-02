@@ -56,14 +56,15 @@ export const demandService = {
     ]);
 
     const clientIds = totalsRaw.map((t) => t.clientId);
-    const clientNames = clientIds.length
-      ? await prisma.client.findMany({ where: { id: { in: clientIds } }, select: { id: true, name: true } })
+    const clients = clientIds.length
+      ? await prisma.client.findMany({ where: { id: { in: clientIds } }, select: { id: true, name: true, color: true } })
       : [];
-    const nameById = new Map(clientNames.map((c) => [c.id, c.name]));
+    const clientById = new Map(clients.map((c) => [c.id, c]));
     const totalsByClient = totalsRaw
       .map((t) => ({
         clientId: t.clientId,
-        clientName: nameById.get(t.clientId) ?? "-",
+        clientName: clientById.get(t.clientId)?.name ?? "-",
+        clientColor: clientById.get(t.clientId)?.color ?? "#22c55e",
         hours: Math.round(((t._sum.durationMinutes ?? 0) / 60) * 100) / 100,
       }))
       .sort((a, b) => b.hours - a.hours);
