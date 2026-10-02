@@ -19,7 +19,7 @@ function parseContractForm(formData: FormData) {
     clientId: formData.get("clientId") as string,
     contractedHours: formData.get("contractedHours") ? Number(formData.get("contractedHours")) : undefined,
     startDate: formData.get("startDate") as string,
-    endDate: (formData.get("endDate") as string) || undefined,
+    endDate: (formData.get("endDate") as string) ?? "",
     status: (formData.get("status") as string) || "ACTIVE",
     notes: (formData.get("notes") as string) || undefined,
   };
