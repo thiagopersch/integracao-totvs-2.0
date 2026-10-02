@@ -70,7 +70,9 @@ export function DashboardSidebar() {
         {collapsed ? (
           <Radio className="h-6 w-6 text-primary" />
         ) : (
-          <h2 className="text-lg font-bold text-primary">TOTVS RM</h2>
+          <h2 className="font-(family-name:--font-orbitron) text-lg font-bold tracking-wider text-primary">
+            PerschTech
+          </h2>
         )}
       </div>
       <ScrollArea className="flex-1 min-h-0 px-2 py-2">

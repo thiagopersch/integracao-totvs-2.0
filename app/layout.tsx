@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Inter, Poppins, JetBrains_Mono } from "next/font/google";
+import { Inter, Poppins, JetBrains_Mono, Orbitron } from "next/font/google";
 import { Suspense } from "react";
 import "./globals.css";
 import { ThemeProvider } from "@/providers/theme-provider";
@@ -23,6 +23,12 @@ const jetbrainsMono = JetBrains_Mono({
   subsets: ["latin"],
 });
 
+const orbitron = Orbitron({
+  variable: "--font-orbitron",
+  subsets: ["latin"],
+  weight: ["500", "600", "700", "800", "900"],
+});
+
 export const metadata: Metadata = {
   title: "Integração TOTVS RM",
   description: "Painel administrativo para integração com TOTVS RM via SOAP Dataserver",
@@ -36,7 +42,7 @@ export default function RootLayout({
   return (
     <html
       lang="pt-BR"
-      className={`${inter.variable} ${poppins.variable} ${jetbrainsMono.variable} h-full antialiased`}
+      className={`${inter.variable} ${poppins.variable} ${jetbrainsMono.variable} ${orbitron.variable} h-full antialiased`}
       suppressHydrationWarning
     >
       <body className="min-h-full flex flex-col">
