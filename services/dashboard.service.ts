@@ -1,4 +1,6 @@
 import { prisma } from "@/lib/prisma";
+import { contractUsageService } from "@/services/contract-usage.service";
+import { CONTRACT_ATTENTION_PERCENT, formatMonthLabel } from "@/lib/contract-usage";
 
 const DEMAND_STATUS_LABELS: Record<string, string> = {
   PENDING: "Pendente",
@@ -8,7 +10,12 @@ const DEMAND_STATUS_LABELS: Record<string, string> = {
 };
 
 export const dashboardService = {
-  async getStats(organizationId: string, allowedClientIds: string[], period?: { gte: Date; lt: Date }) {
+  async getStats(
+    organizationId: string,
+    allowedClientIds: string[],
+    period: { gte: Date; lt: Date } | undefined,
+    attentionMonth: { year: number; month: number }
+  ) {
     const now = new Date();
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const last7Days = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
@@ -43,6 +50,7 @@ export const dashboardService = {
       demandsByClientRaw,
       contractsByClient,
       demandMinutesByClient,
+      monthlyUsage,
     ] = await Promise.all([
       prisma.client.count({ where: { deletedAt: null, status: true, organizationId, ...clientScope } }),
       prisma.tbc.count({ where: { deletedAt: null, status: true, organizationId, ...clientIdScope } }),
@@ -105,7 +113,22 @@ export const dashboardService = {
         where: { deletedAt: null, organizationId, ...clientIdScope, ...demandDateFilter },
         _sum: { durationMinutes: true },
       }),
+      contractUsageService.getMonthlyUsage(organizationId, attentionMonth, allowedClientIds),
     ]);
+
+    // Clients whose monthly contract consumption reached the first alert threshold (80%).
+    const contractsAttention = monthlyUsage
+      .filter((u) => u.percent >= CONTRACT_ATTENTION_PERCENT)
+      .sort((a, b) => b.percent - a.percent)
+      .map(({ clientId, clientName, clientColor, usedHours, contractedHours, percent, level }) => ({
+        clientId,
+        clientName,
+        clientColor,
+        usedHours,
+        contractedHours,
+        percent,
+        level,
+      }));
 
     const dailyAggregated = dailyStats.reduce<Record<string, number>>((acc, item) => {
       const dateKey = item.createdAt.toISOString().split("T")[0];
@@ -211,6 +234,8 @@ export const dashboardService = {
       demandsByAnalyst,
       demandsByClient,
       clientHoursRanking,
+      contractsAttention,
+      contractsAttentionMonthLabel: formatMonthLabel(attentionMonth),
     };
   },
 };

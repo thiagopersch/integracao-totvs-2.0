@@ -114,6 +114,32 @@ export const notificationService = {
   },
 
   /** Same as broadcastToOrganization, but scoped to a single role (e.g. security alerts for admins only). */
+  /** Fans an event out to the active users linked to a client (UserClient) — the same audience that
+   *  can see that client's data, so client-specific alerts don't leak to users without access. */
+  async broadcastToClientUsers(
+    organizationId: string,
+    clientId: string,
+    payload: { type: string; title: string; body: string; data?: Record<string, unknown> }
+  ) {
+    const users = await prisma.user.findMany({
+      where: { organizationId, status: true, deletedAt: null, allowedClients: { some: { clientId } } },
+      select: { id: true },
+    });
+    if (users.length === 0) return;
+
+    const notifications = await prisma.notification.createManyAndReturn({
+      data: users.map((u) => ({
+        organizationId,
+        userId: u.id,
+        type: payload.type,
+        title: payload.title,
+        body: payload.body,
+        data: payload.data as Prisma.InputJsonValue,
+      })),
+    });
+    await dispatch(notifications);
+  },
+
   async broadcastToRole(
     organizationId: string,
     role: UserRoleLevel,

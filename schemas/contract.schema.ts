@@ -8,6 +8,7 @@ export const createContractSchema = z.object({
   startDate: z.string().min(1, "Data de início é obrigatória"),
   endDate: z.string().optional(),
   status: z.enum(CONTRACT_STATUSES),
+  notifyClient: z.boolean().default(false),
   notes: z.string().max(2000, "Observações devem ter no máximo 2000 caracteres").optional(),
 });
 

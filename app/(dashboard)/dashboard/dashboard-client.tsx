@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import Link from "next/link"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -14,6 +15,7 @@ import {
   Clock,
   Activity,
   BarChart3,
+  FileClock,
 } from "lucide-react"
 import { formatDate, formatDuration, formatNumber } from "@/utils/format"
 import { MultiTypeChart } from "@/components/shared/charts/multi-type-chart"
@@ -22,6 +24,9 @@ import type { ChartKind, ChartSeries } from "@/components/shared/charts/chart-ty
 import { PeriodSelect } from "@/components/shared/period-select"
 import { usePeriodFilter } from "@/hooks/use-period-filter"
 import type { Period } from "@/lib/period"
+import { ColorBadge } from "@/components/shared/color-badge"
+import { ContractUsageBar } from "@/components/shared/contract-usage-bar"
+import { USAGE_LEVEL_COLORS, USAGE_LEVEL_LABELS, type UsageLevel } from "@/lib/contract-usage"
 
 type NamedValue = {
   name: string
@@ -125,6 +130,16 @@ interface DashboardClientProps {
   demandsByAnalyst: NamedValue[]
   demandsByClient: Array<NamedValue & { color: string }>
   clientHoursRanking: Array<{ name: string; contratadas: number; gastas: number; color: string }>
+  contractsAttention: Array<{
+    clientId: string
+    clientName: string
+    clientColor: string
+    usedHours: number
+    contractedHours: number
+    percent: number
+    level: UsageLevel
+  }>
+  contractsAttentionMonthLabel: string
   period: Period | null
   years: number[]
   monthsByYear: Record<number, number[]>
@@ -148,6 +163,8 @@ export function DashboardClient({
   demandsByAnalyst,
   demandsByClient,
   clientHoursRanking,
+  contractsAttention,
+  contractsAttentionMonthLabel,
   period: initialPeriod,
   years,
   monthsByYear,
@@ -277,6 +294,49 @@ export function DashboardClient({
               </CardContent>
             </Card>
           </div>
+
+          <Card className="mt-4">
+            <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
+              <div>
+                <CardTitle className="text-sm font-medium">Contratos em Atenção — {contractsAttentionMonthLabel}</CardTitle>
+                <p className="text-xs text-muted-foreground">Clientes com 80% ou mais das horas contratadas do mês consumidas</p>
+              </div>
+              <div className="flex items-center gap-2">
+                {contractsAttention.length > 0 && (
+                  <Badge variant="outline" style={{ borderColor: USAGE_LEVEL_COLORS.warning }}>
+                    {contractsAttention.length}
+                  </Badge>
+                )}
+                <FileClock className="h-4 w-4 text-muted-foreground" />
+              </div>
+            </CardHeader>
+            <CardContent>
+              {contractsAttention.length === 0 ? (
+                <p className="py-4 text-center text-sm text-muted-foreground">Nenhum contrato acima de 80% do consumo mensal</p>
+              ) : (
+                <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+                  {contractsAttention.map((c) => (
+                    <Link
+                      key={c.clientId}
+                      href="/contracts"
+                      className="flex flex-col gap-2 rounded-lg border p-3 transition-colors hover:bg-muted/50"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <ColorBadge label={c.clientName} color={c.clientColor} solid />
+                        <ColorBadge label={USAGE_LEVEL_LABELS[c.level]} color={USAGE_LEVEL_COLORS[c.level]} />
+                      </div>
+                      <ContractUsageBar
+                        usedHours={c.usedHours}
+                        contractedHours={c.contractedHours}
+                        percent={c.percent}
+                        level={c.level}
+                      />
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </TabsContent>
 
         <TabsContent value="integrations" className="pt-4 space-y-4">

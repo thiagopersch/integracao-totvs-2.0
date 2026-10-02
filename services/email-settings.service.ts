@@ -8,6 +8,8 @@ export interface EmailSettingsInput {
   password?: string;
   from: string;
   enabled: boolean;
+  /** Receives every contract usage alert and is CC'd on the ones sent to clients. */
+  contractAlertEmail: string | null;
 }
 
 export const emailSettingsService = {
@@ -29,6 +31,7 @@ export const emailSettingsService = {
         user: input.user,
         from: input.from,
         enabled: input.enabled,
+        contractAlertEmail: input.contractAlertEmail,
         ...(input.password ? { password: input.password } : {}),
       },
       create: {
@@ -39,6 +42,7 @@ export const emailSettingsService = {
         password: input.password!,
         from: input.from,
         enabled: input.enabled,
+        contractAlertEmail: input.contractAlertEmail,
       },
     });
   },

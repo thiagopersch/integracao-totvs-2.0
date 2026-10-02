@@ -3,6 +3,7 @@
 import { emailSettingsService } from "@/services/email-settings.service";
 import { requirePermission } from "@/lib/rbac";
 import { auditService } from "@/services/audit.service";
+import { z } from "zod";
 
 export async function getEmailSettings() {
   const { organizationId } = await requirePermission("integrations", "execute");
@@ -17,6 +18,7 @@ export async function getEmailSettings() {
     user: settings.user,
     from: settings.from,
     enabled: settings.enabled,
+    contractAlertEmail: settings.contractAlertEmail,
   };
 }
 
@@ -29,13 +31,25 @@ export async function saveEmailSettings(formData: FormData) {
   const password = (formData.get("password") as string) || "";
   const from = (formData.get("from") as string) || "";
   const enabled = formData.get("enabled") === "true";
+  const contractAlertEmail = ((formData.get("contractAlertEmail") as string) || "").trim() || null;
 
   if (!host || !port || !user || !from) {
     return { success: false, error: "Preencha todos os campos obrigatórios" };
   }
+  if (contractAlertEmail && !z.string().email().safeParse(contractAlertEmail).success) {
+    return { success: false, error: "E-mail para alertas de contrato inválido" };
+  }
 
   try {
-    await emailSettingsService.save(organizationId, { host, port, user, password: password || undefined, from, enabled });
+    await emailSettingsService.save(organizationId, {
+      host,
+      port,
+      user,
+      password: password || undefined,
+      from,
+      enabled,
+      contractAlertEmail,
+    });
     // password is intentionally never included, even redacted — matches getEmailSettings never
     // round-tripping it either.
     await auditService.log({
@@ -44,7 +58,7 @@ export async function saveEmailSettings(formData: FormData) {
       entityId: organizationId,
       organizationId,
       userId,
-      newData: { host, port, user, from, enabled },
+      newData: { host, port, user, from, enabled, contractAlertEmail },
     });
     return { success: true };
   } catch (error) {

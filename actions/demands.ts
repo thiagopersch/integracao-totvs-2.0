@@ -2,6 +2,7 @@
 
 import { updateTag, cacheTag } from "next/cache";
 import { demandService } from "@/services/demand.service";
+import { contractUsageService } from "@/services/contract-usage.service";
 import { auditService } from "@/services/audit.service";
 import { createDemandSchema, updateDemandSchema } from "@/schemas/demand.schema";
 import { requirePermission } from "@/lib/rbac";
@@ -53,6 +54,13 @@ async function getCachedClientsForDemandPeriod(
   return demandService.listClientsInPeriod(organizationId, allowedClientIds, analystScope, periodToDateRange(period));
 }
 
+/** Demand hours feed the contract consumption shown on /contracts and the dashboard. */
+function invalidateDemandTags() {
+  updateTag("demands");
+  updateTag("contracts");
+  updateTag("dashboard");
+}
+
 function parseDemandForm(formData: FormData) {
   return {
     name: formData.get("name") as string,
@@ -87,7 +95,8 @@ export async function createDemand(formData: FormData) {
   try {
     const entity = await demandService.create(parsed.data, ctx.organizationId, ctx.allowedClientIds);
     await auditService.log({ action: "CREATE", entity: "Demand", entityId: entity.id, newData: { name: entity.name } });
-    updateTag("demands");
+    contractUsageService.scheduleCheck(ctx.organizationId, [{ clientId: entity.clientId, date: entity.date }]);
+    invalidateDemandTags();
     return { success: true, data: entity };
   } catch (error) {
     return { success: false, error: (error as Error).message };
@@ -104,7 +113,8 @@ export async function updateDemand(id: string, formData: FormData) {
   try {
     const entity = await demandService.update(id, parsed.data, ctx.organizationId, ctx.allowedClientIds);
     await auditService.log({ action: "UPDATE", entity: "Demand", entityId: id, newData: { name: entity.name } });
-    updateTag("demands");
+    contractUsageService.scheduleCheck(ctx.organizationId, [{ clientId: entity.clientId, date: entity.date }]);
+    invalidateDemandTags();
     return { success: true, data: entity };
   } catch (error) {
     return { success: false, error: (error as Error).message };
@@ -116,7 +126,7 @@ export async function deleteDemand(id: string) {
   try {
     await demandService.softDelete(id, organizationId, allowedClientIds);
     await auditService.log({ action: "DELETE", entity: "Demand", entityId: id });
-    updateTag("demands");
+    invalidateDemandTags();
     return { success: true };
   } catch (error) {
     return { success: false, error: (error as Error).message };
@@ -140,7 +150,7 @@ export async function bulkDeleteDemands(ids: string[]) {
     if (result.blocked.length) {
       await auditService.logBulkDeleteBlocked("Demand", result.blocked, organizationId, userId);
     }
-    updateTag("demands");
+    invalidateDemandTags();
     return {
       success: true,
       deletedCount: result.deletedCount,

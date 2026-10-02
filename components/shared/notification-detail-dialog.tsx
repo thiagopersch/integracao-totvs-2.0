@@ -11,6 +11,8 @@ import { getNotificationCategory } from "@/lib/notification-category"
 import { ENTITY_LABELS } from "@/lib/entity-labels"
 import { ACTION_LABELS } from "@/lib/audit-labels"
 import { ERROR_KIND_LABELS, ERROR_KIND_BADGE_VARIANT, type ErrorKind } from "@/lib/error-kind"
+import { usageLevel } from "@/lib/contract-usage"
+import { ContractUsageBar } from "@/components/shared/contract-usage-bar"
 import { cn } from "@/lib/utils"
 import type { Notification } from "@/generated/prisma/client"
 
@@ -24,7 +26,7 @@ type NotificationData = {
   integration?: string
   // Failure context — populated by soap.call.failed / backup.run.failed / integrations.test.failed
   // (see lib/notification-types.ts) so the dialog can show exactly what broke and where.
-  source?: "soap" | "filter" | "api"
+  source?: "soap" | "filter" | "api" | "contract"
   sourceLabel?: string
   errorKind?: ErrorKind
   errorMessage?: string
@@ -37,6 +39,12 @@ type NotificationData = {
   logId?: string
   entityType?: "dataserver" | "process"
   entityName?: string
+  // Contract usage context — contracts.usage.threshold
+  threshold?: number
+  percent?: number
+  usedHours?: number
+  contractedHours?: number
+  periodLabel?: string
 } | null
 
 interface NotificationDetailDialogProps {
@@ -144,6 +152,23 @@ export function NotificationDetailDialog({ open, onOpenChange, notification }: N
               <div className="col-span-2">
                 <p className="text-xs text-muted-foreground">URL</p>
                 <p className="break-all">{data.url}</p>
+              </div>
+            )}
+            {data?.periodLabel && (
+              <div>
+                <p className="text-xs text-muted-foreground">Mês de referência</p>
+                <p className="capitalize">{data.periodLabel}</p>
+              </div>
+            )}
+            {data?.percent !== undefined && data.usedHours !== undefined && data.contractedHours !== undefined && (
+              <div>
+                <p className="mb-1 text-xs text-muted-foreground">Consumo{data.threshold ? ` (limite de ${data.threshold}%)` : ""}</p>
+                <ContractUsageBar
+                  usedHours={data.usedHours}
+                  contractedHours={data.contractedHours}
+                  percent={data.percent}
+                  level={usageLevel(data.percent)}
+                />
               </div>
             )}
             {data?.integration && (

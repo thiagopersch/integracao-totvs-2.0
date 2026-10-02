@@ -143,6 +143,7 @@ model Organization {
   demands            Demand[]
   notifications      Notification[]
   emailSettings      EmailSettings?
+  usageAlerts        ContractUsageAlert[]
   fichaAutomationRuns FichaAutomationRun[]
   mapeadorProjetos   MapeadorProjeto[]
   mapeadorTemas      MapeadorTema[]
@@ -292,6 +293,7 @@ model Client {
   demands          Demand[]
   userClients      UserClient[]
   mapeadorProjetos MapeadorProjeto[]
+  usageAlerts      ContractUsageAlert[]
 
   @@unique([organizationId, linkCrm])
   @@map("clients")
@@ -756,6 +758,7 @@ model ClientContract {
   startDate       DateTime       @map("start_date")
   endDate         DateTime?      @map("end_date")
   status          ContractStatus @default(ACTIVE)
+  notifyClient    Boolean        @default(false) @map("notify_client")
   notes           String?        @db.Text
   createdAt       DateTime       @default(now()) @map("created_at")
   updatedAt       DateTime       @updatedAt @map("updated_at")
@@ -763,6 +766,25 @@ model ClientContract {
   client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
 
   @@map("client_contracts")
+}
+
+/// One row per (client, month, threshold) already alerted — guarantees each usage threshold
+/// (80/85/90/95/100%) is notified only once per client per month.
+model ContractUsageAlert {
+  id              String   @id @default(uuid())
+  organizationId  String   @map("organization_id")
+  clientId        String   @map("client_id")
+  period          String
+  threshold       Int
+  usedHours       Float    @map("used_hours")
+  contractedHours Float    @map("contracted_hours")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  client       Client       @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@unique([clientId, period, threshold])
+  @@map("contract_usage_alerts")
 }
 
 model Requester {
@@ -1009,16 +1031,17 @@ model MapeadorTemplateProjeto {
 
 /** SMTP credentials for the EMAIL notification channel — configured per organization here instead of fixed .env vars. */
 model EmailSettings {
-  id             String   @id @default(uuid())
-  organizationId String   @unique @map("organization_id")
-  host           String
-  port           Int
-  user           String
-  password       String
-  from           String
-  enabled        Boolean  @default(true)
-  createdAt      DateTime @default(now()) @map("created_at")
-  updatedAt      DateTime @updatedAt @map("updated_at")
+  id                 String   @id @default(uuid())
+  organizationId     String   @unique @map("organization_id")
+  host               String
+  port               Int
+  user               String
+  password           String
+  from               String
+  enabled            Boolean  @default(true)
+  contractAlertEmail String?  @map("contract_alert_email")
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
 
   organization Organization @relation(fields: [organizationId], references: [id])
 

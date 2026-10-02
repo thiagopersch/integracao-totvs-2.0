@@ -12,6 +12,7 @@ export const NOTIFICATION_TYPES = {
   SOAP_CALL_FAILED: "soap.call.failed",
   AUTH_LOGIN_SUSPICIOUS: "auth.login.suspicious",
   INTEGRATION_TEST_FAILED: "integrations.test.failed",
+  CONTRACT_USAGE_THRESHOLD: "contracts.usage.threshold",
 } as const;
 
 export type NotificationType = (typeof NOTIFICATION_TYPES)[keyof typeof NOTIFICATION_TYPES];
@@ -138,5 +139,42 @@ export function buildLoginSuspiciousNotification(params: { email: string; attemp
     title: "Tentativas de login suspeitas",
     body: `${params.attempts} tentativas de login falharam para o usuário ${params.email} nos últimos 15 minutos.`,
     data: { email: params.email, href: "/admin/users" },
+  };
+}
+
+export function buildContractUsageThresholdNotification(params: {
+  clientId: string;
+  clientName: string;
+  threshold: number;
+  percent: number;
+  usedHours: number;
+  contractedHours: number;
+  period: string;
+  periodLabel: string;
+}): BuiltNotification {
+  const exceeded = params.threshold >= 100;
+  const percentLabel = `${params.percent.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%`;
+  const hoursLabel = (h: number) => `${h.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}h`;
+  return {
+    type: NOTIFICATION_TYPES.CONTRACT_USAGE_THRESHOLD,
+    title: exceeded
+      ? `Contrato excedido — ${params.clientName} (${percentLabel})`
+      : `Contrato em atenção — ${params.clientName} (${percentLabel})`,
+    body: `O consumo de horas do contrato de ${params.clientName} em ${params.periodLabel} ${
+      exceeded ? "excedeu o contratado e chegou a" : "atingiu"
+    } ${percentLabel}: ${hoursLabel(params.usedHours)} de ${hoursLabel(params.contractedHours)}.`,
+    data: {
+      href: "/contracts",
+      source: "contract",
+      sourceLabel: "Contrato (Consumo de horas)",
+      clientId: params.clientId,
+      clientName: params.clientName,
+      threshold: params.threshold,
+      percent: params.percent,
+      usedHours: params.usedHours,
+      contractedHours: params.contractedHours,
+      period: params.period,
+      periodLabel: params.periodLabel,
+    },
   };
 }

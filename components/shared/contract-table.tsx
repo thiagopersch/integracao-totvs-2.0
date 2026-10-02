@@ -12,11 +12,13 @@ import { EntityActionsCell } from "@/components/shared/entity-actions-cell"
 import { createSelectColumn } from "@/components/shared/select-column"
 import { DateCell } from "@/components/shared/date-cell"
 import { ColorBadge } from "@/components/shared/color-badge"
+import { ContractUsageBar } from "@/components/shared/contract-usage-bar"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
-import { Field, FieldLabel, FieldError } from "@/components/ui/field"
+import { Switch } from "@/components/ui/switch"
+import { Field, FieldLabel, FieldError, FieldDescription } from "@/components/ui/field"
 import {
   Select,
   SelectContent,
@@ -34,10 +36,11 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { DatePicker } from "@/components/ui/date-picker"
-import { Plus, Loader2 } from "lucide-react"
+import { Plus, Loader2, TriangleAlert } from "lucide-react"
 import { deleteContract, createContract, updateContract, bulkDeleteContracts } from "@/actions/contracts"
 import { createContractSchema, updateContractSchema, type CreateContractInput } from "@/schemas/contract.schema"
 import { formatDecimal } from "@/lib/masks"
+import type { UsageLevel } from "@/lib/contract-usage"
 import { formatDateOnly, toDateInputValue } from "@/utils/format"
 import { toast } from "sonner"
 import { useCrudTable } from "@/hooks/use-crud-table"
@@ -51,8 +54,11 @@ type ContractRow = {
   startDate: string | Date
   endDate: string | Date | null
   status: string
+  notifyClient: boolean
   notes: string | null
-  client: { id: string; name: string; color: string }
+  client: { id: string; name: string; color: string; email: string | null }
+  /** Current month's consumption (per client) — null when the contract isn't in force this month. */
+  usage: { usedHours: number; contractedHours: number; percent: number; level: UsageLevel } | null
 }
 
 interface ContractTableProps {
@@ -75,7 +81,7 @@ const STATUS_COLORS: Record<string, string> = {
   CANCELLED: "#ef4444",
 }
 
-const SORTABLE_COLUMNS = ["contractedHours", "startDate", "endDate", "status"]
+const SORTABLE_COLUMNS = ["contractedHours", "usagePercent", "startDate", "endDate", "status"]
 
 export function ContractTable({ data, meta, clients }: ContractTableProps) {
   const {
@@ -110,6 +116,7 @@ export function ContractTable({ data, meta, clients }: ContractTableProps) {
           startDate: toDateInputValue(editDialog.entity.startDate),
           endDate: editDialog.entity.endDate ? toDateInputValue(editDialog.entity.endDate) : "",
           status: editDialog.entity.status as CreateContractInput["status"],
+          notifyClient: editDialog.entity.notifyClient,
           notes: editDialog.entity.notes || "",
         }
       : {
@@ -118,9 +125,12 @@ export function ContractTable({ data, meta, clients }: ContractTableProps) {
           startDate: new Date().toISOString().slice(0, 10),
           endDate: "",
           status: "ACTIVE",
+          notifyClient: false,
           notes: "",
         },
   })
+
+  const selectedClient = clients.find((c) => c.id === form.watch("clientId"))
 
   async function onSubmit(data: CreateContractInput) {
     setLoading(true)
@@ -171,6 +181,15 @@ export function ContractTable({ data, meta, clients }: ContractTableProps) {
       accessorKey: "contractedHours",
       header: "Horas Contratadas",
       cell: ({ row }) => (row.getValue("contractedHours") as number).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+    },
+    {
+      id: "usagePercent",
+      header: "Consumo (mês)",
+      cell: ({ row }) => {
+        const usage = row.original.usage
+        if (!usage) return <span className="text-muted-foreground">-</span>
+        return <ContractUsageBar {...usage} />
+      },
     },
     {
       accessorKey: "startDate",
@@ -306,6 +325,25 @@ export function ContractTable({ data, meta, clients }: ContractTableProps) {
               <FieldError errors={[form.formState.errors.endDate]} />
             </Field>
           </div>
+          <Field orientation="horizontal">
+            <Switch
+              id="notifyClient"
+              checked={!!form.watch("notifyClient")}
+              onCheckedChange={(checked) => form.setValue("notifyClient", checked)}
+            />
+            <div className="flex flex-col gap-1">
+              <FieldLabel htmlFor="notifyClient">Notificar cliente por e-mail</FieldLabel>
+              <FieldDescription>
+                Envia ao cliente os alertas de consumo (80%, 85%, 90%, 95% e 100% das horas do mês), com o e-mail de alertas em cópia.
+              </FieldDescription>
+              {form.watch("notifyClient") && selectedClient && !selectedClient.email && (
+                <p className="flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400">
+                  <TriangleAlert className="h-3.5 w-3.5" />
+                  Este cliente não tem e-mail cadastrado — o alerta irá apenas para o e-mail de alertas.
+                </p>
+              )}
+            </div>
+          </Field>
           <Field>
             <FieldLabel htmlFor="notes">Observações</FieldLabel>
             <Textarea id="notes" {...form.register("notes")} placeholder="Observações (opcional)" aria-invalid={!!form.formState.errors.notes} />

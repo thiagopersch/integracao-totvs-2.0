@@ -2,6 +2,7 @@
 
 import { updateTag, cacheTag } from "next/cache";
 import { contractService } from "@/services/contract.service";
+import { contractUsageService } from "@/services/contract-usage.service";
 import { auditService } from "@/services/audit.service";
 import { createContractSchema, updateContractSchema } from "@/schemas/contract.schema";
 import { requirePermission } from "@/lib/rbac";
@@ -21,6 +22,7 @@ function parseContractForm(formData: FormData) {
     startDate: formData.get("startDate") as string,
     endDate: (formData.get("endDate") as string) ?? "",
     status: (formData.get("status") as string) || "ACTIVE",
+    notifyClient: formData.get("notifyClient") === "true",
     notes: (formData.get("notes") as string) || undefined,
   };
 }
@@ -35,7 +37,10 @@ export async function createContract(formData: FormData) {
   try {
     const entity = await contractService.create(parsed.data, organizationId, allowedClientIds);
     await auditService.log({ action: "CREATE", entity: "ClientContract", entityId: entity.id, newData: { clientId: entity.clientId } });
+    // Contracted hours changed: the current month's consumption may now cross a threshold.
+    contractUsageService.scheduleCheck(organizationId, [{ clientId: entity.clientId, date: new Date() }]);
     updateTag("contracts");
+    updateTag("dashboard");
     return { success: true, data: entity };
   } catch (error) {
     return { success: false, error: (error as Error).message };
@@ -52,7 +57,9 @@ export async function updateContract(id: string, formData: FormData) {
   try {
     const entity = await contractService.update(id, parsed.data, organizationId, allowedClientIds);
     await auditService.log({ action: "UPDATE", entity: "ClientContract", entityId: id, newData: { clientId: entity.clientId } });
+    contractUsageService.scheduleCheck(organizationId, [{ clientId: entity.clientId, date: new Date() }]);
     updateTag("contracts");
+    updateTag("dashboard");
     return { success: true, data: entity };
   } catch (error) {
     return { success: false, error: (error as Error).message };

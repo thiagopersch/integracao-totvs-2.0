@@ -9,6 +9,7 @@ import { listAllDepartments } from "@/actions/departments";
 import { listAllDemandTypes } from "@/actions/demand-types";
 import { auditService } from "@/services/audit.service";
 import { importService, ImportPartialFailure, type ImportCandidates } from "@/services/import.service";
+import { contractUsageService } from "@/services/contract-usage.service";
 import { commitDemandImportSchema } from "@/schemas/demand-import.schema";
 import type { ParsedDemandRow } from "@/schemas/demand-import.schema";
 
@@ -79,6 +80,13 @@ export async function commitDemandImport(
     return { success: false, error: "Dados inválidos", rowErrors };
   }
 
+  // Scheduled up front (runs only after the response) so rows committed before a partial failure
+  // are still checked against their contracts' monthly hours.
+  contractUsageService.scheduleCheck(
+    ctx.organizationId,
+    parsed.data.rows.map((row) => ({ clientId: row.clientId, date: new Date(row.date) }))
+  );
+
   try {
     const result = await importService.bulkCreate(parsed.data.rows, ctx.organizationId, ctx.allowedClientIds);
     await auditService.log({
@@ -88,6 +96,8 @@ export async function commitDemandImport(
       newData: { createdCount: result.createdCount, updatedCount: result.updatedCount },
     });
     updateTag("demands");
+    updateTag("contracts");
+    updateTag("dashboard");
     return { success: true, createdCount: result.createdCount, updatedCount: result.updatedCount };
   } catch (error) {
     if (error instanceof ImportPartialFailure) {

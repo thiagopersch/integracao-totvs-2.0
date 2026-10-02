@@ -1,4 +1,6 @@
 import { prisma } from "@/lib/prisma";
+import { contractUsageService, type ClientMonthlyUsage } from "@/services/contract-usage.service";
+import { currentMonth } from "@/lib/contract-usage";
 import { findBlockingReferences, formatBlockingReferences, type BlockingReference } from "@/lib/entity-relations";
 import { assertClientAllowed } from "@/lib/client-access";
 import type { CreateContractInput, UpdateContractInput } from "@/schemas/contract.schema";
@@ -6,8 +8,32 @@ import type { ListParams } from "@/types/common";
 import type { BulkDeleteResult } from "@/repositories/base.repository";
 
 const includeRelations = {
-  client: { select: { id: true, name: true, color: true } },
+  client: { select: { id: true, name: true, color: true, email: true } },
 } as const;
+
+/** Field the contracts table sorts the "Consumo (mês)" column by — computed, so sorted in memory. */
+const USAGE_SORT_FIELD = "usagePercent";
+
+type ContractUsage = Pick<ClientMonthlyUsage, "usedHours" | "contractedHours" | "percent" | "level">;
+
+/** Attaches the current month's consumption to every contract in force this month (consumption is
+ *  per client, so contracts of the same client share it); other contracts get `usage: null`. */
+async function withMonthlyUsage<T extends { id: string; clientId: string }>(organizationId: string, contracts: T[]) {
+  const clientIds = [...new Set(contracts.map((c) => c.clientId))];
+  const usages = clientIds.length ? await contractUsageService.getMonthlyUsage(organizationId, currentMonth(), clientIds) : [];
+  const usageByContractId = new Map<string, ContractUsage>();
+  for (const u of usages) {
+    for (const contractId of u.contractIds) {
+      usageByContractId.set(contractId, {
+        usedHours: u.usedHours,
+        contractedHours: u.contractedHours,
+        percent: u.percent,
+        level: u.level,
+      });
+    }
+  }
+  return contracts.map((c) => ({ ...c, usage: usageByContractId.get(c.id) ?? null }));
+}
 
 export const contractService = {
   async syncExpiredStatuses(organizationId: string, allowedClientIds: string[]) {
@@ -36,11 +62,21 @@ export const contractService = {
     };
     if (params.filters?.status) where.status = params.filters.status;
 
-    if (!params.sort) {
+    if (!params.sort || params.sort.field === USAGE_SORT_FIELD) {
       // No explicit column sort: default view groups by hours desc, with expired contracts
-      // pushed to the end — not expressible as a single Prisma orderBy, so sort in memory.
-      const all = await prisma.clientContract.findMany({ where, include: includeRelations });
+      // pushed to the end. Neither that nor the computed usage % is expressible as a Prisma
+      // orderBy, so sort in memory.
+      const all = await withMonthlyUsage(
+        organizationId,
+        await prisma.clientContract.findMany({ where, include: includeRelations })
+      );
+      const usageDirection = params.sort?.direction === "asc" ? 1 : -1;
       const sorted = all.sort((a, b) => {
+        if (params.sort) {
+          // Contracts without consumption this month always go last, whatever the direction.
+          if (!a.usage || !b.usage) return a.usage ? -1 : b.usage ? 1 : 0;
+          return (a.usage.percent - b.usage.percent) * usageDirection;
+        }
         const aExpired = a.status === "EXPIRED";
         const bExpired = b.status === "EXPIRED";
         if (aExpired !== bExpired) return aExpired ? 1 : -1;
@@ -53,10 +89,11 @@ export const contractService = {
 
     const orderBy = { [params.sort.field]: params.sort.direction };
 
-    const [data, total] = await Promise.all([
+    const [rows, total] = await Promise.all([
       prisma.clientContract.findMany({ where, orderBy, skip: (page - 1) * pageSize, take: pageSize, include: includeRelations }),
       prisma.clientContract.count({ where }),
     ]);
+    const data = await withMonthlyUsage(organizationId, rows);
 
     return { data, meta: { page, pageSize, total, totalPages: Math.ceil(total / pageSize) } };
   },

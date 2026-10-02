@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input"
 import { PasswordInput } from "@/components/ui/password-input"
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Field, FieldLabel } from "@/components/ui/field"
+import { Field, FieldLabel, FieldDescription } from "@/components/ui/field"
 import { Card, CardContent } from "@/components/ui/card"
 import { Loader2, Mail } from "lucide-react"
 import { toast } from "sonner"
@@ -19,6 +19,7 @@ type EmailSettings = {
   user: string
   from: string
   enabled: boolean
+  contractAlertEmail: string | null
 } | null
 
 interface EmailSettingsClientProps {
@@ -32,6 +33,7 @@ interface EmailFormState {
   password: string
   from: string
   enabled: boolean
+  contractAlertEmail: string
 }
 
 export function EmailSettingsClient({ initialSettings }: EmailSettingsClientProps) {
@@ -42,6 +44,7 @@ export function EmailSettingsClient({ initialSettings }: EmailSettingsClientProp
     password: "",
     from: initialSettings?.from || "",
     enabled: initialSettings?.enabled ?? true,
+    contractAlertEmail: initialSettings?.contractAlertEmail || "",
   })
   const [loading, setLoading] = useState(false)
 
@@ -64,6 +67,7 @@ export function EmailSettingsClient({ initialSettings }: EmailSettingsClientProp
     formData.append("password", form.password)
     formData.append("from", form.from)
     formData.append("enabled", String(form.enabled))
+    formData.append("contractAlertEmail", form.contractAlertEmail)
 
     const result = await saveEmailSettings(formData)
     if (result.success) {
@@ -124,6 +128,21 @@ export function EmailSettingsClient({ initialSettings }: EmailSettingsClientProp
                 onChange={(e) => update("from", e.target.value)}
                 placeholder='"Integração TOTVS" <notificacoes@exemplo.com>'
               />
+            </Field>
+
+            <Field>
+              <FieldLabel htmlFor="contractAlertEmail">E-mail para alertas de contrato</FieldLabel>
+              <Input
+                id="contractAlertEmail"
+                type="email"
+                value={form.contractAlertEmail}
+                onChange={(e) => update("contractAlertEmail", e.target.value)}
+                placeholder="voce@exemplo.com"
+              />
+              <FieldDescription>
+                Recebe todos os alertas de consumo de horas dos contratos (80%, 85%, 90%, 95% e 100%) e vai em cópia nos e-mails
+                enviados aos clientes.
+              </FieldDescription>
             </Field>
 
             <div className="flex items-center gap-2">

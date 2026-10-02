@@ -6,12 +6,22 @@ import { logger } from "@/lib/logger";
  *  configured per organization in the `email_settings` table (see /integrations/email), not .env.
  *  Every attempt (skipped, sent, or failed) is persisted to EmailLog so it shows up in the
  *  centralized activity tracking page — `userId` here is the notification's recipient, used only
- *  for tenant/actor bookkeeping on the log row, not for permission checks. */
-export async function sendEmail(organizationId: string, to: string, subject: string, text: string, userId?: string): Promise<void> {
+ *  for tenant/actor bookkeeping on the log row, not for permission checks. `options.cc` recipients
+ *  are listed in the log's `to` column as "a@x.com (cc: b@y.com)". */
+export async function sendEmail(
+  organizationId: string,
+  to: string,
+  subject: string,
+  text: string,
+  userId?: string,
+  options?: { cc?: string[] }
+): Promise<void> {
+  const cc = options?.cc?.filter(Boolean) ?? [];
+  const logTo = cc.length ? `${to} (cc: ${cc.join(", ")})` : to;
   const settings = await prisma.emailSettings.findUnique({ where: { organizationId } });
   if (!settings || !settings.enabled) {
-    logger.warn("Email não enviado: integração de e-mail não configurada/desativada", { organizationId, to, subject });
-    await prisma.emailLog.create({ data: { organizationId, userId, to, subject, status: "SKIPPED" } });
+    logger.warn("Email não enviado: integração de e-mail não configurada/desativada", { organizationId, to: logTo, subject });
+    await prisma.emailLog.create({ data: { organizationId, userId, to: logTo, subject, status: "SKIPPED" } });
     return;
   }
 
@@ -23,11 +33,11 @@ export async function sendEmail(organizationId: string, to: string, subject: str
   });
 
   try {
-    await transporter.sendMail({ from: settings.from, to, subject, text });
-    await prisma.emailLog.create({ data: { organizationId, userId, to, subject, status: "SENT" } });
+    await transporter.sendMail({ from: settings.from, to, cc: cc.length ? cc : undefined, subject, text });
+    await prisma.emailLog.create({ data: { organizationId, userId, to: logTo, subject, status: "SENT" } });
   } catch (error) {
     const errorMessage = (error as Error).message;
-    logger.error("Falha ao enviar email de notificação", { to, subject, error: errorMessage });
-    await prisma.emailLog.create({ data: { organizationId, userId, to, subject, status: "FAILED", error: errorMessage } });
+    logger.error("Falha ao enviar email de notificação", { to: logTo, subject, error: errorMessage });
+    await prisma.emailLog.create({ data: { organizationId, userId, to: logTo, subject, status: "FAILED", error: errorMessage } });
   }
 }

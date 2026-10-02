@@ -31,11 +31,21 @@ function formatShort(value: unknown): string {
 function summarizeDataLine(data: unknown): string | null {
   if (!data || typeof data !== "object") return null
 
-  const failure = data as { clientName?: string; errorKind?: ErrorKind }
+  const failure = data as {
+    clientName?: string
+    errorKind?: ErrorKind
+    percent?: number
+    usedHours?: number
+    contractedHours?: number
+  }
   if (failure.clientName || failure.errorKind) {
+    const hours = (h: number) => `${h.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}h`
     const parts = [
       failure.clientName ? `Cliente: ${failure.clientName}` : null,
       failure.errorKind ? ERROR_KIND_LABELS[failure.errorKind] : null,
+      failure.percent !== undefined && failure.usedHours !== undefined && failure.contractedHours !== undefined
+        ? `${failure.percent.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}% (${hours(failure.usedHours)} de ${hours(failure.contractedHours)})`
+        : null,
     ].filter(Boolean)
     if (parts.length > 0) return parts.join(" · ")
   }

@@ -1,4 +1,4 @@
-import { FileText, Radio, Archive, ShieldCheck, Plug, Bell, type LucideIcon } from "lucide-react";
+import { FileText, Radio, Archive, ShieldCheck, Plug, Bell, FileClock, type LucideIcon } from "lucide-react";
 
 export type NotificationCategory = { label: string; icon: LucideIcon };
 
@@ -11,6 +11,7 @@ const CATEGORIES: Record<string, NotificationCategory> = {
   backup: { label: "Backup", icon: Archive },
   auth: { label: "Segurança", icon: ShieldCheck },
   integrations: { label: "Integração", icon: Plug },
+  contracts: { label: "Contrato", icon: FileClock },
 };
 
 export function getNotificationCategory(type: string): NotificationCategory {
