@@ -10,7 +10,21 @@ const includeRelations = {
 } as const;
 
 export const contractService = {
+  async syncExpiredStatuses(organizationId: string, allowedClientIds: string[]) {
+    await prisma.clientContract.updateMany({
+      where: {
+        clientId: { in: allowedClientIds },
+        client: { organizationId },
+        status: { notIn: ["EXPIRED", "CANCELLED"] },
+        endDate: { lt: new Date() },
+      },
+      data: { status: "EXPIRED" },
+    });
+  },
+
   async list(params: ListParams, organizationId: string, allowedClientIds: string[]) {
+    await this.syncExpiredStatuses(organizationId, allowedClientIds);
+
     const page = params.page || 1;
     const pageSize = params.pageSize || 10;
     const where: Record<string, unknown> = {
@@ -22,7 +36,22 @@ export const contractService = {
     };
     if (params.filters?.status) where.status = params.filters.status;
 
-    const orderBy = params.sort ? { [params.sort.field]: params.sort.direction } : { createdAt: "desc" as const };
+    if (!params.sort) {
+      // No explicit column sort: default view groups by hours desc, with expired contracts
+      // pushed to the end — not expressible as a single Prisma orderBy, so sort in memory.
+      const all = await prisma.clientContract.findMany({ where, include: includeRelations });
+      const sorted = all.sort((a, b) => {
+        const aExpired = a.status === "EXPIRED";
+        const bExpired = b.status === "EXPIRED";
+        if (aExpired !== bExpired) return aExpired ? 1 : -1;
+        return b.contractedHours - a.contractedHours;
+      });
+      const total = sorted.length;
+      const data = sorted.slice((page - 1) * pageSize, (page - 1) * pageSize + pageSize);
+      return { data, meta: { page, pageSize, total, totalPages: Math.ceil(total / pageSize) } };
+    }
+
+    const orderBy = { [params.sort.field]: params.sort.direction };
 
     const [data, total] = await Promise.all([
       prisma.clientContract.findMany({ where, orderBy, skip: (page - 1) * pageSize, take: pageSize, include: includeRelations }),

@@ -11,7 +11,7 @@ import { ConfirmDialog } from "@/components/shared/confirm-dialog"
 import { EntityActionsCell } from "@/components/shared/entity-actions-cell"
 import { createSelectColumn } from "@/components/shared/select-column"
 import { DateCell } from "@/components/shared/date-cell"
-import { Badge } from "@/components/ui/badge"
+import { ColorBadge } from "@/components/shared/color-badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -68,11 +68,11 @@ const STATUS_LABELS: Record<string, string> = {
   CANCELLED: "Cancelado",
 }
 
-const STATUS_VARIANTS: Record<string, "success" | "secondary" | "destructive" | "outline"> = {
-  ACTIVE: "success",
-  SUSPENDED: "secondary",
-  EXPIRED: "outline",
-  CANCELLED: "destructive",
+const STATUS_COLORS: Record<string, string> = {
+  ACTIVE: "#22c55e",
+  SUSPENDED: "#f97316",
+  EXPIRED: "#6b7280",
+  CANCELLED: "#ef4444",
 }
 
 const SORTABLE_COLUMNS = ["contractedHours", "startDate", "endDate", "status"]
@@ -92,7 +92,7 @@ export function ContractTable({ data, meta, clients }: ContractTableProps) {
   } = useCrudTable<ContractRow>({
     deleteAction: deleteContract,
     deleteSuccessMessage: "Contrato excluído com sucesso",
-    defaultSort: { field: "startDate", direction: "desc" },
+    defaultSort: { field: "contractedHours", direction: "desc" },
   })
   const canCreate = useHasPermission("contracts", "create")
   const canUpdate = useHasPermission("contracts", "update")
@@ -157,17 +157,14 @@ export function ContractTable({ data, meta, clients }: ContractTableProps) {
       header: "Status",
       cell: ({ row }) => {
         const status = row.getValue("status") as string
-        return <Badge variant={STATUS_VARIANTS[status] || "secondary"}>{STATUS_LABELS[status] || status}</Badge>
+        return <ColorBadge label={STATUS_LABELS[status] || status} color={STATUS_COLORS[status] || "#6b7280"} />
       },
     },
     {
       id: "client",
       header: "Cliente",
       cell: ({ row }) => (
-        <div className="flex items-center gap-2">
-          <span className="h-3 w-3 rounded-full shrink-0" style={{ backgroundColor: row.original.client.color }} />
-          {row.original.client.name}
-        </div>
+        <ColorBadge label={row.original.client.name} color={row.original.client.color} solid />
       ),
     },
     {
@@ -224,11 +221,18 @@ export function ContractTable({ data, meta, clients }: ContractTableProps) {
               onValueChange={(v) => form.setValue("clientId", v || "", { shouldValidate: true })}
             >
               <SelectTrigger className="w-full" aria-invalid={!!form.formState.errors.clientId}>
-                <SelectValue placeholder="Selecione um cliente" />
+                <SelectValue placeholder="Selecione um cliente">
+                  {(value: string) => {
+                    const client = clients.find((c) => c.id === value)
+                    return client ? <ColorBadge label={client.name} color={client.color} solid /> : "Selecione um cliente"
+                  }}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 {clients.map((c) => (
-                  <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                  <SelectItem key={c.id} value={c.id}>
+                    <ColorBadge label={c.name} color={c.color} solid />
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -264,11 +268,17 @@ export function ContractTable({ data, meta, clients }: ContractTableProps) {
                 onValueChange={(v) => form.setValue("status", v as CreateContractInput["status"] || "ACTIVE")}
               >
                 <SelectTrigger className="w-full">
-                  <SelectValue />
+                  <SelectValue>
+                    {(value: string) =>
+                      value ? <ColorBadge label={STATUS_LABELS[value]} color={STATUS_COLORS[value]} /> : "Selecione"
+                    }
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {Object.entries(STATUS_LABELS).map(([value, label]) => (
-                    <SelectItem key={value} value={value}>{label}</SelectItem>
+                    <SelectItem key={value} value={value}>
+                      <ColorBadge label={label} color={STATUS_COLORS[value]} />
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -330,12 +340,22 @@ export function ContractTable({ data, meta, clients }: ContractTableProps) {
           onValueChange={(v) => setStatusFilter(v === "all" || !v ? "" : v)}
         >
           <SelectTrigger className="w-full">
-            <SelectValue placeholder="Todos" />
+            <SelectValue placeholder="Todos">
+              {(value: string) =>
+                value && value !== "all" ? (
+                  <ColorBadge label={STATUS_LABELS[value]} color={STATUS_COLORS[value]} />
+                ) : (
+                  "Todos"
+                )
+              }
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todos</SelectItem>
             {Object.entries(STATUS_LABELS).map(([value, label]) => (
-              <SelectItem key={value} value={value}>{label}</SelectItem>
+              <SelectItem key={value} value={value}>
+                <ColorBadge label={label} color={STATUS_COLORS[value]} />
+              </SelectItem>
             ))}
           </SelectContent>
         </Select>
