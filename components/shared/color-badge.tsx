@@ -1,7 +1,6 @@
-"use client"
-
-import { useTheme } from "next-themes"
+import type { CSSProperties } from "react"
 import { Badge } from "@/components/ui/badge"
+import { cn } from "@/lib/utils"
 import { getBadgeTextColor, getContrastTextColor } from "@/lib/colors"
 
 interface ColorBadgeProps {
@@ -11,13 +10,25 @@ interface ColorBadgeProps {
 }
 
 export function ColorBadge({ label, color, solid = false }: ColorBadgeProps) {
-  const { resolvedTheme } = useTheme()
-  const style = solid
-    ? { backgroundColor: color, borderColor: color, color: getContrastTextColor(color) }
-    : { backgroundColor: `${color}22`, borderColor: color, color: getBadgeTextColor(color, resolvedTheme === "dark") }
+  if (solid) {
+    return (
+      <Badge style={{ backgroundColor: color, borderColor: color, color: getContrastTextColor(color) }} variant="outline">
+        {label}
+      </Badge>
+    )
+  }
+
+  // Both theme variants are computed up front and picked by the `dark` class in CSS — reading the
+  // theme in JS (useTheme) is unknown during SSR and made the server/client text color mismatch.
+  const style = {
+    backgroundColor: `${color}22`,
+    borderColor: color,
+    "--badge-fg": getBadgeTextColor(color, false),
+    "--badge-fg-dark": getBadgeTextColor(color, true),
+  } as CSSProperties
 
   return (
-    <Badge style={style} variant="outline">
+    <Badge style={style} variant="outline" className={cn("text-(--badge-fg) dark:text-(--badge-fg-dark)")}>
       {label}
     </Badge>
   )

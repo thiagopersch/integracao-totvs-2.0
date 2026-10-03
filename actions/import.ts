@@ -84,7 +84,7 @@ export async function commitDemandImport(
   // are still checked against their contracts' monthly hours.
   contractUsageService.scheduleCheck(
     ctx.organizationId,
-    parsed.data.rows.map((row) => ({ clientId: row.clientId, date: new Date(row.date) }))
+    parsed.data.rows.map((row) => ({ clientId: row.clientId, date: new Date(row.date), trigger: "demand" as const }))
   );
 
   try {

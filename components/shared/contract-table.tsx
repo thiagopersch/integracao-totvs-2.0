@@ -36,8 +36,15 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { DatePicker } from "@/components/ui/date-picker"
-import { Plus, Loader2, TriangleAlert } from "lucide-react"
-import { deleteContract, createContract, updateContract, bulkDeleteContracts } from "@/actions/contracts"
+import { Plus, Loader2, TriangleAlert, Send } from "lucide-react"
+import {
+  deleteContract,
+  createContract,
+  updateContract,
+  bulkDeleteContracts,
+  resendContractUsageNotification,
+} from "@/actions/contracts"
+import { DropdownMenuItem } from "@/components/ui/dropdown-menu"
 import { createContractSchema, updateContractSchema, type CreateContractInput } from "@/schemas/contract.schema"
 import { formatDecimal } from "@/lib/masks"
 import type { UsageLevel } from "@/lib/contract-usage"
@@ -51,6 +58,7 @@ import type { PaginationMeta } from "@/types/common"
 type ContractRow = {
   id: string
   contractedHours: number
+  hourlyRate: number | null
   startDate: string | Date
   endDate: string | Date | null
   status: string
@@ -105,6 +113,18 @@ export function ContractTable({ data, meta, clients }: ContractTableProps) {
   const canDelete = useHasPermission("contracts", "delete")
   const [loading, setLoading] = useState(false)
   const [statusFilter, setStatusFilter] = useState(searchParams.get("status") || "")
+  const [resendTarget, setResendTarget] = useState<ContractRow | null>(null)
+  const [resending, setResending] = useState(false)
+
+  async function handleResend() {
+    if (!resendTarget) return
+    setResending(true)
+    const result = await resendContractUsageNotification(resendTarget.id)
+    setResending(false)
+    setResendTarget(null)
+    if (result.success) toast.success(result.message)
+    else toast.error(result.error)
+  }
 
   const form = useForm<CreateContractInput>({
     mode: "onChange",
@@ -113,6 +133,7 @@ export function ContractTable({ data, meta, clients }: ContractTableProps) {
       ? {
           clientId: editDialog.entity.client.id,
           contractedHours: editDialog.entity.contractedHours,
+          hourlyRate: editDialog.entity.hourlyRate,
           startDate: toDateInputValue(editDialog.entity.startDate),
           endDate: editDialog.entity.endDate ? toDateInputValue(editDialog.entity.endDate) : "",
           status: editDialog.entity.status as CreateContractInput["status"],
@@ -122,6 +143,7 @@ export function ContractTable({ data, meta, clients }: ContractTableProps) {
       : {
           clientId: "",
           contractedHours: 40,
+          hourlyRate: null,
           startDate: new Date().toISOString().slice(0, 10),
           endDate: "",
           status: "ACTIVE",
@@ -216,12 +238,19 @@ export function ContractTable({ data, meta, clients }: ContractTableProps) {
       <EntityActionsCell
         onEdit={canUpdate ? () => setEditDialog({ open: true, entity: row.original }) : undefined}
         onDelete={canDelete ? () => setDeleteDialog({ open: true, id: row.original.id }) : undefined}
+        extraItems={
+          canUpdate ? (
+            <DropdownMenuItem onClick={() => setResendTarget(row.original)}>
+              <Send className="mr-2 h-4 w-4" /> Reenviar notificação de consumo
+            </DropdownMenuItem>
+          ) : undefined
+        }
       />
     ),
   }
     if (canUpdate || canDelete) columns.push(actionsColumn)
     return columns
-  }, [canUpdate, canDelete, setEditDialog, setDeleteDialog])
+  }, [canUpdate, canDelete, setEditDialog, setDeleteDialog, setResendTarget])
 
   const newDialog = (
     <Dialog open={editDialog.open} onOpenChange={(open) => { setEditDialog({ open, entity: open ? editDialog.entity : undefined }); if (!open) form.reset() }}>
@@ -278,6 +307,28 @@ export function ContractTable({ data, meta, clients }: ContractTableProps) {
                 )}
               />
               <FieldError errors={[form.formState.errors.contractedHours]} />
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="hourlyRate">Valor da hora (opcional)</FieldLabel>
+              <Controller
+                control={form.control}
+                name="hourlyRate"
+                render={({ field }) => (
+                  <Input
+                    id="hourlyRate"
+                    inputMode="decimal"
+                    value={field.value ? `R$ ${formatDecimal(String(Math.round(field.value * 100)))}` : ""}
+                    onChange={(e) => {
+                      const digits = e.target.value.replace(/\D/g, "")
+                      field.onChange(digits ? Number(digits) / 100 : null)
+                    }}
+                    placeholder="R$ 0,00"
+                    aria-invalid={!!form.formState.errors.hourlyRate}
+                  />
+                )}
+              />
+              <FieldDescription>Usado nas variáveis de valor (R$) dos e-mails de consumo.</FieldDescription>
+              <FieldError errors={[form.formState.errors.hourlyRate]} />
             </Field>
             <Field>
               <FieldLabel htmlFor="status">Status</FieldLabel>
@@ -443,6 +494,31 @@ export function ContractTable({ data, meta, clients }: ContractTableProps) {
         variant="destructive"
         onConfirm={() => deleteDialog.id && handleDelete(deleteDialog.id)}
       />
+
+      <ConfirmDialog
+        open={!!resendTarget}
+        onOpenChange={(open) => !open && !resending && setResendTarget(null)}
+        title="Reenviar notificação de consumo"
+        description={
+          resendTarget
+            ? `Enviar agora o e-mail de consumo de horas do mês atual de ${resendTarget.client.name}${
+                resendTarget.notifyClient && resendTarget.client.email
+                  ? ` para ${resendTarget.client.email} (com o e-mail de alertas em cópia, quando configurado)`
+                  : " para o e-mail de alertas de contrato"
+              }?`
+            : ""
+        }
+        confirmLabel="Reenviar"
+        loading={resending}
+        loadingLabel="Enviando…"
+        onConfirm={handleResend}
+      >
+        {resendTarget?.usage ? (
+          <ContractUsageBar {...resendTarget.usage} className="mt-2" />
+        ) : (
+          <p className="mt-2 text-sm text-muted-foreground">Sem consumo registrado neste mês.</p>
+        )}
+      </ConfirmDialog>
     </>
   )
 }

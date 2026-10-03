@@ -40,6 +40,7 @@ export function buildBackupRunFailedNotification(params: {
     data: {
       filterId: params.filterId,
       href: `/admin/backups/${params.filterId}`,
+      filterLabel: params.filterLabel,
       source: "filter",
       sourceLabel: "Filtro (Backup)",
       tbcName: params.tbcName,
@@ -65,6 +66,7 @@ export function buildBackupRunSucceededNotification(params: {
     data: {
       filterId: params.filterId,
       href: `/admin/backups/${params.filterId}`,
+      filterLabel: params.filterLabel,
       source: "filter",
       sourceLabel: "Filtro (Backup)",
       tbcName: params.tbcName,

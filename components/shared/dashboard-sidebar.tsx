@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { Fragment, useMemo, useState } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { ChevronDown, ChevronLeft, ChevronRight, Radio, Settings } from "lucide-react"
@@ -64,6 +64,129 @@ export function DashboardSidebar() {
     return isGroupActive(pathname, group)
   }
 
+  function renderGroup(group: NavGroup) {
+    const GroupIcon = NAV_ICONS[group.icon] ?? Settings
+
+    // Single-item groups render as a plain link — no point collapsing one route —
+    // unless the group opts into always showing as a collapsible section (forceCollapsible).
+    if (group.items.length === 1 && !group.forceCollapsible) {
+      const item = group.items[0]
+      const ItemIcon = NAV_ICONS[item.icon] ?? Settings
+      const active = itemActive(item.href)
+      return (
+        <Link
+          key={item.href}
+          href={item.href}
+          className={cn(
+            "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors",
+            active
+              ? "bg-primary text-primary-foreground"
+              : "hover:bg-accent hover:text-accent-foreground text-muted-foreground",
+            collapsed && "justify-center px-2"
+          )}
+          title={collapsed ? item.label : undefined}
+        >
+          <ItemIcon className="h-4 w-4 shrink-0" />
+          {!collapsed && <span>{item.label}</span>}
+        </Link>
+      )
+    }
+
+    // Collapsed sidebar: show one icon per group, click opens a popover with its routes.
+    if (collapsed) {
+      const active = groupActive(group)
+      return (
+        <Popover key={group.label}>
+          <PopoverTrigger
+            className={cn(
+              "flex w-full items-center justify-center rounded-lg px-2 py-2 text-sm transition-colors cursor-pointer",
+              active
+                ? "bg-primary text-primary-foreground"
+                : "hover:bg-accent hover:text-accent-foreground text-muted-foreground"
+            )}
+            title={group.label}
+          >
+            <GroupIcon className="h-4 w-4 shrink-0" />
+          </PopoverTrigger>
+          <PopoverContent side="right" align="start" className="w-56 p-1">
+            <p className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">{group.label}</p>
+            {group.items.map((item) => {
+              const ItemIcon = NAV_ICONS[item.icon] ?? Settings
+              const active = itemActive(item.href)
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={cn(
+                    "flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors",
+                    active
+                      ? "bg-primary text-primary-foreground"
+                      : "hover:bg-accent hover:text-accent-foreground"
+                  )}
+                >
+                  <ItemIcon className="h-4 w-4 shrink-0" />
+                  {item.label}
+                </Link>
+              )
+            })}
+          </PopoverContent>
+        </Popover>
+      )
+    }
+
+    // Expanded sidebar: collapsible (accordion) section per group — only one open at a time.
+    const isOpen = openGroup === group.label
+    return (
+      <div key={group.label}>
+        <button
+          type="button"
+          onClick={() => toggleGroup(group.label)}
+          className={cn(
+            "flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors cursor-pointer",
+            "hover:bg-accent hover:text-accent-foreground text-muted-foreground"
+          )}
+        >
+          <GroupIcon className="h-4 w-4 shrink-0" />
+          <span className="flex-1 text-left font-medium">{group.label}</span>
+          <ChevronDown className={cn("h-4 w-4 shrink-0 transition-transform", isOpen && "rotate-180")} />
+        </button>
+        {isOpen && (
+          <div className="mt-1 space-y-1 border-l border-border/60 pl-4">
+            {group.items.map((item) => {
+              const ItemIcon = NAV_ICONS[item.icon] ?? Settings
+              const active = itemActive(item.href)
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={cn(
+                    "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors",
+                    active
+                      ? "bg-primary text-primary-foreground"
+                      : "hover:bg-accent hover:text-accent-foreground text-muted-foreground"
+                  )}
+                >
+                  <ItemIcon className="h-4 w-4 shrink-0" />
+                  <span>{item.label}</span>
+                </Link>
+              )
+            })}
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  /** Section heading (a divider when the sidebar is collapsed) where a new section starts. */
+  function renderSectionHeading(group: NavGroup, index: number) {
+    const section = group.section
+    if (!section || section === sidebarGroups[index - 1]?.section) return null
+    if (collapsed) return <div className="mx-2 my-2 border-t border-border/60" aria-hidden />
+    return (
+      <p className="px-3 pt-4 pb-1 text-[10px] font-semibold tracking-wider text-muted-foreground/70 uppercase">{section}</p>
+    )
+  }
+
   return (
     <div className="flex flex-col h-full">
       <div className={cn("p-4 border-b", collapsed ? "flex justify-center" : "")}>
@@ -77,118 +200,12 @@ export function DashboardSidebar() {
       </div>
       <ScrollArea className="flex-1 min-h-0 px-2 py-2">
         <nav className="space-y-1">
-          {sidebarGroups.map((group) => {
-            const GroupIcon = NAV_ICONS[group.icon] ?? Settings
-
-            // Single-item groups render as a plain link — no point collapsing one route —
-            // unless the group opts into always showing as a collapsible section (forceCollapsible).
-            if (group.items.length === 1 && !group.forceCollapsible) {
-              const item = group.items[0]
-              const ItemIcon = NAV_ICONS[item.icon] ?? Settings
-              const active = itemActive(item.href)
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={cn(
-                    "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors",
-                    active
-                      ? "bg-primary text-primary-foreground"
-                      : "hover:bg-accent hover:text-accent-foreground text-muted-foreground",
-                    collapsed && "justify-center px-2"
-                  )}
-                  title={collapsed ? item.label : undefined}
-                >
-                  <ItemIcon className="h-4 w-4 shrink-0" />
-                  {!collapsed && <span>{item.label}</span>}
-                </Link>
-              )
-            }
-
-            // Collapsed sidebar: show one icon per group, click opens a popover with its routes.
-            if (collapsed) {
-              const active = groupActive(group)
-              return (
-                <Popover key={group.label}>
-                  <PopoverTrigger
-                    className={cn(
-                      "flex w-full items-center justify-center rounded-lg px-2 py-2 text-sm transition-colors cursor-pointer",
-                      active
-                        ? "bg-primary text-primary-foreground"
-                        : "hover:bg-accent hover:text-accent-foreground text-muted-foreground"
-                    )}
-                    title={group.label}
-                  >
-                    <GroupIcon className="h-4 w-4 shrink-0" />
-                  </PopoverTrigger>
-                  <PopoverContent side="right" align="start" className="w-56 p-1">
-                    <p className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">{group.label}</p>
-                    {group.items.map((item) => {
-                      const ItemIcon = NAV_ICONS[item.icon] ?? Settings
-                      const active = itemActive(item.href)
-                      return (
-                        <Link
-                          key={item.href}
-                          href={item.href}
-                          className={cn(
-                            "flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors",
-                            active
-                              ? "bg-primary text-primary-foreground"
-                              : "hover:bg-accent hover:text-accent-foreground"
-                          )}
-                        >
-                          <ItemIcon className="h-4 w-4 shrink-0" />
-                          {item.label}
-                        </Link>
-                      )
-                    })}
-                  </PopoverContent>
-                </Popover>
-              )
-            }
-
-            // Expanded sidebar: collapsible (accordion) section per group — only one open at a time.
-            const isOpen = openGroup === group.label
-            return (
-              <div key={group.label}>
-                <button
-                  type="button"
-                  onClick={() => toggleGroup(group.label)}
-                  className={cn(
-                    "flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors cursor-pointer",
-                    "hover:bg-accent hover:text-accent-foreground text-muted-foreground"
-                  )}
-                >
-                  <GroupIcon className="h-4 w-4 shrink-0" />
-                  <span className="flex-1 text-left font-medium">{group.label}</span>
-                  <ChevronDown className={cn("h-4 w-4 shrink-0 transition-transform", isOpen && "rotate-180")} />
-                </button>
-                {isOpen && (
-                  <div className="mt-1 space-y-1 border-l border-border/60 pl-4">
-                    {group.items.map((item) => {
-                      const ItemIcon = NAV_ICONS[item.icon] ?? Settings
-                      const active = itemActive(item.href)
-                      return (
-                        <Link
-                          key={item.href}
-                          href={item.href}
-                          className={cn(
-                            "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors",
-                            active
-                              ? "bg-primary text-primary-foreground"
-                              : "hover:bg-accent hover:text-accent-foreground text-muted-foreground"
-                          )}
-                        >
-                          <ItemIcon className="h-4 w-4 shrink-0" />
-                          <span>{item.label}</span>
-                        </Link>
-                      )
-                    })}
-                  </div>
-                )}
-              </div>
-            )
-          })}
+          {sidebarGroups.map((group, index) => (
+            <Fragment key={group.label}>
+              {renderSectionHeading(group, index)}
+              {renderGroup(group)}
+            </Fragment>
+          ))}
         </nav>
       </ScrollArea>
       <div className={cn("p-3 border-t space-y-2", collapsed && "flex flex-col items-center")}>

@@ -13,31 +13,36 @@ export type NavGroup = {
   label: string;
   icon: string;
   items: NavLeaf[];
+  /** Sidebar section heading this group is listed under (e.g. "TOTVS RM"); omitted = no heading. */
+  section?: string;
   /** Render as a collapsible group even with a single item (default: single-item groups render as a flat link). */
   forceCollapsible?: boolean;
 };
 
+/**
+ * Sidebar structure: sections (headings) → groups (collapses) → routes. Only the grouping lives
+ * here — routes/permissions are unchanged, and route gating (proxy.ts → findNavItemByPathname)
+ * works off the flattened items, so regrouping never affects access control.
+ */
 export const navGroups: NavGroup[] = [
   {
     label: "Geral",
     icon: "LayoutDashboard",
     items: [{ href: "/dashboard", label: "Dashboard", icon: "LayoutDashboard", resource: "dashboard", action: "view" }],
   },
+
+  // ── Operação ────────────────────────────────────────────────────────────────
   {
-    label: "TOTVS RM",
-    icon: "Building2",
+    section: "Operação",
+    label: "Demandas",
+    icon: "ListChecks",
     items: [
-      { href: "/admin/clients", label: "Clientes", icon: "Building2", resource: "clients" },
-      { href: "/admin/tbcs", label: "TBCs", icon: "Server", resource: "tbcs" },
-      { href: "/admin/filters", label: "Filtros", icon: "Filter", resource: "filters" },
-      { href: "/admin/sentence-categories", label: "Categorias Sentenças", icon: "FolderTree", resource: "sentence_categories" },
-      { href: "/admin/sentences", label: "Sentenças Padrões", icon: "FileText", resource: "sentences" },
-      { href: "/admin/dataservers", label: "Dataservers", icon: "Database", resource: "dataservers" },
-      { href: "/admin/processes", label: "Processos", icon: "Workflow", resource: "processes" },
-      { href: "/admin/sistemas", label: "Sistemas TOTVS", icon: "Layers", resource: "sistemas" },
+      { href: "/demands", label: "Demandas", icon: "ListChecks", resource: "demands" },
+      { href: "/contracts", label: "Contratos", icon: "FileSignature", resource: "contracts" },
     ],
   },
   {
+    section: "Operação",
     label: "Projetos",
     icon: "FolderKanban",
     forceCollapsible: true,
@@ -45,7 +50,65 @@ export const navGroups: NavGroup[] = [
       { href: "/projetos/mapeador", label: "Mapeador", icon: "Map", resource: "mapeador_projetos", action: "read" },
     ],
   },
+
+  // ── Cadastros ───────────────────────────────────────────────────────────────
   {
+    section: "Cadastros",
+    label: "Clientes",
+    icon: "Building2",
+    items: [{ href: "/admin/clients", label: "Clientes", icon: "Building2", resource: "clients" }],
+  },
+  {
+    section: "Cadastros",
+    label: "Equipe",
+    icon: "Users2",
+    items: [
+      { href: "/analysts", label: "Analistas", icon: "UserCog", resource: "analysts" },
+      { href: "/requesters", label: "Solicitantes", icon: "UserPlus", resource: "requesters" },
+      { href: "/departments", label: "Departamentos", icon: "Building", resource: "departments" },
+    ],
+  },
+  {
+    section: "Cadastros",
+    label: "Classificação",
+    icon: "Tags",
+    items: [
+      { href: "/demand-types", label: "Tipos de Demanda", icon: "Tags", resource: "demand_types" },
+      { href: "/tags", label: "Tags", icon: "Tag", resource: "tags" },
+    ],
+  },
+
+  // ── TOTVS RM ────────────────────────────────────────────────────────────────
+  {
+    section: "TOTVS RM",
+    label: "Conexões",
+    icon: "Server",
+    items: [
+      { href: "/admin/tbcs", label: "TBCs", icon: "Server", resource: "tbcs" },
+      { href: "/admin/filters", label: "Filtros", icon: "Filter", resource: "filters" },
+    ],
+  },
+  {
+    section: "TOTVS RM",
+    label: "Sentenças",
+    icon: "FileText",
+    items: [
+      { href: "/admin/sentence-categories", label: "Categorias de Sentenças", icon: "FolderTree", resource: "sentence_categories" },
+      { href: "/admin/sentences", label: "Sentenças Padrões", icon: "FileText", resource: "sentences" },
+    ],
+  },
+  {
+    section: "TOTVS RM",
+    label: "Catálogo RM",
+    icon: "Database",
+    items: [
+      { href: "/admin/dataservers", label: "Dataservers", icon: "Database", resource: "dataservers" },
+      { href: "/admin/processes", label: "Processos", icon: "Workflow", resource: "processes" },
+      { href: "/admin/sistemas", label: "Sistemas TOTVS", icon: "Layers", resource: "sistemas" },
+    ],
+  },
+  {
+    section: "TOTVS RM",
     label: "SOAP",
     icon: "Radio",
     items: [
@@ -54,38 +117,61 @@ export const navGroups: NavGroup[] = [
     ],
   },
   {
-    label: "Integrações",
-    icon: "Plug",
+    section: "TOTVS RM",
+    label: "Relatórios TBC",
+    icon: "FileBarChart",
     items: [
-      { href: "/integrations/tpi", label: "TPI TOTVS", icon: "Landmark", resource: "integrations", action: "execute" },
-      { href: "/integrations/cielo", label: "Cielo", icon: "CreditCard", resource: "integrations", action: "execute" },
-      { href: "/integrations/email", label: "E-mail", icon: "Mail", resource: "integrations", action: "execute" },
       { href: "/integrations/tbc-reports", label: "Relatórios TBC", icon: "FileBarChart", resource: "tbc_reports", action: "execute" },
+    ],
+  },
+
+  // ── Rubeus ──────────────────────────────────────────────────────────────────
+  {
+    section: "Rubeus",
+    label: "Inscrições e matrículas",
+    icon: "GraduationCap",
+    forceCollapsible: true,
+    items: [
       { href: "/integrations/ps-docs", label: "Documentação PS", icon: "FileText", resource: "ps_docs", action: "execute" },
       { href: "/integrations/ps-ficha-test", label: "Teste de Ficha PS", icon: "FlaskConical", resource: "ps_ficha_test", action: "execute" },
     ],
   },
+
+  // ── Integrações ─────────────────────────────────────────────────────────────
   {
-    label: "Demandas",
-    icon: "ListChecks",
+    section: "Integrações",
+    label: "APIs externas",
+    icon: "Plug",
     items: [
-      { href: "/demands", label: "Demandas", icon: "ListChecks", resource: "demands" },
-      { href: "/analysts", label: "Analistas", icon: "UserCog", resource: "analysts" },
-      { href: "/contracts", label: "Contratos", icon: "FileSignature", resource: "contracts" },
-      { href: "/requesters", label: "Solicitantes", icon: "UserPlus", resource: "requesters" },
-      { href: "/departments", label: "Departamentos", icon: "Building", resource: "departments" },
-      { href: "/demand-types", label: "Tipos de Demanda", icon: "Tags", resource: "demand_types" },
-      { href: "/tags", label: "Tags", icon: "Tag", resource: "tags" },
+      { href: "/integrations/tpi", label: "TPI TOTVS", icon: "Landmark", resource: "integrations", action: "execute" },
+      { href: "/integrations/cielo", label: "Cielo", icon: "CreditCard", resource: "integrations", action: "execute" },
     ],
   },
   {
-    label: "Administração",
+    section: "Integrações",
+    label: "Comunicação",
+    icon: "MessageSquareText",
+    items: [
+      { href: "/integrations/email", label: "E-mail (SMTP)", icon: "Mail", resource: "integrations", action: "execute" },
+      { href: "/integrations/message-templates", label: "Templates de Mensagem", icon: "MessageSquareText", resource: "message_templates", action: "read" },
+    ],
+  },
+
+  // ── Administração ───────────────────────────────────────────────────────────
+  {
+    section: "Administração",
+    label: "Acesso",
     icon: "ShieldCheck",
     items: [
       { href: "/admin/users", label: "Usuários", icon: "Users", resource: "users" },
       { href: "/admin/roles", label: "Papéis e Permissões", icon: "ShieldCheck", resource: "roles" },
-      { href: "/admin/activity", label: "Rastreamento de Atividades", icon: "Activity", resource: null },
     ],
+  },
+  {
+    section: "Administração",
+    label: "Rastreamento de Atividades",
+    icon: "Activity",
+    items: [{ href: "/admin/activity", label: "Rastreamento de Atividades", icon: "Activity", resource: null }],
   },
   {
     label: "Conta",

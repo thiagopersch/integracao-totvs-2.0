@@ -95,7 +95,8 @@ export async function createDemand(formData: FormData) {
   try {
     const entity = await demandService.create(parsed.data, ctx.organizationId, ctx.allowedClientIds);
     await auditService.log({ action: "CREATE", entity: "Demand", entityId: entity.id, newData: { name: entity.name } });
-    contractUsageService.scheduleCheck(ctx.organizationId, [{ clientId: entity.clientId, date: entity.date }]);
+    // A new demand always re-sends the consumption email once the month is at 80%+.
+    contractUsageService.scheduleCheck(ctx.organizationId, [{ clientId: entity.clientId, date: entity.date, trigger: "demand", demandId: entity.id }]);
     invalidateDemandTags();
     return { success: true, data: entity };
   } catch (error) {
@@ -113,7 +114,7 @@ export async function updateDemand(id: string, formData: FormData) {
   try {
     const entity = await demandService.update(id, parsed.data, ctx.organizationId, ctx.allowedClientIds);
     await auditService.log({ action: "UPDATE", entity: "Demand", entityId: id, newData: { name: entity.name } });
-    contractUsageService.scheduleCheck(ctx.organizationId, [{ clientId: entity.clientId, date: entity.date }]);
+    contractUsageService.scheduleCheck(ctx.organizationId, [{ clientId: entity.clientId, date: entity.date, trigger: "contract", demandId: entity.id }]);
     invalidateDemandTags();
     return { success: true, data: entity };
   } catch (error) {

@@ -26,6 +26,7 @@ export const ENTITY_LABELS: Record<string, string> = {
   DemandType: "Tipos de Demanda",
   Demand: "Demandas",
   Tag: "Tags",
+  MessageTemplate: "Templates de Mensagem",
   DemandTag: "Tags de Demanda",
   Comment: "Comentários",
   Attachment: "Anexos",

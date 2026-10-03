@@ -3,6 +3,7 @@
 import { updateTag, cacheTag } from "next/cache";
 import { contractService } from "@/services/contract.service";
 import { contractUsageService } from "@/services/contract-usage.service";
+import { currentMonth } from "@/lib/contract-usage";
 import { auditService } from "@/services/audit.service";
 import { createContractSchema, updateContractSchema } from "@/schemas/contract.schema";
 import { requirePermission } from "@/lib/rbac";
@@ -15,10 +16,18 @@ export async function listContracts(params: ListParams, organizationId: string, 
   return contractService.list(params, organizationId, allowedClientIds);
 }
 
+/** Empty/"null" → null (clears the value); otherwise the number. */
+function parseOptionalNumber(value: FormDataEntryValue | null): number | null {
+  if (value === null || value === "" || value === "null" || value === "undefined") return null;
+  const n = Number(value);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
 function parseContractForm(formData: FormData) {
   return {
     clientId: formData.get("clientId") as string,
     contractedHours: formData.get("contractedHours") ? Number(formData.get("contractedHours")) : undefined,
+    hourlyRate: parseOptionalNumber(formData.get("hourlyRate")),
     startDate: formData.get("startDate") as string,
     endDate: (formData.get("endDate") as string) ?? "",
     status: (formData.get("status") as string) || "ACTIVE",
@@ -38,7 +47,7 @@ export async function createContract(formData: FormData) {
     const entity = await contractService.create(parsed.data, organizationId, allowedClientIds);
     await auditService.log({ action: "CREATE", entity: "ClientContract", entityId: entity.id, newData: { clientId: entity.clientId } });
     // Contracted hours changed: the current month's consumption may now cross a threshold.
-    contractUsageService.scheduleCheck(organizationId, [{ clientId: entity.clientId, date: new Date() }]);
+    contractUsageService.scheduleCheck(organizationId, [{ clientId: entity.clientId, date: new Date(), trigger: "contract" }]);
     updateTag("contracts");
     updateTag("dashboard");
     return { success: true, data: entity };
@@ -57,7 +66,7 @@ export async function updateContract(id: string, formData: FormData) {
   try {
     const entity = await contractService.update(id, parsed.data, organizationId, allowedClientIds);
     await auditService.log({ action: "UPDATE", entity: "ClientContract", entityId: id, newData: { clientId: entity.clientId } });
-    contractUsageService.scheduleCheck(organizationId, [{ clientId: entity.clientId, date: new Date() }]);
+    contractUsageService.scheduleCheck(organizationId, [{ clientId: entity.clientId, date: new Date(), trigger: "contract" }]);
     updateTag("contracts");
     updateTag("dashboard");
     return { success: true, data: entity };
@@ -101,6 +110,46 @@ export async function bulkDeleteContracts(ids: string[]) {
       deletedCount: result.deletedCount,
       blocked: result.blocked.map((b) => ({ id: b.id, reasons: formatBlockingReferences(b.reasons) })),
     };
+  } catch (error) {
+    return { success: false, error: (error as Error).message };
+  }
+}
+
+/**
+ * "Reenviar notificação de consumo": sends the current month's consumption email for the
+ * contract's client right now, whatever the percentage (same recipients/template as the automatic
+ * alert). Runs synchronously so the toast can report what actually happened.
+ */
+export async function resendContractUsageNotification(contractId: string) {
+  const { organizationId, allowedClientIds } = await requirePermission("contracts", "update");
+  const contract = await contractService.getById(contractId, organizationId, allowedClientIds);
+  if (!contract) return { success: false, error: "Contrato não encontrado" };
+
+  try {
+    const result = await contractUsageService.checkAndNotify(organizationId, contract.clientId, currentMonth(), "manual");
+    await auditService.log({
+      action: "UPDATE",
+      entity: "ClientContract",
+      entityId: contractId,
+      newData: { name: `Reenvio da notificação de consumo — ${contract.client.name}`, status: result.status, to: result.to },
+    });
+    switch (result.status) {
+      case "SENT":
+        return { success: true, message: `Notificação enviada para ${result.to}${result.cc?.length ? ` (cc: ${result.cc.join(", ")})` : ""}` };
+      case "SKIPPED":
+        return { success: false, error: "Envio de e-mail desativado — configure o SMTP em Integrações > E-mail." };
+      case "FAILED":
+        return { success: false, error: "Falha ao enviar o e-mail — veja o registro em Atividades." };
+      case "NO_RECIPIENT":
+        return {
+          success: false,
+          error: "Nenhum destinatário: cadastre o e-mail do cliente (com \"Notificar cliente\" ativo) ou o e-mail de alertas em Integrações > E-mail.",
+        };
+      case "NO_CONTRACT":
+        return { success: false, error: "O cliente não tem contrato vigente neste mês." };
+      default:
+        return { success: false, error: "Nada a enviar." };
+    }
   } catch (error) {
     return { success: false, error: (error as Error).message };
   }

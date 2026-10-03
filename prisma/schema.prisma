@@ -56,6 +56,18 @@ enum Priority {
   URGENT
 }
 
+enum MessageChannel {
+  EMAIL
+  WHATSAPP
+}
+
+enum MessageTemplateEvent {
+  CONTRACT_USAGE
+  BACKUP_FAILED
+  SOAP_FAILED
+  GENERAL
+}
+
 enum ContractStatus {
   ACTIVE
   SUSPENDED
@@ -144,6 +156,7 @@ model Organization {
   notifications      Notification[]
   emailSettings      EmailSettings?
   usageAlerts        ContractUsageAlert[]
+  messageTemplates   MessageTemplate[]
   fichaAutomationRuns FichaAutomationRun[]
   mapeadorProjetos   MapeadorProjeto[]
   mapeadorTemas      MapeadorTema[]
@@ -785,6 +798,31 @@ model ContractUsageAlert {
 
   @@unique([clientId, period, threshold])
   @@map("contract_usage_alerts")
+}
+
+/// Email/WhatsApp message template. For EMAIL, `content` (block tree, see
+/// lib/message-templates/block-types.ts) is the source of truth and `bodyHtml` a render cache;
+/// for WHATSAPP, `bodyText` holds the message with WhatsApp markup. The newest active template
+/// of an (event, channel) pair is the one used when sending.
+model MessageTemplate {
+  id             String               @id @default(uuid())
+  organizationId String               @map("organization_id")
+  name           String
+  event          MessageTemplateEvent
+  channel        MessageChannel
+  subject        String               @default("")
+  content        Json?
+  bodyHtml       String               @default("") @map("body_html") @db.Text
+  bodyText       String               @default("") @map("body_text") @db.Text
+  isActive       Boolean              @default(true) @map("is_active")
+  createdAt      DateTime             @default(now()) @map("created_at")
+  updatedAt      DateTime             @updatedAt @map("updated_at")
+  deletedAt      DateTime?            @map("deleted_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId, event, channel, isActive])
+  @@map("message_templates")
 }
 
 model Requester {

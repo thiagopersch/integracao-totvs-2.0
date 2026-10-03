@@ -1,6 +1,9 @@
 import { prisma } from "@/lib/prisma";
 import { emitToUser } from "@/lib/notification-events";
 import { sendEmail } from "@/lib/mailer";
+import { eventForNotificationType } from "@/lib/message-templates/events";
+import { buildFailureVars, buildGeneralVars } from "@/lib/message-templates/vars-builder";
+import { messageRenderService } from "@/services/message-render.service";
 import type { Notification, NotificationChannel, Prisma, UserRoleLevel } from "@/generated/prisma/client";
 
 /**
@@ -30,18 +33,50 @@ async function dispatch(notifications: Notification[]): Promise<void> {
 
   const users = await prisma.user.findMany({
     where: { id: { in: [...emailEnabledUserIds] } },
-    select: { id: true, email: true },
+    select: { id: true, email: true, name: true },
   });
-  const emailByUserId = new Map(users.map((u) => [u.id, u.email]));
+  const userById = new Map(users.map((u) => [u.id, u]));
 
   await Promise.all(
     notifications
       .filter((n) => emailEnabledUserIds.has(n.userId))
-      .map((n) => {
-        const email = emailByUserId.get(n.userId);
-        return email ? sendEmail(n.organizationId, email, n.title, n.body, n.userId) : Promise.resolve();
+      .map(async (n) => {
+        const user = userById.get(n.userId);
+        if (!user?.email) return;
+        const templated = await renderNotificationEmail(n, user);
+        if (templated) {
+          await sendEmail(n.organizationId, user.email, templated.subject, templated.text, n.userId, { html: templated.html });
+        } else {
+          await sendEmail(n.organizationId, user.email, n.title, n.body, n.userId);
+        }
       })
   );
+}
+
+/** TBC address for failure emails: the backup filter's TBC, or the URL the SOAP call hit. */
+async function resolveTbcLink(data: Record<string, unknown>): Promise<string | null> {
+  if (typeof data.filterId === "string") {
+    const filter = await prisma.filter.findUnique({ where: { id: data.filterId }, select: { tbc: { select: { link: true } } } });
+    if (filter?.tbc?.link) return filter.tbc.link;
+  }
+  return typeof data.url === "string" ? data.url : null;
+}
+
+/** Email for a notification through the organization's active template for its event (see
+ *  lib/message-templates/events.ts) — null when there's none, keeping the plain-text email. */
+async function renderNotificationEmail(notification: Notification, user: { email: string; name: string }) {
+  const event = eventForNotificationType(notification.type);
+  if (!(await messageRenderService.hasActiveEmailTemplate(notification.organizationId, event))) return null;
+  const data = (notification.data ?? {}) as Record<string, unknown>;
+  return messageRenderService.renderEmail(notification.organizationId, event, {
+    ...buildFailureVars(data, { occurredAt: notification.createdAt, tbcLink: await resolveTbcLink(data) }),
+    ...buildGeneralVars({
+      title: notification.title,
+      message: notification.body,
+      recipientName: user.name,
+      recipientEmail: user.email,
+    }),
+  });
 }
 
 export const notificationService = {
