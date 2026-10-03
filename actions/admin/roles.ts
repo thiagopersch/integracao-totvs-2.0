@@ -18,6 +18,11 @@ export async function listAllPermissions() {
   return roleService.listAllPermissions();
 }
 
+export async function getRole(id: string) {
+  const { organizationId } = await requirePermission("roles", "read");
+  return roleService.getById(id, organizationId);
+}
+
 export async function createRole(formData: FormData) {
   const { organizationId } = await requirePermission("roles", "create");
   const data = {

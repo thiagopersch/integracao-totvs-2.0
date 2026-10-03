@@ -28,15 +28,10 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from "@/components/ui/command"
-import { Plus, Building2, Loader2, KeyRound, Copy, Check } from "lucide-react"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Input } from "@/components/ui/input"
+import { Plus, Building2, Loader2, KeyRound, Copy, Check, Search } from "lucide-react"
+import { cn } from "@/lib/utils"
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu"
 import { deleteUser, restoreUser, bulkDeleteUsers, setUserStatus, setUserClients, resetUserPassword } from "@/actions/admin/users"
 import { UserForm } from "./user-form"
@@ -57,6 +52,10 @@ interface UsersTableProps {
 }
 
 const SORTABLE_COLUMNS = ["name", "email", "role", "status"]
+
+function normalizeSearch(value: string) {
+  return value.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+}
 
 export function UsersTable({ data, meta, clients }: UsersTableProps) {
   const {
@@ -89,6 +88,7 @@ export function UsersTable({ data, meta, clients }: UsersTableProps) {
     selected: new Set(),
   })
   const [savingClients, setSavingClients] = useState(false)
+  const [clientSearch, setClientSearch] = useState("")
   const [resetConfirm, setResetConfirm] = useState<{ open: boolean; id?: string; name?: string }>({ open: false })
   const [resetResult, setResetResult] = useState<{ open: boolean; tempPassword?: string }>({ open: false })
   const [resettingPassword, setResettingPassword] = useState(false)
@@ -115,8 +115,15 @@ export function UsersTable({ data, meta, clients }: UsersTableProps) {
   }
 
   function openClientsDialog(user: UserRow) {
+    setClientSearch("")
     setClientsDialog({ open: true, userId: user.id, userName: user.name, selected: new Set(user.allowedClients.map((c) => c.id)) })
   }
+
+  const filteredClients = useMemo(() => {
+    const term = normalizeSearch(clientSearch)
+    if (!term) return clients
+    return clients.filter((client) => normalizeSearch(client.name).includes(term))
+  }, [clients, clientSearch])
 
   function toggleClient(clientId: string) {
     setClientsDialog((prev) => {
@@ -224,7 +231,7 @@ export function UsersTable({ data, meta, clients }: UsersTableProps) {
   const newDialog = (
     <Dialog open={editDialog.open} onOpenChange={(open) => setEditDialog({ open, entity: open ? editDialog.entity : undefined })}>
       <DialogTrigger render={<Button><Plus className="h-4 w-4 mr-2" /> Novo Usuário</Button>} />
-      <DialogContent>
+      <DialogContent className="h-auto max-h-[85vh] sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>{editDialog.entity ? "Editar Usuário" : "Novo Usuário"}</DialogTitle>
         </DialogHeader>
@@ -369,34 +376,52 @@ export function UsersTable({ data, meta, clients }: UsersTableProps) {
         open={clientsDialog.open}
         onOpenChange={(open) => setClientsDialog({ open, selected: open ? clientsDialog.selected : new Set() })}
       >
-        <DialogContent className="max-w-md">
+        <DialogContent className="h-[50vh]! max-h-[50vh]! w-[50vw]! max-w-[50vw]! max-sm:h-[90vh]! max-sm:max-h-[90vh]! max-sm:w-[90vw]! max-sm:max-w-[90vw]!">
           <DialogHeader>
             <DialogTitle>Clientes de {clientsDialog.userName}</DialogTitle>
           </DialogHeader>
-          <DialogBody>
+          <div className="shrink-0 space-y-3 border-b p-4">
             <p className="text-sm text-muted-foreground">
               Selecione os clientes que este usuário pode acessar. Sem clientes selecionados, o usuário não visualiza filtros, contratos, TBCs ou backups de nenhum cliente.
             </p>
-            <Command className="rounded-lg border border-input">
-              <CommandInput placeholder="Buscar cliente..." />
-              <CommandList>
-                <CommandEmpty>Nenhum cliente encontrado.</CommandEmpty>
-                <CommandGroup>
-                  {clients.map((client) => (
-                    <CommandItem
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={clientSearch}
+                onChange={(e) => setClientSearch(e.target.value)}
+                placeholder="Buscar cliente..."
+                className="pl-7"
+              />
+            </div>
+          </div>
+          <DialogBody>
+            {filteredClients.length === 0 ? (
+              <p className="p-4 text-center text-sm text-muted-foreground">Nenhum cliente encontrado.</p>
+            ) : (
+              <div className="columns-1 gap-2 sm:columns-3">
+                {filteredClients.map((client) => {
+                  const checked = clientsDialog.selected.has(client.id)
+                  return (
+                    <label
                       key={client.id}
-                      value={client.name}
-                      data-checked={clientsDialog.selected.has(client.id)}
-                      onSelect={() => toggleClient(client.id)}
+                      className={cn(
+                        "mb-1.5 flex cursor-pointer break-inside-avoid items-center gap-2 rounded-md border px-2.5 py-1.5 text-sm transition-colors",
+                        checked ? "border-primary bg-primary/10 font-medium" : "border-transparent hover:bg-muted"
+                      )}
                     >
-                      {client.name}
-                    </CommandItem>
-                  ))}
-                </CommandGroup>
-              </CommandList>
-            </Command>
+                      <Checkbox checked={checked} onCheckedChange={() => toggleClient(client.id)} />
+                      <span className="size-2.5 shrink-0 rounded-full" style={{ backgroundColor: client.color }} />
+                      <span className="truncate" title={client.name}>{client.name}</span>
+                    </label>
+                  )
+                })}
+              </div>
+            )}
           </DialogBody>
           <DialogFooter>
+            <span className="mr-auto self-center text-sm text-muted-foreground">
+              {clientsDialog.selected.size} selecionado{clientsDialog.selected.size === 1 ? "" : "s"}
+            </span>
             <Button type="button" variant="outline" onClick={() => setClientsDialog({ open: false, selected: new Set() })} disabled={savingClients}>
               Cancelar
             </Button>

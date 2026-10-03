@@ -44,7 +44,7 @@ export const filterService = {
         take: pageSize,
         include: {
           tbc: { select: { id: true, name: true } },
-          client: { select: { id: true, name: true } },
+          client: { select: { id: true, name: true, color: true } },
           lastBackupBy: { select: { id: true, name: true } },
           scheduleCategory: { select: { id: true, name: true } },
         },

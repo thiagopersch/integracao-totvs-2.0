@@ -1,6 +1,7 @@
 "use client"
 
 import { createTbc, deleteTbc, restoreTbc, updateTbc, bulkDeleteTbcs, setTbcStatus, testTbcConnection, testTbcConnectionById } from "@/actions/admin/tbcs"
+import { ColorBadge } from "@/components/shared/color-badge"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
 import { DataTable } from "@/components/shared/data-table"
 import { DataTableFilterPanel } from "@/components/shared/data-table-filter-panel"
@@ -165,7 +166,12 @@ export function TbcTable({ data, meta, clients, filterClients }: TbcTableProps) 
     {
       id: "clientName",
       header: "Cliente",
-      cell: ({ row }) => row.original.client?.name || "-",
+      cell: ({ row }) =>
+        row.original.client ? (
+          <ColorBadge label={row.original.client.name} color={row.original.client.color} solid />
+        ) : (
+          "-"
+        ),
     },
     {
       accessorKey: "name",

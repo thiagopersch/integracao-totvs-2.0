@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useMemo, useState, type ReactNode } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { format } from "date-fns"
 import type { DateRange } from "react-day-picker"
@@ -24,7 +24,7 @@ import { safeFormatXmlDeep, extractEntityName } from "@/utils/xml"
 import { ENTITY_LABELS, formatBlockingReferences, type BlockingReference } from "@/lib/entity-labels"
 import { reexecuteSoapLog } from "@/actions/soap"
 import { cn } from "@/utils/cn"
-import { FileText, Radio, Mail, Plug, Trash2, Maximize2, Minimize2, Eye, RotateCcw, Download } from "lucide-react"
+import { FileText, Radio, Mail, Plug, Trash2, Maximize2, Minimize2, Eye, RotateCcw, Download, Copy } from "lucide-react"
 import { toast } from "sonner"
 import { STATUS_SYMBOLS } from "@/lib/activity-status"
 import type { ActivityRow, ActivitySource, ActivityStatus } from "@/services/activity-log.service"
@@ -486,50 +486,56 @@ function ActivityDetailDialog({ open, onOpenChange, row }: { open: boolean; onOp
 
   const Icon = SOURCE_ICONS[row.source]
 
+  async function handleCopyId() {
+    if (!row) return
+    await navigator.clipboard.writeText(row.id)
+    toast.success("ID copiado")
+  }
+
   return (
     <Dialog open={open} onOpenChange={(next) => { onOpenChange(next); if (!next) setExpanded(false) }}>
       <DialogContent
         className={cn(
           expanded ? "h-[90vh]! max-h-[90vh]! w-[90vw]! max-w-[90vw]!" : "h-[70vh]! max-h-[70vh]! w-[70vw]! max-w-[70vw]!"
         )}
+        headerActions={
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            onClick={() => setExpanded((v) => !v)}
+            title={expanded ? "Tamanho normal" : "Expandir"}
+          >
+            {expanded ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+          </Button>
+        }
       >
         <DialogHeader>
-          <DialogTitle className="flex flex-wrap items-center gap-2">
-            <Icon className="h-4 w-4 shrink-0 text-muted-foreground" />
-            {row.summary}
+          <DialogTitle className="flex items-start gap-2 leading-snug" title={row.summary}>
+            <Icon className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+            <span className="line-clamp-2 break-words">{row.summary}</span>
+          </DialogTitle>
+          <div className="flex flex-wrap items-center gap-2 pl-6">
             <Badge variant="outline">{SOURCE_LABELS[row.source]}</Badge>
             <Badge variant={statusVariant(row.status)}>{statusLabel(row.status)}</Badge>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="ml-auto"
-              onClick={() => setExpanded((v) => !v)}
-              title={expanded ? "Tamanho normal" : "Expandir"}
-            >
-              {expanded ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
-            </Button>
-          </DialogTitle>
+          </div>
         </DialogHeader>
         <DialogBody className="space-y-4">
-          <div className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
-            <div>
-              <p className="text-xs text-muted-foreground">Usuário</p>
-              <p>{row.actorName || "Sistema"}</p>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Duração</p>
-              <p>{row.durationMs ? formatDuration(row.durationMs) : "-"}</p>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Data</p>
-              <p>{formatDate(row.createdAt)}</p>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">ID do registro</p>
-              <p className="font-mono text-xs break-all">{row.id}</p>
-            </div>
-          </div>
+          <DetailSection title="Informações gerais">
+            <DetailGrid wide>
+              <DetailField label="Usuário">{row.actorName || "Sistema"}</DetailField>
+              <DetailField label="Data">{formatDate(row.createdAt)}</DetailField>
+              <DetailField label="Duração">{row.durationMs ? formatDuration(row.durationMs) : "-"}</DetailField>
+              <DetailField label="ID do registro">
+                <span className="flex items-center gap-1">
+                  <span className="min-w-0 font-mono text-xs break-all">{row.id}</span>
+                  <Button type="button" variant="ghost" size="icon-xs" onClick={handleCopyId} title="Copiar ID">
+                    <Copy />
+                  </Button>
+                </span>
+              </DetailField>
+            </DetailGrid>
+          </DetailSection>
 
           {row.source === "CRUD" && <CrudDetail raw={row.raw as AuditLog} />}
           {row.source === "SOAP" && <SoapDetail raw={row.raw as SoapLog} />}
@@ -539,6 +545,52 @@ function ActivityDetailDialog({ open, onOpenChange, row }: { open: boolean; onOp
         </DialogBody>
       </DialogContent>
     </Dialog>
+  )
+}
+
+function DetailSection({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <section className="space-y-3 rounded-lg border bg-muted/30 p-4">
+      <h3 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">{title}</h3>
+      {children}
+    </section>
+  )
+}
+
+function DetailGrid({ wide, children }: { wide?: boolean; children: ReactNode }) {
+  return (
+    <dl className={cn("grid grid-cols-1 gap-x-6 gap-y-3 sm:grid-cols-2", wide && "lg:grid-cols-4")}>
+      {children}
+    </dl>
+  )
+}
+
+function DetailField({
+  label,
+  full,
+  mono,
+  children,
+}: {
+  label: string
+  full?: boolean
+  mono?: boolean
+  children: ReactNode
+}) {
+  return (
+    <div className={cn("min-w-0", full && "col-span-full")}>
+      <dt className="text-xs text-muted-foreground">{label}</dt>
+      <dd className={cn("mt-0.5 text-sm break-words", mono && "font-mono text-xs break-all")}>{children}</dd>
+    </div>
+  )
+}
+
+function DetailError({ error }: { error: string | null }) {
+  if (!error) return null
+  return (
+    <div className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-destructive">
+      <p className="mb-1 text-xs font-semibold uppercase">Erro</p>
+      <p className="text-sm break-words whitespace-pre-wrap">{error}</p>
+    </div>
   )
 }
 
@@ -616,30 +668,23 @@ function DataBlock({
 
 function CrudDetail({ raw }: { raw: AuditLog }) {
   return (
-    <div className="space-y-3">
+    <DetailSection title="Alterações">
       <DataBlock label="Dados anteriores" value={raw.oldData} />
       <DataBlock label="Dados novos" value={raw.newData} />
-    </div>
+    </DetailSection>
   )
 }
 
 function DeletionDetail({ raw }: { raw: AuditLog }) {
   const reasons = (raw.newData as { reasons?: BlockingReference[] } | null)?.reasons ?? []
   return (
-    <div className="grid grid-cols-2 gap-3 text-sm">
-      <div>
-        <p className="text-xs text-muted-foreground">Cadastro</p>
-        <p>{ENTITY_LABELS[raw.entity] ?? raw.entity}</p>
-      </div>
-      <div>
-        <p className="text-xs text-muted-foreground">Registro</p>
-        <p className="font-mono text-xs break-all">{raw.entityId}</p>
-      </div>
-      <div className="col-span-2">
-        <p className="text-xs text-muted-foreground">Motivo / Vinculado a</p>
-        <p>{formatBlockingReferences(reasons) || "-"}</p>
-      </div>
-    </div>
+    <DetailSection title="Exclusão">
+      <DetailGrid>
+        <DetailField label="Cadastro">{ENTITY_LABELS[raw.entity] ?? raw.entity}</DetailField>
+        <DetailField label="Registro" mono>{raw.entityId}</DetailField>
+        <DetailField label="Motivo / Vinculado a" full>{formatBlockingReferences(reasons) || "-"}</DetailField>
+      </DetailGrid>
+    </DetailSection>
   )
 }
 
@@ -648,101 +693,79 @@ function SoapDetail({ raw }: { raw: SoapLog }) {
   const entity = raw.xmlRequest ? extractEntityName(raw.xmlRequest) : null
 
   return (
-    <div className="space-y-3">
-      <div className="grid grid-cols-2 gap-3 text-sm">
-        <div>
-          <p className="text-xs text-muted-foreground">Serviço</p>
-          <p>{wsName ? (WS_NAME_LABELS[wsName] ?? wsName) : "-"}</p>
-        </div>
-        {entity && (
-          <div>
-            <p className="text-xs text-muted-foreground">{entity.type === "dataserver" ? "Dataserver executado" : "Processo executado"}</p>
-            <p className="font-mono text-xs break-all">{entity.name}</p>
-          </div>
-        )}
-        <div>
-          <p className="text-xs text-muted-foreground">Endpoint (TBC)</p>
-          <p className="font-mono text-xs break-all">{raw.dataserver || "-"}</p>
-        </div>
-        {raw.error && (
-          <div>
-            <p className="text-xs text-muted-foreground">Erro</p>
-            <p className="text-xs text-destructive">{raw.error}</p>
-          </div>
-        )}
-      </div>
-      <Tabs defaultValue="request">
-        <TabsList>
-          <TabsTrigger value="request">XML Requisição</TabsTrigger>
-          <TabsTrigger value="response-xml">XML Resposta</TabsTrigger>
-          <TabsTrigger value="response-json">JSON Resposta</TabsTrigger>
-        </TabsList>
-        <TabsContent value="request">
-          <DataBlock
-            label=""
-            value={raw.xmlRequest ? safeFormatXmlDeep(raw.xmlRequest) : null}
-            language="xml"
-            fileNameHint="requisicao"
-          />
-        </TabsContent>
-        <TabsContent value="response-xml">
-          <DataBlock
-            label=""
-            value={raw.xmlResponse ? safeFormatXmlDeep(raw.xmlResponse) : null}
-            language="xml"
-            fileNameHint="resposta"
-          />
-        </TabsContent>
-        <TabsContent value="response-json">
-          <DataBlock label="" value={raw.jsonResponse} fileNameHint="resposta" />
-        </TabsContent>
-      </Tabs>
-    </div>
+    <>
+      <DetailSection title="SOAP">
+        <DetailGrid>
+          <DetailField label="Serviço">{wsName ? (WS_NAME_LABELS[wsName] ?? wsName) : "-"}</DetailField>
+          {entity && (
+            <DetailField label={entity.type === "dataserver" ? "Dataserver executado" : "Processo executado"} mono>
+              {entity.name}
+            </DetailField>
+          )}
+          <DetailField label="Endpoint (TBC)" mono full>{raw.dataserver || "-"}</DetailField>
+        </DetailGrid>
+        <DetailError error={raw.error} />
+      </DetailSection>
+      <DetailSection title="Conteúdo">
+        <Tabs defaultValue="request">
+          <TabsList>
+            <TabsTrigger value="request">XML Requisição</TabsTrigger>
+            <TabsTrigger value="response-xml">XML Resposta</TabsTrigger>
+            <TabsTrigger value="response-json">JSON Resposta</TabsTrigger>
+          </TabsList>
+          <TabsContent value="request">
+            <DataBlock
+              label=""
+              value={raw.xmlRequest ? safeFormatXmlDeep(raw.xmlRequest) : null}
+              language="xml"
+              fileNameHint="requisicao"
+            />
+          </TabsContent>
+          <TabsContent value="response-xml">
+            <DataBlock
+              label=""
+              value={raw.xmlResponse ? safeFormatXmlDeep(raw.xmlResponse) : null}
+              language="xml"
+              fileNameHint="resposta"
+            />
+          </TabsContent>
+          <TabsContent value="response-json">
+            <DataBlock label="" value={raw.jsonResponse} fileNameHint="resposta" />
+          </TabsContent>
+        </Tabs>
+      </DetailSection>
+    </>
   )
 }
 
 function EmailDetail({ raw }: { raw: EmailLog }) {
   return (
-    <div className="grid grid-cols-2 gap-3 text-sm">
-      <div>
-        <p className="text-xs text-muted-foreground">Destinatário</p>
-        <p>{raw.to}</p>
-      </div>
-      <div>
-        <p className="text-xs text-muted-foreground">Assunto</p>
-        <p>{raw.subject}</p>
-      </div>
-      {raw.error && (
-        <div className="col-span-2">
-          <p className="text-xs text-muted-foreground">Erro</p>
-          <p className="text-xs text-destructive">{raw.error}</p>
-        </div>
-      )}
-    </div>
+    <DetailSection title="E-mail">
+      <DetailGrid>
+        <DetailField label="Destinatário" full>{raw.to}</DetailField>
+        <DetailField label="Assunto" full>{raw.subject}</DetailField>
+      </DetailGrid>
+      <DetailError error={raw.error} />
+    </DetailSection>
   )
 }
 
 function ApiDetail({ raw }: { raw: ApiLog }) {
   return (
-    <div className="space-y-3">
-      <div className="grid grid-cols-2 gap-3 text-sm">
-        <div>
-          <p className="text-xs text-muted-foreground">URL</p>
-          <p className="font-mono text-xs break-all">{raw.url}</p>
-        </div>
-        <div>
-          <p className="text-xs text-muted-foreground">Status HTTP</p>
-          <p>{raw.httpStatus ?? "-"}</p>
-        </div>
-        {raw.error && (
-          <div className="col-span-2">
-            <p className="text-xs text-muted-foreground">Erro</p>
-            <p className="text-xs text-destructive">{raw.error}</p>
-          </div>
-        )}
-      </div>
-      <DataBlock label="Requisição" value={raw.requestSummary} />
-      <DataBlock label="Resposta" value={raw.responseSummary} />
-    </div>
+    <>
+      <DetailSection title="API">
+        <DetailGrid>
+          <DetailField label="Status HTTP">{raw.httpStatus ?? "-"}</DetailField>
+          <DetailField label="URL" mono full>{raw.url}</DetailField>
+        </DetailGrid>
+        <DetailError error={raw.error} />
+      </DetailSection>
+      {(raw.requestSummary != null || raw.responseSummary != null) && (
+        <DetailSection title="Conteúdo">
+          <DataBlock label="Requisição" value={raw.requestSummary} />
+          <DataBlock label="Resposta" value={raw.responseSummary} />
+        </DetailSection>
+      )}
+    </>
   )
 }

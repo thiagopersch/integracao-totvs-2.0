@@ -27,7 +27,7 @@ async function main() {
   for (const p of PERMISSIONS) {
     const permission = await prisma.permission.upsert({
       where: { resource_action: { resource: p.resource, action: p.action } },
-      update: {},
+      update: { name: p.name, description: p.description, module: p.module },
       create: { resource: p.resource, action: p.action, name: p.name, description: p.description, module: p.module },
     });
     permissionIdByKey.set(`${p.resource}:${p.action}`, permission.id);

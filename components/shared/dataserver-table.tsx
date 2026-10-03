@@ -175,7 +175,7 @@ export function DataserverTable({ data, meta, tbcs }: DataserverTableProps) {
       }}
     >
       <DialogTrigger render={<Button><Plus className="h-4 w-4 mr-2" /> Novo Dataserver</Button>} />
-      <DialogContent>
+      <DialogContent className="h-auto max-h-[85vh] sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>{editDialog.entity ? "Editar Dataserver" : "Novo Dataserver"}</DialogTitle>
         </DialogHeader>

@@ -96,7 +96,9 @@ export interface ContractUsageVarsInput {
   periodLabel: string;
   demandsCount?: number;
   /** Contracts in force during the month (earliest start / latest end are shown). */
-  contracts: { startDate: Date; endDate: Date | null; status: string; contractedHours?: number; hourlyRate?: number | null; notes?: string | null }[];
+  contracts: { startDate: Date; endDate: Date | null; status: string; notes?: string | null }[];
+  /** Hours worked in the month per analyst, priced by each analyst's own hourly rate. */
+  analystUsage?: { hours: number; hourlyRate: number | null }[];
 }
 
 export function buildContractUsageVars(input: ContractUsageVarsInput): TemplateVars {
@@ -106,11 +108,12 @@ export function buildContractUsageVars(input: ContractUsageVarsInput): TemplateV
   const ends = input.contracts.filter((c) => c.endDate).map((c) => c.endDate!.getTime());
   const fmtPercent = (n: number) => `${n.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%`;
 
-  // Hourly rate weighted by contracted hours over the contracts that have one.
-  const priced = input.contracts.filter((c) => c.hourlyRate != null && c.hourlyRate > 0 && (c.contractedHours ?? 0) > 0);
-  const pricedHours = priced.reduce((sum, c) => sum + (c.contractedHours ?? 0), 0);
-  const contractedValue = priced.reduce((sum, c) => sum + (c.contractedHours ?? 0) * (c.hourlyRate ?? 0), 0);
-  const rate = pricedHours > 0 ? contractedValue / pricedHours : null;
+  // Used value = Σ analyst hours × analyst hourly rate; the average rate (weighted by those hours)
+  // prices the contracted hours.
+  const priced = (input.analystUsage ?? []).filter((a) => a.hourlyRate != null && a.hourlyRate > 0 && a.hours > 0);
+  const pricedHours = priced.reduce((sum, a) => sum + a.hours, 0);
+  const usedValue = priced.reduce((sum, a) => sum + a.hours * (a.hourlyRate ?? 0), 0);
+  const rate = pricedHours > 0 ? usedValue / pricedHours : null;
 
   return {
     ...buildClientVars(input.client),
@@ -124,8 +127,8 @@ export function buildContractUsageVars(input: ContractUsageVarsInput): TemplateV
     usageLevel: USAGE_LEVEL_LABELS[input.level],
     demandsCount: input.demandsCount !== undefined ? String(input.demandsCount) : "",
     hourlyRate: rate !== null ? formatCurrency(rate) : "",
-    contractedValue: rate !== null ? formatCurrency(contractedValue) : "",
-    usedValue: rate !== null ? formatCurrency(input.usedHours * rate) : "",
+    contractedValue: rate !== null ? formatCurrency(input.contractedHours * rate) : "",
+    usedValue: rate !== null ? formatCurrency(usedValue) : "",
     contractStartDate: starts.length ? formatUtcDate(new Date(Math.min(...starts))) : "",
     contractEndDate: openEnded || ends.length === 0 ? "Indeterminado" : formatUtcDate(new Date(Math.max(...ends))),
     contractStatus: [...new Set(input.contracts.map((c) => CONTRACT_STATUS_LABELS[c.status] ?? c.status))].join(", "),

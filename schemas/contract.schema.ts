@@ -5,7 +5,6 @@ const CONTRACT_STATUSES = ["ACTIVE", "SUSPENDED", "EXPIRED", "CANCELLED"] as con
 export const createContractSchema = z.object({
   clientId: z.string().min(1, "Cliente é obrigatório"),
   contractedHours: z.coerce.number().min(0.01, "Horas contratadas devem ser maiores que zero"),
-  hourlyRate: z.number().min(0, "Valor da hora não pode ser negativo").nullable().optional(),
   startDate: z.string().min(1, "Data de início é obrigatória"),
   endDate: z.string().optional(),
   status: z.enum(CONTRACT_STATUSES),

@@ -58,7 +58,6 @@ import type { PaginationMeta } from "@/types/common"
 type ContractRow = {
   id: string
   contractedHours: number
-  hourlyRate: number | null
   startDate: string | Date
   endDate: string | Date | null
   status: string
@@ -133,7 +132,6 @@ export function ContractTable({ data, meta, clients }: ContractTableProps) {
       ? {
           clientId: editDialog.entity.client.id,
           contractedHours: editDialog.entity.contractedHours,
-          hourlyRate: editDialog.entity.hourlyRate,
           startDate: toDateInputValue(editDialog.entity.startDate),
           endDate: editDialog.entity.endDate ? toDateInputValue(editDialog.entity.endDate) : "",
           status: editDialog.entity.status as CreateContractInput["status"],
@@ -143,7 +141,6 @@ export function ContractTable({ data, meta, clients }: ContractTableProps) {
       : {
           clientId: "",
           contractedHours: 40,
-          hourlyRate: null,
           startDate: new Date().toISOString().slice(0, 10),
           endDate: "",
           status: "ACTIVE",
@@ -307,28 +304,6 @@ export function ContractTable({ data, meta, clients }: ContractTableProps) {
                 )}
               />
               <FieldError errors={[form.formState.errors.contractedHours]} />
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="hourlyRate">Valor da hora (opcional)</FieldLabel>
-              <Controller
-                control={form.control}
-                name="hourlyRate"
-                render={({ field }) => (
-                  <Input
-                    id="hourlyRate"
-                    inputMode="decimal"
-                    value={field.value ? `R$ ${formatDecimal(String(Math.round(field.value * 100)))}` : ""}
-                    onChange={(e) => {
-                      const digits = e.target.value.replace(/\D/g, "")
-                      field.onChange(digits ? Number(digits) / 100 : null)
-                    }}
-                    placeholder="R$ 0,00"
-                    aria-invalid={!!form.formState.errors.hourlyRate}
-                  />
-                )}
-              />
-              <FieldDescription>Usado nas variáveis de valor (R$) dos e-mails de consumo.</FieldDescription>
-              <FieldError errors={[form.formState.errors.hourlyRate]} />
             </Field>
             <Field>
               <FieldLabel htmlFor="status">Status</FieldLabel>

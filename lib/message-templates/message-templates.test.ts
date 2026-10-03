@@ -262,7 +262,7 @@ describe("extra variables", () => {
     expect(buildDemandVars(null)).toEqual({})
   })
 
-  it("computes contract values from the weighted hourly rate", () => {
+  it("computes contract values from the analysts' hourly rates", () => {
     const vars = buildContractUsageVars({
       client: { name: "ITE" },
       usedHours: 30,
@@ -271,12 +271,30 @@ describe("extra variables", () => {
       level: "ok",
       periodLabel: "outubro/2026",
       demandsCount: 7,
-      contracts: [{ startDate: new Date(), endDate: null, status: "ACTIVE", contractedHours: 40, hourlyRate: 150, notes: "Remoto" }],
+      contracts: [{ startDate: new Date(), endDate: null, status: "ACTIVE", notes: "Remoto" }],
+      analystUsage: [
+        { hours: 20, hourlyRate: 150 },
+        { hours: 10, hourlyRate: 120 },
+      ],
     })
     const norm = (v: string) => v.replace(/\s/g, " ")
-    expect(norm(vars.hourlyRate)).toBe("R$ 150,00")
-    expect(norm(vars.contractedValue)).toBe("R$ 6.000,00")
-    expect(norm(vars.usedValue)).toBe("R$ 4.500,00")
+    expect(norm(vars.usedValue)).toBe("R$ 4.200,00")
+    expect(norm(vars.hourlyRate)).toBe("R$ 140,00")
+    expect(norm(vars.contractedValue)).toBe("R$ 5.600,00")
     expect(vars).toMatchObject({ remainingPercent: "25%", demandsCount: "7", contractNotes: "Remoto" })
+  })
+
+  it("leaves the value variables empty when no analyst has an hourly rate", () => {
+    const vars = buildContractUsageVars({
+      client: { name: "ITE" },
+      usedHours: 10,
+      contractedHours: 40,
+      percent: 25,
+      level: "ok",
+      periodLabel: "outubro/2026",
+      contracts: [{ startDate: new Date(), endDate: null, status: "ACTIVE" }],
+      analystUsage: [{ hours: 10, hourlyRate: null }],
+    })
+    expect(vars).toMatchObject({ hourlyRate: "", contractedValue: "", usedValue: "" })
   })
 })

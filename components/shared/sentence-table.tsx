@@ -196,25 +196,25 @@ export function SentenceTable({ data, meta, categories }: SentenceTableProps) {
             />
             <Label htmlFor="status">Sentença ativa</Label>
           </div>
-          <Field>
-            <FieldLabel htmlFor="sentenceCategoryId">Categoria</FieldLabel>
-            <Select
-              items={categories.map((cat) => ({ value: cat.id, label: cat.name }))}
-              value={form.watch("sentenceCategoryId") || null}
-              onValueChange={(v) => form.setValue("sentenceCategoryId", v || "")}
-            >
-              <SelectTrigger className="w-full" aria-invalid={!!form.formState.errors.sentenceCategoryId}>
-                <SelectValue placeholder="Selecione uma categoria" />
-              </SelectTrigger>
-              <SelectContent>
-                {categories.map((cat) => (
-                  <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <FieldError errors={[form.formState.errors.sentenceCategoryId]} />
-          </Field>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <Field>
+              <FieldLabel htmlFor="sentenceCategoryId">Categoria</FieldLabel>
+              <Select
+                items={categories.map((cat) => ({ value: cat.id, label: cat.name }))}
+                value={form.watch("sentenceCategoryId") || null}
+                onValueChange={(v) => form.setValue("sentenceCategoryId", v || "")}
+              >
+                <SelectTrigger className="w-full" aria-invalid={!!form.formState.errors.sentenceCategoryId}>
+                  <SelectValue placeholder="Selecione uma categoria" />
+                </SelectTrigger>
+                <SelectContent>
+                  {categories.map((cat) => (
+                    <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <FieldError errors={[form.formState.errors.sentenceCategoryId]} />
+            </Field>
             <Field>
               <FieldLabel htmlFor="codColigada">Cód. Coligada</FieldLabel>
               <Input id="codColigada" className="w-full" maxLength={5} {...form.register("codColigada")} placeholder="Código da coligada (opcional)" aria-invalid={!!form.formState.errors.codColigada} />
@@ -226,7 +226,7 @@ export function SentenceTable({ data, meta, categories }: SentenceTableProps) {
               <FieldError errors={[form.formState.errors.codSystem]} />
             </Field>
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field>
               <FieldLabel htmlFor="code">Código</FieldLabel>
               <Input id="code" className="w-full" maxLength={16} {...form.register("code")} placeholder="Código único" aria-invalid={!!form.formState.errors.code} />

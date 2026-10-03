@@ -795,7 +795,7 @@ async function main() {
   })
 
   await prisma.clientContract.create({
-    data: { clientId: demandClient.id, contractedHours: 40, hourlyRate: 150, startDate: new Date(), status: "ACTIVE" },
+    data: { clientId: demandClient.id, contractedHours: 40, startDate: new Date(), status: "ACTIVE" },
   })
 
   const requester = await prisma.requester.create({

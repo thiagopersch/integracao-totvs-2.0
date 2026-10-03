@@ -6,8 +6,8 @@ import type { PaginationMeta } from "@/types/common";
 import type { TbcCredentials } from "@/services/soap.service";
 import type { Tbc } from "@/generated/prisma/client";
 
-export type TbcRow = Omit<Tbc, "password"> & { hasPassword: boolean; client?: { id: string; name: string } | null };
-type TbcWithMaybeClient = Tbc & { client?: { id: string; name: string } | null };
+export type TbcRow = Omit<Tbc, "password"> & { hasPassword: boolean; client?: { id: string; name: string; color: string } | null };
+type TbcWithMaybeClient = Tbc & { client?: { id: string; name: string; color: string } | null };
 
 function stripPassword<TIn extends TbcWithMaybeClient | null>(tbc: TIn): TbcRow | null {
   if (!tbc) return null;
@@ -46,7 +46,7 @@ export const tbcService = {
         orderBy,
         skip: (page - 1) * pageSize,
         take: pageSize,
-        include: { client: { select: { id: true, name: true } } },
+        include: { client: { select: { id: true, name: true, color: true } } },
       }),
       prisma.tbc.count({ where }),
     ]);
@@ -61,7 +61,7 @@ export const tbcService = {
     const tbcs = await prisma.tbc.findMany({
       where: { deletedAt: null, status: true, organizationId, clientId: { in: allowedClientIds } },
       orderBy: { name: "asc" },
-      include: { client: { select: { id: true, name: true } } },
+      include: { client: { select: { id: true, name: true, color: true } } },
     });
     return stripPasswordList(tbcs);
   },
@@ -131,7 +131,7 @@ export const tbcService = {
   async getCredentialsForRequest(id: string, organizationId: string, allowedClientIds: string[]): Promise<TbcCredentials> {
     const tbc = await prisma.tbc.findFirst({
       where: { id, organizationId, deletedAt: null, clientId: { in: allowedClientIds } },
-      include: { client: { select: { id: true, name: true } } },
+      include: { client: { select: { id: true, name: true, color: true } } },
     });
     if (!tbc) {
       throw new Error("TBC não encontrado. Cadastre e selecione um TBC válido antes de executar a requisição.");

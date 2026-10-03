@@ -11,9 +11,9 @@ const resourceLabels: Record<string, string> = {};
 const crud = (resource: string, label: string, module: string): PermissionDef[] => {
   resourceLabels[resource] = label;
   return [
-    { resource, action: "read", name: `Listar ${label}`, description: `Visualizar lista de ${label.toLowerCase()}`, module },
+    { resource, action: "read", name: `Visualizar ${label}`, description: `Visualizar lista de ${label.toLowerCase()}`, module },
     { resource, action: "create", name: `Criar ${label}`, description: `Criar novos ${label.toLowerCase()}`, module },
-    { resource, action: "update", name: `Atualizar ${label}`, description: `Editar ${label.toLowerCase()}`, module },
+    { resource, action: "update", name: `Editar ${label}`, description: `Editar ${label.toLowerCase()}`, module },
     { resource, action: "delete", name: `Excluir ${label}`, description: `Excluir ${label.toLowerCase()}`, module },
   ];
 };
@@ -42,7 +42,7 @@ export const PERMISSIONS: PermissionDef[] = [
   ...crud("mapeador_temas", "Temas do Mapeador", "mapeador"),
   ...crud("message_templates", "Templates de Mensagem", "integrations"),
   { resource: "soap", action: "execute", name: "Executar SOAP", description: "Executar chamadas SOAP", module: "soap" },
-  { resource: "soap", action: "history", name: "Ver Histórico", description: "Visualizar histórico SOAP", module: "soap" },
+  { resource: "soap", action: "history", name: "Visualizar Histórico", description: "Visualizar histórico SOAP", module: "soap" },
   {
     resource: "integrations",
     action: "execute",
@@ -71,21 +71,21 @@ export const PERMISSIONS: PermissionDef[] = [
     description: "Executar bateria de testes automáticos na ficha de um processo seletivo (Token PS + ID PS + link da página)",
     module: "integrations",
   },
-  { resource: "dashboard", action: "view", name: "Ver Dashboard", description: "Visualizar dashboard", module: "dashboard" },
+  { resource: "dashboard", action: "view", name: "Visualizar Dashboard", description: "Visualizar dashboard", module: "dashboard" },
   { resource: "settings", action: "manage", name: "Gerenciar Configurações", description: "Gerenciar configurações do sistema", module: "settings" },
-  { resource: "notifications", action: "read", name: "Ver Notificações", description: "Visualizar próprias notificações", module: "notifications" },
-  { resource: "reports", action: "read", name: "Ver Relatórios", description: "Visualizar e exportar relatórios", module: "demands" },
+  { resource: "notifications", action: "read", name: "Visualizar Notificações", description: "Visualizar próprias notificações", module: "notifications" },
+  { resource: "reports", action: "read", name: "Visualizar Relatórios", description: "Visualizar e exportar relatórios", module: "demands" },
   {
     resource: "deletion_logs",
     action: "read",
-    name: "Ver Logs de Exclusão",
+    name: "Visualizar Logs de Exclusão",
     description: "Visualizar registros que não puderam ser excluídos por estarem vinculados a outros cadastros",
     module: "settings",
   },
   {
     resource: "activity_logs",
     action: "read",
-    name: "Ver Rastreamento de Atividades",
+    name: "Visualizar Rastreamento de Atividades",
     description: "Visualizar log unificado de CRUD, SOAP, e-mails e integrações externas",
     module: "settings",
   },

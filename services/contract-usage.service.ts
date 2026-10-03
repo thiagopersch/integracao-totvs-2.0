@@ -132,14 +132,14 @@ async function sendUsageEmail(
   const { to, cc, sentToClient } = await resolveRecipients(organizationId, usage);
   if (!to) return { status: "NO_RECIPIENT", percent: usage.percent };
 
-  const [client, contracts, demand] = await Promise.all([
+  const [client, contracts, demand, minutesByAnalyst] = await Promise.all([
     prisma.client.findUniqueOrThrow({
       where: { id: usage.clientId },
       select: { name: true, legalName: true, document: true, email: true, phone: true, responsible: true, site: true, linkCrm: true },
     }),
     prisma.clientContract.findMany({
       where: { id: { in: usage.contractIds } },
-      select: { startDate: true, endDate: true, status: true, contractedHours: true, hourlyRate: true, notes: true },
+      select: { startDate: true, endDate: true, status: true, notes: true },
     }),
     demandId
       ? prisma.demand.findFirst({
@@ -160,7 +160,22 @@ async function sendUsageEmail(
           },
         })
       : null,
+    prisma.demand.groupBy({
+      by: ["analystId"],
+      where: { deletedAt: null, organizationId, clientId: usage.clientId, date: periodToDateRange(month)! },
+      _sum: { durationMinutes: true },
+    }),
   ]);
+  const analysts = await prisma.analyst.findMany({
+    where: { id: { in: minutesByAnalyst.map((m) => m.analystId) } },
+    select: { id: true, hourlyRate: true },
+  });
+  const rateByAnalystId = new Map(analysts.map((a) => [a.id, a.hourlyRate]));
+  const analystUsage = minutesByAnalyst.map((m) => ({
+    hours: (m._sum.durationMinutes || 0) / 60,
+    hourlyRate: rateByAnalystId.get(m.analystId) ?? null,
+  }));
+
   const vars = {
     ...buildGeneralVars({ recipientName: sentToClient ? client.responsible || client.name : client.name, recipientEmail: to }),
     ...buildContractUsageVars({
@@ -172,6 +187,7 @@ async function sendUsageEmail(
       periodLabel: formatMonthLabel(month),
       demandsCount: usage.demandsCount,
       contracts,
+      analystUsage,
     }),
     ...buildDemandVars(demand),
   };

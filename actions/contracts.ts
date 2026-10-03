@@ -16,18 +16,10 @@ export async function listContracts(params: ListParams, organizationId: string, 
   return contractService.list(params, organizationId, allowedClientIds);
 }
 
-/** Empty/"null" → null (clears the value); otherwise the number. */
-function parseOptionalNumber(value: FormDataEntryValue | null): number | null {
-  if (value === null || value === "" || value === "null" || value === "undefined") return null;
-  const n = Number(value);
-  return Number.isFinite(n) && n > 0 ? n : null;
-}
-
 function parseContractForm(formData: FormData) {
   return {
     clientId: formData.get("clientId") as string,
     contractedHours: formData.get("contractedHours") ? Number(formData.get("contractedHours")) : undefined,
-    hourlyRate: parseOptionalNumber(formData.get("hourlyRate")),
     startDate: formData.get("startDate") as string,
     endDate: (formData.get("endDate") as string) ?? "",
     status: (formData.get("status") as string) || "ACTIVE",

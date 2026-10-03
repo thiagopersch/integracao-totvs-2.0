@@ -198,7 +198,10 @@ export function SoapEndpointTable({ data, meta, filterOptions }: SoapEndpointTab
           variant="ghost"
           size="icon-sm"
           className="h-6 w-6"
-          onClick={() => setExpandedTypeId(expandedTypeId === row.original.id ? null : row.original.id)}
+          onClick={(e) => {
+            e.stopPropagation()
+            setExpandedTypeId(expandedTypeId === row.original.id ? null : row.original.id)
+          }}
         >
           {expandedTypeId === row.original.id ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
         </Button>
@@ -224,10 +227,12 @@ export function SoapEndpointTable({ data, meta, filterOptions }: SoapEndpointTab
   const actionsColumn: ColumnDef<SoapEndpointTypeWithMethods> = {
     id: "actions",
     cell: ({ row }) => (
-      <EntityActionsCell
-        onEdit={canManage ? () => setEditDialog({ open: true, entity: row.original }) : undefined}
-        onDelete={canManage ? () => setDeleteDialog({ open: true, id: row.original.id }) : undefined}
-      />
+      <div onClick={(e) => e.stopPropagation()}>
+        <EntityActionsCell
+          onEdit={canManage ? () => setEditDialog({ open: true, entity: row.original }) : undefined}
+          onDelete={canManage ? () => setDeleteDialog({ open: true, id: row.original.id }) : undefined}
+        />
+      </div>
     ),
   }
     if (canManage) columns.push(actionsColumn)
@@ -237,7 +242,7 @@ export function SoapEndpointTable({ data, meta, filterOptions }: SoapEndpointTab
   const newDialog = (
     <Dialog open={editDialog.open} onOpenChange={(open) => { setEditDialog({ open, entity: open ? editDialog.entity : undefined }); if (!open) typeForm.reset() }}>
       <DialogTrigger render={<Button><Plus className="h-4 w-4 mr-2" /> Novo Tipo</Button>} />
-      <DialogContent>
+      <DialogContent className="h-auto max-h-[85vh] sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>{editDialog.entity ? "Editar Tipo de Endpoint" : "Novo Tipo de Endpoint"}</DialogTitle>
         </DialogHeader>
@@ -399,6 +404,7 @@ export function SoapEndpointTable({ data, meta, filterOptions }: SoapEndpointTab
         onSortChange={onSortChange}
         sortableColumns={SORTABLE_COLUMNS}
         emptyMessage="Nenhum tipo de endpoint encontrado."
+        onRowClick={(row) => setExpandedTypeId((prev) => (prev === row.id ? null : row.id))}
         expandable={{
           isExpanded: (row) => row.id === expandedTypeId,
           renderExpanded: (endpointType) => (
@@ -406,7 +412,7 @@ export function SoapEndpointTable({ data, meta, filterOptions }: SoapEndpointTab
               <div className="mb-3 flex items-center justify-between">
                 <h4 className="text-sm font-medium">Métodos</h4>
                 {canManage && (
-                  <Button size="sm" variant="outline" onClick={() => openMethodDialog(endpointType.id)}>
+                  <Button size="sm" onClick={() => openMethodDialog(endpointType.id)}>
                     <Plus className="h-3 w-3 mr-1" /> Novo Método
                   </Button>
                 )}
@@ -464,7 +470,7 @@ export function SoapEndpointTable({ data, meta, filterOptions }: SoapEndpointTab
           if (!open) methodForm.reset()
         }}
       >
-        <DialogContent>
+        <DialogContent className="h-auto max-h-[85vh] sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>{methodDialog.method ? "Editar Método" : "Novo Método"}</DialogTitle>
           </DialogHeader>

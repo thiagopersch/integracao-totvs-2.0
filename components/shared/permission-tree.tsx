@@ -30,6 +30,14 @@ interface PermissionTreeProps {
   onToggleIds: (ids: string[], checked: boolean) => void
   onSelectAll: () => void
   onDeselectAll: () => void
+  disabled?: boolean
+}
+
+const ACTION_ORDER = ["read", "view", "history", "create", "update", "delete"]
+
+function actionRank(action: string) {
+  const index = ACTION_ORDER.indexOf(action)
+  return index === -1 ? ACTION_ORDER.length : index
 }
 
 function buildTree(permissions: PermissionRow[]): ModuleGroup[] {
@@ -43,7 +51,10 @@ function buildTree(permissions: PermissionRow[]): ModuleGroup[] {
   }
 
   return Array.from(moduleMap.entries()).map(([module, resourceMap]) => {
-    const resources = Array.from(resourceMap.values())
+    const resources = Array.from(resourceMap.values()).map((r) => ({
+      ...r,
+      items: [...r.items].sort((a, b) => actionRank(a.action) - actionRank(b.action)),
+    }))
     return { module, resources, ids: resources.flatMap((r) => r.items.map((i) => i.id)) }
   })
 }
@@ -55,6 +66,7 @@ export function PermissionTree({
   onToggleIds,
   onSelectAll,
   onDeselectAll,
+  disabled,
 }: PermissionTreeProps) {
   const [search, setSearch] = useState("")
   const [expandedModules, setExpandedModules] = useState<Record<string, boolean>>({})
@@ -120,10 +132,10 @@ export function PermissionTree({
           />
         </div>
         <div className="flex flex-wrap items-center gap-1.5">
-          <Button type="button" variant="outline" size="sm" onClick={onSelectAll}>
+          <Button type="button" variant="outline" size="sm" onClick={onSelectAll} disabled={disabled}>
             <ListChecks /> Marcar todos
           </Button>
-          <Button type="button" variant="outline" size="sm" onClick={onDeselectAll}>
+          <Button type="button" variant="outline" size="sm" onClick={onDeselectAll} disabled={disabled}>
             <ListX /> Desmarcar todos
           </Button>
           <Button type="button" variant="outline" size="sm" onClick={expandAll}>
@@ -135,7 +147,7 @@ export function PermissionTree({
         </div>
       </div>
 
-      <div className="max-h-80 overflow-y-auto rounded-lg border p-2">
+      <div className="min-h-80 max-h-[calc(100vh-20rem)] overflow-y-auto rounded-lg border p-2">
         {filteredTree.length === 0 && (
           <p className="p-4 text-center text-sm text-muted-foreground">Nenhuma permissão encontrada</p>
         )}
@@ -159,6 +171,7 @@ export function PermissionTree({
                   checked={allChecked}
                   data-indeterminate={someChecked || undefined}
                   onCheckedChange={(v) => onToggleIds(moduleGroup.ids, !!v)}
+                  disabled={disabled}
                 />
                 <Label htmlFor={`module-${moduleGroup.module}`} className="cursor-pointer text-xs font-semibold uppercase text-muted-foreground">
                   {moduleGroup.module}
@@ -190,6 +203,7 @@ export function PermissionTree({
                           checked={resourceAllChecked}
                           data-indeterminate={resourceSomeChecked || undefined}
                           onCheckedChange={(v) => onToggleIds(resourceIds, !!v)}
+                          disabled={disabled}
                         />
                         <Label htmlFor={`resource-${resourceKey}`} className="cursor-pointer text-sm font-medium">
                           {resourceGroup.label}
@@ -198,13 +212,14 @@ export function PermissionTree({
                           ({resourceIds.filter((id) => selectedIds.includes(id)).length}/{resourceIds.length})
                         </span>
                       </div>
-                      <Collapsible.Panel className="grid grid-cols-1 gap-1.5 py-1 pl-9 md:grid-cols-2 lg:grid-cols-4">
+                      <Collapsible.Panel className="flex flex-col gap-1.5 py-1 pl-9">
                         {resourceGroup.items.map((p) => (
                           <div key={p.id} className="flex items-center gap-2">
                             <Checkbox
                               id={`perm-${p.id}`}
                               checked={selectedIds.includes(p.id)}
                               onCheckedChange={(v) => onTogglePermission(p.id, !!v)}
+                              disabled={disabled}
                             />
                             <Label htmlFor={`perm-${p.id}`} className="cursor-pointer text-sm font-normal">
                               {p.name}

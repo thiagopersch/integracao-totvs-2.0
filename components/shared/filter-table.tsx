@@ -7,6 +7,7 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { DataTable } from "@/components/shared/data-table"
 import { DataTableFilterPanel } from "@/components/shared/data-table-filter-panel"
 import { PageHeader } from "@/components/shared/page-header"
+import { ColorBadge } from "@/components/shared/color-badge"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
 import { EntityActionsCell } from "@/components/shared/entity-actions-cell"
 import { createSelectColumn } from "@/components/shared/select-column"
@@ -60,7 +61,7 @@ const BACKUP_STATUS_LABELS: Record<string, string> = {
 
 interface FilterRow extends Filter {
   tbc: { id: string; name: string } | null
-  client: { id: string; name: string } | null
+  client: { id: string; name: string; color: string } | null
   lastBackupBy: { id: string; name: string } | null
   scheduleCategory: { id: string; name: string } | null
 }
@@ -260,7 +261,12 @@ export function FilterTable({ data, meta, clients, tbcs, sistemas, categories, f
     {
       id: "clientName",
       header: "Nome do Cliente",
-      cell: ({ row }) => row.original.client?.name || "-",
+      cell: ({ row }) =>
+        row.original.client ? (
+          <ColorBadge label={row.original.client.name} color={row.original.client.color} solid />
+        ) : (
+          "-"
+        ),
     },
     {
       id: "tbcName",

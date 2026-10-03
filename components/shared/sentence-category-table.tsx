@@ -151,7 +151,7 @@ export function SentenceCategoryTable({ data, meta }: SentenceCategoryTableProps
   const newDialog = (
     <Dialog open={editDialog.open} onOpenChange={(open) => { setEditDialog({ open, entity: open ? editDialog.entity : undefined }); if (!open) form.reset() }}>
       <DialogTrigger render={<Button><Plus className="h-4 w-4 mr-2" /> Nova Categoria</Button>} />
-      <DialogContent>
+      <DialogContent className="h-auto max-h-[85vh] sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>{editDialog.entity ? "Editar Categoria" : "Nova Categoria"}</DialogTitle>
         </DialogHeader>

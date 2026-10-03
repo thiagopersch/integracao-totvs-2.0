@@ -1,6 +1,8 @@
 import { prisma } from "@/lib/prisma";
 import type { CreateRoleInput, UpdateRoleInput } from "@/schemas/role.schema";
-import { RESOURCE_LABELS } from "@/config/permissions";
+import { PERMISSIONS, RESOURCE_LABELS } from "@/config/permissions";
+
+const PERMISSION_NAMES = new Map(PERMISSIONS.map((p) => [`${p.resource}:${p.action}`, p.name]));
 
 export const roleService = {
   async list(organizationId: string) {
@@ -22,7 +24,11 @@ export const roleService = {
     const permissions = await prisma.permission.findMany({
       orderBy: [{ module: "asc" }, { resource: "asc" }, { action: "asc" }],
     });
-    return permissions.map((p) => ({ ...p, resourceLabel: RESOURCE_LABELS[p.resource] || p.resource }));
+    return permissions.map((p) => ({
+      ...p,
+      name: PERMISSION_NAMES.get(`${p.resource}:${p.action}`) ?? p.name,
+      resourceLabel: RESOURCE_LABELS[p.resource] || p.resource,
+    }));
   },
 
   async create(input: CreateRoleInput, organizationId: string) {
