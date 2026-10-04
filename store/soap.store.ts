@@ -7,10 +7,11 @@ type SoapBuilderResponse = {
   status: number
 } | null
 
+/** Coligada/filial/nível start empty (null) — the user fills them in before GetSchema runs. */
 interface SoapBuilderContext {
-  coligate: number
-  branch: number
-  levelEducation: number
+  coligate: number | null
+  branch: number | null
+  levelEducation: number | null
   codSystem: string
   user: string
 }
@@ -59,9 +60,9 @@ const initialState = {
   jsonContent: "{}",
   activeTab: "xml",
   context: {
-    coligate: 1,
-    branch: 1,
-    levelEducation: 1,
+    coligate: null,
+    branch: null,
+    levelEducation: null,
     codSystem: "",
     user: "",
   },

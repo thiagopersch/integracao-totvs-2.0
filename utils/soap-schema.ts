@@ -1,4 +1,5 @@
 import { XMLParser } from "fast-xml-parser"
+import { escapeXml } from "@/utils/soap-envelope"
 
 export type SchemaField = {
   name: string
@@ -189,6 +190,50 @@ export function parseDataServerSchema(xml: string): SchemaTable[] {
   } catch {
     return []
   }
+}
+
+/** Name of the DataSet's root `xs:element` (the one flagged `msdata:IsDataSet`) — the wrapper a
+ *  multi-table SaveRecord payload goes in. Falls back to ADO.NET's own default, `NewDataSet`. */
+export function parseDataServerRootName(xml: string): string {
+  try {
+    const json = schemaParser.parse(xml) as Record<string, unknown>
+    const schema = findFirstByLocalName(json, "schema")
+    const root = findAllByLocalName(schema, "element").find((el) => getAttr(el, "IsDataSet").toLowerCase() === "true")
+    return getAttr(root, "name") || "NewDataSet"
+  } catch {
+    return "NewDataSet"
+  }
+}
+
+/**
+ * SaveRecord/DeleteRecord payload from per-table field values: only tables with at least one
+ * filled field are sent (an empty related-table row would make TOTVS try to insert a blank record),
+ * and only the filled fields within them. One table goes bare, as before; two or more are wrapped
+ * in the DataSet root element, per TDN's multi-table SaveRecord shape.
+ */
+export function buildSaveRecordXml(
+  tables: SchemaTable[],
+  values: Record<string, Record<string, string>>,
+  rootName: string
+): string {
+  const blocks = tables
+    .map((table) => {
+      const filled = table.fields.filter((f) => (values[table.name]?.[f.name] ?? "") !== "")
+      if (!filled.length) return null
+      const fieldsXml = filled.map((f) => `<${f.name}>${escapeXml(values[table.name][f.name])}</${f.name}>`)
+      return { name: table.name, fieldsXml }
+    })
+    .filter((b): b is { name: string; fieldsXml: string[] } => b !== null)
+
+  if (blocks.length === 0) return ""
+  if (blocks.length === 1) {
+    const [b] = blocks
+    return `<${b.name}>\n${b.fieldsXml.map((f) => `  ${f}`).join("\n")}\n</${b.name}>`
+  }
+  const inner = blocks
+    .map((b) => `  <${b.name}>\n${b.fieldsXml.map((f) => `    ${f}`).join("\n")}\n  </${b.name}>`)
+    .join("\n")
+  return `<${rootName}>\n${inner}\n</${rootName}>`
 }
 
 function inferType(value: string): string {

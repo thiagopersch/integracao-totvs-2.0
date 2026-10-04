@@ -27,6 +27,8 @@ import {
 import { CodeEditor } from "@/components/shared/code-editor"
 import { SoapSchemaView } from "@/components/shared/soap-schema-view"
 import { SoapDataTableView } from "@/components/shared/soap-data-table-view"
+import { SchemaRecordFields, XmlLeafFields } from "@/components/shared/soap-request-fields"
+import { PrimaryKeyInputs } from "@/components/tbc-checklist/primary-key-inputs"
 import {
   Play,
   Copy,
@@ -36,6 +38,7 @@ import {
   FileJson,
   Table2,
   Globe,
+  ListChecks,
   TriangleAlert,
   Search,
   CircleCheck,
@@ -46,6 +49,8 @@ import axios from "axios"
 import { xmlToJson, jsonToXml, safeFormatXmlDeep } from "@/utils/xml"
 import { buildSoapEnvelope, escapeXml, METHOD_OPERATION } from "@/utils/soap-envelope"
 import {
+  buildSaveRecordXml,
+  parseDataServerRootName,
   parseDataServerSchema,
   parseProcessSchema,
   parseReadViewResult,
@@ -54,7 +59,7 @@ import {
 } from "@/utils/soap-schema"
 import { formatDuration } from "@/utils/format"
 import { useSoapStore } from "@/store/soap.store"
-import { buildDefaultFiltro } from "@/lib/tbc-checklist-filtro"
+import { buildPkFiltro } from "@/lib/tbc-checklist-filtro"
 
 type EndpointMethod = {
   id: string
@@ -213,15 +218,13 @@ export function SoapBuilderClient({
   // request box), ReadRecord/DeleteRecordByKey need its primary-key column names.
   const [guidedParamsLoading, setGuidedParamsLoading] = useState(false)
   const [guidedParamsLoadedFor, setGuidedParamsLoadedFor] = useState<string | null>(null)
-  const [readViewFiltro, setReadViewFiltro] = useState("")
-  // Table/field names for the Filtro CodeEditor's SQL autocomplete, built from the same GetSchema
-  // call below — bumped alongside readViewFiltro's own resetKey so a prefill and its autocomplete
-  // schema always land in the editor together.
-  const [readViewSqlSchema, setReadViewSqlSchema] = useState<{
-    tables: Record<string, string[]>
-    defaultTable?: string
-  } | null>(null)
-  const [filtroResetKey, setFiltroResetKey] = useState(0)
+  // ReadView's Filtro is built from one input per primary-key field of the main table (see
+  // handleReadViewPkChange) instead of a hand-written SQL condition.
+  const [readViewPkValues, setReadViewPkValues] = useState<Record<string, string>>({})
+  // SaveRecord/DeleteRecord field values per Data Server table — the request XML is rebuilt from
+  // these (buildSaveRecordXml) on every edit in the "Campos" tab of the response card.
+  const [recordValues, setRecordValues] = useState<Record<string, Record<string, string>>>({})
+  const [datasetRootName, setDatasetRootName] = useState("NewDataSet")
   const [primaryKeyFields, setPrimaryKeyFields] = useState<{ name: string; caption: string }[]>([])
   const [primaryKeyValues, setPrimaryKeyValues] = useState<Record<string, string>>({})
   // RealizarConsultaSQL(Contexto) guided params — codSistema is never typed here, it's always the
@@ -267,7 +270,8 @@ export function SoapBuilderClient({
     return `${base}/${prefix}${wsFolder}/${port}`
   })()
 
-  const isReadViewMethod = selectedType?.type === "dataserver" && selectedMethod === "READVIEW"
+  const isReadViewMethod =
+    (selectedType?.type === "dataserver" || selectedType?.type === "process") && selectedMethod === "READVIEW"
   const isDataserverPkMethod =
     selectedType?.type === "dataserver" && (selectedMethod === "READRECORD" || selectedMethod === "DELETERECORDBYKEY")
   const isXmlParamMethod = XML_PARAM_WRAP_METHODS.has(selectedMethod ?? "")
@@ -293,6 +297,26 @@ export function SoapBuilderClient({
   // filter condition actually runs against, without touching the Filtro/request XML itself.
   const needsGuidedSchema = isXmlParamMethod || isDataserverPkMethod || isReadViewMethod
   const guidedEntityId = selectedType?.type === "process" ? selectedProcessId : selectedDataserverId
+  // Coligada/filial/nível start empty and are typed by the user; codSystem/user come from the
+  // Sistema TOTVS/TBC selects. GetSchema (and the context-driven auto execute) only run once all
+  // five are filled.
+  const contextComplete =
+    context.coligate !== null &&
+    context.branch !== null &&
+    context.levelEducation !== null &&
+    context.codSystem.trim() !== "" &&
+    context.user.trim() !== ""
+  // What's actually sent — empty fields are left out of the <Contexto> string entirely.
+  const requestContext = useMemo(
+    () => ({
+      coligate: context.coligate ?? undefined,
+      branch: context.branch ?? undefined,
+      levelEducation: context.levelEducation ?? undefined,
+      codSystem: context.codSystem,
+      user: context.user,
+    }),
+    [context]
+  )
   const guidedParamsKey = needsGuidedSchema
     ? `${selectedType?.type}:${selectedMethod}:${guidedEntityId}:${selectedTbcId}`
     : null
@@ -315,8 +339,8 @@ export function SoapBuilderClient({
 
   /** Live preview of the exact envelope that will be sent — same shape `soapService.dispatch` builds and logs to history, kept in sync as the method, TBC, XML body or context fields change. */
   const fullEnvelope = useMemo(
-    () => safeFormatXmlDeep(buildSoapEnvelope(buildFinalRequestXml(), context)),
-    [buildFinalRequestXml, context]
+    () => safeFormatXmlDeep(buildSoapEnvelope(buildFinalRequestXml(), requestContext)),
+    [buildFinalRequestXml, requestContext]
   )
 
   /** Programmatic updates (type/method switch, schema fetch) — bumps requestVersion so the
@@ -347,9 +371,10 @@ export function SoapBuilderClient({
    *  previous dataserver/method never leaks into the next one. */
   function resetGuidedParams() {
     setGuidedParamsLoadedFor(null)
-    setReadViewFiltro("")
-    setReadViewSqlSchema(null)
-    setFiltroResetKey((v) => v + 1)
+    setReadViewPkValues({})
+    setRecordValues({})
+    setDatasetRootName("NewDataSet")
+    setResponseTab((tab) => (tab === "fields" ? "xml" : tab))
     setPrimaryKeyFields([])
     setPrimaryKeyValues({})
     setDataserverSchemaTables(null)
@@ -419,7 +444,7 @@ export function SoapBuilderClient({
         codColigada: sqlCodColigada,
         codSistema: selectedSistemaCode,
         codSentenca: sqlCodSentenca,
-        context,
+        context: requestContext,
       })
       if (!res.data.found) {
         setSentenceFound(false)
@@ -544,11 +569,23 @@ export function SoapBuilderClient({
     }
   }
 
-  function handleFiltroChange(value: string) {
-    setReadViewFiltro(value)
-    setRequestXml(
-      `<ReadView>\n  <DataServerName>${escapeXml(selectedDataserverCode)}</DataServerName>\n  <Filtro>${escapeXml(value)}</Filtro>\n</ReadView>`
-    )
+  /** ReadView's Filtro from the primary-key inputs — one `TABELA.CAMPO = 'valor'` per filled field. */
+  function buildReadViewXml(entityCode: string, tableName: string, values: Record<string, string>): string {
+    const nameTag = ENTITY_NAME_TAG[selectedType?.type ?? ""] ?? "DataServerName"
+    const filtro = buildPkFiltro(tableName, values)
+    return `<ReadView>\n  <${nameTag}>${escapeXml(entityCode)}</${nameTag}>\n  <Filtro>${escapeXml(filtro)}</Filtro>\n</ReadView>`
+  }
+
+  function handleReadViewPkChange(values: Record<string, string>) {
+    setReadViewPkValues(values)
+    const entityCode = selectedType?.type === "process" ? selectedProcessCode : selectedDataserverCode
+    setRequestXml(buildReadViewXml(entityCode, dataserverSchemaTables?.[0]?.name ?? "", values))
+  }
+
+  function handleRecordValueChange(table: string, field: string, value: string) {
+    const next = { ...recordValues, [table]: { ...recordValues[table], [field]: value } }
+    setRecordValues(next)
+    setRequestXml(buildSaveRecordXml(dataserverSchemaTables ?? [], next, datasetRootName))
   }
 
   function handlePrimaryKeyValueChange(field: string, value: string) {
@@ -567,7 +604,7 @@ export function SoapBuilderClient({
    *  column names, so the user fills in values rather than guessing the key format by hand. */
   useEffect(() => {
     if (!needsGuidedSchema || !guidedParamsKey || guidedParamsKey === guidedParamsLoadedFor) return
-    if (!selectedType || !selectedTbcId) return
+    if (!selectedType || !selectedTbcId || !contextComplete) return
     const schemaMethod = methods.find((m) => m.method === "GETSCHEMA" || m.method === "GETSCHEMA2")
     if (!schemaMethod) {
       toast.error("Este tipo de endpoint não tem um método GetSchema cadastrado em /admin/soap-endpoints")
@@ -590,13 +627,14 @@ export function SoapBuilderClient({
           methodId: schemaMethodId,
           tbcId: selectedTbcId,
           xml: schemaXml,
-          context,
+          context: requestContext,
           timeout,
         })
 
-        if (typeKey === "process") {
+        if (typeKey === "process" && !isReadViewMethod) {
           setRequestXml(safeFormatXmlDeep(res.data.xmlResponse))
-          toast.success("Estrutura de parâmetros do processo carregada — preencha os valores antes de executar")
+          setResponseTab("fields")
+          toast.success("Estrutura de parâmetros do processo carregada — preencha os campos antes de executar")
         } else {
           const allTables = parseDataServerSchema(res.data.xmlResponse)
           const mainTable = allTables[0]
@@ -618,28 +656,29 @@ export function SoapBuilderClient({
             )
             toast.success("Chave primária carregada — preencha os valores antes de executar")
           } else if (isReadViewMethod) {
-            // Tells the user which table(s) the dataserver reads from, feeds the Filtro
-            // CodeEditor's SQL autocomplete (TABELA.CAMPO) with those tables/fields, and — when
-            // the user hasn't typed a Filtro yet — prefills it with the main table's primary-key
-            // condition template (buildDefaultFiltro), same convention as tbc-checklist.
+            // Tells the user which table(s) the dataserver reads from and turns the main table's
+            // primary key into one input per field — the Filtro is built from whatever is filled.
             setDataserverSchemaTables(allTables)
-            setReadViewSqlSchema({
-              tables: Object.fromEntries(allTables.map((t) => [t.name, t.fields.map((f) => f.name)])),
-              defaultTable: mainTable.name,
-            })
-            if (!readViewFiltro.trim()) {
-              handleFiltroChange(buildDefaultFiltro(allTables))
-            }
-            setFiltroResetKey((v) => v + 1)
+            const pkFields = mainTable.fields
+              .filter((f) => f.isPrimaryKey)
+              .map((f) => ({ name: f.name, caption: f.caption || f.name }))
+            setPrimaryKeyFields(pkFields)
+            setReadViewPkValues({})
+            setRequestXml(buildReadViewXml(entityCode, mainTable.name, {}))
             toast.success(
               allTables.length === 1
                 ? `Tabela identificada: ${allTables[0].name}`
                 : `Tabelas identificadas (${allTables.length}): ${allTables.map((t) => t.name).join(", ")}`
             )
           } else {
-            const skeleton = `<${mainTable.name}>\n${mainTable.fields.map((f) => `  <${f.name}></${f.name}>`).join("\n")}\n</${mainTable.name}>`
-            setRequestXml(skeleton)
-            toast.success("Estrutura de campos carregada — preencha os valores antes de executar")
+            // SaveRecord/DeleteRecord — every table of the dataserver becomes a section of inputs
+            // in the response card's "Campos" tab; the request XML is rebuilt from those values.
+            setDataserverSchemaTables(allTables)
+            setDatasetRootName(parseDataServerRootName(res.data.xmlResponse))
+            setRecordValues({})
+            setRequestXml("")
+            setResponseTab("fields")
+            toast.success("Estrutura de campos carregada — preencha os valores na aba Campos antes de executar")
           }
         }
         setGuidedParamsLoadedFor(guidedParamsKey)
@@ -664,7 +703,7 @@ export function SoapBuilderClient({
     // other state (context, timeout, methods…) that shouldn't each retrigger a fresh GetSchema
     // call on their own.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [needsGuidedSchema, guidedParamsKey, guidedParamsLoadedFor])
+  }, [needsGuidedSchema, guidedParamsKey, guidedParamsLoadedFor, contextComplete])
 
   function handleSelectSistema(sistemaId: string) {
     setSelectedSistemaId(sistemaId)
@@ -688,8 +727,13 @@ export function SoapBuilderClient({
 
   function handleSelectClient(clientId: string) {
     setSelectedClientId(clientId)
-    const stillValid = tbcs.find((t) => t.id === selectedTbcId && t.client?.id === clientId)
-    if (!stillValid) setSelectedTbcId("")
+    // A single TBC is picked automatically; with more than one the user must choose.
+    const clientTbcs = tbcs.filter((t) => t.client?.id === clientId)
+    if (clientTbcs.length === 1) {
+      handleSelectTbc(clientTbcs[0].id)
+    } else if (!clientTbcs.some((t) => t.id === selectedTbcId)) {
+      setSelectedTbcId("")
+    }
   }
 
   function handleSelectTbc(tbcId: string) {
@@ -706,13 +750,10 @@ export function SoapBuilderClient({
   function maybeAutoExecute() {
     if (loading) return
     if (!selectedTypeId || !selectedMethodId || !selectedTbcId) return
-    const contextComplete =
-      context.coligate > 0 &&
-      context.branch > 0 &&
-      context.levelEducation > 0 &&
-      context.codSystem.trim() !== "" &&
-      context.user.trim() !== ""
     if (!contextComplete) return
+    // Guided methods (SaveRecord, ExecuteWithXmlParams, ReadView…) only auto-load their GetSchema
+    // structure once the context is complete — never auto-execute them with empty values.
+    if (needsGuidedSchema) return
 
     const signature = JSON.stringify([
       selectedTypeId,
@@ -752,7 +793,15 @@ export function SoapBuilderClient({
       return
     }
     if (guidedParamsPending) {
-      toast.error("Aguarde a estrutura de parâmetros ser carregada antes de executar")
+      toast.error(
+        contextComplete
+          ? "Aguarde a estrutura de parâmetros ser carregada antes de executar"
+          : "Preencha coligada, filial e nível de ensino para carregar a estrutura antes de executar"
+      )
+      return
+    }
+    if (isXmlParamMethod && selectedType?.type === "dataserver" && !xmlContent.trim()) {
+      toast.error("Preencha ao menos um campo na aba Campos antes de executar")
       return
     }
     if (isConsultaSqlMethod) {
@@ -789,11 +838,12 @@ export function SoapBuilderClient({
         methodId: selectedMethodId,
         tbcId: selectedTbcId,
         xml: buildFinalRequestXml(),
-        context,
+        context: requestContext,
         timeout,
       })
 
       setResponse(res.data)
+      if (responseTab === "fields") setResponseTab("xml")
       setResponseVersion((v) => v + 1)
       toast.success(`Executado em ${formatDuration(res.data.duration)}`)
 
@@ -1084,8 +1134,8 @@ export function SoapBuilderClient({
                 <Label>Coligada</Label>
                 <Input
                   type="number"
-                  value={context.coligate}
-                  onChange={(e) => setContext({ coligate: Number(e.target.value) })}
+                  value={context.coligate ?? ""}
+                  onChange={(e) => setContext({ coligate: e.target.value === "" ? null : Number(e.target.value) })}
                   onBlur={maybeAutoExecute}
                   className="w-full"
                 />
@@ -1094,8 +1144,8 @@ export function SoapBuilderClient({
                 <Label>Filial</Label>
                 <Input
                   type="number"
-                  value={context.branch}
-                  onChange={(e) => setContext({ branch: Number(e.target.value) })}
+                  value={context.branch ?? ""}
+                  onChange={(e) => setContext({ branch: e.target.value === "" ? null : Number(e.target.value) })}
                   onBlur={maybeAutoExecute}
                   className="w-full"
                 />
@@ -1104,8 +1154,8 @@ export function SoapBuilderClient({
                 <Label>Nível de Ensino</Label>
                 <Input
                   type="number"
-                  value={context.levelEducation}
-                  onChange={(e) => setContext({ levelEducation: Number(e.target.value) })}
+                  value={context.levelEducation ?? ""}
+                  onChange={(e) => setContext({ levelEducation: e.target.value === "" ? null : Number(e.target.value) })}
                   onBlur={maybeAutoExecute}
                   className="w-full"
                 />
@@ -1293,17 +1343,26 @@ export function SoapBuilderClient({
                       </span>
                     )}
                   </div>
-                  <Label>
-                    Filtro (apenas a condição SQL — sem SELECT, ex.: CODCOLIGADA = 1 AND RA = &apos;123&apos;)
-                  </Label>
-                  <CodeEditor
-                    value={readViewFiltro}
-                    onChange={handleFiltroChange}
-                    language="sql"
-                    minHeight="120px"
-                    resetKey={filtroResetKey}
-                    sqlSchema={readViewSqlSchema ?? undefined}
-                  />
+                  {guidedParamsPending && !guidedParamsLoading ? (
+                    <p className="text-sm text-muted-foreground">
+                      {contextComplete
+                        ? "Selecione o dataserver e o TBC para carregar a chave primária automaticamente."
+                        : "Preencha coligada, filial e nível de ensino para carregar a estrutura."}
+                    </p>
+                  ) : (
+                    !guidedParamsLoading && (
+                      <div className="space-y-2">
+                        <Label>Filtro pela chave primária (preencha apenas os campos desejados)</Label>
+                        <div className="grid grid-cols-1 gap-4 md:grid-cols-3 lg:grid-cols-4 [&>div]:contents">
+                          <PrimaryKeyInputs
+                            fields={primaryKeyFields}
+                            values={readViewPkValues}
+                            onChange={handleReadViewPkChange}
+                          />
+                        </div>
+                      </div>
+                    )
+                  )}
                 </div>
               )}
 
@@ -1311,6 +1370,10 @@ export function SoapBuilderClient({
                 (guidedParamsLoading ? (
                   <p className="flex items-center gap-2 text-sm text-muted-foreground">
                     <Loader2 className="h-4 w-4 animate-spin" /> Carregando chave primária do dataserver...
+                  </p>
+                ) : !contextComplete && guidedParamsPending ? (
+                  <p className="text-sm text-muted-foreground">
+                    Preencha coligada, filial e nível de ensino para carregar a chave primária.
                   </p>
                 ) : primaryKeyFields.length ? (
                   <div className="space-y-2">
@@ -1343,9 +1406,11 @@ export function SoapBuilderClient({
                       <Loader2 className="h-4 w-4 animate-spin" /> Carregando estrutura de campos...
                     </>
                   ) : guidedParamsPending ? (
-                    "Selecione a entidade e o TBC para carregar a estrutura automaticamente."
+                    contextComplete
+                      ? "Selecione a entidade e o TBC para carregar a estrutura automaticamente."
+                      : "Preencha coligada, filial e nível de ensino para carregar a estrutura."
                   ) : (
-                    'Estrutura carregada — edite os valores no XML da requisição (botão "Ver requisição").'
+                    'Estrutura carregada — preencha os valores na aba "Campos" do card Resposta.'
                   )}
                 </p>
               )}
@@ -1439,6 +1504,11 @@ export function SoapBuilderClient({
             )}
             <Tabs value={responseTab} onValueChange={setResponseTab}>
               <TabsList className="mb-2">
+                {isXmlParamMethod && (
+                  <TabsTrigger value="fields">
+                    <ListChecks className="h-3 w-3 mr-1" /> Campos
+                  </TabsTrigger>
+                )}
                 <TabsTrigger value="xml">XML</TabsTrigger>
                 <TabsTrigger value="json">JSON</TabsTrigger>
                 <TabsTrigger value="raw">Raw</TabsTrigger>
@@ -1446,6 +1516,29 @@ export function SoapBuilderClient({
                   <Table2 className="h-3 w-3 mr-1" /> Tabela
                 </TabsTrigger>
               </TabsList>
+              {isXmlParamMethod && (
+                <TabsContent value="fields" className="m-0">
+                  {guidedParamsLoading ? (
+                    <p className="flex items-center gap-2 p-4 text-sm text-muted-foreground">
+                      <Loader2 className="h-4 w-4 animate-spin" /> Carregando estrutura de campos...
+                    </p>
+                  ) : guidedParamsPending ? (
+                    <p className="p-4 text-sm text-muted-foreground">
+                      {contextComplete
+                        ? "Selecione a entidade e o TBC para carregar a estrutura automaticamente."
+                        : "Preencha coligada, filial e nível de ensino para carregar a estrutura."}
+                    </p>
+                  ) : selectedType?.type === "dataserver" ? (
+                    <SchemaRecordFields
+                      tables={dataserverSchemaTables ?? []}
+                      values={recordValues}
+                      onChange={handleRecordValueChange}
+                    />
+                  ) : (
+                    <XmlLeafFields xml={xmlContent} onChange={setRequestXml} />
+                  )}
+                </TabsContent>
+              )}
               <TabsContent value="xml" className="m-0">
                 {response ? (
                   <CodeEditor

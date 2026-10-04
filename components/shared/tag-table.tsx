@@ -144,7 +144,7 @@ export function TagTable({ data, meta }: TagTableProps) {
       }}
     >
       <DialogTrigger render={<Button><Plus className="h-4 w-4 mr-2" /> Nova Tag</Button>} />
-      <DialogContent>
+      <DialogContent className="h-auto max-h-[85vh] sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>{editDialog.entity ? "Editar Tag" : "Nova Tag"}</DialogTitle>
         </DialogHeader>

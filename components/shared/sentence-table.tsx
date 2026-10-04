@@ -35,7 +35,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import { Plus, Loader2 } from "lucide-react"
+import { Plus, Loader2, Maximize2, Minimize2 } from "lucide-react"
 import { deleteSentence, restoreSentence, createSentence, updateSentence, bulkDeleteSentences, setSentenceStatus } from "@/actions/admin/sentences"
 import { createSentenceSchema, updateSentenceSchema, type CreateSentenceInput } from "@/schemas/sentence.schema"
 import { toast } from "sonner"
@@ -177,6 +177,17 @@ export function SentenceTable({ data, meta, categories }: SentenceTableProps) {
           "transition-[width,height]",
           fullscreen && "h-[95vh]! max-h-[95vh]! w-[95vw]! max-w-[95vw]!"
         )}
+        headerActions={
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            onClick={() => setFullscreen((v) => !v)}
+            title={fullscreen ? "Tamanho normal" : "Expandir"}
+          >
+            {fullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+          </Button>
+        }
       >
         <DialogHeader>
           <DialogTitle>{editDialog.entity ? "Editar Sentença" : "Nova Sentença"}</DialogTitle>
@@ -246,8 +257,6 @@ export function SentenceTable({ data, meta, categories }: SentenceTableProps) {
               onChange={(v) => form.setValue("content", v)}
               language="sql"
               resetKey={editDialog.entity?.id ?? "new"}
-              fullscreen={fullscreen}
-              onFullscreenChange={setFullscreen}
               minHeight="160px"
               containerClassName="flex min-h-0 flex-1 flex-col"
               className="min-h-0 flex-1"

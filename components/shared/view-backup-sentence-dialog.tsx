@@ -91,8 +91,6 @@ export function ViewBackupSentenceDialog({ open, onOpenChange, backup, onRestore
                   readOnly
                   theme="dark"
                   resetKey={backup.id}
-                  fullscreen={fullscreen}
-                  onFullscreenChange={setFullscreen}
                   minHeight={fullscreen ? "70vh" : "50vh"}
                 />
               </div>
