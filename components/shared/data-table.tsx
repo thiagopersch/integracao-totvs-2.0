@@ -32,6 +32,19 @@ type SortState = { field: string; direction: "asc" | "desc" }
 const VIRTUALIZE_ROW_THRESHOLD = 50
 const ESTIMATED_ROW_HEIGHT = 45
 
+const COLUMNS_WITHOUT_TITLE = new Set(["select", "actions"])
+
+/**
+ * Native `title` fallback so a cell's full content is visible on hover — computed lazily from the
+ * rendered text, and skipped when the cell already has its own tooltip (e.g. TruncatedText).
+ */
+function showCellTitle(event: React.MouseEvent<HTMLTableCellElement>) {
+  const cell = event.currentTarget
+  const text = cell.querySelector('[data-slot="tooltip-trigger"]') ? "" : cell.innerText.trim()
+  if (text) cell.title = text
+  else cell.removeAttribute("title")
+}
+
 export interface BulkDeleteActionResult {
   success: boolean
   error?: string
@@ -392,6 +405,7 @@ export function DataTable<TData, TValue>({
                             : undefined
                         }
                         style={virtualCellStyle(cell.column.id)}
+                        onMouseEnter={COLUMNS_WITHOUT_TITLE.has(cell.column.id) ? undefined : showCellTitle}
                       >
                         {flexRender(cell.column.columnDef.cell, cell.getContext())}
                       </TableCell>
@@ -415,6 +429,7 @@ export function DataTable<TData, TValue>({
                             ? "sticky right-0 z-10 border-l bg-background group-hover:bg-muted/50 group-data-[state=selected]:bg-muted"
                             : undefined
                         }
+                        onMouseEnter={COLUMNS_WITHOUT_TITLE.has(cell.column.id) ? undefined : showCellTitle}
                       >
                         {flexRender(cell.column.columnDef.cell, cell.getContext())}
                       </TableCell>

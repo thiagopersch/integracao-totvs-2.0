@@ -314,7 +314,7 @@ export const dashboardService = {
         color: rankingClientColorById.get(clientId) || "#22c55e",
       }))
       .filter((c) => c.contratadas > 0 || c.gastas > 0)
-      .sort((a, b) => b.gastas - a.gastas)
+      .sort((a, b) => b.contratadas - a.contratadas || b.gastas - a.gastas)
       .slice(0, 8);
 
     return {
