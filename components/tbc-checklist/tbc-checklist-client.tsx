@@ -15,6 +15,7 @@ import {
 import { ProcessoSeletivoSidebar, type ProcessoSeletivo } from "@/components/tbc-checklist/processo-seletivo-sidebar"
 import { AddDataserverDialog } from "@/components/tbc-checklist/add-dataserver-dialog"
 import { ChecklistContent } from "@/components/tbc-checklist/checklist-content"
+import type { DeniedDataserver } from "@/components/tbc-checklist/permission-denied-alert"
 import { AREA_OFERTADA_DATASERVER } from "@/lib/tbc-checklist-dataservers"
 import type { TbcRow } from "@/services/tbc.service"
 import type { Dataserver } from "@/generated/prisma/client"
@@ -24,7 +25,7 @@ import { toast } from "sonner"
  *  tab showing it opens. Absent from `relatedStates` = not requested yet. */
 export type TableLoadState =
   | { status: "loading" }
-  | { status: "error"; error: string }
+  | { status: "error"; error: string; permissionDenied?: boolean }
   | { status: "loaded"; result: ChecklistTableResult }
 
 export type AddedDataserver = {
@@ -52,9 +53,21 @@ interface TbcChecklistClientProps {
 
 let loadCounter = 0
 
+type LoadOutcome =
+  | { kind: "loaded"; dataserver: AddedDataserver }
+  | { kind: "denied"; denied: DeniedDataserver }
+  | { kind: "failed" }
+
+/** Adds `denied` to the list (once per code). */
+function withDenied(list: DeniedDataserver[], denied: DeniedDataserver): DeniedDataserver[] {
+  return [...list.filter((d) => d.code !== denied.code), denied]
+}
+
 export function TbcChecklistClient({ tbc, dataservers }: TbcChecklistClientProps) {
   const [selectedProcesso, setSelectedProcesso] = useState<ProcessoSeletivo | null>(null)
   const [addedDataservers, setAddedDataservers] = useState<AddedDataserver[]>([])
+  // Data Servers TOTVS refused the TBC user access to — shown as a message instead of fields.
+  const [deniedDataservers, setDeniedDataservers] = useState<DeniedDataserver[]>([])
   const [primaryLoading, setPrimaryLoading] = useState(false)
   const [addDialogOpen, setAddDialogOpen] = useState(false)
   // Remounts the dialog on every open, so it always starts empty (also after a successful add,
@@ -67,14 +80,15 @@ export function TbcChecklistClient({ tbc, dataservers }: TbcChecklistClientProps
     code: string,
     context: ChecklistContext,
     pkValues: Record<string, string>
-  ): Promise<AddedDataserver | null> {
+  ): Promise<LoadOutcome> {
     const result = await fetchChecklistMainTable({ tbcId: tbc.id, dataserverCode: code, pkValues, context })
     const meta = dataservers.find((d) => d.code === code)
     if (!result.success) {
+      if (result.permissionDenied) return { kind: "denied", denied: { code, name: meta?.name ?? code } }
       toast.error(result.error || `Falha ao carregar checklist do Data Server "${meta?.name ?? code}"`)
-      return null
+      return { kind: "failed" }
     }
-    return {
+    const dataserver: AddedDataserver = {
       id: `${code}-${++loadCounter}`,
       code,
       name: meta?.name ?? code,
@@ -87,6 +101,7 @@ export function TbcChecklistClient({ tbc, dataservers }: TbcChecklistClientProps
       truncated: result.truncated,
       relatedStates: {},
     }
+    return { kind: "loaded", dataserver }
   }
 
   /** Selecting a processo always loads its own Data Server plus the área ofertada one, both keyed
@@ -95,6 +110,7 @@ export function TbcChecklistClient({ tbc, dataservers }: TbcChecklistClientProps
     const selectionId = ++selectionRef.current
     setSelectedProcesso(processo)
     setAddedDataservers([])
+    setDeniedDataservers([])
     if (!processo || !processo.sourceDataserverCode) {
       setPrimaryLoading(false)
       return
@@ -109,18 +125,25 @@ export function TbcChecklistClient({ tbc, dataservers }: TbcChecklistClientProps
     }
 
     setPrimaryLoading(true)
-    const loaded = await Promise.all(codes.map((code) => loadDataserver(code, processo.context, processo.pkValues)))
+    const outcomes = await Promise.all(codes.map((code) => loadDataserver(code, processo.context, processo.pkValues)))
     if (selectionRef.current !== selectionId) return
     setPrimaryLoading(false)
-    setAddedDataservers(loaded.filter((d): d is AddedDataserver => d !== null))
+    setAddedDataservers(outcomes.flatMap((o) => (o.kind === "loaded" ? [o.dataserver] : [])))
+    setDeniedDataservers(outcomes.flatMap((o) => (o.kind === "denied" ? [o.denied] : [])))
   }
 
   async function handleAddDataserver(dataserver: Dataserver, context: ChecklistContext, pkValues: Record<string, string>) {
     setAddLoading(true)
-    const loaded = await loadDataserver(dataserver.code, context, pkValues)
+    const outcome = await loadDataserver(dataserver.code, context, pkValues)
     setAddLoading(false)
-    if (!loaded) return
-    setAddedDataservers((prev) => [...prev.filter((d) => d.code !== dataserver.code), loaded])
+    if (outcome.kind === "failed") return
+    if (outcome.kind === "denied") {
+      setAddedDataservers((prev) => prev.filter((d) => d.code !== dataserver.code))
+      setDeniedDataservers((prev) => withDenied(prev, outcome.denied))
+    } else {
+      setAddedDataservers((prev) => [...prev.filter((d) => d.code !== dataserver.code), outcome.dataserver])
+      setDeniedDataservers((prev) => prev.filter((d) => d.code !== dataserver.code))
+    }
     setAddDialogOpen(false)
   }
 
@@ -163,7 +186,7 @@ export function TbcChecklistClient({ tbc, dataservers }: TbcChecklistClientProps
       context: dataserver.context,
     })
     setRelatedStates(dataserver.id, tableList, parentList, (table, parentKey) => {
-      if (!result.success) return { status: "error", error: result.error }
+      if (!result.success) return { status: "error", error: result.error, permissionDenied: result.permissionDenied }
       const loaded = result.groups.find((g) => g.parentKey === parentKey)?.results[table]
       return loaded ? { status: "loaded", result: loaded } : { status: "error", error: "Registro não retornado pelo TOTVS." }
     })
@@ -198,11 +221,14 @@ export function TbcChecklistClient({ tbc, dataservers }: TbcChecklistClientProps
           dataservers={dataservers}
           selectedProcesso={selectedProcesso}
           onSelectProcesso={handleSelectProcesso}
+          tbcUser={tbc.user}
         />
 
         <ChecklistContent
           selectedProcesso={selectedProcesso}
           addedDataservers={addedDataservers}
+          deniedDataservers={deniedDataservers}
+          tbcUser={tbc.user}
           loadingPrimary={primaryLoading}
           onRemoveDataserver={handleRemoveDataserver}
           onOpenAddDialog={() => {
@@ -221,6 +247,7 @@ export function TbcChecklistClient({ tbc, dataservers }: TbcChecklistClientProps
         dataservers={dataservers}
         loading={addLoading}
         knownValues={selectedProcesso?.pkValues ?? {}}
+        tbcUser={tbc.user}
         onConfirm={handleAddDataserver}
       />
     </div>

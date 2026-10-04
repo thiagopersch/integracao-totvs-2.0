@@ -6,7 +6,7 @@ import { env } from "@/config/app.config";
 import { buildSoapEnvelope, METHOD_OPERATION, type SoapContext } from "@/utils/soap-envelope";
 import { notificationService } from "@/services/notification.service";
 import { buildSoapCallFailedNotification } from "@/lib/notification-types";
-import { classifyError, type ErrorKind } from "@/lib/error-kind";
+import { classifyError, isPermissionDeniedMessage, type ErrorKind } from "@/lib/error-kind";
 import { extractEntityName } from "@/utils/xml";
 import { WS_NAME_LABELS, type WsName } from "@/lib/ws-names";
 import { Prisma, type SoapMethod } from "@/generated/prisma/client";
@@ -120,6 +120,19 @@ function extractSoapResponse(xml: string, method: SoapMethod): string {
 
 class SoapFaultError extends Error {}
 
+/** The TBC user authenticated, but its TOTVS profile has no access to the requested Data
+ *  Server/process. Thrown (after logging) so callers can show a dedicated message instead of a
+ *  generic failure; `entityName` is the Data Server/process code from the request, when known. */
+export class SoapPermissionDeniedError extends Error {
+  constructor(
+    message: string,
+    readonly entityName?: string
+  ) {
+    super(message);
+    this.name = "SoapPermissionDeniedError";
+  }
+}
+
 /** Detects a SOAP 1.1 <Fault> in the response body — a 200 status does NOT mean success, TOTVS returns business errors this way. */
 function extractFaultMessage(xml: string): string | null {
   const faultMatch = xml.match(/<(?:[\w]+:)?Fault[^>]*>([\s\S]*?)<\/(?:[\w]+:)?Fault>/i);
@@ -182,6 +195,8 @@ export const soapService = {
     const authHeader = "Basic " + Buffer.from(`${request.tbc.user}:${request.tbc.password}`).toString("base64");
     let lastError: Error | null = null;
     let lastErrorKind: ErrorKind = "unknown";
+    // Raw response of the failed attempt (e.g. the SOAP Fault), kept for the log's xmlResponse.
+    let lastResponseXml: string | null = null;
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
@@ -199,9 +214,18 @@ export const soapService = {
         const xmlResponse = response.data as string;
 
         const faultMessage = extractFaultMessage(xmlResponse);
-        if (faultMessage) throw new SoapFaultError(faultMessage);
+        if (faultMessage) {
+          lastResponseXml = xmlResponse;
+          throw new SoapFaultError(faultMessage);
+        }
 
         const extractedXml = extractSoapResponse(xmlResponse, request.method);
+        // Some TOTVS versions answer a denied ReadView/ReadRecord/GetSchema with HTTP 200 and the
+        // error as the plain-text *Result instead of a Fault — treat that as the failure it is.
+        if (!extractedXml.trimStart().startsWith("<") && isPermissionDeniedMessage(extractedXml)) {
+          lastResponseXml = xmlResponse;
+          throw new SoapFaultError(extractedXml.trim());
+        }
         const jsonResponse = xmlParser.parse(extractedXml) as Record<string, unknown>;
 
         await this.log(request, envelope, xmlResponse, jsonResponse, response.status, duration, null, organizationId, userId);
@@ -216,7 +240,7 @@ export const soapService = {
         lastError = error as Error;
 
         if (error instanceof SoapFaultError) {
-          lastErrorKind = "fault";
+          lastErrorKind = isPermissionDeniedMessage(error.message) ? "permission" : "fault";
           logger.warn("SOAP fault (business error, not retried)", {
             wsName: request.wsName,
             method: request.method,
@@ -226,11 +250,14 @@ export const soapService = {
         }
 
         if (axios.isAxiosError(error) && error.response && error.response.status >= 400 && error.response.status < 500) {
-          lastErrorKind = error.response.status === 401 ? "auth" : "http";
+          lastErrorKind = classifyError(error);
+          lastResponseXml = typeof error.response.data === "string" ? error.response.data : null;
           lastError = new Error(
             error.response.status === 401
               ? `Autenticação HTTP rejeitada pelo TOTVS (usuário/senha do TBC inválidos) [${request.wsName}]`
-              : `TOTVS retornou HTTP ${error.response.status} (não retentado): ${error.message}`
+              : error.response.status === 403
+                ? `TOTVS recusou o acesso (HTTP 403) [${request.wsName}]`
+                : `TOTVS retornou HTTP ${error.response.status} (não retentado): ${error.message}`
           );
           logger.warn("SOAP request rejected by TOTVS (client error, not retried)", {
             wsName: request.wsName,
@@ -254,13 +281,21 @@ export const soapService = {
     }
 
     const duration = Date.now() - startTime;
-    const errorMsg = lastError?.message || "Unknown error";
-    const logId = await this.log(request, envelope, null, null, 0, duration, errorMsg, organizationId, userId);
+    const entity = extractEntityName(request.xml);
+    const rawErrorMsg = lastError?.message || "Unknown error";
+    // Prefixed so the activity log (Rastreamento de Atividades) and the notification say plainly
+    // that this was an access-profile problem on the TOTVS side, and for which Data Server.
+    const errorMsg =
+      lastErrorKind === "permission"
+        ? `O usuário "${request.tbc.user}" do TBC não possui permissão para acessar ${
+            entity ? `o ${entity.type === "process" ? "processo" : "Data Server"} "${entity.name}"` : "o recurso solicitado"
+          } no TOTVS. Detalhe: ${rawErrorMsg}`
+        : rawErrorMsg;
+    const logId = await this.log(request, envelope, lastResponseXml, null, 0, duration, errorMsg, organizationId, userId);
 
     // Only for user-initiated calls — internal/scheduled dispatches (no userId, e.g. backups)
     // are already covered by their own caller's failure notification, avoiding duplicate alerts.
     if (userId) {
-      const entity = extractEntityName(request.xml);
       const notification = buildSoapCallFailedNotification({
         method: request.method,
         wsName: request.wsName,
@@ -278,6 +313,7 @@ export const soapService = {
       await notificationService.create({ organizationId, userId, ...notification });
     }
 
+    if (lastErrorKind === "permission") throw new SoapPermissionDeniedError(errorMsg, entity?.name);
     throw new Error(errorMsg);
   },
 

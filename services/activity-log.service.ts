@@ -3,6 +3,7 @@ import { ENTITY_LABELS, formatBlockingReferences, type BlockingReference } from 
 import { ACTION_LABELS } from "@/lib/audit-labels";
 import { BULK_DELETE_BLOCKED_ACTION, RESTORE_ERROR_ACTION } from "@/services/audit.service";
 import { STATUS_SYMBOLS } from "@/lib/activity-status";
+import { extractEntityName } from "@/utils/xml";
 import { SoapMethod, type AuditLog, type SoapLog, type EmailLog, type ApiLog, type Prisma } from "@/generated/prisma/client";
 
 export type ActivitySource = "CRUD" | "SOAP" | "EMAIL" | "API" | "DELETION";
@@ -115,10 +116,11 @@ function normalizeDeletion(row: AuditLogWithUser): ActivityRow {
 }
 
 function normalizeSoap(row: SoapLogWithUser): ActivityRow {
+  const entity = row.xmlRequest ? extractEntityName(row.xmlRequest) : null;
   return {
     id: row.id,
     source: "SOAP",
-    summary: `${row.method ?? "?"} ${row.process ?? ""}`.trim(),
+    summary: [row.method ?? "?", row.process ?? "", entity?.name ?? ""].filter(Boolean).join(" "),
     actorName: row.user?.name ?? "Sistema",
     status: row.error || (row.status !== null && row.status >= 400) ? "ERROR" : "OK",
     durationMs: row.duration,

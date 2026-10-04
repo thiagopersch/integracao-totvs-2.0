@@ -14,6 +14,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { DataTableFilterPanel } from "@/components/shared/data-table-filter-panel"
 import { ChecklistContextFields } from "@/components/tbc-checklist/checklist-context-fields"
 import { PrimaryKeyInputs } from "@/components/tbc-checklist/primary-key-inputs"
+import { PermissionDeniedAlert } from "@/components/tbc-checklist/permission-denied-alert"
 import { useDataserverSchema } from "@/components/tbc-checklist/use-dataserver-schema"
 import { cn } from "@/lib/utils"
 import { fetchDataserverRows, type ChecklistContext } from "@/actions/integrations/tbc-checklist"
@@ -45,6 +46,8 @@ interface ProcessoSeletivoSidebarProps {
   dataservers: Dataserver[]
   selectedProcesso: ProcessoSeletivo | null
   onSelectProcesso: (processo: ProcessoSeletivo | null) => void
+  /** TBC user the SOAP calls run as — named in the "sem permissão" message. */
+  tbcUser?: string
 }
 
 type SchemaFieldOption = { name: string; caption: string; isPrimaryKey: boolean }
@@ -78,6 +81,7 @@ export function ProcessoSeletivoSidebar({
   dataservers,
   selectedProcesso,
   onSelectProcesso,
+  tbcUser,
 }: ProcessoSeletivoSidebarProps) {
   const [collapsed, setCollapsed] = useState(false)
   const [configuring, setConfiguring] = useState(true)
@@ -87,6 +91,8 @@ export function ProcessoSeletivoSidebar({
   const [contextForm, setContextForm] = useState<ChecklistContextForm>(EMPTY_CONTEXT_FORM)
   const [pkValues, setPkValues] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(false)
+  // ReadView of the listing refused by TOTVS for lack of permission (code of that Data Server).
+  const [rowsDeniedCode, setRowsDeniedCode] = useState("")
   const [fields, setFields] = useState<SchemaFieldOption[]>([])
   const [tableName, setTableName] = useState("")
   const [idFields, setIdFields] = useState<string[]>([])
@@ -109,7 +115,10 @@ export function ProcessoSeletivoSidebar({
     }))
     setFields(schemaFields)
     const pkNames = schemaFields.filter((f) => f.isPrimaryKey).map((f) => f.name)
-    setPkValues(Object.fromEntries(pkNames.map((name) => [name, ""])))
+    // The coligada typed in the Contexto is the processo's coligada too — pre-fill it (editable).
+    setPkValues(
+      Object.fromEntries(pkNames.map((name) => [name, name.toUpperCase() === "CODCOLIGADA" ? contextForm.coligate.trim() : ""]))
+    )
     // Identification defaults to the whole primary key (coligada + processo seletivo), so processos
     // of different coligadas sharing an IDPS never collapse into one.
     setIdFields(pkNames.length ? pkNames : schemaFields.slice(0, 1).map((f) => f.name))
@@ -143,9 +152,14 @@ export function ProcessoSeletivoSidebar({
     })
     setLoading(false)
     if (!result.success) {
+      if (result.permissionDenied) {
+        setRowsDeniedCode(selectedDataserver.code)
+        return
+      }
       toast.error(result.error || "Falha ao buscar processos seletivos")
       return
     }
+    setRowsDeniedCode("")
     setRows(result.rows)
     setListedContext(context)
     setConfiguring(false)
@@ -250,6 +264,11 @@ export function ProcessoSeletivoSidebar({
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 Buscando esquema...
               </div>
+            ) : schema.permissionDenied && selectedDataserver ? (
+              <PermissionDeniedAlert
+                tbcUser={tbcUser}
+                dataservers={[{ code: selectedDataserver.code, name: selectedDataserver.name }]}
+              />
             ) : fields.length > 0 ? (
               <PrimaryKeyInputs fields={pkFields} values={pkValues} onChange={setPkValues} />
             ) : null}
@@ -283,6 +302,13 @@ export function ProcessoSeletivoSidebar({
                 </Select>
               </Field>
             </>
+          )}
+
+          {selectedDataserver && rowsDeniedCode === selectedDataserver.code && !schema.permissionDenied && (
+            <PermissionDeniedAlert
+              tbcUser={tbcUser}
+              dataservers={[{ code: selectedDataserver.code, name: selectedDataserver.name }]}
+            />
           )}
 
           <Button

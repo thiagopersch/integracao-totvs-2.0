@@ -6,6 +6,12 @@ export type LayoutSection = {
   title?: string
   table: string
   fields?: string[]
+  /** "fieldMatrix": SPSParamsCampos-style table (one row per portal field + visibility/required
+   *  flags), rendered as a colored grid of fields instead of one card per column. */
+  view?: "fieldMatrix"
+  /** Whole-table sections: always list the rows as collapsed accordion items labelled
+   *  "<name> (ID <id>)" from these columns — even when there's a single row. */
+  rowLabel?: { name: string; id: string }
 }
 
 export type LayoutTab = {
@@ -330,7 +336,7 @@ export const CHECKLIST_LAYOUTS: Record<string, LayoutTab[]> = {
             "CODTIPOBAIRRODEFAULT",
           ],
         },
-        { title: "Visibilidade/obrigatoriedade de campos", table: "SPSParamsCampos" },
+        { title: "Visibilidade/obrigatoriedade de campos", table: "SPSParamsCampos", view: "fieldMatrix" },
         {
           title: "Resultados",
           table: "SPSProcessoSeletivo",
@@ -436,7 +442,7 @@ export const CHECKLIST_LAYOUTS: Record<string, LayoutTab[]> = {
     },
     {
       name: "Forma de inscrição",
-      sections: [{ table: "SPSFormaInscricaoPS" }],
+      sections: [{ table: "SPSFormaInscricaoPS", rowLabel: { name: "NOME", id: "IDFORMAINSCRICAO" } }],
     },
     {
       name: "Campos complementares",

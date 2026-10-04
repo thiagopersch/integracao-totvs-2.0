@@ -11,7 +11,9 @@ import type { Dataserver } from "@/generated/prisma/client"
  * GetSchema for the picked Data Server, run automatically (debounced) as soon as coligada, filial
  * and tipo de curso are all filled — TOTVS needs that Contexto to resolve the schema, so nothing is
  * requested before. Each Data Server + Contexto combination is fetched once; `refetch` forces it
- * again. `onLoaded` receives the tables of every successful fetch (stale responses are dropped).
+ * again. `onLoaded` receives the tables of every successful fetch (stale responses are dropped);
+ * `permissionDenied` flags a combination TOTVS refused for lack of access (no toast — the caller
+ * shows `PermissionDeniedAlert` instead).
  */
 export function useDataserverSchema(
   tbcId: string,
@@ -27,6 +29,8 @@ export function useDataserverSchema(
   const requestKey =
     dataserver && context ? `${dataserver.code}|${context.coligate}|${context.branch}|${context.levelEducation}` : ""
   const [loadingKey, setLoadingKey] = useState("")
+  // Data Server + Contexto combination TOTVS refused for lack of permission.
+  const [deniedKey, setDeniedKey] = useState("")
   const latestKeyRef = useRef("")
   const onLoadedRef = useRef(onLoaded)
 
@@ -43,9 +47,14 @@ export function useDataserverSchema(
     setLoadingKey((current) => (current === key ? "" : current))
     if (latestKeyRef.current !== key) return
     if (!result.success) {
+      if (result.permissionDenied) {
+        setDeniedKey(key)
+        return
+      }
       toast.error(result.error || `Falha ao buscar schema do Data Server "${dataserver.name}"`)
       return
     }
+    setDeniedKey((current) => (current === key ? "" : current))
     onLoadedRef.current(result.tables)
   }, [tbcId, dataserver, context])
 
@@ -63,5 +72,6 @@ export function useDataserverSchema(
   }, [requestKey, refetch])
 
   const loading = loadingKey !== "" && loadingKey === requestKey
-  return { context, contextComplete: context !== null, loading, refetch }
+  const permissionDenied = deniedKey !== "" && deniedKey === requestKey
+  return { context, contextComplete: context !== null, loading, permissionDenied, refetch }
 }

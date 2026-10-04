@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/dialog"
 import { ChecklistContextFields } from "@/components/tbc-checklist/checklist-context-fields"
 import { PrimaryKeyInputs } from "@/components/tbc-checklist/primary-key-inputs"
+import { PermissionDeniedAlert } from "@/components/tbc-checklist/permission-denied-alert"
 import { useDataserverSchema } from "@/components/tbc-checklist/use-dataserver-schema"
 import type { ChecklistContext } from "@/actions/integrations/tbc-checklist"
 import { pickKnownPkValues } from "@/lib/tbc-checklist-filtro"
@@ -31,6 +32,8 @@ interface AddDataserverDialogProps {
   /** PK values of the selected processo seletivo (e.g. CODCOLIGADA, IDPS), used to pre-fill the
    *  new Data Server's primary-key inputs whose names match. */
   knownValues: Record<string, string>
+  /** TBC user the SOAP calls run as — named in the "sem permissão" message. */
+  tbcUser?: string
   onConfirm: (dataserver: Dataserver, context: ChecklistContext, pkValues: Record<string, string>) => void
 }
 
@@ -41,6 +44,7 @@ export function AddDataserverDialog({
   dataservers,
   loading,
   knownValues,
+  tbcUser,
   onConfirm,
 }: AddDataserverDialogProps) {
   const [dataserverId, setDataserverId] = useState("")
@@ -125,6 +129,8 @@ export function AddDataserverDialog({
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 Buscando esquema...
               </div>
+            ) : schema.permissionDenied ? (
+              <PermissionDeniedAlert tbcUser={tbcUser} dataservers={[{ code: selected.code, name: selected.name }]} />
             ) : pkFields ? (
               <PrimaryKeyInputs fields={pkFields} values={pkValues} onChange={setPkValues} />
             ) : null}
@@ -137,7 +143,7 @@ export function AddDataserverDialog({
           <Button
             type="button"
             onClick={() => selected && schema.context && onConfirm(selected, schema.context, pkValues)}
-            disabled={!selected || !schema.context || !pkFields || schema.loading || loading}
+            disabled={!selected || !schema.context || !pkFields || schema.loading || schema.permissionDenied || loading}
           >
             {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Adicionar

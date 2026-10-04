@@ -1,7 +1,7 @@
 "use server"
 
 import { tbcService } from "@/services/tbc.service"
-import { soapService } from "@/services/soap.service"
+import { soapService, SoapPermissionDeniedError } from "@/services/soap.service"
 import { soapEndpointService } from "@/services/soap-endpoint.service"
 import { requirePermission } from "@/lib/rbac"
 import { escapeXml, type SoapContext } from "@/utils/soap-envelope"
@@ -15,6 +15,8 @@ export type ChecklistFieldRow = {
   name: string
   caption: string
   isPrimaryKey: boolean
+  /** XSD type from GetSchema without prefix — "short", "int", "string", "dateTime", "base64Binary"… */
+  type: string
   configurado: boolean
   valor: string
 }
@@ -40,6 +42,7 @@ export type ChecklistFieldMeta = {
   name: string
   caption: string
   isPrimaryKey: boolean
+  type: string
 }
 
 export type ChecklistTableMeta = {
@@ -91,6 +94,7 @@ function toFieldMeta(table: SchemaTable): ChecklistTableMeta {
       name: f.name,
       caption: f.caption && f.caption !== "-" ? f.caption : f.name,
       isPrimaryKey: f.isPrimaryKey,
+      type: f.type,
     })),
   }
 }
@@ -113,6 +117,7 @@ function buildTableResult(table: ChecklistTableMeta, rows: Record<string, string
           name: field.name,
           caption: field.caption,
           isPrimaryKey: field.isPrimaryKey,
+          type: field.type,
           configurado: isConfiguredValue(rawValue),
           valor: rawValue,
         }
@@ -156,6 +161,17 @@ export type ChecklistContext = {
   coligate: number
   branch: number
   levelEducation: number
+}
+
+/** Every checklist action's failure shape. `permissionDenied` = the TBC user has no access to the
+ *  Data Server in TOTVS (already logged by soapService) — the screen shows a dedicated message
+ *  for it instead of a generic error. */
+function failure(error: unknown) {
+  return {
+    success: false as const,
+    error: (error as Error).message,
+    permissionDenied: error instanceof SoapPermissionDeniedError,
+  }
 }
 
 /** Max main-table rows loaded per Data Server — each one costs a ReadRecord round-trip. */
@@ -224,11 +240,11 @@ export async function fetchDataserverSchema(input: { tbcId: string; dataserverCo
     )
     const tables = parseDataServerSchema(schemaRes.xmlResponse)
     if (!tables.length) {
-      return { success: false as const, error: `Nenhuma tabela encontrada no schema do Data Server "${input.dataserverCode}".` }
+      return { success: false as const, error: `Nenhuma tabela encontrada no schema do Data Server "${input.dataserverCode}".`, permissionDenied: false }
     }
     return { success: true as const, tables }
   } catch (error) {
-    return { success: false as const, error: (error as Error).message }
+    return failure(error)
   }
 }
 
@@ -256,7 +272,7 @@ export async function fetchChecklistMainTable(input: {
     const tables = parseDataServerSchema(await session.getSchema(input.dataserverCode)).map(toFieldMeta)
     const mainTable = tables[0]
     if (!mainTable) {
-      return { success: false as const, error: `Nenhuma tabela encontrada no schema do Data Server "${input.dataserverCode}".` }
+      return { success: false as const, error: `Nenhuma tabela encontrada no schema do Data Server "${input.dataserverCode}".`, permissionDenied: false }
     }
 
     const pkFieldNames = mainTable.fields.filter((f) => f.isPrimaryKey).map((f) => f.name)
@@ -290,6 +306,8 @@ export async function fetchChecklistMainTable(input: {
         const fullRow = rowsForTable(await session.readRecord(input.dataserverCode, primaryKey), mainTable.name)[0]
         return { primaryKey, row: fullRow ?? viewRow, error: fullRow ? undefined : "ReadRecord não retornou o registro." }
       } catch (error) {
+        // No access to this Data Server fails the whole load (shown as such), not just this row.
+        if (error instanceof SoapPermissionDeniedError) throw error
         return { primaryKey, row: viewRow, error: (error as Error).message }
       }
     })
@@ -304,7 +322,7 @@ export async function fetchChecklistMainTable(input: {
 
     return { success: true as const, tables, mainTable: mainTable.name, pkFieldNames, appliedFilter, mainResult, parents, truncated }
   } catch (error) {
-    return { success: false as const, error: (error as Error).message }
+    return failure(error)
   }
 }
 
@@ -329,6 +347,7 @@ export async function fetchChecklistRelatedTable(input: {
       return {
         success: false as const,
         error: "Nenhum registro da tabela principal (ou Data Server sem chave primária) — não é possível carregar as tabelas relacionadas.",
+        permissionDenied: false,
       }
     }
     const session = await openDataserverSession(input.tbcId, input.context)
@@ -354,7 +373,7 @@ export async function fetchChecklistRelatedTable(input: {
 
     return { success: true as const, groups }
   } catch (error) {
-    return { success: false as const, error: (error as Error).message }
+    return failure(error)
   }
 }
 
@@ -402,7 +421,7 @@ export async function fetchDataserverRows(input: {
     const dataTables = parseReadViewResult(viewRes.xmlResponse)
     const mainTable = dataTables[0]
     if (!mainTable) {
-      return { success: false as const, error: `Nenhum registro retornado pelo Data Server "${input.dataserverCode}".` }
+      return { success: false as const, error: `Nenhum registro retornado pelo Data Server "${input.dataserverCode}".`, permissionDenied: false }
     }
 
     return {
@@ -416,6 +435,6 @@ export async function fetchDataserverRows(input: {
       rows: mainTable.rows,
     }
   } catch (error) {
-    return { success: false as const, error: (error as Error).message }
+    return failure(error)
   }
 }

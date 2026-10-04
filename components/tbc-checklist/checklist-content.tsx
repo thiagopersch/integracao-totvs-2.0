@@ -1,11 +1,14 @@
 "use client"
 
-import { useState, type ReactNode } from "react"
+import { createContext, useContext, useState, type ReactNode } from "react"
 import { AlertTriangle, ClipboardList, Loader2, Plus, RefreshCw, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import { ChecklistFieldCard } from "@/components/tbc-checklist/checklist-field-card"
+import { FieldVisibilityMatrix } from "@/components/tbc-checklist/field-visibility-matrix"
+import { visibleFields } from "@/lib/tbc-checklist-field-rules"
+import { PermissionDeniedAlert, type DeniedDataserver } from "@/components/tbc-checklist/permission-denied-alert"
 import { buildLayoutTabs, CHECKLIST_LAYOUTS, type LayoutSection, type LayoutTab } from "@/lib/tbc-checklist-layouts"
 import type { AddedDataserver, TableLoadState } from "@/components/tbc-checklist/tbc-checklist-client"
 import type { ProcessoSeletivo } from "@/components/tbc-checklist/processo-seletivo-sidebar"
@@ -16,11 +19,18 @@ type LoadTables = (dataserver: AddedDataserver, tables: string[], parentKeys?: s
 interface ChecklistContentProps {
   selectedProcesso: ProcessoSeletivo | null
   addedDataservers: AddedDataserver[]
+  /** Data Servers TOTVS refused the TBC user access to — listed in a red message. */
+  deniedDataservers: DeniedDataserver[]
+  /** TBC user the SOAP calls run as, named in that message. */
+  tbcUser?: string
   loadingPrimary: boolean
   onRemoveDataserver: (code: string) => void
   onOpenAddDialog: () => void
   onLoadTables: LoadTables
 }
+
+/** TBC user for the "sem permissão" messages deep in the tab tree, without prop-drilling it. */
+const TbcUserContext = createContext<string | undefined>(undefined)
 
 function LoadingNotice({ text = "Carregando campos..." }: { text?: string }) {
   return (
@@ -44,17 +54,28 @@ function ErrorNotice({ error, onRetry }: { error: string; onRetry: () => void })
 }
 
 /** Shows the related table once loaded, a spinner while loading (or not requested yet — the tab
- *  change that requests it has just fired), or the error with a retry. */
+ *  change that requests it has just fired), the "sem permissão" message when TOTVS refused access,
+ *  or any other error with a retry. */
 function LoadStateView({
+  dataserver,
   state,
   onRetry,
   children,
 }: {
+  dataserver: AddedDataserver
   state: TableLoadState | undefined
   onRetry: () => void
   children: (result: ChecklistTableResult) => ReactNode
 }) {
+  const tbcUser = useContext(TbcUserContext)
   if (!state || state.status === "loading") return <LoadingNotice />
+  if (state.status === "error" && state.permissionDenied) {
+    return (
+      <div className="pt-3">
+        <PermissionDeniedAlert tbcUser={tbcUser} dataservers={[{ code: dataserver.code, name: dataserver.name }]} />
+      </div>
+    )
+  }
   if (state.status === "error") return <ErrorNotice error={state.error} onRetry={onRetry} />
   return <>{children(state.result)}</>
 }
@@ -113,7 +134,7 @@ function RelatedTableView({
   const states = dataserver.relatedStates[table] ?? {}
   if (dataserver.parents.length === 1) {
     return (
-      <LoadStateView state={states[dataserver.parents[0].key]} onRetry={onRetry}>
+      <LoadStateView dataserver={dataserver} state={states[dataserver.parents[0].key]} onRetry={onRetry}>
         {(result) => <RecordsView result={result} />}
       </LoadStateView>
     )
@@ -124,7 +145,7 @@ function RelatedTableView({
         <AccordionItem key={parent.key} value={parent.key}>
           <AccordionTrigger>{parent.label}</AccordionTrigger>
           <AccordionContent>
-            <LoadStateView state={states[parent.key]} onRetry={onRetry}>
+            <LoadStateView dataserver={dataserver} state={states[parent.key]} onRetry={onRetry}>
               {(result) => <RecordsView result={result} />}
             </LoadStateView>
           </AccordionContent>
@@ -256,13 +277,15 @@ function LayoutSectionView({
     body = mainRecord ? <CardsGrid fields={section.fields ? pickFields(mainRecord, section.fields) : mainRecord.fields} /> : null
   } else {
     body = (
-      <LoadStateView state={dataserver.relatedStates[section.table]?.[parent.key]} onRetry={onRetry}>
+      <LoadStateView dataserver={dataserver} state={dataserver.relatedStates[section.table]?.[parent.key]} onRetry={onRetry}>
         {(result) =>
-          section.fields ? (
+          section.view === "fieldMatrix" ? (
+            <FieldVisibilityMatrix result={result} />
+          ) : section.fields ? (
             // A one-row parameters table (e.g. SPSParametrosAreaOfertada): its picked fields only.
             <CardsGrid fields={pickFields(result.records[0], section.fields)} />
           ) : (
-            <RecordsView result={result} emptyText="Nenhum registro no TOTVS." />
+            <RecordsView result={result} emptyText="Nenhum registro no TOTVS." rowLabel={section.rowLabel} />
           )
         }
       </LoadStateView>
@@ -276,17 +299,35 @@ function LayoutSectionView({
   )
 }
 
+/** "<NOME> (ID <id>)" from the row's own columns — falls back to the server-built label. */
+function labelFromRow(record: ChecklistRecord, rowLabel: { name: string; id: string }): string {
+  const value = (name: string) => record.fields.find((f) => f.name.toUpperCase() === name.toUpperCase())?.valor.trim() ?? ""
+  const name = value(rowLabel.name)
+  const id = value(rowLabel.id)
+  if (!name) return record.label
+  return id ? `${name} (ID ${id})` : name
+}
+
 /** A table with a single row shows its fields directly; more than one (e.g. N documentos
- *  exigidos) becomes a collapsed-by-default accordion, one item per row. An empty table shows its
- *  fields as "Não configurado" under a notice, unless `emptyText` replaces them. */
-function RecordsView({ result, emptyText }: { result: ChecklistTableResult; emptyText?: string }) {
+ *  exigidos) — or any number, with `rowLabel` (e.g. formas de inscrição) — becomes a
+ *  collapsed-by-default accordion, one item per row. An empty table shows its fields as "Não
+ *  configurado" under a notice, unless `emptyText` replaces them. */
+function RecordsView({
+  result,
+  emptyText,
+  rowLabel,
+}: {
+  result: ChecklistTableResult
+  emptyText?: string
+  rowLabel?: { name: string; id: string }
+}) {
   if (result.empty && emptyText) {
     return <p className="pt-3 text-sm text-muted-foreground">{emptyText}</p>
   }
   const emptyNotice = result.empty && (
     <p className="pt-3 text-xs text-muted-foreground">Nenhum registro encontrado no TOTVS para esta tabela.</p>
   )
-  if (result.records.length === 1) {
+  if (result.records.length === 1 && (!rowLabel || result.empty)) {
     return (
       <>
         {emptyNotice}
@@ -298,7 +339,7 @@ function RecordsView({ result, emptyText }: { result: ChecklistTableResult; empt
     <Accordion defaultValue={[]} className="pt-3">
       {result.records.map((record) => (
         <AccordionItem key={record.key} value={record.key}>
-          <AccordionTrigger>{record.label}</AccordionTrigger>
+          <AccordionTrigger>{rowLabel ? labelFromRow(record, rowLabel) : record.label}</AccordionTrigger>
           <AccordionContent>
             <CardsGrid fields={record.fields} />
           </AccordionContent>
@@ -310,11 +351,12 @@ function RecordsView({ result, emptyText }: { result: ChecklistTableResult; empt
 
 /** Wrapping flex row (not a CSS grid): each card is at least 1/3 of the row wide — so never more
  *  than 3 per row — and grows to fit its caption; when one wraps to the next line, the cards left
- *  on the row grow to take the space it freed. */
+ *  on the row grow to take the space it freed. `items-start` keeps an opened card from stretching
+ *  its row neighbours. Fields hidden by `visibleFields` (zeroed integers etc.) get no card. */
 function CardsGrid({ fields }: { fields: ChecklistRecord["fields"] }) {
   return (
-    <div className="flex flex-wrap gap-3 pt-3">
-      {fields.map((field) => (
+    <div className="flex flex-wrap items-start gap-3 pt-3">
+      {visibleFields(fields).map((field) => (
         <ChecklistFieldCard key={`${field.table}-${field.name}`} field={field} />
       ))}
     </div>
@@ -345,6 +387,8 @@ function DataserverView({ dataserver, onLoadTables }: { dataserver: AddedDataser
 export function ChecklistContent({
   selectedProcesso,
   addedDataservers,
+  deniedDataservers,
+  tbcUser,
   loadingPrimary,
   onRemoveDataserver,
   onOpenAddDialog,
@@ -362,58 +406,62 @@ export function ChecklistContent({
   }
 
   return (
-    <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-y-auto rounded-md border p-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-base font-semibold">Processo: {selectedProcesso.label}</h2>
-        <Button type="button" size="sm" onClick={onOpenAddDialog}>
-          <Plus className="mr-2 h-4 w-4" />
-          Adicionar Data Server
-        </Button>
-      </div>
-
-      {addedDataservers.length === 0 && loadingPrimary && <LoadingNotice text="Carregando checklist..." />}
-
-      {addedDataservers.length === 0 && !loadingPrimary && (
-        <p className="text-sm text-muted-foreground">
-          Nenhum Data Server adicionado ainda. Clique em &quot;Adicionar Data Server&quot; para começar o checklist.
-        </p>
-      )}
-
-      {addedDataservers.length === 1 && (
-        <div className="flex flex-col gap-2">
-          <div className="flex items-center justify-between">
-            <p className="text-sm font-medium">{addedDataservers[0].name}</p>
-            <Button type="button" variant="ghost" size="icon" onClick={() => onRemoveDataserver(addedDataservers[0].code)} title="Remover">
-              <X className="h-4 w-4" />
-            </Button>
-          </div>
-          <DataserverView key={addedDataservers[0].id} dataserver={addedDataservers[0]} onLoadTables={onLoadTables} />
+    <TbcUserContext.Provider value={tbcUser}>
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-y-auto rounded-md border p-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-base font-semibold">Processo: {selectedProcesso.label}</h2>
+          <Button type="button" size="sm" onClick={onOpenAddDialog}>
+            <Plus className="mr-2 h-4 w-4" />
+            Adicionar Data Server
+          </Button>
         </div>
-      )}
 
-      {addedDataservers.length > 1 && (
-        <Tabs defaultValue={addedDataservers[0].code}>
-          <TabsList>
+        {addedDataservers.length === 0 && loadingPrimary && <LoadingNotice text="Carregando checklist..." />}
+
+        <PermissionDeniedAlert tbcUser={tbcUser} dataservers={deniedDataservers} />
+
+        {addedDataservers.length === 0 && deniedDataservers.length === 0 && !loadingPrimary && (
+          <p className="text-sm text-muted-foreground">
+            Nenhum Data Server adicionado ainda. Clique em &quot;Adicionar Data Server&quot; para começar o checklist.
+          </p>
+        )}
+
+        {addedDataservers.length === 1 && (
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-medium">{addedDataservers[0].name}</p>
+              <Button type="button" variant="ghost" size="icon" onClick={() => onRemoveDataserver(addedDataservers[0].code)} title="Remover">
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+            <DataserverView key={addedDataservers[0].id} dataserver={addedDataservers[0]} onLoadTables={onLoadTables} />
+          </div>
+        )}
+
+        {addedDataservers.length > 1 && (
+          <Tabs defaultValue={addedDataservers[0].code}>
+            <TabsList>
+              {addedDataservers.map((ds) => (
+                <TabsTrigger key={ds.code} value={ds.code}>
+                  {ds.name}
+                </TabsTrigger>
+              ))}
+            </TabsList>
             {addedDataservers.map((ds) => (
-              <TabsTrigger key={ds.code} value={ds.code}>
-                {ds.name}
-              </TabsTrigger>
-            ))}
-          </TabsList>
-          {addedDataservers.map((ds) => (
-            <TabsContent key={ds.code} value={ds.code}>
-              <div className="flex flex-col gap-2">
-                <div className="flex justify-end">
-                  <Button type="button" variant="ghost" size="icon" onClick={() => onRemoveDataserver(ds.code)} title="Remover">
-                    <X className="h-4 w-4" />
-                  </Button>
+              <TabsContent key={ds.code} value={ds.code}>
+                <div className="flex flex-col gap-2">
+                  <div className="flex justify-end">
+                    <Button type="button" variant="ghost" size="icon" onClick={() => onRemoveDataserver(ds.code)} title="Remover">
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  <DataserverView key={ds.id} dataserver={ds} onLoadTables={onLoadTables} />
                 </div>
-                <DataserverView key={ds.id} dataserver={ds} onLoadTables={onLoadTables} />
-              </div>
-            </TabsContent>
-          ))}
-        </Tabs>
-      )}
-    </div>
+              </TabsContent>
+            ))}
+          </Tabs>
+        )}
+      </div>
+    </TbcUserContext.Provider>
   )
 }
