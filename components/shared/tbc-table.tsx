@@ -12,7 +12,7 @@ import { TruncatedText } from "@/components/shared/truncated-text"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Combobox } from "@/components/ui/combobox"
+import { Combobox, type ComboboxItem } from "@/components/ui/combobox"
 import {
   Dialog,
   DialogBody,
@@ -152,6 +152,12 @@ export function TbcTable({ data, meta, clients, filterClients }: TbcTableProps) 
     setValidating(false)
   }
 
+  const clientById = useMemo(() => new Map(clients.map((client) => [client.id, client])), [clients])
+  function renderClientItem(item: ComboboxItem) {
+    const client = clientById.get(item.value)
+    return client ? <ColorBadge label={client.name} color={client.color} solid /> : item.label
+  }
+
   const watchedFields = form.watch(["clientId", "name", "link", "user", "password"])
   const [watchedClientId, watchedName, watchedLink, watchedUser, watchedPassword] = watchedFields
   const coreFieldsFilled = !!watchedClientId && !!watchedName && !!watchedLink && !!watchedUser
@@ -261,23 +267,7 @@ export function TbcTable({ data, meta, clients, filterClients }: TbcTableProps) 
         </DialogHeader>
         <form onSubmit={form.handleSubmit(onSubmit)} className="flex min-h-0 flex-1 flex-col overflow-hidden">
           <DialogBody>
-            <div className="flex items-center gap-6">
-              <div className="flex items-center gap-2">
-                <Controller
-                  control={form.control}
-                  name="notRequiredLicense"
-                  render={({ field }) => (
-                    <>
-                      <Checkbox
-                        id="notRequiredLicense"
-                        checked={field.value ?? false}
-                        onCheckedChange={(value) => field.onChange(!!value)}
-                      />
-                      <Label htmlFor="notRequiredLicense">Não consumir licença</Label>
-                    </>
-                  )}
-                />
-              </div>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="flex items-center gap-2">
                 <Controller
                   control={form.control}
@@ -294,6 +284,22 @@ export function TbcTable({ data, meta, clients, filterClients }: TbcTableProps) 
                   )}
                 />
               </div>
+              <div className="flex items-center gap-2">
+                <Controller
+                  control={form.control}
+                  name="notRequiredLicense"
+                  render={({ field }) => (
+                    <>
+                      <Checkbox
+                        id="notRequiredLicense"
+                        checked={field.value ?? false}
+                        onCheckedChange={(value) => field.onChange(!!value)}
+                      />
+                      <Label htmlFor="notRequiredLicense">Não consumir licença</Label>
+                    </>
+                  )}
+                />
+              </div>
             </div>
             <Field>
               <FieldLabel htmlFor="clientId">Cliente</FieldLabel>
@@ -301,6 +307,7 @@ export function TbcTable({ data, meta, clients, filterClients }: TbcTableProps) 
                 items={clients.map((client) => ({ value: client.id, label: client.name }))}
                 value={form.watch("clientId")}
                 onValueChange={(v) => form.setValue("clientId", v, { shouldValidate: true })}
+                renderItem={renderClientItem}
                 placeholder="Selecione um cliente"
                 searchPlaceholder="Buscar cliente..."
                 emptyText="Nenhum cliente encontrado."
@@ -308,67 +315,71 @@ export function TbcTable({ data, meta, clients, filterClients }: TbcTableProps) 
               />
               <FieldError errors={[form.formState.errors.clientId]} />
             </Field>
-            <Field>
-              <FieldLabel htmlFor="name">Nome</FieldLabel>
-              <Input
-                id="name"
-                className="w-full"
-                {...form.register("name")}
-                placeholder="Nome do TBC"
-                aria-invalid={!!form.formState.errors.name}
-              />
-              <FieldError errors={[form.formState.errors.name]} />
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="link">Link</FieldLabel>
-              <Input
-                id="link"
-                className="w-full"
-                {...form.register("link")}
-                placeholder="https://tbc.exemplo.com"
-                aria-invalid={!!form.formState.errors.link}
-              />
-              <FieldError errors={[form.formState.errors.link]} />
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="user">Usuário</FieldLabel>
-              <Input
-                id="user"
-                className="w-full"
-                {...form.register("user")}
-                placeholder="Usuário de acesso"
-                aria-invalid={!!form.formState.errors.user}
-              />
-              <FieldError errors={[form.formState.errors.user]} />
-            </Field>
-            {editDialog.entity && !changePassword ? (
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <Field>
-                <FieldLabel>Senha</FieldLabel>
-                <Button type="button" variant="outline" className="w-fit" onClick={() => setChangePassword(true)}>
-                  Alterar senha
-                </Button>
-              </Field>
-            ) : (
-              <Field>
-                <FieldLabel htmlFor="password">{editDialog.entity ? "Nova Senha" : "Senha"}</FieldLabel>
-                <Controller
-                  control={form.control}
-                  name="password"
-                  render={({ field }) => (
-                    <PasswordInput
-                      id="password"
-                      className="w-full"
-                      value={field.value}
-                      onChange={field.onChange}
-                      onBlur={field.onBlur}
-                      placeholder={editDialog.entity ? "Digite a nova senha" : "Senha de acesso"}
-                      aria-invalid={!!form.formState.errors.password}
-                    />
-                  )}
+                <FieldLabel htmlFor="name">Nome</FieldLabel>
+                <Input
+                  id="name"
+                  className="w-full"
+                  {...form.register("name")}
+                  placeholder="Nome do TBC"
+                  aria-invalid={!!form.formState.errors.name}
                 />
-                <FieldError errors={[form.formState.errors.password]} />
+                <FieldError errors={[form.formState.errors.name]} />
               </Field>
-            )}
+              <Field>
+                <FieldLabel htmlFor="link">Link</FieldLabel>
+                <Input
+                  id="link"
+                  className="w-full"
+                  {...form.register("link")}
+                  placeholder="https://tbc.exemplo.com"
+                  aria-invalid={!!form.formState.errors.link}
+                />
+                <FieldError errors={[form.formState.errors.link]} />
+              </Field>
+            </div>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <Field>
+                <FieldLabel htmlFor="user">Usuário</FieldLabel>
+                <Input
+                  id="user"
+                  className="w-full"
+                  {...form.register("user")}
+                  placeholder="Usuário de acesso"
+                  aria-invalid={!!form.formState.errors.user}
+                />
+                <FieldError errors={[form.formState.errors.user]} />
+              </Field>
+              {editDialog.entity && !changePassword ? (
+                <Field>
+                  <FieldLabel>Senha</FieldLabel>
+                  <Button type="button" variant="outline" className="w-full" onClick={() => setChangePassword(true)}>
+                    Alterar senha
+                  </Button>
+                </Field>
+              ) : (
+                <Field>
+                  <FieldLabel htmlFor="password">{editDialog.entity ? "Nova Senha" : "Senha"}</FieldLabel>
+                  <Controller
+                    control={form.control}
+                    name="password"
+                    render={({ field }) => (
+                      <PasswordInput
+                        id="password"
+                        className="w-full"
+                        value={field.value}
+                        onChange={field.onChange}
+                        onBlur={field.onBlur}
+                        placeholder={editDialog.entity ? "Digite a nova senha" : "Senha de acesso"}
+                        aria-invalid={!!form.formState.errors.password}
+                      />
+                    )}
+                  />
+                  <FieldError errors={[form.formState.errors.password]} />
+                </Field>
+              )}
+            </div>
           </DialogBody>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={handleCancel} disabled={loading}>
@@ -413,13 +424,18 @@ export function TbcTable({ data, meta, clients, filterClients }: TbcTableProps) 
           onValueChange={(v) => setClientFilter(v === "all" || !v ? "" : v)}
         >
           <SelectTrigger className="w-full">
-            <SelectValue placeholder="Todos" />
+            <SelectValue placeholder="Todos">
+              {(value: string) => {
+                const client = filterClients.find((c) => c.id === value)
+                return client ? <ColorBadge label={client.name} color={client.color} solid /> : "Todos"
+              }}
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todos</SelectItem>
             {filterClients.map((c) => (
               <SelectItem key={c.id} value={c.id}>
-                {c.name}
+                <ColorBadge label={c.name} color={c.color} solid />
               </SelectItem>
             ))}
           </SelectContent>

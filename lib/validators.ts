@@ -1,5 +1,5 @@
 import { z } from "zod"
-import { isValidDocument, onlyDigits } from "@/lib/masks"
+import { isValidDocument, isValidPhone } from "@/lib/masks"
 
 export function nameSchema(label = "Nome") {
   return z
@@ -18,10 +18,10 @@ export function optionalNameSchema(label = "Nome") {
 }
 
 function requiredEmail() {
-  return z.email("Email inválido").max(60, "Email deve ter no máximo 60 caracteres").min(1, "Email é obrigatório")
+  return z.string().trim().min(1, "E-mail é obrigatório").pipe(z.email("E-mail inválido").max(60, "E-mail deve ter no máximo 60 caracteres"))
 }
 function optionalEmail() {
-  return z.email("Email inválido").max(60, "Email deve ter no máximo 60 caracteres").optional().or(z.literal(""))
+  return z.string().trim().pipe(z.email("E-mail inválido").max(60, "E-mail deve ter no máximo 60 caracteres").or(z.literal(""))).optional()
 }
 export function emailSchema(required: true): ReturnType<typeof requiredEmail>
 export function emailSchema(required: false): ReturnType<typeof optionalEmail>
@@ -34,7 +34,7 @@ function phoneBase() {
   return z
     .string()
     .max(15, "Telefone deve ter no máximo 15 caracteres")
-    .refine((value) => !value || onlyDigits(value).length >= 10, {
+    .refine((value) => !value || isValidPhone(value), {
       message: "Telefone inválido",
     })
 }

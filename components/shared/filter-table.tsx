@@ -18,7 +18,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Field, FieldLabel, FieldError } from "@/components/ui/field"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Combobox } from "@/components/ui/combobox"
+import { Combobox, type ComboboxItem } from "@/components/ui/combobox"
 import { TimePicker } from "@/components/ui/time-picker"
 import {
   Select,
@@ -200,6 +200,12 @@ export function FilterTable({ data, meta, clients, tbcs, sistemas, categories, f
           scheduleCategoryId: "",
         },
   })
+
+  const clientById = useMemo(() => new Map(clients.map((client) => [client.id, client])), [clients])
+  function renderClientItem(item: ComboboxItem) {
+    const client = clientById.get(item.value)
+    return client ? <ColorBadge label={client.name} color={client.color} solid /> : item.label
+  }
 
   const selectedClientId = form.watch("clientId")
   const availableTbcs = tbcs.filter((t) => t.clientId === selectedClientId)
@@ -437,10 +443,15 @@ export function FilterTable({ data, meta, clients, tbcs, sistemas, categories, f
                 value={form.watch("clientId")}
                 onValueChange={(v) => {
                   form.setValue("clientId", v, { shouldValidate: true })
-                  const currentTbcId = form.getValues("tbcId")
-                  const stillValid = tbcs.find((t) => t.id === currentTbcId && t.clientId === v)
-                  if (!stillValid) form.setValue("tbcId", "")
+                  // A single TBC is picked automatically; with more than one the user must choose.
+                  const clientTbcs = tbcs.filter((t) => t.clientId === v)
+                  if (clientTbcs.length === 1) {
+                    form.setValue("tbcId", clientTbcs[0].id, { shouldValidate: true })
+                  } else if (!clientTbcs.some((t) => t.id === form.getValues("tbcId"))) {
+                    form.setValue("tbcId", "")
+                  }
                 }}
+                renderItem={renderClientItem}
                 placeholder="Selecione um cliente"
                 searchPlaceholder="Buscar cliente..."
                 emptyText="Nenhum cliente encontrado."
@@ -692,12 +703,19 @@ export function FilterTable({ data, meta, clients, tbcs, sistemas, categories, f
           onValueChange={(v) => setClientFilter(v === "all" || !v ? "" : v)}
         >
           <SelectTrigger className="w-full">
-            <SelectValue placeholder="Todos" />
+            <SelectValue placeholder="Todos">
+              {(value: string) => {
+                const client = filterClients.find((c) => c.id === value)
+                return client ? <ColorBadge label={client.name} color={client.color} solid /> : "Todos"
+              }}
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todos</SelectItem>
             {filterClients.map((c) => (
-              <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+              <SelectItem key={c.id} value={c.id}>
+                <ColorBadge label={c.name} color={c.color} solid />
+              </SelectItem>
             ))}
           </SelectContent>
         </Select>

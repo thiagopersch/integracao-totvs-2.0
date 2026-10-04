@@ -30,6 +30,7 @@ import {
 import { Plus, Loader2 } from "lucide-react"
 import { deleteRequester, createRequester, updateRequester, bulkDeleteRequesters, setRequesterStatus } from "@/actions/requesters"
 import { createRequesterSchema, updateRequesterSchema, type CreateRequesterInput } from "@/schemas/requester.schema"
+import { formatPhone } from "@/lib/masks"
 import { toast } from "sonner"
 import { useCrudTable } from "@/hooks/use-crud-table"
 import { useHasPermission } from "@/hooks/use-permissions"
@@ -73,7 +74,7 @@ export function RequesterTable({ data, meta }: RequesterTableProps) {
     mode: "onChange",
     resolver: zodResolver(editDialog.entity ? updateRequesterSchema : createRequesterSchema) as Resolver<CreateRequesterInput>,
     values: editDialog.entity
-      ? { name: editDialog.entity.name, email: editDialog.entity.email || "", phone: editDialog.entity.phone || "", status: editDialog.entity.status }
+      ? { name: editDialog.entity.name, email: editDialog.entity.email || "", phone: formatPhone(editDialog.entity.phone), status: editDialog.entity.status }
       : { name: "", email: "", phone: "", status: true },
   })
 
@@ -138,11 +139,11 @@ export function RequesterTable({ data, meta }: RequesterTableProps) {
   const newDialog = (
     <Dialog open={editDialog.open} onOpenChange={(open) => { setEditDialog({ open, entity: open ? editDialog.entity : undefined }); if (!open) form.reset() }}>
       <DialogTrigger render={<Button><Plus className="h-4 w-4 mr-2" /> Novo Solicitante</Button>} />
-      <DialogContent>
+      <DialogContent className="h-auto max-h-[85vh] sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>{editDialog.entity ? "Editar Solicitante" : "Novo Solicitante"}</DialogTitle>
         </DialogHeader>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="flex min-h-0 flex-1 flex-col overflow-hidden">
+        <form noValidate onSubmit={form.handleSubmit(onSubmit)} className="flex min-h-0 flex-1 flex-col overflow-hidden">
         <DialogBody>
           <div className="flex items-center gap-2">
             <Controller
@@ -159,16 +160,32 @@ export function RequesterTable({ data, meta }: RequesterTableProps) {
             <Input id="name" {...form.register("name")} placeholder="Nome do solicitante" aria-invalid={!!form.formState.errors.name} />
             <FieldError errors={[form.formState.errors.name]} />
           </Field>
-          <Field>
-            <FieldLabel htmlFor="email">E-mail</FieldLabel>
-            <Input id="email" type="email" {...form.register("email")} placeholder="email@exemplo.com (opcional)" aria-invalid={!!form.formState.errors.email} />
-            <FieldError errors={[form.formState.errors.email]} />
-          </Field>
-          <Field>
-            <FieldLabel htmlFor="phone">Telefone</FieldLabel>
-            <Input id="phone" {...form.register("phone")} placeholder="(00) 00000-0000 (opcional)" aria-invalid={!!form.formState.errors.phone} />
-            <FieldError errors={[form.formState.errors.phone]} />
-          </Field>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <Field>
+              <FieldLabel htmlFor="email">E-mail</FieldLabel>
+              <Input id="email" type="email" {...form.register("email")} placeholder="email@exemplo.com" aria-invalid={!!form.formState.errors.email} />
+              <FieldError errors={[form.formState.errors.email]} />
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="phone">Telefone</FieldLabel>
+              <Controller
+                control={form.control}
+                name="phone"
+                render={({ field }) => (
+                  <Input
+                    id="phone"
+                    inputMode="tel"
+                    value={field.value ?? ""}
+                    onChange={(e) => field.onChange(formatPhone(e.target.value))}
+                    onBlur={field.onBlur}
+                    placeholder="(00) 00000-0000"
+                    aria-invalid={!!form.formState.errors.phone}
+                  />
+                )}
+              />
+              <FieldError errors={[form.formState.errors.phone]} />
+            </Field>
+          </div>
         </DialogBody>
         <DialogFooter>
           <Button type="button" variant="outline" onClick={handleCancel} disabled={loading}>Cancelar</Button>

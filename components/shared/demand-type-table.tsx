@@ -16,6 +16,7 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
 import { Field, FieldLabel, FieldError } from "@/components/ui/field"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { getBadgeTextColor } from "@/lib/colors"
 import {
   Dialog,
@@ -69,6 +70,7 @@ export function DemandTypeTable({ data, meta }: DemandTypeTableProps) {
   const canDelete = useHasPermission("demand_types", "delete")
   const [loading, setLoading] = useState(false)
   const [newColor, setNewColor] = useState(randomColor)
+  const [tab, setTab] = useState<"identificacao" | "complementares">("identificacao")
 
   const form = useForm<CreateDemandTypeInput>({
     mode: "onChange",
@@ -92,6 +94,7 @@ export function DemandTypeTable({ data, meta }: DemandTypeTableProps) {
     if (result.success) {
       toast.success(editDialog.entity ? "Tipo atualizado" : "Tipo criado")
       form.reset()
+      setTab("identificacao")
       setEditDialog({ open: false })
       refresh()
     } else {
@@ -102,6 +105,7 @@ export function DemandTypeTable({ data, meta }: DemandTypeTableProps) {
 
   function handleCancel() {
     form.reset()
+    setTab("identificacao")
     setEditDialog({ open: false })
   }
 
@@ -150,30 +154,44 @@ export function DemandTypeTable({ data, meta }: DemandTypeTableProps) {
       onOpenChange={(open) => {
         setEditDialog({ open, entity: open ? editDialog.entity : undefined })
         if (open && !editDialog.entity) setNewColor(randomColor())
-        if (!open) form.reset()
+        if (!open) {
+          form.reset()
+          setTab("identificacao")
+        }
       }}
     >
       <DialogTrigger render={<Button><Plus className="h-4 w-4 mr-2" /> Novo Tipo</Button>} />
-      <DialogContent>
+      <DialogContent className="h-auto max-h-[85vh] sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>{editDialog.entity ? "Editar Tipo de Demanda" : "Novo Tipo de Demanda"}</DialogTitle>
         </DialogHeader>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="flex min-h-0 flex-1 flex-col overflow-hidden">
+        <form onSubmit={form.handleSubmit(onSubmit, (errors) => setTab(errors.name || errors.color ? "identificacao" : "complementares"))} className="flex min-h-0 flex-1 flex-col overflow-hidden">
         <DialogBody>
-          <Field>
-            <FieldLabel htmlFor="name">Nome</FieldLabel>
-            <Input id="name" {...form.register("name")} placeholder="Nome do tipo" aria-invalid={!!form.formState.errors.name} />
-            <FieldError errors={[form.formState.errors.name]} />
-          </Field>
-          <Field>
-            <FieldLabel htmlFor="description">Descrição</FieldLabel>
-            <Textarea id="description" {...form.register("description")} placeholder="Descrição (opcional)" />
-          </Field>
-          <Field>
-            <FieldLabel htmlFor="color">Cor</FieldLabel>
-            <Input id="color" type="color" className="h-10 p-1" style={{ width: "30%" }} {...form.register("color")} />
-            <FieldError errors={[form.formState.errors.color]} />
-          </Field>
+          <Tabs value={tab} onValueChange={(v) => setTab(v as typeof tab)}>
+            <TabsList className="w-full">
+              <TabsTrigger value="identificacao" className="flex-1">Identificação</TabsTrigger>
+              <TabsTrigger value="complementares" className="flex-1">Info. Complementares</TabsTrigger>
+            </TabsList>
+            <TabsContent value="identificacao" className="mt-4 space-y-4">
+              <Field>
+                <FieldLabel htmlFor="name">Nome</FieldLabel>
+                <Input id="name" {...form.register("name")} placeholder="Nome do tipo" aria-invalid={!!form.formState.errors.name} />
+                <FieldError errors={[form.formState.errors.name]} />
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="color">Cor</FieldLabel>
+                <Input id="color" type="color" className="h-10 p-1" style={{ width: "30%" }} {...form.register("color")} />
+                <FieldError errors={[form.formState.errors.color]} />
+              </Field>
+            </TabsContent>
+            <TabsContent value="complementares" className="mt-4 space-y-4">
+              <Field>
+                <FieldLabel htmlFor="description">Observação</FieldLabel>
+                <Textarea id="description" {...form.register("description")} placeholder="Observação" />
+                <FieldError errors={[form.formState.errors.description]} />
+              </Field>
+            </TabsContent>
+          </Tabs>
         </DialogBody>
         <DialogFooter>
           <Button type="button" variant="outline" onClick={handleCancel} disabled={loading}>Cancelar</Button>

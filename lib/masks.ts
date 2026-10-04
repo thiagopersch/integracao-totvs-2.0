@@ -32,6 +32,16 @@ export function formatPhone(value: string | null | undefined): string {
   return digits.replace(/^(\d{2})(\d{5})(\d*)/, "($1) $2-$3")
 }
 
+/** Brazilian phone: valid DDD (11–99, no zero in the 2nd digit); 11 digits = mobile starting with 9, 10 digits = landline starting with 2–5. */
+export function isValidPhone(value: string | null | undefined): boolean {
+  const digits = onlyDigits(value)
+  if (digits.length !== 10 && digits.length !== 11) return false
+  if (/^(\d)\1+$/.test(digits)) return false
+  if (!/^[1-9][1-9]/.test(digits)) return false
+  const number = digits.slice(2)
+  return digits.length === 11 ? number.startsWith("9") : /^[2-5]/.test(number)
+}
+
 export function formatDocument(value: string | null | undefined): string {
   const digits = onlyDigits(value).slice(0, 14)
 

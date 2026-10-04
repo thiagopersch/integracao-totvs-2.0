@@ -29,6 +29,8 @@ interface ComboboxProps {
   emptyText?: string
   disabled?: boolean
   className?: string
+  /** Custom content for an item, used in the list and for the selected value (e.g. a colored badge). Search still matches `label`. */
+  renderItem?: (item: ComboboxItem) => React.ReactNode
   "aria-invalid"?: boolean
 }
 
@@ -41,6 +43,7 @@ export function Combobox({
   emptyText = "Nenhum resultado encontrado.",
   disabled,
   className,
+  renderItem,
   ...props
 }: ComboboxProps) {
   const [open, setOpen] = React.useState(false)
@@ -71,7 +74,7 @@ export function Combobox({
           />
         }
       >
-        <span className="min-w-0 flex-1 truncate text-left">{selected ? selected.label : placeholder}</span>
+        <span className="min-w-0 flex-1 truncate text-left">{selected ? (renderItem ? renderItem(selected) : selected.label) : placeholder}</span>
         <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
       </PopoverTrigger>
       <PopoverContent className="min-w-(--anchor-width) w-max max-w-(--available-width) p-0" align="start">
@@ -90,7 +93,7 @@ export function Combobox({
                   }}
                 >
                   <Check className={cn("mr-2 h-4 w-4", item.value === value ? "opacity-100" : "opacity-0")} />
-                  {item.label}
+                  {renderItem ? renderItem(item) : item.label}
                 </CommandItem>
               ))}
             </CommandGroup>
