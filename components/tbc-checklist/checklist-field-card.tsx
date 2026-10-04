@@ -4,22 +4,20 @@ import { CircleCheck, CircleX } from "lucide-react"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import { cn } from "@/lib/utils"
 import type { ChecklistFieldRow } from "@/actions/integrations/tbc-checklist"
+import { formatChecklistValue } from "@/lib/tbc-checklist-values"
 
 interface ChecklistFieldCardProps {
   field: ChecklistFieldRow
 }
 
 export function ChecklistFieldCard({ field }: ChecklistFieldCardProps) {
-  // Long captions cramped into a single narrow grid column wrap onto themselves and visually spill
-  // past the card — give them a wider card (2 grid columns) instead of fighting for space.
-  const isLongCaption = field.caption.length > 24
-
   return (
     <Accordion
       defaultValue={[]}
       className={cn(
-        "min-w-0 rounded-md border",
-        isLongCaption && "col-span-2",
+        // Flex item of CardsGrid: at least 1/3 of the row (max 3 per row; 1/2 and full width on
+        // narrower screens), sized to its caption, growing to fill whatever the row leaves free.
+        "max-w-full min-w-full grow basis-auto rounded-md border sm:min-w-[calc((100%-0.75rem)/2)] lg:min-w-[calc((100%-1.5rem)/3)]",
         field.configurado
           ? "border-green-300 bg-green-50 dark:border-green-800 dark:bg-green-950/30"
           : "border-red-300 bg-red-50 dark:border-red-800 dark:bg-red-950/30"
@@ -50,7 +48,7 @@ export function ChecklistFieldCard({ field }: ChecklistFieldCardProps) {
         <AccordionContent className="px-3 pb-3">
           <p className="text-xs text-muted-foreground">Valor no TOTVS</p>
           <p className="mt-1 rounded-md border bg-background/60 p-2 text-sm break-words">
-            {field.configurado ? field.valor : "Sem valor configurado"}
+            {field.valor.trim() ? formatChecklistValue(field.valor) : "Sem valor configurado"}
           </p>
         </AccordionContent>
       </AccordionItem>

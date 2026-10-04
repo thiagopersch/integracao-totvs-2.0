@@ -8,20 +8,18 @@ import { Combobox } from "@/components/ui/combobox"
 import { Field, FieldLabel } from "@/components/ui/field"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { MultiSelect } from "@/components/ui/multi-select"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { DataTableFilterPanel } from "@/components/shared/data-table-filter-panel"
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/components/ui/accordion"
-import { CodeEditor } from "@/components/shared/code-editor"
 import { ChecklistContextFields } from "@/components/tbc-checklist/checklist-context-fields"
+import { PrimaryKeyInputs } from "@/components/tbc-checklist/primary-key-inputs"
+import { useDataserverSchema } from "@/components/tbc-checklist/use-dataserver-schema"
 import { cn } from "@/lib/utils"
-import { fetchDataserverRows, fetchDataserverSchema, type ChecklistContext } from "@/actions/integrations/tbc-checklist"
-import { buildDefaultFiltro } from "@/lib/tbc-checklist-filtro"
+import { fetchDataserverRows, type ChecklistContext } from "@/actions/integrations/tbc-checklist"
+import { buildPkFiltro } from "@/lib/tbc-checklist-filtro"
+import { EMPTY_CONTEXT_FORM, PROCESSO_SELETIVO_DATASERVER, type ChecklistContextForm } from "@/lib/tbc-checklist-dataservers"
+import type { SchemaTable } from "@/utils/soap-schema"
 import type { Dataserver } from "@/generated/prisma/client"
 import { toast } from "sonner"
 
@@ -35,6 +33,11 @@ export type ProcessoSeletivo = {
   sourceDataserverCode: string
   sourceTableName: string
   pkFieldNames: string[]
+  /** This processo's own PK values (e.g. CODCOLIGADA + IDPS) — the key every related Data Server
+   *  (área ofertada, forma de inscrição…) is looked up by. */
+  pkValues: Record<string, string>
+  /** Contexto (coligada/filial/tipo de curso) the processo was listed with, reused to load it. */
+  context: ChecklistContext
 }
 
 interface ProcessoSeletivoSidebarProps {
@@ -42,9 +45,11 @@ interface ProcessoSeletivoSidebarProps {
   dataservers: Dataserver[]
   selectedProcesso: ProcessoSeletivo | null
   onSelectProcesso: (processo: ProcessoSeletivo | null) => void
-  context: ChecklistContext
-  onContextChange: (context: ChecklistContext) => void
 }
+
+type SchemaFieldOption = { name: string; caption: string; isPrimaryKey: boolean }
+
+const NAME_FIELD_PATTERN = /^(NOME|DESCRICAO)/i
 
 /** Numeric-aware descending compare — most TOTVS id/code fields are numeric strings ("3", "12"),
  *  where a plain string sort would put "12" before "3". Falls back to a descending locale compare
@@ -58,25 +63,36 @@ function compareDesc(a: string, b: string): number {
   return b.localeCompare(a)
 }
 
+/** Descending by the identification fields, last one first (IDPS before CODCOLIGADA) — newest
+ *  processos on top regardless of coligada. */
+function compareRowsDesc(a: Record<string, string>, b: Record<string, string>, idFields: string[]): number {
+  for (const field of [...idFields].reverse()) {
+    const diff = compareDesc(a[field] ?? "", b[field] ?? "")
+    if (diff !== 0) return diff
+  }
+  return 0
+}
+
 export function ProcessoSeletivoSidebar({
   tbcId,
   dataservers,
   selectedProcesso,
   onSelectProcesso,
-  context,
-  onContextChange,
 }: ProcessoSeletivoSidebarProps) {
   const [collapsed, setCollapsed] = useState(false)
   const [configuring, setConfiguring] = useState(true)
-  const [dataserverId, setDataserverId] = useState("")
-  const [filtro, setFiltro] = useState("")
-  const [schemaLoading, setSchemaLoading] = useState(false)
+  const [dataserverId, setDataserverId] = useState(
+    () => dataservers.find((d) => d.code === PROCESSO_SELETIVO_DATASERVER)?.id ?? ""
+  )
+  const [contextForm, setContextForm] = useState<ChecklistContextForm>(EMPTY_CONTEXT_FORM)
+  const [pkValues, setPkValues] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(false)
-  const [fields, setFields] = useState<{ name: string; caption: string; isPrimaryKey: boolean }[]>([])
+  const [fields, setFields] = useState<SchemaFieldOption[]>([])
   const [tableName, setTableName] = useState("")
-  const [idField, setIdField] = useState("")
+  const [idFields, setIdFields] = useState<string[]>([])
   const [labelField, setLabelField] = useState("")
   const [rows, setRows] = useState<Record<string, string>[]>([])
+  const [listedContext, setListedContext] = useState<ChecklistContext | null>(null)
   const [search, setSearch] = useState("")
   const [filtersOpen, setFiltersOpen] = useState(false)
   const [fieldFilters, setFieldFilters] = useState<Record<string, string>>({})
@@ -84,66 +100,81 @@ export function ProcessoSeletivoSidebar({
 
   const selectedDataserver = dataservers.find((d) => d.id === dataserverId)
 
-  async function handleFetchSchema(dataserver: Dataserver) {
-    setSchemaLoading(true)
-    const result = await fetchDataserverSchema({ tbcId, dataserverCode: dataserver.code, context })
-    setSchemaLoading(false)
-    if (!result.success) {
-      toast.error(result.error || `Falha ao buscar schema do Data Server "${dataserver.name}"`)
-      return
-    }
-    setFiltro(buildDefaultFiltro(result.tables))
-    setTableName(result.tables[0]?.name ?? "")
-    const schemaFields = (result.tables[0]?.fields ?? []).map((f) => ({
+  function handleSchemaLoaded(tables: SchemaTable[]) {
+    setTableName(tables[0]?.name ?? "")
+    const schemaFields = (tables[0]?.fields ?? []).map((f) => ({
       name: f.name,
       caption: f.caption && f.caption !== "-" ? f.caption : f.name,
       isPrimaryKey: f.isPrimaryKey,
     }))
     setFields(schemaFields)
-    setIdField(schemaFields.find((f) => f.isPrimaryKey)?.name || schemaFields[0]?.name || "")
-    setLabelField(schemaFields.find((f) => !f.isPrimaryKey)?.name || schemaFields[0]?.name || "")
+    const pkNames = schemaFields.filter((f) => f.isPrimaryKey).map((f) => f.name)
+    setPkValues(Object.fromEntries(pkNames.map((name) => [name, ""])))
+    // Identification defaults to the whole primary key (coligada + processo seletivo), so processos
+    // of different coligadas sharing an IDPS never collapse into one.
+    setIdFields(pkNames.length ? pkNames : schemaFields.slice(0, 1).map((f) => f.name))
+    const nonPk = schemaFields.filter((f) => !f.isPrimaryKey)
+    setLabelField(
+      nonPk.find((f) => NAME_FIELD_PATTERN.test(f.name))?.name || nonPk[0]?.name || schemaFields[0]?.name || ""
+    )
   }
 
-  async function handleSelectDataserver(id: string) {
+  const schema = useDataserverSchema(tbcId, selectedDataserver, contextForm, handleSchemaLoaded)
+
+  function handleSelectDataserver(id: string) {
     setDataserverId(id)
     setFields([])
     setRows([])
-    setFiltro("")
-    const dataserver = dataservers.find((d) => d.id === id)
-    if (!dataserver) return
-    await handleFetchSchema(dataserver)
+    setPkValues({})
+    setIdFields([])
+    setLabelField("")
+    setTableName("")
   }
 
   async function handleFetch() {
-    if (!selectedDataserver) return
+    if (!selectedDataserver || !schema.context) return
+    const context = schema.context
     setLoading(true)
-    const result = await fetchDataserverRows({ tbcId, dataserverCode: selectedDataserver.code, filtro, context })
+    const result = await fetchDataserverRows({
+      tbcId,
+      dataserverCode: selectedDataserver.code,
+      filtro: buildPkFiltro(tableName, pkValues),
+      context,
+    })
     setLoading(false)
     if (!result.success) {
       toast.error(result.error || "Falha ao buscar processos seletivos")
       return
     }
     setRows(result.rows)
+    setListedContext(context)
     setConfiguring(false)
   }
 
-  const pkFieldNames = fields.filter((f) => f.isPrimaryKey).map((f) => f.name)
+  const pkFields = fields.filter((f) => f.isPrimaryKey)
+  const pkFieldNames = pkFields.map((f) => f.name)
   const processos: ProcessoSeletivo[] = (() => {
+    if (!listedContext || !idFields.length) return []
     const byId = new Map<string, ProcessoSeletivo>()
-    for (const row of rows) {
-      const id = row[idField] ?? ""
+    const sortedRows = [...rows].sort((a, b) => compareRowsDesc(a, b, idFields))
+    for (const row of sortedRows) {
+      const idParts = idFields.map((f) => row[f] ?? "")
+      const id = idParts.join("-")
       if (byId.has(id)) continue
-      const displayLabel = row[labelField] || id || "(sem nome)"
+      const displayLabel = row[labelField] || "(sem nome)"
+      const idLabel = idParts.filter((v) => v !== "").join(" - ")
       byId.set(id, {
         id,
-        label: id ? `${id} - ${displayLabel}` : displayLabel,
+        label: idLabel ? `${idLabel} - ${displayLabel}` : displayLabel,
         row,
         sourceDataserverCode: selectedDataserver?.code ?? "",
         sourceTableName: tableName,
         pkFieldNames,
+        pkValues: Object.fromEntries(pkFieldNames.map((name) => [name, row[name] ?? ""])),
+        context: listedContext,
       })
     }
-    return Array.from(byId.values()).sort((a, b) => compareDesc(a.id, b.id))
+    return Array.from(byId.values())
   })()
   const activeFieldFilters = Object.entries(appliedFieldFilters).filter(([, value]) => value.trim() !== "")
   const filteredProcessos = processos
@@ -192,56 +223,49 @@ export function ProcessoSeletivoSidebar({
             />
           </Field>
 
-          <Accordion defaultValue={[]}>
-            <AccordionItem value="filtro">
-              <AccordionTrigger>Contexto e filtro (ReadView)</AccordionTrigger>
-              <AccordionContent className="flex flex-col gap-3">
-                <ChecklistContextFields value={context} onChange={onContextChange} />
-                <Field>
-                  <div className="flex items-center justify-between gap-2">
-                    <FieldLabel>Filtro (condição SQL, ex.: TABELA.CAMPO = &apos;valor&apos;)</FieldLabel>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="h-6 gap-1 px-2 text-xs"
-                      onClick={() => selectedDataserver && handleFetchSchema(selectedDataserver)}
-                      disabled={!selectedDataserver || schemaLoading}
-                      title="Buscar esquema novamente (ex.: após ajustar coligada/filial)"
-                    >
-                      <RefreshCw className={schemaLoading ? "h-3 w-3 animate-spin" : "h-3 w-3"} />
-                      Buscar esquema
-                    </Button>
-                  </div>
-                  {schemaLoading ? (
-                    <div className="flex h-[100px] items-center justify-center rounded-md border text-sm text-muted-foreground">
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Buscando schema...
-                    </div>
-                  ) : (
-                    <CodeEditor value={filtro} onChange={setFiltro} language="sql" minHeight="100px" resetKey={dataserverId} />
-                  )}
-                </Field>
-              </AccordionContent>
-            </AccordionItem>
-          </Accordion>
+          <ChecklistContextFields value={contextForm} onChange={setContextForm} />
+
+          <Field>
+            <div className="flex items-center justify-between gap-2">
+              <FieldLabel>Chave primária (filtro)</FieldLabel>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-6 gap-1 px-2 text-xs"
+                onClick={() => void schema.refetch()}
+                disabled={!selectedDataserver || !schema.contextComplete || schema.loading}
+                title="Buscar esquema novamente"
+              >
+                <RefreshCw className={schema.loading ? "h-3 w-3 animate-spin" : "h-3 w-3"} />
+                Buscar esquema
+              </Button>
+            </div>
+            {!schema.contextComplete ? (
+              <p className="text-xs text-muted-foreground">
+                Preencha coligada, filial e tipo de curso para buscar o esquema do Data Server.
+              </p>
+            ) : schema.loading ? (
+              <div className="flex h-16 items-center justify-center rounded-md border text-sm text-muted-foreground">
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Buscando esquema...
+              </div>
+            ) : fields.length > 0 ? (
+              <PrimaryKeyInputs fields={pkFields} values={pkValues} onChange={setPkValues} />
+            ) : null}
+          </Field>
 
           {fields.length > 0 && (
             <>
               <Field>
-                <FieldLabel>Campo de identificação</FieldLabel>
-                <Select items={fields.map((f) => ({ value: f.name, label: f.caption }))} value={idField} onValueChange={(v) => setIdField(v ?? "")}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {fields.map((f) => (
-                      <SelectItem key={f.name} value={f.name}>
-                        {f.caption}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <FieldLabel>Campos de identificação</FieldLabel>
+                <MultiSelect
+                  items={fields.map((f) => ({ value: f.name, label: f.caption }))}
+                  value={idFields}
+                  onValueChange={setIdFields}
+                  placeholder="Selecione os campos"
+                  searchPlaceholder="Buscar campo..."
+                />
               </Field>
               <Field>
                 <FieldLabel>Campo de exibição (nome)</FieldLabel>
@@ -261,7 +285,11 @@ export function ProcessoSeletivoSidebar({
             </>
           )}
 
-          <Button type="button" onClick={handleFetch} disabled={!selectedDataserver || !idField || loading}>
+          <Button
+            type="button"
+            onClick={handleFetch}
+            disabled={!selectedDataserver || !schema.contextComplete || !fields.length || !idFields.length || loading}
+          >
             {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Buscar registros
           </Button>
@@ -305,6 +333,7 @@ export function ProcessoSeletivoSidebar({
           )}
           {filtersOpen && (
             <DataTableFilterPanel
+              singleColumn
               onApply={() => {
                 setAppliedFieldFilters(fieldFilters)
                 setFiltersOpen(false)

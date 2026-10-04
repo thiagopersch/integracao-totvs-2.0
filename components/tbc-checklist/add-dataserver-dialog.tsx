@@ -6,12 +6,6 @@ import { Button } from "@/components/ui/button"
 import { Combobox } from "@/components/ui/combobox"
 import { Field, FieldLabel } from "@/components/ui/field"
 import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/components/ui/accordion"
-import {
   Dialog,
   DialogBody,
   DialogContent,
@@ -19,12 +13,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { CodeEditor } from "@/components/shared/code-editor"
 import { ChecklistContextFields } from "@/components/tbc-checklist/checklist-context-fields"
-import { fetchDataserverSchema, type ChecklistContext } from "@/actions/integrations/tbc-checklist"
-import { buildDefaultFiltro } from "@/lib/tbc-checklist-filtro"
+import { PrimaryKeyInputs } from "@/components/tbc-checklist/primary-key-inputs"
+import { useDataserverSchema } from "@/components/tbc-checklist/use-dataserver-schema"
+import type { ChecklistContext } from "@/actions/integrations/tbc-checklist"
+import { pickKnownPkValues } from "@/lib/tbc-checklist-filtro"
+import { EMPTY_CONTEXT_FORM, isRelatedDataserver, type ChecklistContextForm } from "@/lib/tbc-checklist-dataservers"
+import type { SchemaTable } from "@/utils/soap-schema"
 import type { Dataserver } from "@/generated/prisma/client"
-import { toast } from "sonner"
 
 interface AddDataserverDialogProps {
   tbcId: string
@@ -32,13 +28,10 @@ interface AddDataserverDialogProps {
   onOpenChange: (open: boolean) => void
   dataservers: Dataserver[]
   loading: boolean
-  context: ChecklistContext
-  onContextChange: (context: ChecklistContext) => void
-  /** Field values already known from the selected processo seletivo (its own row plus
-   *  CODCOLIGADA/CODFILIAL/CODTIPOCURSO from context), used to pre-fill the new Data Server's
-   *  filtro with real values instead of a blank template. */
+  /** PK values of the selected processo seletivo (e.g. CODCOLIGADA, IDPS), used to pre-fill the
+   *  new Data Server's primary-key inputs whose names match. */
   knownValues: Record<string, string>
-  onConfirm: (dataserver: Dataserver, filtro: string) => void
+  onConfirm: (dataserver: Dataserver, context: ChecklistContext, pkValues: Record<string, string>) => void
 }
 
 export function AddDataserverDialog({
@@ -47,42 +40,43 @@ export function AddDataserverDialog({
   onOpenChange,
   dataservers,
   loading,
-  context,
-  onContextChange,
   knownValues,
   onConfirm,
 }: AddDataserverDialogProps) {
   const [dataserverId, setDataserverId] = useState("")
-  const [filtro, setFiltro] = useState("")
-  const [schemaLoading, setSchemaLoading] = useState(false)
+  const [contextForm, setContextForm] = useState<ChecklistContextForm>(EMPTY_CONTEXT_FORM)
+  const [pkFields, setPkFields] = useState<{ name: string; caption: string }[] | null>(null)
+  const [pkValues, setPkValues] = useState<Record<string, string>>({})
 
-  const selected = dataservers.find((d) => d.id === dataserverId)
+  const relatedDataservers = dataservers.filter((d) => isRelatedDataserver(d.code))
+  const selected = relatedDataservers.find((d) => d.id === dataserverId)
+
+  function handleSchemaLoaded(tables: SchemaTable[]) {
+    const fields = (tables[0]?.fields ?? [])
+      .filter((f) => f.isPrimaryKey)
+      .map((f) => ({ name: f.name, caption: f.caption && f.caption !== "-" ? f.caption : f.name }))
+    setPkFields(fields)
+    setPkValues(pickKnownPkValues(fields.map((f) => f.name), knownValues))
+  }
+
+  const schema = useDataserverSchema(tbcId, selected, contextForm, handleSchemaLoaded)
+
+  function reset() {
+    setDataserverId("")
+    setContextForm(EMPTY_CONTEXT_FORM)
+    setPkFields(null)
+    setPkValues({})
+  }
 
   function handleOpenChange(next: boolean) {
-    if (!next) {
-      setDataserverId("")
-      setFiltro("")
-    }
+    if (!next) reset()
     onOpenChange(next)
   }
 
-  async function handleFetchSchema(dataserver: Dataserver) {
-    setSchemaLoading(true)
-    const result = await fetchDataserverSchema({ tbcId, dataserverCode: dataserver.code, context })
-    setSchemaLoading(false)
-    if (!result.success) {
-      toast.error(result.error || `Falha ao buscar schema do Data Server "${dataserver.name}"`)
-      return
-    }
-    setFiltro(buildDefaultFiltro(result.tables, knownValues))
-  }
-
-  async function handleSelectDataserver(id: string) {
+  function handleSelectDataserver(id: string) {
     setDataserverId(id)
-    setFiltro("")
-    const dataserver = dataservers.find((d) => d.id === id)
-    if (!dataserver) return
-    await handleFetchSchema(dataserver)
+    setPkFields(null)
+    setPkValues({})
   }
 
   return (
@@ -95,54 +89,56 @@ export function AddDataserverDialog({
           <Field>
             <FieldLabel>Data Server</FieldLabel>
             <Combobox
-              items={dataservers.map((d) => ({ value: d.id, label: `${d.name} (${d.code})` }))}
+              items={relatedDataservers.map((d) => ({ value: d.id, label: `${d.name} (${d.code})` }))}
               value={dataserverId}
               onValueChange={handleSelectDataserver}
               placeholder="Selecione um Data Server"
               searchPlaceholder="Buscar Data Server..."
-              emptyText="Nenhum Data Server cadastrado."
+              emptyText="Nenhum Data Server relacionado cadastrado."
             />
           </Field>
 
-          <Accordion defaultValue={[]}>
-            <AccordionItem value="filtro">
-              <AccordionTrigger>Contexto e filtro (ReadView)</AccordionTrigger>
-              <AccordionContent className="flex flex-col gap-3">
-                <ChecklistContextFields value={context} onChange={onContextChange} />
-                <Field>
-                  <div className="flex items-center justify-between gap-2">
-                    <FieldLabel>Filtro (condição SQL, ex.: TABELA.CAMPO = &apos;valor&apos;)</FieldLabel>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="h-6 gap-1 px-2 text-xs"
-                      onClick={() => selected && handleFetchSchema(selected)}
-                      disabled={!selected || schemaLoading}
-                      title="Buscar esquema novamente (ex.: após ajustar coligada/filial)"
-                    >
-                      <RefreshCw className={schemaLoading ? "h-3 w-3 animate-spin" : "h-3 w-3"} />
-                      Buscar esquema
-                    </Button>
-                  </div>
-                  {schemaLoading ? (
-                    <div className="flex h-[100px] items-center justify-center rounded-md border text-sm text-muted-foreground">
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Buscando schema...
-                    </div>
-                  ) : (
-                    <CodeEditor value={filtro} onChange={setFiltro} language="sql" minHeight="100px" resetKey={dataserverId} />
-                  )}
-                </Field>
-              </AccordionContent>
-            </AccordionItem>
-          </Accordion>
+          <ChecklistContextFields value={contextForm} onChange={setContextForm} />
+
+          <Field>
+            <div className="flex items-center justify-between gap-2">
+              <FieldLabel>Chave primária (filtro)</FieldLabel>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-6 gap-1 px-2 text-xs"
+                onClick={() => void schema.refetch()}
+                disabled={!selected || !schema.contextComplete || schema.loading}
+                title="Buscar esquema novamente"
+              >
+                <RefreshCw className={schema.loading ? "h-3 w-3 animate-spin" : "h-3 w-3"} />
+                Buscar esquema
+              </Button>
+            </div>
+            {!selected || !schema.contextComplete ? (
+              <p className="text-xs text-muted-foreground">
+                Selecione o Data Server e preencha coligada, filial e tipo de curso para buscar o esquema.
+              </p>
+            ) : schema.loading ? (
+              <div className="flex h-16 items-center justify-center rounded-md border text-sm text-muted-foreground">
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Buscando esquema...
+              </div>
+            ) : pkFields ? (
+              <PrimaryKeyInputs fields={pkFields} values={pkValues} onChange={setPkValues} />
+            ) : null}
+          </Field>
         </DialogBody>
         <DialogFooter>
           <Button type="button" variant="outline" onClick={() => handleOpenChange(false)} disabled={loading}>
             Cancelar
           </Button>
-          <Button type="button" onClick={() => selected && onConfirm(selected, filtro)} disabled={!selected || loading}>
+          <Button
+            type="button"
+            onClick={() => selected && schema.context && onConfirm(selected, schema.context, pkValues)}
+            disabled={!selected || !schema.context || !pkFields || schema.loading || loading}
+          >
             {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Adicionar
           </Button>

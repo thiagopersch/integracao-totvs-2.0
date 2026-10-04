@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { contractUsageService } from "@/services/contract-usage.service";
-import { CONTRACT_ATTENTION_PERCENT, formatMonthLabel } from "@/lib/contract-usage";
+import { formatMonthLabel } from "@/lib/contract-usage";
+import { periodToDateRange } from "@/lib/period";
 
 const DEMAND_STATUS_LABELS: Record<string, string> = {
   PENDING: "Pendente",
@@ -9,12 +10,32 @@ const DEMAND_STATUS_LABELS: Record<string, string> = {
   CANCELLED: "Cancelada",
 };
 
+/**
+ * Clients whose contracts the user is linked to: their allowed clients (UserClient) plus, when the
+ * user has an Analyst record, every client that analyst logged demands for during the month.
+ */
+async function linkedContractClientIds(
+  organizationId: string,
+  allowedClientIds: string[],
+  month: { year: number; month: number },
+  analystId: string | null
+): Promise<string[]> {
+  if (!analystId) return allowedClientIds;
+  const demandClients = await prisma.demand.findMany({
+    where: { deletedAt: null, organizationId, analystId, date: periodToDateRange(month) },
+    select: { clientId: true },
+    distinct: ["clientId"],
+  });
+  return Array.from(new Set([...allowedClientIds, ...demandClients.map((d) => d.clientId)]));
+}
+
 export const dashboardService = {
   async getStats(
     organizationId: string,
     allowedClientIds: string[],
     period: { gte: Date; lt: Date } | undefined,
-    attentionMonth: { year: number; month: number }
+    attentionMonth: { year: number; month: number },
+    analystId: string | null = null
   ) {
     const now = new Date();
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -113,12 +134,13 @@ export const dashboardService = {
         where: { deletedAt: null, organizationId, ...clientIdScope, ...demandDateFilter },
         _sum: { durationMinutes: true },
       }),
-      contractUsageService.getMonthlyUsage(organizationId, attentionMonth, allowedClientIds),
+      linkedContractClientIds(organizationId, allowedClientIds, attentionMonth, analystId).then((clientIds) =>
+        contractUsageService.getMonthlyUsage(organizationId, attentionMonth, clientIds)
+      ),
     ]);
 
-    // Clients whose monthly contract consumption reached the first alert threshold (80%).
-    const contractsAttention = monthlyUsage
-      .filter((u) => u.percent >= CONTRACT_ATTENTION_PERCENT)
+    // Every contract in force for the clients linked to the user, highest consumption first.
+    const contractsUsage = monthlyUsage
       .sort((a, b) => b.percent - a.percent)
       .map(({ clientId, clientName, clientColor, usedHours, contractedHours, percent, level }) => ({
         clientId,
@@ -234,8 +256,8 @@ export const dashboardService = {
       demandsByAnalyst,
       demandsByClient,
       clientHoursRanking,
-      contractsAttention,
-      contractsAttentionMonthLabel: formatMonthLabel(attentionMonth),
+      contractsUsage,
+      contractsUsageMonthLabel: formatMonthLabel(attentionMonth),
     };
   },
 };

@@ -7,6 +7,7 @@ import {
   periodKey,
   usageLevel,
   usagePercent,
+  usageTone,
 } from "./contract-usage"
 
 describe("contract usage thresholds", () => {
@@ -47,5 +48,16 @@ describe("contract usage thresholds", () => {
     expect(formatMonthLabel({ year: 2026, month: 10 })).toBe("outubro/2026")
     expect(monthForPeriod({ year: 2025 }, new Date(Date.UTC(2026, 9, 2)))).toEqual({ year: 2026, month: 10 })
     expect(monthForPeriod({ year: 2025, month: 4 })).toEqual({ year: 2025, month: 4 })
+  })
+})
+
+describe("usageTone", () => {
+  it("is green below 80%, yellow from 80% to under 90% and red from 90%", () => {
+    expect(usageTone(0)).toBe("ok")
+    expect(usageTone(79.99)).toBe("ok")
+    expect(usageTone(80)).toBe("warning")
+    expect(usageTone(89.99)).toBe("warning")
+    expect(usageTone(90)).toBe("danger")
+    expect(usageTone(150)).toBe("danger")
   })
 })

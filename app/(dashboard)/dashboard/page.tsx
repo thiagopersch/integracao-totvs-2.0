@@ -32,8 +32,8 @@ async function DashboardData({ searchParams }: { searchParams: Promise<Record<st
       demandsByAnalyst,
       demandsByClient,
       clientHoursRanking,
-      contractsAttention,
-      contractsAttentionMonthLabel,
+      contractsUsage,
+      contractsUsageMonthLabel,
     },
     periodOptions,
   ] = await Promise.all([getDashboardStats(period), getDemandPeriodOptions()])
@@ -51,8 +51,8 @@ async function DashboardData({ searchParams }: { searchParams: Promise<Record<st
       demandsByAnalyst={demandsByAnalyst}
       demandsByClient={demandsByClient}
       clientHoursRanking={clientHoursRanking}
-      contractsAttention={contractsAttention}
-      contractsAttentionMonthLabel={contractsAttentionMonthLabel}
+      contractsUsage={contractsUsage}
+      contractsUsageMonthLabel={contractsUsageMonthLabel}
       period={period}
       years={periodOptions.years}
       monthsByYear={periodOptions.monthsByYear}

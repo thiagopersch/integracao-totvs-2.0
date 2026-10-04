@@ -26,7 +26,8 @@ import { usePeriodFilter } from "@/hooks/use-period-filter"
 import type { Period } from "@/lib/period"
 import { ColorBadge } from "@/components/shared/color-badge"
 import { ContractUsageBar } from "@/components/shared/contract-usage-bar"
-import { USAGE_LEVEL_COLORS, USAGE_LEVEL_LABELS, type UsageLevel } from "@/lib/contract-usage"
+import { USAGE_LEVEL_COLORS, USAGE_LEVEL_LABELS, USAGE_TONE_CLASSES, usageTone, type UsageLevel } from "@/lib/contract-usage"
+import { cn } from "@/lib/utils"
 
 type NamedValue = {
   name: string
@@ -130,7 +131,7 @@ interface DashboardClientProps {
   demandsByAnalyst: NamedValue[]
   demandsByClient: Array<NamedValue & { color: string }>
   clientHoursRanking: Array<{ name: string; contratadas: number; gastas: number; color: string }>
-  contractsAttention: Array<{
+  contractsUsage: Array<{
     clientId: string
     clientName: string
     clientColor: string
@@ -139,7 +140,7 @@ interface DashboardClientProps {
     percent: number
     level: UsageLevel
   }>
-  contractsAttentionMonthLabel: string
+  contractsUsageMonthLabel: string
   period: Period | null
   years: number[]
   monthsByYear: Record<number, number[]>
@@ -163,8 +164,8 @@ export function DashboardClient({
   demandsByAnalyst,
   demandsByClient,
   clientHoursRanking,
-  contractsAttention,
-  contractsAttentionMonthLabel,
+  contractsUsage,
+  contractsUsageMonthLabel,
   period: initialPeriod,
   years,
   monthsByYear,
@@ -298,28 +299,31 @@ export function DashboardClient({
           <Card className="mt-4">
             <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
               <div>
-                <CardTitle className="text-sm font-medium">Contratos em Atenção — {contractsAttentionMonthLabel}</CardTitle>
-                <p className="text-xs text-muted-foreground">Clientes com 80% ou mais das horas contratadas do mês consumidas</p>
+                <CardTitle className="text-sm font-medium">Consumo dos Contratos — {contractsUsageMonthLabel}</CardTitle>
+                <p className="text-xs text-muted-foreground">Contratos vinculados a você, do maior para o menor consumo</p>
               </div>
               <div className="flex items-center gap-2">
-                {contractsAttention.length > 0 && (
-                  <Badge variant="outline" style={{ borderColor: USAGE_LEVEL_COLORS.warning }}>
-                    {contractsAttention.length}
+                {contractsUsage.length > 0 && (
+                  <Badge variant="outline">
+                    {contractsUsage.length}
                   </Badge>
                 )}
                 <FileClock className="h-4 w-4 text-muted-foreground" />
               </div>
             </CardHeader>
             <CardContent>
-              {contractsAttention.length === 0 ? (
-                <p className="py-4 text-center text-sm text-muted-foreground">Nenhum contrato acima de 80% do consumo mensal</p>
+              {contractsUsage.length === 0 ? (
+                <p className="py-4 text-center text-sm text-muted-foreground">Nenhum contrato vigente vinculado</p>
               ) : (
                 <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-                  {contractsAttention.map((c) => (
+                  {contractsUsage.map((c) => (
                     <Link
                       key={c.clientId}
                       href="/contracts"
-                      className="flex flex-col gap-2 rounded-lg border p-3 transition-colors hover:bg-muted/50"
+                      className={cn(
+                        "flex flex-col gap-2 rounded-lg border p-3 transition-opacity hover:opacity-80",
+                        USAGE_TONE_CLASSES[usageTone(c.percent)]
+                      )}
                     >
                       <div className="flex items-center justify-between gap-2">
                         <ColorBadge label={c.clientName} color={c.clientColor} solid />

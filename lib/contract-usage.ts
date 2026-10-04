@@ -37,6 +37,21 @@ export function usageLevel(percent: number): UsageLevel {
   return "ok";
 }
 
+/** Dashboard card tone: green below the attention threshold, yellow from 80% up to 90%, red from 90%. */
+export type UsageTone = "ok" | "warning" | "danger";
+
+export function usageTone(percent: number): UsageTone {
+  if (percent >= 90) return "danger";
+  if (percent >= CONTRACT_ATTENTION_PERCENT) return "warning";
+  return "ok";
+}
+
+export const USAGE_TONE_CLASSES: Record<UsageTone, string> = {
+  ok: "border-green-300 bg-green-50 dark:border-green-800 dark:bg-green-950/30",
+  warning: "border-yellow-300 bg-yellow-50 dark:border-yellow-700 dark:bg-yellow-950/30",
+  danger: "border-red-300 bg-red-50 dark:border-red-800 dark:bg-red-950/30",
+};
+
 /** Every alert threshold reached by `percent` (inclusive), ascending. */
 export function crossedThresholds(percent: number): number[] {
   return CONTRACT_ALERT_THRESHOLDS.filter((t) => percent >= t);

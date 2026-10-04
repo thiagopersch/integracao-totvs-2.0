@@ -23,3 +23,20 @@ export function buildDefaultFiltro(tables: SchemaTable[], knownValues: Record<st
   if (!fields.length) return ""
   return fields.map((f) => `${mainTable.name}.${f.name} = '${lookupKnownValue(knownValues, f.name) ?? ""}'`).join(" AND ")
 }
+
+/**
+ * Filtro for a table from per-field values (the primary-key inputs): one `TABLE.FIELD = 'value'`
+ * per non-empty value, joined by AND. Empty when nothing was filled — every field is optional.
+ */
+export function buildPkFiltro(tableName: string, values: Record<string, string>): string {
+  return Object.entries(values)
+    .filter(([, value]) => value.trim() !== "")
+    .map(([name, value]) => `${tableName}.${name} = '${value.trim().replace(/'/g, "''")}'`)
+    .join(" AND ")
+}
+
+/** Values from `knownValues` (case-insensitive by field name) for each of `fieldNames`, keyed by
+ *  the field's own spelling; fields with no known value come back as "". */
+export function pickKnownPkValues(fieldNames: string[], knownValues: Record<string, string>): Record<string, string> {
+  return Object.fromEntries(fieldNames.map((name) => [name, lookupKnownValue(knownValues, name) ?? ""]))
+}
