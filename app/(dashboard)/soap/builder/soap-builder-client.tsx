@@ -1530,6 +1530,7 @@ export function SoapBuilderClient({
                     </p>
                   ) : selectedType?.type === "dataserver" ? (
                     <SchemaRecordFields
+                      dataserverCode={selectedDataserverCode}
                       tables={dataserverSchemaTables ?? []}
                       values={recordValues}
                       onChange={handleRecordValueChange}

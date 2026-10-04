@@ -36,6 +36,11 @@ describe("buildSaveRecordXml", () => {
     expect(buildSaveRecordXml(TABLES, { PSPROCESSO: { NOME: "" } }, "EduPS")).toBe("")
   })
 
+  it("never sends read-only fields", () => {
+    const tables: SchemaTable[] = [{ name: "T", fields: [field("A"), { ...field("B"), readOnly: true }] }]
+    expect(buildSaveRecordXml(tables, { T: { A: "1", B: "2" } }, "DS")).toBe("<T>\n  <A>1</A>\n</T>")
+  })
+
   it("escapes values", () => {
     expect(buildSaveRecordXml(TABLES, { PSPROCESSO: { NOME: "A & <B>" } }, "EduPS")).toContain(
       "<NOME>A &amp; &lt;B&gt;</NOME>"

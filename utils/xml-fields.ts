@@ -1,10 +1,13 @@
 import { XMLBuilder, XMLParser, XMLValidator } from "fast-xml-parser"
+import { inferType } from "@/utils/soap-schema"
 
 /** One editable value in an XML document — `path` indexes into the preserveOrder node tree. */
 export type XmlLeafField = {
   path: number[]
   label: string
   value: string
+  /** From the element's own `i:type` attribute when present, else inferred from the sample value. */
+  type: string
 }
 
 /** Leaf fields grouped by the element that directly holds them (one section per element). */
@@ -62,6 +65,13 @@ function isLeaf(node: OrderedNode): boolean {
   return tagOf(node) !== null && elementChildren(node).length === 0
 }
 
+/** `i:type="d2p1:int"` → "int"; falls back to the sample value's shape. */
+function leafType(node: OrderedNode, value: string): string {
+  const attrs = (node[ATTRS] as Record<string, unknown> | undefined) ?? {}
+  const typeAttr = Object.entries(attrs).find(([key]) => localName(key.replace(/^@_/, "")) === "type")?.[1]
+  return typeAttr ? localName(String(typeAttr)) : inferType(value)
+}
+
 function leafText(node: OrderedNode): string {
   const text = childrenOf(node).find((c) => TEXT in c)
   return text ? String(text[TEXT] ?? "") : ""
@@ -74,7 +84,8 @@ function keyValueParts(node: OrderedNode) {
   const key = children.find((c) => localName(tagOf(c.node) ?? "") === "Key")
   const value = children.find((c) => localName(tagOf(c.node) ?? "") === "Value")
   if (!key || !value || !isLeaf(key.node) || !isLeaf(value.node)) return null
-  return { key: leafText(key.node), valueIndex: value.index, value: leafText(value.node) }
+  const text = leafText(value.node)
+  return { key: leafText(key.node), valueIndex: value.index, value: text, type: leafType(value.node, text) }
 }
 
 function parse(xml: string): OrderedNode[] {
@@ -102,9 +113,10 @@ export function listXmlLeafGroups(xml: string): XmlLeafGroup[] {
       const childPath = [...path, index]
       const kv = keyValueParts(child)
       if (kv) {
-        fields.push({ path: [...childPath, kv.valueIndex], label: kv.key, value: kv.value })
+        fields.push({ path: [...childPath, kv.valueIndex], label: kv.key, value: kv.value, type: kv.type })
       } else if (isLeaf(child)) {
-        fields.push({ path: childPath, label: localName(tagOf(child) ?? ""), value: leafText(child) })
+        const text = leafText(child)
+        fields.push({ path: childPath, label: localName(tagOf(child) ?? ""), value: text, type: leafType(child, text) })
       } else {
         walk(child, childPath)
       }

@@ -8,6 +8,10 @@ export type SchemaField = {
   defaultValue: string
   maxLength: string
   isPrimaryKey: boolean
+  /** `msdata:ReadOnly` — computed by TOTVS, never sent back on SaveRecord. */
+  readOnly?: boolean
+  /** No `minOccurs="0"` — the column doesn't accept null. */
+  required?: boolean
 }
 
 export type SchemaTable = {
@@ -152,6 +156,8 @@ export function parseDataServerSchema(xml: string): SchemaTable[] {
           defaultValue: getAttr(f, "default"),
           maxLength: getAttr(maxLengthNode, "value"),
           isPrimaryKey: false,
+          readOnly: getAttr(f, "ReadOnly").toLowerCase() === "true",
+          required: getAttr(f, "minOccurs") !== "0",
         }
       })
 
@@ -218,7 +224,7 @@ export function buildSaveRecordXml(
 ): string {
   const blocks = tables
     .map((table) => {
-      const filled = table.fields.filter((f) => (values[table.name]?.[f.name] ?? "") !== "")
+      const filled = table.fields.filter((f) => !f.readOnly && (values[table.name]?.[f.name] ?? "") !== "")
       if (!filled.length) return null
       const fieldsXml = filled.map((f) => `<${f.name}>${escapeXml(values[table.name][f.name])}</${f.name}>`)
       return { name: table.name, fieldsXml }
@@ -236,7 +242,7 @@ export function buildSaveRecordXml(
   return `<${rootName}>\n${inner}\n</${rootName}>`
 }
 
-function inferType(value: string): string {
+export function inferType(value: string): string {
   if (value === "") return "string"
   if (/^-?\d+$/.test(value)) return "int"
   if (/^-?\d+\.\d+$/.test(value)) return "decimal"

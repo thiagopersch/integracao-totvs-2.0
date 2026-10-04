@@ -8,7 +8,7 @@ const PROCESS_XML = `<EduMatricPSData xmlns:i="http://www.w3.org/2001/XMLSchema-
     <_params>
       <KeyValueOfanyTypeanyType>
         <Key>$CODCOLIGADA</Key>
-        <Value>1</Value>
+        <Value i:type="d2p1:int" xmlns:d2p1="http://www.w3.org/2001/XMLSchema">1</Value>
       </KeyValueOfanyTypeanyType>
       <KeyValueOfanyTypeanyType>
         <Key>$CODUSUARIO</Key>
@@ -38,6 +38,14 @@ describe("listXmlLeafGroups", () => {
 
   it("returns nothing for invalid XML", () => {
     expect(listXmlLeafGroups("<a><b></a>")).toEqual([])
+  })
+})
+
+describe("leaf types", () => {
+  it("reads i:type, else infers from the sample value", () => {
+    const [root, params] = listXmlLeafGroups(PROCESS_XML)
+    expect(root.fields.map((f) => f.type)).toEqual(["int", "string"])
+    expect(params.fields.map((f) => f.type)).toEqual(["int", "string"])
   })
 })
 
