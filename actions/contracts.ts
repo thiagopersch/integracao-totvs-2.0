@@ -10,10 +10,15 @@ import { requirePermission } from "@/lib/rbac";
 import { formatBlockingReferences } from "@/lib/entity-relations";
 import type { ListParams } from "@/types/common";
 
-export async function listContracts(params: ListParams, organizationId: string, allowedClientIds: string[]) {
+export async function listContracts(
+  params: ListParams,
+  organizationId: string,
+  allowedClientIds: string[],
+  month: { year: number; month: number }
+) {
   "use cache";
   cacheTag("contracts");
-  return contractService.list(params, organizationId, allowedClientIds);
+  return contractService.list(params, organizationId, allowedClientIds, month);
 }
 
 function parseContractForm(formData: FormData) {
@@ -108,17 +113,18 @@ export async function bulkDeleteContracts(ids: string[]) {
 }
 
 /**
- * "Reenviar notificação de consumo": sends the current month's consumption email for the
+ * "Reenviar notificação de consumo": sends the consumption email of `month` (default: current) for the
  * contract's client right now, whatever the percentage (same recipients/template as the automatic
  * alert). Runs synchronously so the toast can report what actually happened.
  */
-export async function resendContractUsageNotification(contractId: string) {
+export async function resendContractUsageNotification(contractId: string, month?: { year: number; month: number }) {
   const { organizationId, allowedClientIds } = await requirePermission("contracts", "update");
   const contract = await contractService.getById(contractId, organizationId, allowedClientIds);
   if (!contract) return { success: false, error: "Contrato não encontrado" };
 
   try {
-    const result = await contractUsageService.checkAndNotify(organizationId, contract.clientId, currentMonth(), "manual");
+    const validMonth = month && Number.isInteger(month.year) && month.month >= 1 && month.month <= 12 ? month : undefined;
+    const result = await contractUsageService.checkAndNotify(organizationId, contract.clientId, validMonth ?? currentMonth(), "manual");
     await auditService.log({
       action: "UPDATE",
       entity: "ClientContract",

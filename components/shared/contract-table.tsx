@@ -7,6 +7,9 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { DataTable } from "@/components/shared/data-table"
 import { DataTableFilterPanel } from "@/components/shared/data-table-filter-panel"
 import { PageHeader } from "@/components/shared/page-header"
+import { PeriodSelect } from "@/components/shared/period-select"
+import { usePeriodFilter } from "@/hooks/use-period-filter"
+import type { Period } from "@/lib/period"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
 import { EntityActionsCell } from "@/components/shared/entity-actions-cell"
 import { createSelectColumn } from "@/components/shared/select-column"
@@ -64,7 +67,7 @@ type ContractRow = {
   notifyClient: boolean
   notes: string | null
   client: { id: string; name: string; color: string; email: string | null }
-  /** Current month's consumption (per client) — null when the contract isn't in force this month. */
+  /** Consumption (per client) of the month being viewed — null when the contract isn't in force that month. */
   usage: { usedHours: number; contractedHours: number; percent: number; level: UsageLevel } | null
 }
 
@@ -72,6 +75,12 @@ interface ContractTableProps {
   data: ContractRow[]
   meta: PaginationMeta
   clients: Client[]
+  /** Month the "Consumo" column refers to (selected period's month, or the current month). */
+  usageMonth: { year: number; month: number }
+  usageMonthLabel: string
+  period: Period | null
+  years: number[]
+  monthsByYear: Record<number, number[]>
 }
 
 const STATUS_LABELS: Record<string, string> = {
@@ -90,7 +99,16 @@ const STATUS_COLORS: Record<string, string> = {
 
 const SORTABLE_COLUMNS = ["contractedHours", "usagePercent", "startDate", "endDate", "status"]
 
-export function ContractTable({ data, meta, clients }: ContractTableProps) {
+export function ContractTable({
+  data,
+  meta,
+  clients,
+  usageMonth,
+  usageMonthLabel,
+  period: initialPeriod,
+  years,
+  monthsByYear,
+}: ContractTableProps) {
   const {
     router,
     searchParams,
@@ -114,11 +132,12 @@ export function ContractTable({ data, meta, clients }: ContractTableProps) {
   const [statusFilter, setStatusFilter] = useState(searchParams.get("status") || "")
   const [resendTarget, setResendTarget] = useState<ContractRow | null>(null)
   const [resending, setResending] = useState(false)
+  const { period, setPeriod } = usePeriodFilter(initialPeriod)
 
   async function handleResend() {
     if (!resendTarget) return
     setResending(true)
-    const result = await resendContractUsageNotification(resendTarget.id)
+    const result = await resendContractUsageNotification(resendTarget.id, usageMonth)
     setResending(false)
     setResendTarget(null)
     if (result.success) toast.success(result.message)
@@ -203,7 +222,7 @@ export function ContractTable({ data, meta, clients }: ContractTableProps) {
     },
     {
       id: "usagePercent",
-      header: "Consumo (mês)",
+      header: `Consumo — ${usageMonthLabel}`,
       cell: ({ row }) => {
         const usage = row.original.usage
         if (!usage) return <span className="text-muted-foreground">-</span>
@@ -247,7 +266,7 @@ export function ContractTable({ data, meta, clients }: ContractTableProps) {
   }
     if (canUpdate || canDelete) columns.push(actionsColumn)
     return columns
-  }, [canUpdate, canDelete, setEditDialog, setDeleteDialog, setResendTarget])
+  }, [canUpdate, canDelete, setEditDialog, setDeleteDialog, setResendTarget, usageMonthLabel])
 
   const newDialog = (
     <Dialog open={editDialog.open} onOpenChange={(open) => { setEditDialog({ open, entity: open ? editDialog.entity : undefined }); if (!open) form.reset() }}>
@@ -429,7 +448,9 @@ export function ContractTable({ data, meta, clients }: ContractTableProps) {
 
   return (
     <>
-      <PageHeader title="Contratos" description="Gerenciar contratos de clientes" />
+      <PageHeader title="Contratos" description="Gerenciar contratos de clientes">
+        <PeriodSelect years={years} monthsByYear={monthsByYear} value={period} onChange={setPeriod} />
+      </PageHeader>
 
       <DataTable
         columns={columns}
@@ -476,7 +497,7 @@ export function ContractTable({ data, meta, clients }: ContractTableProps) {
         title="Reenviar notificação de consumo"
         description={
           resendTarget
-            ? `Enviar agora o e-mail de consumo de horas do mês atual de ${resendTarget.client.name}${
+            ? `Enviar agora o e-mail de consumo de horas de ${usageMonthLabel} de ${resendTarget.client.name}${
                 resendTarget.notifyClient && resendTarget.client.email
                   ? ` para ${resendTarget.client.email} (com o e-mail de alertas em cópia, quando configurado)`
                   : " para o e-mail de alertas de contrato"

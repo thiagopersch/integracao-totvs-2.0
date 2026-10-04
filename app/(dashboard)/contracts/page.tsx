@@ -1,9 +1,13 @@
 import { Suspense } from "react"
+import { cookies } from "next/headers"
 import { listContracts } from "@/actions/contracts"
+import { getDemandPeriodOptions } from "@/actions/demands"
 import { listAllClients } from "@/actions/admin/clients"
 import { ContractTable } from "@/components/shared/contract-table"
 import { TableSkeleton } from "@/components/shared/table-skeleton"
 import { getRequestContext } from "@/lib/tenant"
+import { PERIOD_COOKIE_NAME, resolvePeriod } from "@/lib/period"
+import { formatMonthLabel, monthForPeriod } from "@/lib/contract-usage"
 
 export default function ContractsPage({ searchParams }: { searchParams: Promise<Record<string, string>> }) {
   return (
@@ -18,7 +22,12 @@ export default function ContractsPage({ searchParams }: { searchParams: Promise<
 async function ContractsContent({ searchParams }: { searchParams: Promise<Record<string, string>> }) {
   const params = await searchParams
   const { organizationId, allowedClientIds } = await getRequestContext()
-  const [{ data, meta }, clients] = await Promise.all([
+  const cookieStore = await cookies()
+  const period = resolvePeriod(params, cookieStore.get(PERIOD_COOKIE_NAME)?.value)
+  // Consumption is shown for the selected month (current month for a year-only/no period), so a
+  // contract created after the client's demands still shows the hours already logged that month.
+  const usageMonth = monthForPeriod(period)
+  const [{ data, meta }, clients, periodOptions] = await Promise.all([
     listContracts(
       {
         page: Number(params.page) || 1,
@@ -28,10 +37,23 @@ async function ContractsContent({ searchParams }: { searchParams: Promise<Record
         filters: params.status ? { status: params.status } : undefined,
       },
       organizationId,
-      allowedClientIds
+      allowedClientIds,
+      usageMonth
     ),
     listAllClients(),
+    getDemandPeriodOptions(),
   ])
 
-  return <ContractTable data={data} meta={meta} clients={clients} />
+  return (
+    <ContractTable
+      data={data}
+      meta={meta}
+      clients={clients}
+      usageMonth={usageMonth}
+      usageMonthLabel={formatMonthLabel(usageMonth)}
+      period={period}
+      years={periodOptions.years}
+      monthsByYear={periodOptions.monthsByYear}
+    />
+  )
 }

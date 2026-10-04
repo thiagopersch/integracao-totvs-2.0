@@ -16,11 +16,14 @@ const USAGE_SORT_FIELD = "usagePercent";
 
 type ContractUsage = Pick<ClientMonthlyUsage, "usedHours" | "contractedHours" | "percent" | "level">;
 
-/** Attaches the current month's consumption to every contract in force this month (consumption is
- *  per client, so contracts of the same client share it); other contracts get `usage: null`. */
-async function withMonthlyUsage<T extends { id: string; clientId: string }>(organizationId: string, contracts: T[]) {
+type Month = { year: number; month: number };
+
+/** Attaches `month`'s consumption to every contract in force that month (consumption is per client,
+ *  so contracts of the same client share it — and demands launched before the contract existed still
+ *  count, since usage is the client's demand time in the month); other contracts get `usage: null`. */
+async function withMonthlyUsage<T extends { id: string; clientId: string }>(organizationId: string, contracts: T[], month: Month) {
   const clientIds = [...new Set(contracts.map((c) => c.clientId))];
-  const usages = clientIds.length ? await contractUsageService.getMonthlyUsage(organizationId, currentMonth(), clientIds) : [];
+  const usages = clientIds.length ? await contractUsageService.getMonthlyUsage(organizationId, month, clientIds) : [];
   const usageByContractId = new Map<string, ContractUsage>();
   for (const u of usages) {
     for (const contractId of u.contractIds) {
@@ -48,7 +51,7 @@ export const contractService = {
     });
   },
 
-  async list(params: ListParams, organizationId: string, allowedClientIds: string[]) {
+  async list(params: ListParams, organizationId: string, allowedClientIds: string[], month: Month = currentMonth()) {
     await this.syncExpiredStatuses(organizationId, allowedClientIds);
 
     const page = params.page || 1;
@@ -68,7 +71,8 @@ export const contractService = {
       // orderBy, so sort in memory.
       const all = await withMonthlyUsage(
         organizationId,
-        await prisma.clientContract.findMany({ where, include: includeRelations })
+        await prisma.clientContract.findMany({ where, include: includeRelations }),
+        month
       );
       const usageDirection = params.sort?.direction === "asc" ? 1 : -1;
       const sorted = all.sort((a, b) => {
@@ -93,7 +97,7 @@ export const contractService = {
       prisma.clientContract.findMany({ where, orderBy, skip: (page - 1) * pageSize, take: pageSize, include: includeRelations }),
       prisma.clientContract.count({ where }),
     ]);
-    const data = await withMonthlyUsage(organizationId, rows);
+    const data = await withMonthlyUsage(organizationId, rows, month);
 
     return { data, meta: { page, pageSize, total, totalPages: Math.ceil(total / pageSize) } };
   },

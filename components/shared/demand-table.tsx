@@ -37,12 +37,16 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { MultiSelect } from "@/components/ui/multi-select"
+import { MultiSelect, type MultiSelectItem } from "@/components/ui/multi-select"
+import { Slider } from "@/components/ui/slider"
+import { DateRangePicker } from "@/components/ui/date-range-picker"
+import { format, parse } from "date-fns"
+import type { DateRange } from "react-day-picker"
 import { DatePicker } from "@/components/ui/date-picker"
 import { TimePicker } from "@/components/ui/time-picker"
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu"
 import { Plus, Loader2, Maximize2, Minimize2, Copy } from "lucide-react"
-import { deleteDemand, createDemand, updateDemand, duplicateDemand, bulkDeleteDemands } from "@/actions/demands"
+import { deleteDemand, createDemand, updateDemand, duplicateDemand, bulkDeleteDemands, type getDemandFilterOptions } from "@/actions/demands"
 import { createDemandSchema, updateDemandSchema, timeToMinutes, type CreateDemandInput } from "@/schemas/demand.schema"
 import { formatDateOnly, toDateInputValue } from "@/utils/format"
 import { TruncatedText } from "@/components/shared/truncated-text"
@@ -85,7 +89,7 @@ interface DemandTableProps {
   meta: PaginationMeta
   analysts: Analyst[]
   clients: Client[]
-  periodClients: Client[]
+  filterOptions: Awaited<ReturnType<typeof getDemandFilterOptions>>
   requesters: Requester[]
   departments: Department[]
   demandTypes: DemandType[]
@@ -167,6 +171,17 @@ function formatDurationHours(minutes: number): string {
 }
 
 const SORTABLE_COLUMNS = ["name", "date", "priority", "status"]
+
+/** Multi-select filters, keyed by their URL param (comma-separated ids/enum values). */
+const MULTI_FILTER_KEYS = ["clientId", "analystId", "requesterId", "departmentId", "demandTypeId", "priority", "status", "tagId"] as const
+type MultiFilterKey = (typeof MULTI_FILTER_KEYS)[number]
+
+const MIN_DURATION_STEP = 15
+const MIN_DURATION_FLOOR_MAX = 8 * 60
+
+function parseDayParam(value: string | null): Date | undefined {
+  return value ? parse(value, "yyyy-MM-dd", new Date()) : undefined
+}
 const VISIBLE_TAGS = 2
 
 export function DemandTable({
@@ -174,7 +189,7 @@ export function DemandTable({
   meta,
   analysts,
   clients,
-  periodClients,
+  filterOptions,
   requesters,
   departments,
   demandTypes,
@@ -204,7 +219,17 @@ export function DemandTable({
   const canUpdate = useHasPermission("demands", "update")
   const canDelete = useHasPermission("demands", "delete")
   const [loading, setLoading] = useState(false)
-  const [statusFilter, setStatusFilter] = useState(searchParams.get("status") || "")
+  const [multiFilters, setMultiFilters] = useState<Record<MultiFilterKey, string[]>>(
+    () =>
+      Object.fromEntries(
+        MULTI_FILTER_KEYS.map((key) => [key, searchParams.get(key)?.split(",").filter(Boolean) ?? []])
+      ) as Record<MultiFilterKey, string[]>
+  )
+  const [minDuration, setMinDuration] = useState(Number(searchParams.get("minDuration")) || 0)
+  const [dateRange, setDateRange] = useState<DateRange | undefined>(() => {
+    const from = parseDayParam(searchParams.get("dateFrom"))
+    return from ? { from, to: parseDayParam(searchParams.get("dateTo")) } : undefined
+  })
   const [expanded, setExpanded] = useState(false)
   const [activeTab, setActiveTab] = useState("identificacao")
   const { period, setPeriod } = usePeriodFilter(initialPeriod)
@@ -731,32 +756,97 @@ export function DemandTable({
     </Dialog>
   )
 
-  const filterPanel = (
-    <DataTableFilterPanel
-      onApply={() => pushParams({ status: statusFilter || undefined, page: 1 })}
-      onClear={() => {
-        setStatusFilter("")
-        pushParams({ status: undefined, page: 1 })
-      }}
-    >
-      <div className="space-y-2">
-        <Label>Status</Label>
-        <Select
-          items={[{ value: "all", label: "Todos" }, ...Object.entries(STATUS_LABELS).map(([value, label]) => ({ value, label }))]}
-          value={statusFilter || "all"}
-          onValueChange={(v) => setStatusFilter(v === "all" || !v ? "" : v)}
-        >
-          <SelectTrigger className="w-full">
-            <SelectValue placeholder="Todos" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todos</SelectItem>
-            {Object.entries(STATUS_LABELS).map(([value, label]) => (
-              <SelectItem key={value} value={value}>{label}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+  function setMultiFilter(key: MultiFilterKey) {
+    return (value: string[]) => setMultiFilters((prev) => ({ ...prev, [key]: value }))
+  }
+
+  function applyFilters() {
+    pushParams({
+      ...Object.fromEntries(MULTI_FILTER_KEYS.map((key) => [key, multiFilters[key].join(",") || undefined])),
+      dateFrom: dateRange?.from ? format(dateRange.from, "yyyy-MM-dd") : undefined,
+      dateTo: dateRange?.to ? format(dateRange.to, "yyyy-MM-dd") : undefined,
+      minDuration: minDuration || undefined,
+      page: 1,
+    })
+  }
+
+  function clearFilters() {
+    setMultiFilters(Object.fromEntries(MULTI_FILTER_KEYS.map((key) => [key, []])) as unknown as Record<MultiFilterKey, string[]>)
+    setDateRange(undefined)
+    setMinDuration(0)
+    pushParams({
+      ...Object.fromEntries(MULTI_FILTER_KEYS.map((key) => [key, undefined])),
+      dateFrom: undefined,
+      dateTo: undefined,
+      minDuration: undefined,
+      page: 1,
+    })
+  }
+
+  // Slider tops out at the longest demand in the period (whole hours), never below 8h.
+  const maxDurationFilter = Math.max(MIN_DURATION_FLOOR_MAX, Math.ceil(filterOptions.maxDurationMinutes / 60) * 60)
+
+  const multiFilterFields: { key: MultiFilterKey; label: string; items: MultiSelectItem[] }[] = [
+    { key: "clientId", label: "Cliente", items: filterOptions.clients.map((c) => ({ value: c.id, label: c.name, color: c.color })) },
+    { key: "analystId", label: "Analista", items: filterOptions.analysts.map((a) => ({ value: a.id, label: a.name, color: a.color })) },
+    { key: "requesterId", label: "Solicitante", items: filterOptions.requesters.map((r) => ({ value: r.id, label: r.name })) },
+    { key: "departmentId", label: "Departamento", items: filterOptions.departments.map((d) => ({ value: d.id, label: d.name })) },
+    { key: "demandTypeId", label: "Tipo", items: filterOptions.demandTypes.map((t) => ({ value: t.id, label: t.name, color: t.color })) },
+    {
+      key: "priority",
+      label: "Prioridade",
+      items: filterOptions.priorities.map((p) => ({ value: p, label: PRIORITY_LABELS[p], color: PRIORITY_COLORS[p] })),
+    },
+    {
+      key: "status",
+      label: "Status",
+      items: filterOptions.statuses.map((st) => ({ value: st, label: STATUS_LABELS[st], color: STATUS_COLORS[st] })),
+    },
+    { key: "tagId", label: "Tags", items: filterOptions.tags.map((t) => ({ value: t.id, label: t.name, color: t.color })) },
+  ]
+
+  function renderMultiFilter(key: MultiFilterKey) {
+    const field = multiFilterFields.find((f) => f.key === key)!
+    return (
+      <div key={key} className="space-y-2">
+        <Label>{field.label}</Label>
+        <MultiSelect
+          items={field.items}
+          value={multiFilters[key]}
+          onValueChange={setMultiFilter(key)}
+          placeholder={field.items.length ? "Todos" : "Nenhum no período"}
+          searchPlaceholder={`Buscar ${field.label.toLowerCase()}...`}
+          disabled={field.items.length === 0 && multiFilters[key].length === 0}
+        />
       </div>
+    )
+  }
+
+  const filterPanel = (
+    <DataTableFilterPanel onApply={applyFilters} onClear={clearFilters}>
+      {renderMultiFilter("clientId")}
+      <div className="space-y-2">
+        <Label>Data</Label>
+        <DateRangePicker value={dateRange} onValueChange={setDateRange} placeholder="Selecione uma data ou período" />
+      </div>
+      <div className="space-y-2">
+        <Label>Duração mínima: {formatDurationHours(Math.min(minDuration, maxDurationFilter))}h</Label>
+        <Slider
+          min={0}
+          max={maxDurationFilter}
+          step={MIN_DURATION_STEP}
+          value={Math.min(minDuration, maxDurationFilter)}
+          onValueChange={setMinDuration}
+          className="pt-2"
+        />
+      </div>
+      {renderMultiFilter("analystId")}
+      {renderMultiFilter("requesterId")}
+      {renderMultiFilter("departmentId")}
+      {renderMultiFilter("demandTypeId")}
+      {renderMultiFilter("priority")}
+      {renderMultiFilter("status")}
+      {renderMultiFilter("tagId")}
     </DataTableFilterPanel>
   )
 
@@ -775,12 +865,12 @@ export function DemandTable({
         pageCount={meta.totalPages}
         onPageChange={(p) => pushParams({ page: p })}
         onPageSizeChange={(ps) => pushParams({ pageSize: ps, page: 1 })}
-        searchPlaceholder="Buscar por nome ou descrição..."
+        searchPlaceholder="Buscar por qualquer informação..."
         onSearch={(v) => pushParams({ search: v || undefined, page: 1 })}
         toolbarActions={
           <>
             {canCreate && newDialog}
-            <DemandExportDialog clients={periodClients} years={years} monthsByYear={monthsByYear} />
+            <DemandExportDialog clients={filterOptions.clients} years={years} monthsByYear={monthsByYear} />
             {canCreate && (
               <DemandImportDialog
                 clients={clients}

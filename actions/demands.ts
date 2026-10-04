@@ -37,13 +37,13 @@ async function getCachedDemandPeriodOptions(organizationId: string, allowedClien
   return demandService.getAvailablePeriods(organizationId, allowedClientIds, analystScope);
 }
 
-export async function listClientsForDemandPeriod(period?: Period | null) {
+export async function getDemandFilterOptions(period?: Period | null) {
   const ctx = await getRequestContext();
   const analystScope = await getDemandAnalystScope(ctx);
-  return getCachedClientsForDemandPeriod(ctx.organizationId, ctx.allowedClientIds, analystScope, period ?? null);
+  return getCachedDemandFilterOptions(ctx.organizationId, ctx.allowedClientIds, analystScope, period ?? null);
 }
 
-async function getCachedClientsForDemandPeriod(
+async function getCachedDemandFilterOptions(
   organizationId: string,
   allowedClientIds: string[],
   analystScope: string | undefined,
@@ -51,7 +51,7 @@ async function getCachedClientsForDemandPeriod(
 ) {
   "use cache";
   cacheTag("demands");
-  return demandService.listClientsInPeriod(organizationId, allowedClientIds, analystScope, periodToDateRange(period));
+  return demandService.getFilterOptions(organizationId, allowedClientIds, analystScope, periodToDateRange(period));
 }
 
 /** Demand hours feed the contract consumption shown on /contracts and the dashboard. */
