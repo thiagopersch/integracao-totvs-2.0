@@ -29,6 +29,9 @@ async function DashboardData({ searchParams }: { searchParams: Promise<Record<st
       filterStatusData,
       sentencesByCategory,
       demandsByStatus,
+      demandsByPriority,
+      demandsByType,
+      demandsByTag,
       demandsByAnalyst,
       demandsByClient,
       clientHoursRanking,
@@ -48,6 +51,9 @@ async function DashboardData({ searchParams }: { searchParams: Promise<Record<st
       filterStatusData={filterStatusData}
       sentencesByCategory={sentencesByCategory}
       demandsByStatus={demandsByStatus}
+      demandsByPriority={demandsByPriority}
+      demandsByType={demandsByType}
+      demandsByTag={demandsByTag}
       demandsByAnalyst={demandsByAnalyst}
       demandsByClient={demandsByClient}
       clientHoursRanking={clientHoursRanking}

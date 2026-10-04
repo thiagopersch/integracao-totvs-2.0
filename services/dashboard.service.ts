@@ -10,6 +10,29 @@ const DEMAND_STATUS_LABELS: Record<string, string> = {
   CANCELLED: "Cancelada",
 };
 
+const DEMAND_STATUS_COLORS: Record<string, string> = {
+  PENDING: "#f97316",
+  IN_PROGRESS: "#3b82f6",
+  COMPLETED: "#22c55e",
+  CANCELLED: "#ef4444",
+};
+
+const DEMAND_PRIORITY_LABELS: Record<string, string> = {
+  LOW: "Baixa",
+  MEDIUM: "Média",
+  HIGH: "Alta",
+  URGENT: "Urgente",
+};
+
+const DEMAND_PRIORITY_COLORS: Record<string, string> = {
+  LOW: "#22c55e",
+  MEDIUM: "#3b82f6",
+  HIGH: "#f97316",
+  URGENT: "#ef4444",
+};
+
+const NO_DEMAND_TYPE_COLOR = "#6b7280";
+
 /**
  * Clients whose contracts the user is linked to: their allowed clients (UserClient) plus, when the
  * user has an Analyst record, every client that analyst logged demands for during the month.
@@ -50,6 +73,7 @@ export const dashboardService = {
     const demandDateFilter = period ? { date: period } : {};
     const clientScope = { id: { in: allowedClientIds } };
     const clientIdScope = { clientId: { in: allowedClientIds } };
+    const demandWhere = { deletedAt: null, organizationId, ...clientIdScope, ...demandDateFilter };
 
     const [
       totalClients,
@@ -72,6 +96,9 @@ export const dashboardService = {
       contractsByClient,
       demandMinutesByClient,
       monthlyUsage,
+      demandsByTypeRaw,
+      demandsByPriorityRaw,
+      demandsByTagRaw,
     ] = await Promise.all([
       prisma.client.count({ where: { deletedAt: null, status: true, organizationId, ...clientScope } }),
       prisma.tbc.count({ where: { deletedAt: null, status: true, organizationId, ...clientIdScope } }),
@@ -105,19 +132,19 @@ export const dashboardService = {
       }),
       prisma.demand.groupBy({
         by: ["status"],
-        where: { deletedAt: null, organizationId, ...clientIdScope, ...demandDateFilter },
+        where: demandWhere,
         _count: { id: true },
       }),
       prisma.demand.groupBy({
         by: ["analystId"],
-        where: { deletedAt: null, organizationId, ...clientIdScope, ...demandDateFilter },
+        where: demandWhere,
         _count: { id: true },
         orderBy: { _count: { id: "desc" } },
         take: 8,
       }),
       prisma.demand.groupBy({
         by: ["clientId"],
-        where: { deletedAt: null, organizationId, ...clientIdScope, ...demandDateFilter },
+        where: demandWhere,
         _count: { id: true },
         orderBy: { _count: { id: "desc" } },
         take: 8,
@@ -131,12 +158,28 @@ export const dashboardService = {
       }),
       prisma.demand.groupBy({
         by: ["clientId"],
-        where: { deletedAt: null, organizationId, ...clientIdScope, ...demandDateFilter },
+        where: demandWhere,
         _sum: { durationMinutes: true },
       }),
       linkedContractClientIds(organizationId, allowedClientIds, attentionMonth, analystId).then((clientIds) =>
         contractUsageService.getMonthlyUsage(organizationId, attentionMonth, clientIds)
       ),
+      prisma.demand.groupBy({
+        by: ["demandTypeId"],
+        where: demandWhere,
+        _count: { id: true },
+        orderBy: { _count: { id: "desc" } },
+        take: 8,
+      }),
+      prisma.demand.groupBy({ by: ["priority"], where: demandWhere, _count: { id: true } }),
+      // A demand with several tags counts once under each of them.
+      prisma.demandTag.groupBy({
+        by: ["tagId"],
+        where: { demand: demandWhere },
+        _count: { demandId: true },
+        orderBy: { _count: { demandId: "desc" } },
+        take: 8,
+      }),
     ]);
 
     // Every contract in force for the clients linked to the user, highest consumption first.
@@ -184,9 +227,47 @@ export const dashboardService = {
       .sort((a, b) => b.value - a.value)
       .slice(0, 8);
 
-    const demandsByStatus = demandsByStatusRaw.map((d) => ({
-      name: DEMAND_STATUS_LABELS[d.status] || d.status,
-      value: d._count.id,
+    const statusCount = new Map(demandsByStatusRaw.map((d) => [d.status as string, d._count.id]));
+    const demandsByStatus = Object.keys(DEMAND_STATUS_LABELS)
+      .filter((status) => statusCount.has(status))
+      .map((status) => ({
+        name: DEMAND_STATUS_LABELS[status],
+        value: statusCount.get(status)!,
+        color: DEMAND_STATUS_COLORS[status],
+      }));
+
+    const priorityCount = new Map(demandsByPriorityRaw.map((d) => [d.priority as string, d._count.id]));
+    const demandsByPriority = Object.keys(DEMAND_PRIORITY_LABELS)
+      .filter((priority) => priorityCount.has(priority))
+      .map((priority) => ({
+        name: DEMAND_PRIORITY_LABELS[priority],
+        value: priorityCount.get(priority)!,
+        color: DEMAND_PRIORITY_COLORS[priority],
+      }));
+
+    const demandTypeIds = demandsByTypeRaw.flatMap((d) => (d.demandTypeId ? [d.demandTypeId] : []));
+    const demandTypes = demandTypeIds.length
+      ? await prisma.demandType.findMany({ where: { id: { in: demandTypeIds } }, select: { id: true, name: true, color: true } })
+      : [];
+    const demandTypeById = new Map(demandTypes.map((t) => [t.id, t]));
+    const demandsByType = demandsByTypeRaw.map((d) => {
+      const type = d.demandTypeId ? demandTypeById.get(d.demandTypeId) : undefined;
+      return {
+        name: type?.name ?? (d.demandTypeId ? "Desconhecido" : "Sem tipo"),
+        value: d._count.id,
+        color: type?.color ?? NO_DEMAND_TYPE_COLOR,
+      };
+    });
+
+    const tagIds = demandsByTagRaw.map((d) => d.tagId);
+    const tags = tagIds.length
+      ? await prisma.tag.findMany({ where: { id: { in: tagIds } }, select: { id: true, name: true, color: true } })
+      : [];
+    const tagById = new Map(tags.map((t) => [t.id, t]));
+    const demandsByTag = demandsByTagRaw.map((d) => ({
+      name: tagById.get(d.tagId)?.name || "Desconhecido",
+      value: d._count.demandId,
+      color: tagById.get(d.tagId)?.color || NO_DEMAND_TYPE_COLOR,
     }));
 
     const analystIds = demandsByAnalystRaw.map((d) => d.analystId);
@@ -253,6 +334,9 @@ export const dashboardService = {
       filterStatusData,
       sentencesByCategory,
       demandsByStatus,
+      demandsByPriority,
+      demandsByType,
+      demandsByTag,
       demandsByAnalyst,
       demandsByClient,
       clientHoursRanking,

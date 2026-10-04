@@ -176,6 +176,38 @@ export const demandService = {
     });
   },
 
+  /** Copies a demand (fields + tags, not attachments/comments) as a new PENDING demand. */
+  async duplicate(id: string, organizationId: string, allowedClientIds: string[], analystScope?: string) {
+    const existing = await this.getById(id, organizationId, allowedClientIds);
+    if (!existing || (analystScope && existing.analystId !== analystScope)) {
+      throw new Error("Demanda não encontrada ou fora do seu escopo de acesso");
+    }
+
+    return prisma.demand.create({
+      data: {
+        organizationId,
+        name: `${existing.name} (cópia)`.slice(0, 155),
+        description: existing.description,
+        date: existing.date,
+        startTime: existing.startTime,
+        endTime: existing.endTime,
+        durationMinutes: existing.durationMinutes,
+        priority: existing.priority,
+        status: "PENDING",
+        notes: existing.notes,
+        analystId: existing.analystId,
+        clientId: existing.clientId,
+        requesterId: existing.requesterId,
+        departmentId: existing.departmentId,
+        demandTypeId: existing.demandTypeId,
+        demandTags: existing.demandTags.length
+          ? { create: existing.demandTags.map(({ tag }) => ({ tagId: tag.id })) }
+          : undefined,
+      },
+      include: demandIncludeRelations,
+    });
+  },
+
   async softDelete(id: string, organizationId: string, allowedClientIds: string[]) {
     return demandRepository.softDelete(id, organizationId, { clientId: { in: allowedClientIds } });
   },

@@ -40,8 +40,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { MultiSelect } from "@/components/ui/multi-select"
 import { DatePicker } from "@/components/ui/date-picker"
 import { TimePicker } from "@/components/ui/time-picker"
-import { Plus, Loader2, Maximize2, Minimize2 } from "lucide-react"
-import { deleteDemand, createDemand, updateDemand, bulkDeleteDemands } from "@/actions/demands"
+import { DropdownMenuItem } from "@/components/ui/dropdown-menu"
+import { Plus, Loader2, Maximize2, Minimize2, Copy } from "lucide-react"
+import { deleteDemand, createDemand, updateDemand, duplicateDemand, bulkDeleteDemands } from "@/actions/demands"
 import { createDemandSchema, updateDemandSchema, timeToMinutes, type CreateDemandInput } from "@/schemas/demand.schema"
 import { formatDateOnly, toDateInputValue } from "@/utils/format"
 import { TruncatedText } from "@/components/shared/truncated-text"
@@ -70,6 +71,7 @@ type DemandRow = {
   durationMinutes: number
   priority: string
   status: string
+  notes: string | null
   analyst: { id: string; name: string; color: string } | null
   client: { id: string; name: string; color: string } | null
   requester: { id: string; name: string } | null
@@ -219,7 +221,7 @@ export function DemandTable({
           endTime: toTimeInputValue(editDialog.entity.endTime),
           priority: editDialog.entity.priority,
           status: editDialog.entity.status,
-          notes: "",
+          notes: editDialog.entity.notes ?? "",
           analystId: editDialog.entity.analyst?.id || "",
           clientId: editDialog.entity.client?.id || "",
           requesterId: editDialog.entity.requester?.id || "",
@@ -299,6 +301,21 @@ export function DemandTable({
   }
 
   const columns: ColumnDef<DemandRow>[] = useMemo(() => {
+    async function handleDuplicate(id: string) {
+      const toastId = toast.loading("Duplicando demanda…")
+      const result = await duplicateDemand(id).catch(() => ({ success: false as const, error: undefined, data: undefined }))
+      if (!result.success || !result.data) {
+        toast.error(result.error || "Erro ao duplicar", { id: toastId })
+        return
+      }
+      toast.success("Demanda duplicada — ajuste a cópia", { id: toastId })
+      router.refresh()
+      if (canUpdate) {
+        setActiveTab("identificacao")
+        setEditDialog({ open: true, entity: result.data })
+      }
+    }
+
     const columns: ColumnDef<DemandRow>[] = [
     createSelectColumn<DemandRow>(),
     {
@@ -402,12 +419,19 @@ export function DemandTable({
       <EntityActionsCell
         onEdit={canUpdate ? () => { setActiveTab("identificacao"); setEditDialog({ open: true, entity: row.original }) } : undefined}
         onDelete={canDelete ? () => setDeleteDialog({ open: true, id: row.original.id }) : undefined}
+        extraItems={
+          canCreate ? (
+            <DropdownMenuItem onClick={() => handleDuplicate(row.original.id)}>
+              <Copy className="h-4 w-4 mr-2" /> Duplicar
+            </DropdownMenuItem>
+          ) : undefined
+        }
       />
     ),
   }
-    if (canUpdate || canDelete) columns.push(actionsColumn)
+    if (canCreate || canUpdate || canDelete) columns.push(actionsColumn)
     return columns
-  }, [canUpdate, canDelete, setEditDialog, setDeleteDialog])
+  }, [canCreate, canUpdate, canDelete, router, setEditDialog, setDeleteDialog])
 
   const newDialog = (
     <Dialog open={editDialog.open} onOpenChange={(open) => { setEditDialog({ open, entity: open ? editDialog.entity : undefined }); if (!open) { form.reset(); setExpanded(false); setActiveTab("identificacao") } }}>

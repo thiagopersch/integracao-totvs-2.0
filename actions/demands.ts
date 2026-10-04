@@ -122,6 +122,22 @@ export async function updateDemand(id: string, formData: FormData) {
   }
 }
 
+export async function duplicateDemand(id: string) {
+  const ctx = await requirePermission("demands", "create");
+  const scope = await getDemandAnalystScope(ctx);
+
+  try {
+    const entity = await demandService.duplicate(id, ctx.organizationId, ctx.allowedClientIds, scope);
+    await auditService.log({ action: "CREATE", entity: "Demand", entityId: entity.id, newData: { name: entity.name, duplicatedFrom: id } });
+    // The copy adds hours to the contract just like a new demand.
+    contractUsageService.scheduleCheck(ctx.organizationId, [{ clientId: entity.clientId, date: entity.date, trigger: "demand", demandId: entity.id }]);
+    invalidateDemandTags();
+    return { success: true, data: entity };
+  } catch (error) {
+    return { success: false, error: (error as Error).message };
+  }
+}
+
 export async function deleteDemand(id: string) {
   const { organizationId, allowedClientIds } = await requirePermission("demands", "delete");
   try {

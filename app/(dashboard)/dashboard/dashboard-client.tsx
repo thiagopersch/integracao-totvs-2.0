@@ -127,7 +127,10 @@ interface DashboardClientProps {
   tbcStatusData: NamedValue[]
   filterStatusData: NamedValue[]
   sentencesByCategory: NamedValue[]
-  demandsByStatus: NamedValue[]
+  demandsByStatus: Array<NamedValue & { color: string }>
+  demandsByPriority: Array<NamedValue & { color: string }>
+  demandsByType: Array<NamedValue & { color: string }>
+  demandsByTag: Array<NamedValue & { color: string }>
   demandsByAnalyst: NamedValue[]
   demandsByClient: Array<NamedValue & { color: string }>
   clientHoursRanking: Array<{ name: string; contratadas: number; gastas: number; color: string }>
@@ -161,6 +164,9 @@ export function DashboardClient({
   filterStatusData,
   sentencesByCategory,
   demandsByStatus,
+  demandsByPriority,
+  demandsByType,
+  demandsByTag,
   demandsByAnalyst,
   demandsByClient,
   clientHoursRanking,
@@ -178,6 +184,9 @@ export function DashboardClient({
   const [filterStatusKind, setFilterStatusKind] = useState<ChartKind>("bar-h")
   const [sentencesKind, setSentencesKind] = useState<ChartKind>("bar-h")
   const [demandsStatusKind, setDemandsStatusKind] = useState<ChartKind>("bar-h")
+  const [demandsPriorityKind, setDemandsPriorityKind] = useState<ChartKind>("bar-h")
+  const [demandsTypeKind, setDemandsTypeKind] = useState<ChartKind>("bar-h")
+  const [demandsTagKind, setDemandsTagKind] = useState<ChartKind>("bar-h")
   const [demandsAnalystKind, setDemandsAnalystKind] = useState<ChartKind>("bar-h")
   const [demandsClientKind, setDemandsClientKind] = useState<ChartKind>("bar-h")
   const [rankingKind, setRankingKind] = useState<ChartKind>("bar-h")
@@ -435,18 +444,22 @@ export function DashboardClient({
         </TabsContent>
 
         <TabsContent value="demands" className="pt-4 space-y-4">
+          <ChartCard
+            title="Ranking de Clientes — Horas Gastas x Horas Contratadas"
+            data={clientHoursRanking}
+            nameKey="name"
+            series={RANKING_SERIES}
+            kind={rankingKind}
+            onKindChange={setRankingKind}
+            colorKey="color"
+            measure={rankingMeasure}
+            onMeasureChange={setRankingMeasure}
+            emptyMessage="Nenhum contrato ou demanda registrada"
+            height={300}
+            valueFormatter={(v) => `${formatNumber(v)}h`}
+          />
+
           <div className="grid gap-4 md:grid-cols-2">
-            <ChartCard
-              title="Sentenças Padrões por Categoria"
-              data={sentencesByCategory}
-              nameKey="name"
-              series={VALUE_SERIES}
-              kind={sentencesKind}
-              onKindChange={setSentencesKind}
-              colorByIndex
-              emptyMessage="Nenhuma sentença cadastrada"
-              valueFormatter={formatNumber}
-            />
             <ChartCard
               title="Demandas por Status"
               data={demandsByStatus}
@@ -454,13 +467,43 @@ export function DashboardClient({
               series={VALUE_SERIES}
               kind={demandsStatusKind}
               onKindChange={setDemandsStatusKind}
-              colorByIndex
+              colorKey="color"
               emptyMessage="Nenhuma demanda cadastrada"
               valueFormatter={formatNumber}
             />
-          </div>
-
-          <div className="grid gap-4 md:grid-cols-2">
+            <ChartCard
+              title="Demandas por Prioridade"
+              data={demandsByPriority}
+              nameKey="name"
+              series={VALUE_SERIES}
+              kind={demandsPriorityKind}
+              onKindChange={setDemandsPriorityKind}
+              colorKey="color"
+              emptyMessage="Nenhuma demanda registrada"
+              valueFormatter={formatNumber}
+            />
+            <ChartCard
+              title="Demandas por Tipo"
+              data={demandsByType}
+              nameKey="name"
+              series={VALUE_SERIES}
+              kind={demandsTypeKind}
+              onKindChange={setDemandsTypeKind}
+              colorKey="color"
+              emptyMessage="Nenhuma demanda registrada"
+              valueFormatter={formatNumber}
+            />
+            <ChartCard
+              title="Demandas por Tag"
+              data={demandsByTag}
+              nameKey="name"
+              series={VALUE_SERIES}
+              kind={demandsTagKind}
+              onKindChange={setDemandsTagKind}
+              colorKey="color"
+              emptyMessage="Nenhuma demanda com tags"
+              valueFormatter={formatNumber}
+            />
             <ChartCard
               title="Demandas por Analista"
               data={demandsByAnalyst}
@@ -482,22 +525,18 @@ export function DashboardClient({
               emptyMessage="Nenhuma demanda registrada"
               valueFormatter={formatNumber}
             />
+            <ChartCard
+              title="Sentenças Padrões por Categoria"
+              data={sentencesByCategory}
+              nameKey="name"
+              series={VALUE_SERIES}
+              kind={sentencesKind}
+              onKindChange={setSentencesKind}
+              colorByIndex
+              emptyMessage="Nenhuma sentença cadastrada"
+              valueFormatter={formatNumber}
+            />
           </div>
-
-          <ChartCard
-            title="Ranking de Clientes — Horas Gastas x Horas Contratadas"
-            data={clientHoursRanking}
-            nameKey="name"
-            series={RANKING_SERIES}
-            kind={rankingKind}
-            onKindChange={setRankingKind}
-            colorKey="color"
-            measure={rankingMeasure}
-            onMeasureChange={setRankingMeasure}
-            emptyMessage="Nenhum contrato ou demanda registrada"
-            height={300}
-            valueFormatter={(v) => `${formatNumber(v)}h`}
-          />
         </TabsContent>
       </Tabs>
     </div>
