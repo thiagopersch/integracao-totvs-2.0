@@ -22,7 +22,6 @@ import { TemaEditorDialog } from "@/components/mapeador/prototipo/tema-editor-di
 import { DetalhesCamposEditor } from "@/components/mapeador/prototipo/detalhes-campos-editor"
 import { buildScreens } from "@/components/mapeador/prototipo/screens"
 import { prototipoCss } from "@/components/mapeador/prototipo/styles"
-import { exportPrototipoPdf } from "@/components/mapeador/prototipo/export-pdf"
 import {
   updateCampoDeep,
   DEFAULT_DETALHES_CAMPOS,
@@ -200,6 +199,8 @@ export function PrototipoTab() {
   async function handleExportPdf() {
     setExporting("pdf")
     try {
+      // jspdf is only downloaded when the user actually exports.
+      const { exportPrototipoPdf } = await import("@/components/mapeador/prototipo/export-pdf")
       exportPrototipoPdf(projetos, exportVisualizacao === "mobile" ? "portrait" : "landscape")
     } finally {
       setExporting(null)
@@ -427,7 +428,7 @@ export function PrototipoTab() {
           <div
             className={cn(
               "mapeador-proto flex max-h-[75vh] flex-col overflow-hidden rounded-lg border shadow-sm transition-all",
-              config.visualizacao === "mobile" ? "w-[390px]" : "w-full"
+              config.visualizacao === "mobile" ? "w-[390px] max-w-full" : "w-full"
             )}
             data-visualizacao={config.visualizacao ?? "desktop"}
             style={

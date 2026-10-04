@@ -1,14 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
+import { authorizeRoute } from "@/lib/api-auth";
 import { soapService, type WsName } from "@/services/soap.service";
 import { tbcService } from "@/services/tbc.service";
 import { soapEndpointService } from "@/services/soap-endpoint.service";
 import { logger } from "@/lib/logger";
-import { getRequestContext } from "@/lib/tenant";
 import type { SoapContext } from "@/types/soap";
 
 export async function POST(request: NextRequest) {
+  const { ctx, denied } = await authorizeRoute("soap", "execute");
+  if (denied) return denied;
   try {
-    const { organizationId, allowedClientIds } = await getRequestContext();
+    const { organizationId, allowedClientIds } = ctx;
     const body = await request.json();
     const { tbcId, endpointTypeId, context } = body as { tbcId?: string; endpointTypeId?: string; context?: SoapContext };
 

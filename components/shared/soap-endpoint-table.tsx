@@ -61,7 +61,6 @@ const SORTABLE_COLUMNS = ["type", "label", "suffix", "active"]
 
 export function SoapEndpointTable({ data, meta, filterOptions }: SoapEndpointTableProps) {
   const {
-    router,
     searchParams,
     deleteDialog,
     setDeleteDialog,
@@ -71,6 +70,8 @@ export function SoapEndpointTable({ data, meta, filterOptions }: SoapEndpointTab
     handleDelete,
     sort,
     onSortChange,
+    refresh,
+    isPending,
   } = useCrudTable<SoapEndpointTypeWithMethods>({
     deleteAction: deleteSoapEndpointType,
     deleteSuccessMessage: "Tipo de endpoint excluído com sucesso",
@@ -132,7 +133,7 @@ export function SoapEndpointTable({ data, meta, filterOptions }: SoapEndpointTab
       toast.success(editDialog.entity ? "Tipo de endpoint atualizado" : "Tipo de endpoint criado")
       typeForm.reset()
       setEditDialog({ open: false })
-      router.refresh()
+      refresh()
     } else {
       toast.error(result.error || "Erro ao salvar")
     }
@@ -153,7 +154,7 @@ export function SoapEndpointTable({ data, meta, filterOptions }: SoapEndpointTab
     if (result.success) {
       toast.success(methodDialog.method ? "Método atualizado" : "Método criado")
       setMethodDialog({ open: false })
-      router.refresh()
+      refresh()
     } else {
       toast.error(result.error || "Erro ao salvar")
     }
@@ -164,7 +165,7 @@ export function SoapEndpointTable({ data, meta, filterOptions }: SoapEndpointTab
     const result = await deleteSoapEndpointMethod(id)
     if (result.success) {
       toast.success("Método excluído com sucesso")
-      router.refresh()
+      refresh()
     } else {
       toast.error(result.error || "Erro ao excluir")
     }
@@ -388,6 +389,7 @@ export function SoapEndpointTable({ data, meta, filterOptions }: SoapEndpointTab
       <PageHeader title="Endpoints SOAP" description="Gerenciar tipos de endpoint e métodos SOAP" />
 
       <DataTable
+        refreshing={isPending}
         columns={columns}
         data={data}
         page={meta.page}

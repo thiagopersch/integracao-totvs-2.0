@@ -1,7 +1,8 @@
 "use client"
 
 import { useState } from "react"
-import { useRouter } from "next/navigation"
+import { useUrlParams } from "@/hooks/use-url-params"
+import { PendingRegion } from "@/components/shared/pending-region"
 import { PageHeader } from "@/components/shared/page-header"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -23,7 +24,7 @@ export type TemplateItem = {
 }
 
 export function SoapTemplatesClient({ templates }: { templates: TemplateItem[] }) {
-  const router = useRouter()
+  const { isPending, refresh } = useUrlParams()
   const [removingId, setRemovingId] = useState<string | null>(null)
 
   async function handleDelete(id: string) {
@@ -31,7 +32,7 @@ export function SoapTemplatesClient({ templates }: { templates: TemplateItem[] }
     const result = await deleteSoapTemplate(id)
     if (result.success) {
       toast.success("Template removido")
-      router.refresh()
+      refresh()
     } else {
       toast.error(result.error || "Erro ao remover template")
     }
@@ -39,7 +40,7 @@ export function SoapTemplatesClient({ templates }: { templates: TemplateItem[] }
   }
 
   return (
-    <div className="p-6">
+    <div className="p-4 md:p-6">
       <PageHeader title="Templates SOAP" description="Templates de requisições SOAP salvos" />
       {templates.length === 0 ? (
         <EmptyState
@@ -48,6 +49,7 @@ export function SoapTemplatesClient({ templates }: { templates: TemplateItem[] }
           description="Salve requisições como templates para reutilizar depois"
         />
       ) : (
+        <PendingRegion pending={isPending}>
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {templates.map((template) => (
             <Card key={template.id}>
@@ -77,6 +79,7 @@ export function SoapTemplatesClient({ templates }: { templates: TemplateItem[] }
             </Card>
           ))}
         </div>
+        </PendingRegion>
       )}
     </div>
   )

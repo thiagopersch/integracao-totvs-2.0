@@ -49,7 +49,6 @@ function randomColor() {
 export function DemandTypeTable({ data, meta }: DemandTypeTableProps) {
   const { resolvedTheme } = useTheme()
   const {
-    router,
     deleteDialog,
     setDeleteDialog,
     editDialog,
@@ -58,6 +57,8 @@ export function DemandTypeTable({ data, meta }: DemandTypeTableProps) {
     handleDelete,
     sort,
     onSortChange,
+    refresh,
+    isPending,
   } = useCrudTable<DemandType>({
     deleteAction: deleteDemandType,
     deleteSuccessMessage: "Tipo excluído com sucesso",
@@ -92,7 +93,7 @@ export function DemandTypeTable({ data, meta }: DemandTypeTableProps) {
       toast.success(editDialog.entity ? "Tipo atualizado" : "Tipo criado")
       form.reset()
       setEditDialog({ open: false })
-      router.refresh()
+      refresh()
     } else {
       toast.error(result.error || "Erro ao salvar")
     }
@@ -191,6 +192,7 @@ export function DemandTypeTable({ data, meta }: DemandTypeTableProps) {
       <PageHeader title="Tipos de Demanda" description="Gerenciar tipos de demanda" />
 
       <DataTable
+        refreshing={isPending}
         columns={columns}
         data={data}
         page={meta.page}
@@ -209,7 +211,7 @@ export function DemandTypeTable({ data, meta }: DemandTypeTableProps) {
           getId: (row) => row.id,
           getRowLabel: (row) => row.name,
           action: bulkDeleteDemandTypes,
-          onSuccess: () => router.refresh(),
+          onSuccess: () => refresh(),
         }}
       />
 

@@ -1,6 +1,7 @@
 import { Suspense } from "react"
 import { notFound } from "next/navigation"
-import { getRole, listAllPermissions } from "@/actions/admin/roles"
+import { getRole } from "@/actions/admin/roles"
+import { listAllPermissions } from "@/queries/admin/roles"
 import { RoleForm } from "@/components/roles/role-form"
 import { TableSkeleton } from "@/components/shared/table-skeleton"
 import { getRequestContext } from "@/lib/tenant"

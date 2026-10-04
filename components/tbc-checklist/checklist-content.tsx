@@ -3,7 +3,7 @@
 import { createContext, useContext, useState, type ReactNode } from "react"
 import { AlertTriangle, ClipboardList, Loader2, Plus, RefreshCw, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { ScrollableTabsList, Tabs, TabsContent, TabsTrigger } from "@/components/ui/tabs"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import { ChecklistFieldCard } from "@/components/tbc-checklist/checklist-field-card"
 import { FieldVisibilityMatrix } from "@/components/tbc-checklist/field-visibility-matrix"
@@ -96,13 +96,13 @@ function TablesView({ dataserver, onLoadTables }: { dataserver: AddedDataserver;
 
   return (
     <Tabs value={activeTable} onValueChange={(value) => handleTabChange(String(value))}>
-      <TabsList className="h-auto flex-wrap">
+      <ScrollableTabsList>
         {dataserver.tables.map((table) => (
           <TabsTrigger key={table.name} value={table.name}>
             {table.name}
           </TabsTrigger>
         ))}
-      </TabsList>
+      </ScrollableTabsList>
       {dataserver.tables.map((table) => (
         <TabsContent key={table.name} value={table.name}>
           {table.name === dataserver.mainTable ? (
@@ -226,13 +226,13 @@ function ParentLayoutTabs({
           Registro completo indisponível ({parent.error}) — exibindo só os campos da visão.
         </p>
       )}
-      <TabsList className="h-auto flex-wrap">
+      <ScrollableTabsList>
         {tabs.map((tab) => (
           <TabsTrigger key={tab.name} value={tab.name}>
             {tab.name}
           </TabsTrigger>
         ))}
-      </TabsList>
+      </ScrollableTabsList>
       {tabs.map((tab) => (
         <TabsContent key={tab.name} value={tab.name} className="flex flex-col gap-4 pt-1">
           {tab.sections.map((section, index) => (
@@ -396,7 +396,7 @@ export function ChecklistContent({
 }: ChecklistContentProps) {
   if (!selectedProcesso) {
     return (
-      <div className="flex flex-1 flex-col items-center justify-center gap-2 rounded-md border text-center text-muted-foreground">
+      <div className="flex min-h-48 flex-1 flex-col items-center justify-center gap-2 rounded-md border p-4 text-center text-muted-foreground">
         <ClipboardList className="h-10 w-10" />
         <p className="max-w-xs text-sm">
           Selecione um processo seletivo ao lado para ver o checklist de campos configurados no TOTVS.
@@ -407,7 +407,7 @@ export function ChecklistContent({
 
   return (
     <TbcUserContext.Provider value={tbcUser}>
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-y-auto rounded-md border p-4">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-y-auto rounded-md border p-3 sm:p-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-base font-semibold">Processo: {selectedProcesso.label}</h2>
           <Button type="button" size="sm" onClick={onOpenAddDialog}>
@@ -440,13 +440,13 @@ export function ChecklistContent({
 
         {addedDataservers.length > 1 && (
           <Tabs defaultValue={addedDataservers[0].code}>
-            <TabsList>
+            <ScrollableTabsList>
               {addedDataservers.map((ds) => (
                 <TabsTrigger key={ds.code} value={ds.code}>
                   {ds.name}
                 </TabsTrigger>
               ))}
-            </TabsList>
+            </ScrollableTabsList>
             {addedDataservers.map((ds) => (
               <TabsContent key={ds.code} value={ds.code}>
                 <div className="flex flex-col gap-2">

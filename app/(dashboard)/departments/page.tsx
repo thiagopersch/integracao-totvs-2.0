@@ -1,12 +1,12 @@
 import { Suspense } from "react"
-import { listDepartments } from "@/actions/departments"
+import { listDepartments } from "@/queries/departments"
 import { DepartmentTable } from "@/components/shared/department-table"
 import { TableSkeleton } from "@/components/shared/table-skeleton"
 import { getCurrentOrganizationId } from "@/lib/tenant"
 
 export default function DepartmentsPage({ searchParams }: { searchParams: Promise<Record<string, string>> }) {
   return (
-    <div className="p-6">
+    <div className="p-4 md:p-6">
       <Suspense fallback={<TableSkeleton />}>
         <DepartmentsContent searchParams={searchParams} />
       </Suspense>

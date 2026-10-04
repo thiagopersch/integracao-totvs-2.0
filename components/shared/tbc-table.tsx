@@ -51,7 +51,7 @@ interface TbcTableProps {
 const SORTABLE_COLUMNS = ["name", "link", "notRequiredLicense", "status"]
 
 export function TbcTable({ data, meta, clients, filterClients }: TbcTableProps) {
-  const { router, searchParams, deleteDialog, setDeleteDialog, editDialog, setEditDialog, pushParams, handleDelete, handleToggleStatus, sort, onSortChange } =
+  const { router, searchParams, deleteDialog, setDeleteDialog, editDialog, setEditDialog, pushParams, handleDelete, handleToggleStatus, sort, onSortChange, refresh, isPending } =
     useCrudTable<TbcRow>({
       deleteAction: deleteTbc,
       restoreAction: restoreTbc,
@@ -102,6 +102,13 @@ export function TbcTable({ data, meta, clients, filterClients }: TbcTableProps) 
       form.setError("password", { message: "Senha é obrigatória" })
       return
     }
+    // The stored password is sent as Basic auth to whatever host the link points to — pointing an
+    // existing TBC at a new host must not silently hand it the saved credentials.
+    if (editDialog.entity && data.link !== editDialog.entity.link && !data.password) {
+      setChangePassword(true)
+      form.setError("password", { message: "Ao alterar o link do TBC, informe a senha novamente" })
+      return
+    }
     setLoading(true)
     const formData = new FormData()
     Object.entries(data).forEach(([key, value]) => {
@@ -114,7 +121,7 @@ export function TbcTable({ data, meta, clients, filterClients }: TbcTableProps) 
       toast.success(editDialog.entity ? "TBC atualizado" : "TBC criado")
       form.reset()
       setEditDialog({ open: false })
-      router.refresh()
+      refresh()
     } else {
       toast.error(result.error || "Erro ao salvar")
     }
@@ -468,6 +475,7 @@ export function TbcTable({ data, meta, clients, filterClients }: TbcTableProps) 
       <PageHeader title="TBCs" description="Gerenciar TBCs" />
 
       <DataTable
+        refreshing={isPending}
         columns={columns}
         data={data}
         page={meta.page}
@@ -487,7 +495,7 @@ export function TbcTable({ data, meta, clients, filterClients }: TbcTableProps) 
           getId: (row) => row.id,
           getRowLabel: (row) => row.name,
           action: bulkDeleteTbcs,
-          onSuccess: () => router.refresh(),
+          onSuccess: () => refresh(),
         }}
       />
 

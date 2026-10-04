@@ -201,7 +201,8 @@ export function ProcessoSeletivoSidebar({
     <div
       className={cn(
         "flex shrink-0 flex-col overflow-hidden rounded-md border transition-[width] duration-200 ease-out",
-        collapsed ? "w-12" : "w-[380px]"
+        // Full width (capped height) when stacked on small screens; fixed side column from lg up.
+        collapsed ? "w-full lg:w-12" : "max-h-[60vh] w-full lg:max-h-none lg:w-[380px]"
       )}
     >
       {collapsed ? (

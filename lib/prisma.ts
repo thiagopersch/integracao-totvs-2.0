@@ -3,7 +3,11 @@ import { PrismaClient } from "@/generated/prisma/client";
 
 const globalForPrisma = globalThis as unknown as { prisma: PrismaClient | undefined };
 
-const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
+// node-postgres defaults to 10 connections; a single dashboard render fires ~20 queries in parallel.
+const adapter = new PrismaPg({
+  connectionString: process.env.DATABASE_URL,
+  max: Number(process.env.DATABASE_POOL_MAX) || 20,
+});
 
 export const prisma = globalForPrisma.prisma ?? new PrismaClient({ adapter });
 

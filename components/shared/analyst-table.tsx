@@ -57,7 +57,6 @@ const SORTABLE_COLUMNS = ["name", "role", "team", "level", "status"]
 export function AnalystTable({ data, meta }: AnalystTableProps) {
   const { resolvedTheme } = useTheme()
   const {
-    router,
     searchParams,
     deleteDialog,
     setDeleteDialog,
@@ -68,6 +67,8 @@ export function AnalystTable({ data, meta }: AnalystTableProps) {
     handleToggleStatus,
     sort,
     onSortChange,
+    refresh,
+    isPending,
   } = useCrudTable<AnalystRow>({
     deleteAction: deleteAnalyst,
     setStatusAction: setAnalystStatus,
@@ -114,7 +115,7 @@ export function AnalystTable({ data, meta }: AnalystTableProps) {
       toast.success(editDialog.entity ? "Analista atualizado" : "Analista criado")
       form.reset()
       setEditDialog({ open: false })
-      router.refresh()
+      refresh()
     } else {
       toast.error(result.error || "Erro ao salvar")
     }
@@ -205,7 +206,7 @@ export function AnalystTable({ data, meta }: AnalystTableProps) {
             <Input id="name" {...form.register("name")} placeholder="Nome do analista" aria-invalid={!!form.formState.errors.name} />
             <FieldError errors={[form.formState.errors.name]} />
           </Field>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field>
               <FieldLabel htmlFor="email">E-mail</FieldLabel>
               <Input id="email" type="email" {...form.register("email")} placeholder="email@exemplo.com" aria-invalid={!!form.formState.errors.email} />
@@ -229,7 +230,7 @@ export function AnalystTable({ data, meta }: AnalystTableProps) {
               <FieldError errors={[form.formState.errors.phone]} />
             </Field>
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field>
               <FieldLabel htmlFor="role">Cargo</FieldLabel>
               <Input id="role" {...form.register("role")} placeholder="Ex: Analista" />
@@ -239,7 +240,7 @@ export function AnalystTable({ data, meta }: AnalystTableProps) {
               <Input id="team" {...form.register("team")} placeholder="Ex: Suporte" />
             </Field>
           </div>
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             <Field>
               <FieldLabel htmlFor="hourlyRate">Valor/hora</FieldLabel>
               <Controller
@@ -334,6 +335,7 @@ export function AnalystTable({ data, meta }: AnalystTableProps) {
       <PageHeader title="Analistas" description="Gerenciar analistas" />
 
       <DataTable
+        refreshing={isPending}
         columns={columns}
         data={data}
         page={meta.page}
@@ -355,7 +357,7 @@ export function AnalystTable({ data, meta }: AnalystTableProps) {
                 getId: (row) => row.id,
                 getRowLabel: (row) => row.name,
                 action: bulkDeleteAnalysts,
-                onSuccess: () => router.refresh(),
+                onSuccess: () => refresh(),
               }
             : undefined
         }

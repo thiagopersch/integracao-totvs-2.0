@@ -43,12 +43,50 @@ function safeUrl(url: string | undefined, options: RenderOptions): string {
   return "";
 }
 
-/** Strips scripts, inline event handlers and javascript: URLs from rich-text HTML. */
-function sanitizeRichText(html: string): string {
+// Allowlist (not a blocklist of known-bad patterns, which `<svg/onload=…>` or an unquoted
+// `href=javascript:` slipped through): only the tags/attributes the rich-text editor emits survive.
+// Runs on the server (e-mail rendering) where there's no DOM for DOMPurify; the builder canvas also
+// passes the result through DOMPurify in the browser.
+const RICH_TEXT_TAGS = new Set([
+  "p", "br", "h1", "h2", "h3", "h4", "strong", "b", "em", "i", "u", "s", "del", "a", "ul", "ol", "li",
+  "blockquote", "code", "pre", "span", "mark", "hr", "sub", "sup",
+]);
+const RICH_TEXT_ATTRS = new Set(["style", "href", "target", "rel", "class", "title"]);
+const DROP_WITH_CONTENT = /<(script|style|iframe|object|embed|svg|math|template|noscript|textarea|select)\b[\s\S]*?<\/\1\s*>/gi;
+
+function sanitizeAttrs(tag: string, raw: string): string {
+  const out: string[] = [];
+  const attrPattern = /([^\s"'<>\/=]+)(?:\s*=\s*("[^"]*"|'[^']*'|[^\s"'=<>`]+))?/g;
+  let m: RegExpExecArray | null;
+  while ((m = attrPattern.exec(raw))) {
+    const name = m[1].toLowerCase();
+    if (!RICH_TEXT_ATTRS.has(name)) continue;
+    let value = (m[2] ?? "").replace(/^["']|["']$/g, "");
+    value = value.replace(/&(#x?[0-9a-f]+|colon|tab|newline);?/gi, "");
+    if (name === "href") {
+      if (tag !== "a") continue;
+      const v = value.trim();
+      if (!/^(https?:|mailto:|tel:|#|\/|\{\{)/i.test(v)) continue;
+    }
+    if (name === "style" && /expression\s*\(|url\s*\(|javascript:|@import|behavior\s*:/i.test(value)) continue;
+    out.push(`${name}="${value.replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}"`);
+  }
+  return out.length ? ` ${out.join(" ")}` : "";
+}
+
+/** Keeps only editor-produced markup: unknown tags are removed (their text kept), unknown attributes dropped. */
+export function sanitizeRichText(html: string): string {
   return html
-    .replace(/<(script|style|iframe|object|embed)[\s\S]*?<\/\1>/gi, "")
-    .replace(/\son\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, "")
-    .replace(/(href|src)\s*=\s*("|')\s*javascript:[^"']*\2/gi, '$1="#"');
+    .replace(/<!--[\s\S]*?-->/g, "")
+    .replace(DROP_WITH_CONTENT, "")
+    .replace(/<\/?([a-zA-Z][a-zA-Z0-9-]*)([^>]*)>/g, (full, rawTag: string, rest: string) => {
+      const tag = rawTag.toLowerCase();
+      if (!RICH_TEXT_TAGS.has(tag)) return "";
+      if (full.startsWith("</")) return `</${tag}>`;
+      return `<${tag}${sanitizeAttrs(tag, rest)}>`;
+    })
+    // A stray "<" that didn't form a tag (e.g. "<svg" without ">") must not become one later.
+    .replace(/<(?![a-z/])/gi, "&lt;");
 }
 
 // Email-safe typography for every tag the rich-text editor (TipTap) can emit — the editor's

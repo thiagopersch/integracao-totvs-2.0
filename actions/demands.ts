@@ -9,22 +9,8 @@ import { requirePermission } from "@/lib/rbac";
 import { getRequestContext } from "@/lib/tenant";
 import { getDemandAnalystScope } from "@/lib/demand-scope";
 import { formatBlockingReferences } from "@/lib/entity-relations";
-import type { ListParams } from "@/types/common";
 import type { Period } from "@/lib/period";
 import { periodToDateRange } from "@/lib/period";
-
-export async function listDemands(
-  params: ListParams,
-  organizationId: string,
-  allowedClientIds: string[],
-  analystScope?: string,
-  period?: Period | null
-) {
-  "use cache";
-  cacheTag("demands");
-  return demandService.list(params, organizationId, allowedClientIds, analystScope, periodToDateRange(period ?? null));
-}
-
 export async function getDemandPeriodOptions() {
   const ctx = await getRequestContext();
   const analystScope = await getDemandAnalystScope(ctx);

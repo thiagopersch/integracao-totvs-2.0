@@ -1,15 +1,21 @@
 "use client"
 
 import { useState } from "react"
+import dynamic from "next/dynamic"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { MultiSelect } from "@/components/ui/multi-select"
 import { ExportPeriodSelect, isExportPeriodPending, toExportPeriod, type ExportPeriodSelection } from "@/components/shared/export-period-select"
-import { DemandExportPdfBuilder } from "@/components/shared/demand-export-pdf-builder"
 import { exportDemandsXlsx, getDemandExportData } from "@/actions/export"
 import type { Client } from "@/generated/prisma/client"
 import { Loader2, FileSpreadsheet, FileText } from "lucide-react"
 import { toast } from "sonner"
+
+// jspdf + jspdf-autotable + html-to-image + the charts only load when a PDF is actually generated.
+const DemandExportPdfBuilder = dynamic(
+  () => import("@/components/shared/demand-export-pdf-builder").then((m) => m.DemandExportPdfBuilder),
+  { ssr: false }
+)
 
 interface Props {
   clients: Client[]

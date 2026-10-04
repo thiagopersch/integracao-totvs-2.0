@@ -5,6 +5,7 @@ import { eventForNotificationType } from "@/lib/message-templates/events";
 import { buildFailureVars, buildGeneralVars } from "@/lib/message-templates/vars-builder";
 import { messageRenderService } from "@/services/message-render.service";
 import type { Notification, NotificationChannel, Prisma, UserRoleLevel } from "@/generated/prisma/client";
+import { safeOrderBy } from "@/lib/sort";
 
 /**
  * Live-pushes each new row over SSE (see app/api/notifications/stream/route.ts) and, for
@@ -89,7 +90,7 @@ export const notificationService = {
     sort?: { field: string; direction: "asc" | "desc" }
   ) {
     const where = { organizationId, userId, ...(unreadOnly ? { readAt: null } : {}) };
-    const orderBy = sort ? { [sort.field]: sort.direction } : { createdAt: "desc" as const };
+    const orderBy = sort ? safeOrderBy(sort) : { createdAt: "desc" as const };
     const [data, total, unreadCount] = await Promise.all([
       prisma.notification.findMany({
         where,

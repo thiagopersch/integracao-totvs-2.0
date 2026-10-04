@@ -1,6 +1,6 @@
 "use server"
 
-import { updateTag, cacheTag } from "next/cache";
+import { updateTag } from "next/cache";
 import { tbcService } from "@/services/tbc.service";
 import { auditService } from "@/services/audit.service";
 import { soapService } from "@/services/soap.service";
@@ -9,24 +9,10 @@ import { createTbcSchema, updateTbcSchema } from "@/schemas/tbc.schema";
 import { requirePermission } from "@/lib/rbac";
 import { getRequestContext } from "@/lib/tenant";
 import { formatBlockingReferences } from "@/lib/entity-relations";
-import type { ListParams } from "@/types/common";
 import type { WsName } from "@/lib/ws-names";
-
 export async function listAllTbcs() {
   const { organizationId, allowedClientIds } = await getRequestContext();
   return tbcService.listAll(organizationId, allowedClientIds);
-}
-
-export async function listTbcs(params: ListParams, organizationId: string, allowedClientIds: string[]) {
-  "use cache";
-  cacheTag("tbcs");
-  return tbcService.list(params, organizationId, allowedClientIds);
-}
-
-export async function getTbcById(id: string, organizationId: string, allowedClientIds: string[]) {
-  "use cache";
-  cacheTag(`tbc-${id}`);
-  return tbcService.getById(id, organizationId, allowedClientIds);
 }
 
 export async function testTbcConnection(formData: FormData) {
@@ -34,6 +20,9 @@ export async function testTbcConnection(formData: FormData) {
   const user = formData.get("user") as string;
   const password = formData.get("password") as string;
   const notRequiredLicense = formData.get("notRequiredLicense") === "true";
+
+  const linkCheck = createTbcSchema.shape.link.safeParse(link);
+  if (!linkCheck.success) return { success: false, error: linkCheck.error.issues[0]?.message ?? "Link inválido" };
 
   try {
     const { organizationId, userId } = await requirePermission("tbcs", "read");

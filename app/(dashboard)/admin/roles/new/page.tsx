@@ -1,6 +1,6 @@
 import { Suspense } from "react"
 import { redirect } from "next/navigation"
-import { listAllPermissions } from "@/actions/admin/roles"
+import { listAllPermissions } from "@/queries/admin/roles"
 import { RoleForm } from "@/components/roles/role-form"
 import { TableSkeleton } from "@/components/shared/table-skeleton"
 import { getRequestContext } from "@/lib/tenant"

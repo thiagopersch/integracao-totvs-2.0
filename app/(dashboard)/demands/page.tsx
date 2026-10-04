@@ -1,6 +1,7 @@
 import { Suspense } from "react"
 import { cookies } from "next/headers"
-import { listDemands, getDemandPeriodOptions, getDemandFilterOptions } from "@/actions/demands"
+import { getDemandPeriodOptions, getDemandFilterOptions } from "@/actions/demands"
+import { listDemands } from "@/queries/demands"
 import { listAllAnalysts } from "@/actions/analysts"
 import { listAllClients } from "@/actions/admin/clients"
 import { listAllRequesters } from "@/actions/requesters"
@@ -34,7 +35,7 @@ export const maxDuration = 60
 
 export default function DemandsPage({ searchParams }: { searchParams: Promise<Record<string, string>> }) {
   return (
-    <div className="p-6">
+    <div className="p-4 md:p-6">
       <Suspense fallback={<TableSkeleton />}>
         <DemandsContent searchParams={searchParams} />
       </Suspense>

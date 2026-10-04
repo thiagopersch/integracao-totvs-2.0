@@ -1,5 +1,6 @@
 "use client"
 
+import { signOut } from "next-auth/react"
 import { useEffect, useState } from "react"
 import { useForm, Controller } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -82,14 +83,15 @@ export function ProfileForm({ user }: ProfileFormProps) {
   async function onPasswordSubmit(data: z.infer<typeof changePasswordSchema>) {
     setPasswordLoading(true)
     const formData = new FormData()
-    formData.append("userId", user.id)
     formData.append("currentPassword", data.currentPassword)
     formData.append("newPassword", data.newPassword)
 
     const result = await changePasswordAction(formData)
     if (result.success) {
-      toast.success("Senha alterada com sucesso")
+      // Changing the password revokes every session opened before it, this one included.
+      toast.success("Senha alterada com sucesso. Entre novamente com a nova senha.")
       passwordForm.reset()
+      await signOut({ redirectTo: "/login" })
     } else {
       toast.error(result.error || "Erro ao alterar senha")
     }

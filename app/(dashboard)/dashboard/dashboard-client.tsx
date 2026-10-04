@@ -1,24 +1,16 @@
 "use client"
 
 import { useState } from "react"
+import dynamic from "next/dynamic"
 import Link from "next/link"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import {
-  Building2,
-  Server,
-  Users,
-  Radio,
-  AlertTriangle,
-  Clock,
-  Activity,
-  BarChart3,
-  FileClock,
-} from "lucide-react"
+import { Building2, Server, Users, Radio, AlertTriangle, Clock, Activity, BarChart3, FileClock } from "lucide-react"
 import { formatDate, formatDuration, formatNumber } from "@/utils/format"
-import { MultiTypeChart } from "@/components/shared/charts/multi-type-chart"
+import type { MultiTypeChartProps } from "@/components/shared/charts/multi-type-chart"
 import { ChartTypeSelect } from "@/components/shared/charts/chart-type-select"
 import type { ChartKind, ChartSeries } from "@/components/shared/charts/chart-types"
 import { PeriodSelect } from "@/components/shared/period-select"
@@ -26,8 +18,21 @@ import { usePeriodFilter } from "@/hooks/use-period-filter"
 import type { Period } from "@/lib/period"
 import { ColorBadge } from "@/components/shared/color-badge"
 import { ContractUsageBar } from "@/components/shared/contract-usage-bar"
-import { USAGE_LEVEL_COLORS, USAGE_LEVEL_LABELS, USAGE_TONE_CLASSES, usageTone, type UsageLevel } from "@/lib/contract-usage"
+import {
+  USAGE_LEVEL_COLORS,
+  USAGE_LEVEL_LABELS,
+  USAGE_TONE_CLASSES,
+  usageTone,
+  type UsageLevel,
+} from "@/lib/contract-usage"
 import { cn } from "@/lib/utils"
+import { PendingRegion } from "@/components/shared/pending-region"
+
+// recharts is only needed once a chart tab is opened — the default "Visão Geral" tab has none.
+const MultiTypeChart = dynamic<MultiTypeChartProps>(
+  () => import("@/components/shared/charts/multi-type-chart").then((m) => m.MultiTypeChart),
+  { ssr: false, loading: () => <Skeleton className="h-[260px] w-full" /> }
+)
 
 type NamedValue = {
   name: string
@@ -50,6 +55,8 @@ interface ChartCardProps {
   emptyMessage?: string
   height?: number
   valueFormatter?: (value: number) => string
+  /** Data depends on the selected period and a new one is loading. */
+  pending?: boolean
 }
 
 function ChartCard({
@@ -68,36 +75,39 @@ function ChartCard({
   emptyMessage,
   height,
   valueFormatter,
+  pending = false,
 }: ChartCardProps) {
   return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between gap-2">
-        <CardTitle className="text-sm">{title}</CardTitle>
-        <ChartTypeSelect
-          value={kind}
-          onChange={onKindChange}
-          allowedKinds={allowedKinds}
-          series={series}
-          measure={measure}
-          onMeasureChange={onMeasureChange}
-        />
-      </CardHeader>
-      <CardContent>
-        <MultiTypeChart
-          data={data}
-          nameKey={nameKey}
-          series={series}
-          kind={kind}
-          colorByIndex={colorByIndex}
-          statusColorMap={statusColorMap}
-          colorKey={colorKey}
-          pieSeriesKey={measure}
-          emptyMessage={emptyMessage}
-          height={height ?? 260}
-          valueFormatter={valueFormatter}
-        />
-      </CardContent>
-    </Card>
+    <PendingRegion pending={pending}>
+      <Card className="h-full">
+        <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2">
+          <CardTitle className="min-w-0 text-sm">{title}</CardTitle>
+          <ChartTypeSelect
+            value={kind}
+            onChange={onKindChange}
+            allowedKinds={allowedKinds}
+            series={series}
+            measure={measure}
+            onMeasureChange={onMeasureChange}
+          />
+        </CardHeader>
+        <CardContent>
+          <MultiTypeChart
+            data={data}
+            nameKey={nameKey}
+            series={series}
+            kind={kind}
+            colorByIndex={colorByIndex}
+            statusColorMap={statusColorMap}
+            colorKey={colorKey}
+            pieSeriesKey={measure}
+            emptyMessage={emptyMessage}
+            height={height ?? 260}
+            valueFormatter={valueFormatter}
+          />
+        </CardContent>
+      </Card>
+    </PendingRegion>
   )
 }
 
@@ -176,7 +186,7 @@ export function DashboardClient({
   years,
   monthsByYear,
 }: DashboardClientProps) {
-  const { period, setPeriod } = usePeriodFilter(initialPeriod)
+  const { period, setPeriod, isPending } = usePeriodFilter(initialPeriod)
 
   const [integrationsKind, setIntegrationsKind] = useState<ChartKind>("line")
   const [clientStatusKind, setClientStatusKind] = useState<ChartKind>("pie")
@@ -192,15 +202,16 @@ export function DashboardClient({
   const [rankingKind, setRankingKind] = useState<ChartKind>("bar-h")
   const [rankingMeasure, setRankingMeasure] = useState<string>("gastas")
 
-  const successRate = stats.todaySoapCalls > 0
-    ? Math.round(((stats.todaySoapCalls - stats.failedToday) / stats.todaySoapCalls) * 100)
-    : 100
+  const successRate =
+    stats.todaySoapCalls > 0
+      ? Math.round(((stats.todaySoapCalls - stats.failedToday) / stats.todaySoapCalls) * 100)
+      : 100
 
   const analystSeries: ChartSeries[] = [{ key: "value", name: "Quantidade", color: "var(--chart-1)" }]
   const clientSeries: ChartSeries[] = [{ key: "value", name: "Quantidade", color: "var(--chart-2)" }]
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-4 md:p-6 space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold">Dashboard</h1>
@@ -249,112 +260,132 @@ export function DashboardClient({
                 <p className="text-xs text-muted-foreground">Cadastrados no sistema</p>
               </CardContent>
             </Card>
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium">Integrações {period ? "no Período" : "Hoje"}</CardTitle>
-                <Radio className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{stats.todaySoapCalls}</div>
-                <p className="text-xs text-muted-foreground">Chamadas SOAP</p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium">Taxa de Sucesso</CardTitle>
-                <Activity className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold" style={{ color: "var(--chart-good)" }}>{successRate}%</div>
-                <p className="text-xs text-muted-foreground">{period ? "No período" : "Últimas 24h"}</p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium">Falhas {period ? "no Período" : "Hoje"}</CardTitle>
-                <AlertTriangle className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold" style={{ color: "var(--chart-critical)" }}>{stats.failedToday}</div>
-                <p className="text-xs text-muted-foreground">
-                  {stats.failedToday > 0 ? "Revisar integrações" : "Nenhuma falha"}
-                </p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium">Tempo Médio</CardTitle>
-                <Clock className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{formatDuration(stats.avgDuration)}</div>
-                <p className="text-xs text-muted-foreground">Resposta SOAP</p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium">Performance</CardTitle>
-                <BarChart3 className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">
-                  {formatNumber(chartData.length > 0 ? chartData.reduce((a, b) => a + b.calls, 0) / chartData.length : 0)}/dia
-                </div>
-                <p className="text-xs text-muted-foreground">Média {period ? "no período" : "últimos 7 dias"}</p>
-              </CardContent>
-            </Card>
+            <PendingRegion pending={isPending}>
+              <Card className="h-full">
+                <CardHeader className="flex flex-row items-center justify-between pb-2">
+                  <CardTitle className="text-sm font-medium">Integrações {period ? "no Período" : "Hoje"}</CardTitle>
+                  <Radio className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{stats.todaySoapCalls}</div>
+                  <p className="text-xs text-muted-foreground">Chamadas SOAP</p>
+                </CardContent>
+              </Card>
+            </PendingRegion>
+            <PendingRegion pending={isPending}>
+              <Card className="h-full">
+                <CardHeader className="flex flex-row items-center justify-between pb-2">
+                  <CardTitle className="text-sm font-medium">Taxa de Sucesso</CardTitle>
+                  <Activity className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold" style={{ color: "var(--chart-good)" }}>
+                    {successRate}%
+                  </div>
+                  <p className="text-xs text-muted-foreground">{period ? "No período" : "Últimas 24h"}</p>
+                </CardContent>
+              </Card>
+            </PendingRegion>
+            <PendingRegion pending={isPending}>
+              <Card className="h-full">
+                <CardHeader className="flex flex-row items-center justify-between pb-2">
+                  <CardTitle className="text-sm font-medium">Falhas {period ? "no Período" : "Hoje"}</CardTitle>
+                  <AlertTriangle className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold" style={{ color: "var(--chart-critical)" }}>
+                    {stats.failedToday}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {stats.failedToday > 0 ? "Revisar integrações" : "Nenhuma falha"}
+                  </p>
+                </CardContent>
+              </Card>
+            </PendingRegion>
+            <PendingRegion pending={isPending}>
+              <Card className="h-full">
+                <CardHeader className="flex flex-row items-center justify-between pb-2">
+                  <CardTitle className="text-sm font-medium">Tempo Médio</CardTitle>
+                  <Clock className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{formatDuration(stats.avgDuration)}</div>
+                  <p className="text-xs text-muted-foreground">Resposta SOAP</p>
+                </CardContent>
+              </Card>
+            </PendingRegion>
+            <PendingRegion pending={isPending}>
+              <Card className="h-full">
+                <CardHeader className="flex flex-row items-center justify-between pb-2">
+                  <CardTitle className="text-sm font-medium">Performance</CardTitle>
+                  <BarChart3 className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">
+                    {formatNumber(
+                      chartData.length > 0 ? chartData.reduce((a, b) => a + b.calls, 0) / chartData.length : 0
+                    )}
+                    /dia
+                  </div>
+                  <p className="text-xs text-muted-foreground">Média {period ? "no período" : "últimos 7 dias"}</p>
+                </CardContent>
+              </Card>
+            </PendingRegion>
           </div>
 
-          <Card className="mt-4">
-            <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
-              <div>
-                <CardTitle className="text-sm font-medium">Consumo dos Contratos — {contractsUsageMonthLabel}</CardTitle>
-                <p className="text-xs text-muted-foreground">Contratos vinculados a você, do maior para o menor consumo</p>
-              </div>
-              <div className="flex items-center gap-2">
-                {contractsUsage.length > 0 && (
-                  <Badge variant="outline">
-                    {contractsUsage.length}
-                  </Badge>
-                )}
-                <FileClock className="h-4 w-4 text-muted-foreground" />
-              </div>
-            </CardHeader>
-            <CardContent>
-              {contractsUsage.length === 0 ? (
-                <p className="py-4 text-center text-sm text-muted-foreground">Nenhum contrato vigente vinculado</p>
-              ) : (
-                <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-                  {contractsUsage.map((c) => (
-                    <Link
-                      key={c.clientId}
-                      href="/contracts"
-                      className={cn(
-                        "flex flex-col gap-2 rounded-lg border p-3 transition-opacity hover:opacity-80",
-                        USAGE_TONE_CLASSES[usageTone(c.percent)]
-                      )}
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <ColorBadge label={c.clientName} color={c.clientColor} solid />
-                        <ColorBadge label={USAGE_LEVEL_LABELS[c.level]} color={USAGE_LEVEL_COLORS[c.level]} />
-                      </div>
-                      <ContractUsageBar
-                        usedHours={c.usedHours}
-                        contractedHours={c.contractedHours}
-                        percent={c.percent}
-                        level={c.level}
-                      />
-                    </Link>
-                  ))}
+          <PendingRegion pending={isPending} className="mt-4">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
+                <div>
+                  <CardTitle className="text-sm font-medium">
+                    Consumo dos Contratos — {contractsUsageMonthLabel}
+                  </CardTitle>
+                  <p className="text-xs text-muted-foreground">
+                    Contratos vinculados a você, do maior para o menor consumo
+                  </p>
                 </div>
-              )}
-            </CardContent>
-          </Card>
+                <div className="flex items-center gap-2">
+                  {contractsUsage.length > 0 && <Badge variant="outline">{contractsUsage.length}</Badge>}
+                  <FileClock className="h-4 w-4 text-muted-foreground" />
+                </div>
+              </CardHeader>
+              <CardContent>
+                {contractsUsage.length === 0 ? (
+                  <p className="py-4 text-center text-sm text-muted-foreground">Nenhum contrato vigente vinculado</p>
+                ) : (
+                  <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+                    {contractsUsage.map((c) => (
+                      <Link
+                        key={c.clientId}
+                        href="/contracts"
+                        className={cn(
+                          "flex flex-col gap-2 rounded-lg border p-3 transition-opacity hover:opacity-80",
+                          USAGE_TONE_CLASSES[usageTone(c.percent)]
+                        )}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <ColorBadge label={c.clientName} color={c.clientColor} solid />
+                          <ColorBadge label={USAGE_LEVEL_LABELS[c.level]} color={USAGE_LEVEL_COLORS[c.level]} />
+                        </div>
+                        <ContractUsageBar
+                          usedHours={c.usedHours}
+                          contractedHours={c.contractedHours}
+                          percent={c.percent}
+                          level={c.level}
+                        />
+                      </Link>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </PendingRegion>
         </TabsContent>
 
         <TabsContent value="integrations" className="pt-4 space-y-4">
           <div className="grid gap-4 md:grid-cols-2">
             <ChartCard
+              pending={isPending}
               title={`Integrações - ${period ? "Período Selecionado" : "Últimos 7 Dias"}`}
               data={chartData}
               nameKey="date"
@@ -367,41 +398,47 @@ export function DashboardClient({
               valueFormatter={formatNumber}
             />
 
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-sm">Últimas Execuções SOAP</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ScrollArea className="h-[300px]">
-                  {recentLogs.length === 0 ? (
-                    <p className="text-sm text-muted-foreground text-center py-8">Nenhuma execução recente</p>
-                  ) : (
-                    <div className="space-y-3">
-                      {recentLogs.map((log) => (
-                        <div key={log.id} className="flex items-center justify-between border-b pb-2 last:border-0">
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm truncate">
-                              {log.dataserver}/{log.process}
-                            </p>
-                            <p className="text-xs text-muted-foreground">
-                              {log.method} • {log.user?.name || "Sistema"} • {formatDate(log.createdAt)}
-                            </p>
+            <PendingRegion pending={isPending}>
+              <Card className="h-full">
+                <CardHeader>
+                  <CardTitle className="text-sm">Últimas Execuções SOAP</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <ScrollArea className="h-[300px]">
+                    {recentLogs.length === 0 ? (
+                      <p className="text-sm text-muted-foreground text-center py-8">Nenhuma execução recente</p>
+                    ) : (
+                      <div className="space-y-3">
+                        {recentLogs.map((log) => (
+                          <div key={log.id} className="flex items-center justify-between border-b pb-2 last:border-0">
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm truncate">
+                                {log.dataserver}/{log.process}
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                {log.method} • {log.user?.name || "Sistema"} • {formatDate(log.createdAt)}
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-2 ml-2">
+                              {log.duration && (
+                                <span className="text-xs text-muted-foreground">{formatDuration(log.duration)}</span>
+                              )}
+                              <Badge
+                                variant={
+                                  log.error ? "destructive" : log.status && log.status < 400 ? "default" : "secondary"
+                                }
+                              >
+                                {log.error ? "Erro" : log.status || "OK"}
+                              </Badge>
+                            </div>
                           </div>
-                          <div className="flex items-center gap-2 ml-2">
-                            {log.duration && (
-                              <span className="text-xs text-muted-foreground">{formatDuration(log.duration)}</span>
-                            )}
-                            <Badge variant={log.error ? "destructive" : log.status && log.status < 400 ? "default" : "secondary"}>
-                              {log.error ? "Erro" : log.status || "OK"}
-                            </Badge>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </ScrollArea>
-              </CardContent>
-            </Card>
+                        ))}
+                      </div>
+                    )}
+                  </ScrollArea>
+                </CardContent>
+              </Card>
+            </PendingRegion>
           </div>
         </TabsContent>
 
@@ -445,6 +482,7 @@ export function DashboardClient({
 
         <TabsContent value="demands" className="pt-4 space-y-4">
           <ChartCard
+            pending={isPending}
             title="Ranking de Clientes — Horas Gastas x Horas Contratadas"
             data={clientHoursRanking}
             nameKey="name"
@@ -461,6 +499,7 @@ export function DashboardClient({
 
           <div className="grid gap-4 md:grid-cols-2">
             <ChartCard
+              pending={isPending}
               title="Demandas por Status"
               data={demandsByStatus}
               nameKey="name"
@@ -472,6 +511,7 @@ export function DashboardClient({
               valueFormatter={formatNumber}
             />
             <ChartCard
+              pending={isPending}
               title="Demandas por Prioridade"
               data={demandsByPriority}
               nameKey="name"
@@ -483,6 +523,7 @@ export function DashboardClient({
               valueFormatter={formatNumber}
             />
             <ChartCard
+              pending={isPending}
               title="Demandas por Tipo"
               data={demandsByType}
               nameKey="name"
@@ -494,6 +535,7 @@ export function DashboardClient({
               valueFormatter={formatNumber}
             />
             <ChartCard
+              pending={isPending}
               title="Demandas por Tag"
               data={demandsByTag}
               nameKey="name"
@@ -505,6 +547,7 @@ export function DashboardClient({
               valueFormatter={formatNumber}
             />
             <ChartCard
+              pending={isPending}
               title="Demandas por Analista"
               data={demandsByAnalyst}
               nameKey="name"
@@ -515,6 +558,7 @@ export function DashboardClient({
               valueFormatter={formatNumber}
             />
             <ChartCard
+              pending={isPending}
               title="Demandas por Cliente"
               data={demandsByClient}
               nameKey="name"

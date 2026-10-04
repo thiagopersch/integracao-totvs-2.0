@@ -1,23 +1,15 @@
 "use server"
 
-import { updateTag, cacheTag } from "next/cache";
+import { updateTag } from "next/cache";
 import { departmentService } from "@/services/department.service";
 import { auditService } from "@/services/audit.service";
 import { createDepartmentSchema, updateDepartmentSchema } from "@/schemas/department.schema";
 import { requirePermission } from "@/lib/rbac";
 import { getRequestContext } from "@/lib/tenant";
 import { formatBlockingReferences } from "@/lib/entity-relations";
-import type { ListParams } from "@/types/common";
-
 export async function listAllDepartments() {
   const { organizationId } = await getRequestContext();
   return departmentService.listAll(organizationId);
-}
-
-export async function listDepartments(params: ListParams, organizationId: string) {
-  "use cache";
-  cacheTag("departments");
-  return departmentService.list(params, organizationId);
 }
 
 export async function createDepartment(formData: FormData) {

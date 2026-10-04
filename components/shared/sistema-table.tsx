@@ -39,7 +39,6 @@ const SORTABLE_COLUMNS = ["code", "internalName", "externalName"]
 
 export function SistemaTable({ data, meta }: SistemaTableProps) {
   const {
-    router,
     deleteDialog,
     setDeleteDialog,
     editDialog,
@@ -48,6 +47,8 @@ export function SistemaTable({ data, meta }: SistemaTableProps) {
     handleDelete,
     sort,
     onSortChange,
+    refresh,
+    isPending,
   } = useCrudTable<TotvsSystem>({
     deleteAction: deleteSistema,
     restoreAction: restoreSistema,
@@ -83,7 +84,7 @@ export function SistemaTable({ data, meta }: SistemaTableProps) {
       toast.success(editDialog.entity ? "Sistema atualizado" : "Sistema criado")
       form.reset()
       setEditDialog({ open: false })
-      router.refresh()
+      refresh()
     } else {
       toast.error(result.error || "Erro ao salvar")
     }
@@ -167,6 +168,7 @@ export function SistemaTable({ data, meta }: SistemaTableProps) {
       <PageHeader title="Sistemas TOTVS" description="Gerenciar sistemas/módulos TOTVS RM" />
 
       <DataTable
+        refreshing={isPending}
         columns={columns}
         data={data}
         page={meta.page}
@@ -185,7 +187,7 @@ export function SistemaTable({ data, meta }: SistemaTableProps) {
           getId: (row) => row.id,
           getRowLabel: (row) => row.code,
           action: bulkDeleteSistemas,
-          onSuccess: () => router.refresh(),
+          onSuccess: () => refresh(),
         }}
       />
 

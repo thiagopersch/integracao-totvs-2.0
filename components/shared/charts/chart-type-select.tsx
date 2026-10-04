@@ -22,7 +22,7 @@ export function ChartTypeSelect({ value, onChange, allowedKinds = ALL_CHART_KIND
         value={value}
         onValueChange={(v) => v && onChange(v as ChartKind)}
       >
-        <SelectTrigger size="sm" className="w-[150px]">
+        <SelectTrigger size="sm" className="w-[130px] sm:w-[150px]">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
@@ -40,7 +40,7 @@ export function ChartTypeSelect({ value, onChange, allowedKinds = ALL_CHART_KIND
           value={measure}
           onValueChange={(v) => v && onMeasureChange!(v)}
         >
-          <SelectTrigger size="sm" className="w-[150px]">
+          <SelectTrigger size="sm" className="w-[130px] sm:w-[150px]">
             <SelectValue placeholder="Medida" />
           </SelectTrigger>
           <SelectContent>

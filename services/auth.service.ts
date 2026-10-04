@@ -23,6 +23,12 @@ function toAuthUser(user: User): AuthUser {
   };
 }
 
+let dummyHash: Promise<string> | null = null;
+function getDummyHash() {
+  dummyHash ??= hashPassword("timing-equalizer-not-a-real-password");
+  return dummyHash;
+}
+
 async function loadPermissions(userId: string): Promise<string[]> {
   const userRoles = await prisma.userRole.findMany({
     where: { userId },
@@ -51,6 +57,8 @@ export const authService = {
     });
 
     if (!user || user.deletedAt) {
+      // Still run a bcrypt compare so response time doesn't reveal which e-mails are registered.
+      await comparePassword(input.password, await getDummyHash());
       logger.warn("Login failed: user not found", { email: input.email, ip });
       return null;
     }
@@ -102,7 +110,8 @@ export const authService = {
     const hashed = await hashPassword(newPassword);
     await prisma.user.update({
       where: { id: userId },
-      data: { password: hashed, changePassword: false },
+      // Every session opened before now (this one included) stops being accepted — see refreshSession.
+      data: { password: hashed, changePassword: false, passwordChangedAt: new Date() },
     });
 
     return { success: true };
@@ -132,19 +141,54 @@ export const authService = {
   },
 
   /**
-   * Re-reads role/permissions/client access from the DB — called from the `jwt` callback on every
-   * request (not just sign-in) so an admin granting/revoking a role, permission or client applies
-   * on the affected user's very next request, no logout required.
+   * Re-reads role/permissions/client access from the DB (one round trip) — called from the `jwt`
+   * callback at most once per SESSION_REFRESH_INTERVAL per session, so an admin granting/revoking a
+   * role, permission or client applies within that interval, no logout required.
+   *
+   * Returns null (session is dropped) when the user was deleted or deactivated, or when their
+   * password was changed/reset after `authenticatedAt` (the session's sign-in time).
    */
-  async refreshSession(userId: string) {
-    const user = await prisma.user.findUnique({ where: { id: userId } });
-    if (!user || user.deletedAt) return null;
+  async refreshSession(userId: string, authenticatedAt: number) {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        image: true,
+        role: true,
+        organizationId: true,
+        status: true,
+        changePassword: true,
+        deletedAt: true,
+        passwordChangedAt: true,
+        userRoles: {
+          select: { role: { select: { rolePermissions: { select: { permission: { select: { resource: true, action: true } } } } } } },
+        },
+        allowedClients: { select: { clientId: true } },
+      },
+    });
+    if (!user || user.deletedAt || !user.status) return null;
+    if (user.passwordChangedAt && user.passwordChangedAt.getTime() > authenticatedAt) return null;
 
-    const [permissions, allowedClientIds] = await Promise.all([
-      loadPermissions(user.id),
-      loadAllowedClientIds(user.id),
-    ]);
+    const permissions = new Set<string>();
+    for (const userRole of user.userRoles) {
+      for (const rp of userRole.role.rolePermissions) permissions.add(`${rp.permission.resource}:${rp.permission.action}`);
+    }
 
-    return { user: toAuthUser(user), permissions, allowedClientIds };
+    return {
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        image: user.image,
+        role: user.role,
+        organizationId: user.organizationId,
+        status: user.status,
+        changePassword: user.changePassword,
+      } satisfies AuthUser,
+      permissions: Array.from(permissions),
+      allowedClientIds: user.allowedClients.map((uc) => uc.clientId),
+    };
   },
 };

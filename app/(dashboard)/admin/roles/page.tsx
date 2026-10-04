@@ -1,12 +1,12 @@
 import { Suspense } from "react"
-import { listRoles } from "@/actions/admin/roles"
+import { listRoles } from "@/queries/admin/roles"
 import { RoleTable } from "@/components/shared/role-table"
 import { TableSkeleton } from "@/components/shared/table-skeleton"
 import { getCurrentOrganizationId } from "@/lib/tenant"
 
 export default function RolesPage() {
   return (
-    <div className="p-6">
+    <div className="p-4 md:p-6">
       <Suspense fallback={<TableSkeleton />}>
         <RolesContent />
       </Suspense>

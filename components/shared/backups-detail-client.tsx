@@ -2,7 +2,8 @@
 
 import { useState } from "react"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
+import { useUrlParams } from "@/hooks/use-url-params"
+import { PendingRegion } from "@/components/shared/pending-region"
 import { ArrowLeft } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -11,10 +12,12 @@ import { BackupsHistoryTable } from "@/components/shared/backups-history-table"
 import { RestoreBackupDialog, type RestoreScope } from "@/components/shared/restore-backup-dialog"
 import { RestorePasswordConfirmDialog } from "@/components/shared/restore-password-confirm-dialog"
 import type { Backup, BackupRun, Client, Filter, Tbc } from "@/generated/prisma/client"
+
+type FilterTbc = Pick<Tbc, "id" | "name" | "link" | "clientId" | "status">
 import type { PaginationMeta } from "@/types/common"
 
 interface BackupsDetailClientProps {
-  filter: Filter & { client: Client; tbc: Tbc }
+  filter: Filter & { client: Client; tbc: FilterTbc }
   sentences: Backup[]
   sentencesMeta: PaginationMeta
   runs: BackupRun[]
@@ -22,7 +25,7 @@ interface BackupsDetailClientProps {
 }
 
 export function BackupsDetailClient({ filter, sentences, sentencesMeta, runs, runsMeta }: BackupsDetailClientProps) {
-  const router = useRouter()
+  const { isPending, refresh } = useUrlParams()
   const [restoreDialog, setRestoreDialog] = useState<{ open: boolean; scope: RestoreScope | null }>({
     open: false,
     scope: null,
@@ -44,18 +47,20 @@ export function BackupsDetailClient({ filter, sentences, sentencesMeta, runs, ru
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-3">
+      <div className="flex min-w-0 items-start gap-3">
         <Link href="/admin/filters">
           <Button variant="ghost" size="icon" title="Voltar">
             <ArrowLeft className="h-4 w-4" />
           </Button>
         </Link>
-        <h1 className="text-lg">
+        {/* The filter expression can be a long unbroken string — let it wrap instead of overflowing. */}
+        <h1 className="min-w-0 text-base break-words [overflow-wrap:anywhere] sm:text-lg">
           {filter.client.name} - {filter.tbc.name} Filtro:{" "}
           <span className="font-jetbrains font-bold">{filter.filter}</span>
         </h1>
       </div>
 
+      <PendingRegion pending={isPending}>
       <Tabs defaultValue="sentences">
         <TabsList>
           <TabsTrigger value="sentences">Sentenças</TabsTrigger>
@@ -79,6 +84,7 @@ export function BackupsDetailClient({ filter, sentences, sentencesMeta, runs, ru
           />
         </TabsContent>
       </Tabs>
+      </PendingRegion>
 
       <RestoreBackupDialog
         open={restoreDialog.open}
@@ -95,7 +101,7 @@ export function BackupsDetailClient({ filter, sentences, sentencesMeta, runs, ru
         onOpenChange={(open) => setPasswordDialog({ open, scope: passwordDialog.scope, targetTbcId: passwordDialog.targetTbcId })}
         scope={passwordDialog.scope}
         targetTbcId={passwordDialog.targetTbcId}
-        onSuccess={() => router.refresh()}
+        onSuccess={refresh}
       />
     </div>
   )

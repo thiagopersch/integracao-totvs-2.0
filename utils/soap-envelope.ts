@@ -57,14 +57,19 @@ export function escapeXml(value: string): string {
  * Contexto field names/casing must match TOTVS RM's own standard exactly — every method relies on
  * this to execute correctly: CODCOLIGADA, CODFILIAL, CODTIPOCURSO, CODSISTEMA, CODUSUARIO.
  */
+/** `;`/`=` are the Contexto's own separators — a value containing them would inject extra keys. */
+function contextoValue(value: string | number): string {
+  return String(value).replace(/[;=]/g, "").trim();
+}
+
 function buildContextoString(context?: SoapContext): string {
   if (!context) return "";
   const parts: string[] = [];
-  if (context.coligate !== undefined) parts.push(`CODCOLIGADA=${context.coligate}`);
-  if (context.branch !== undefined) parts.push(`CODFILIAL=${context.branch}`);
-  if (context.levelEducation !== undefined) parts.push(`CODTIPOCURSO=${context.levelEducation}`);
-  if (context.codSystem) parts.push(`CODSISTEMA=${context.codSystem}`);
-  if (context.user) parts.push(`CODUSUARIO=${context.user}`);
+  if (context.coligate !== undefined) parts.push(`CODCOLIGADA=${contextoValue(context.coligate)}`);
+  if (context.branch !== undefined) parts.push(`CODFILIAL=${contextoValue(context.branch)}`);
+  if (context.levelEducation !== undefined) parts.push(`CODTIPOCURSO=${contextoValue(context.levelEducation)}`);
+  if (context.codSystem) parts.push(`CODSISTEMA=${contextoValue(context.codSystem)}`);
+  if (context.user) parts.push(`CODUSUARIO=${contextoValue(context.user)}`);
   return parts.join(";");
 }
 

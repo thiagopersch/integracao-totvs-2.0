@@ -41,7 +41,6 @@ const SORTABLE_COLUMNS = ["name", "description"]
 
 export function DepartmentTable({ data, meta }: DepartmentTableProps) {
   const {
-    router,
     deleteDialog,
     setDeleteDialog,
     editDialog,
@@ -50,6 +49,8 @@ export function DepartmentTable({ data, meta }: DepartmentTableProps) {
     handleDelete,
     sort,
     onSortChange,
+    refresh,
+    isPending,
   } = useCrudTable<Department>({
     deleteAction: deleteDepartment,
     deleteSuccessMessage: "Departamento excluído com sucesso",
@@ -83,7 +84,7 @@ export function DepartmentTable({ data, meta }: DepartmentTableProps) {
       toast.success(editDialog.entity ? "Departamento atualizado" : "Departamento criado")
       form.reset()
       setEditDialog({ open: false })
-      router.refresh()
+      refresh()
     } else {
       toast.error(result.error || "Erro ao salvar")
     }
@@ -155,6 +156,7 @@ export function DepartmentTable({ data, meta }: DepartmentTableProps) {
       <PageHeader title="Departamentos" description="Gerenciar departamentos" />
 
       <DataTable
+        refreshing={isPending}
         columns={columns}
         data={data}
         page={meta.page}
@@ -173,7 +175,7 @@ export function DepartmentTable({ data, meta }: DepartmentTableProps) {
           getId: (row) => row.id,
           getRowLabel: (row) => row.name,
           action: bulkDeleteDepartments,
-          onSuccess: () => router.refresh(),
+          onSuccess: () => refresh(),
         }}
       />
 

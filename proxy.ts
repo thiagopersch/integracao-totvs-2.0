@@ -3,20 +3,25 @@ import { auth } from "@/auth";
 import { hasPermission } from "@/lib/permissions";
 import { findNavItemByPathname } from "@/lib/nav-items";
 import { checkRateLimit } from "@/lib/rate-limiter";
+import { getClientIp } from "@/lib/client-ip";
 
 const PUBLIC_ROUTES = ["/login", "/forgot-password", "/api/auth"];
 
 export default auth((request) => {
   const { pathname } = request.nextUrl;
 
-  const ip = request.headers.get("x-forwarded-for") || request.headers.get("x-real-ip") || "unknown";
-  const rateCheck = checkRateLimit(`api:${ip}`);
-  if (!rateCheck.allowed) {
-    return NextResponse.json({ error: "Too many requests" }, { status: 429 });
-  }
-
   const isPublicRoute = PUBLIC_ROUTES.some((route) => pathname.startsWith(route));
   const session = request.auth;
+
+  // Per user when signed in (users behind the same corporate NAT/proxy no longer share one bucket),
+  // per IP otherwise. Link prefetches don't count — the sidebar alone prefetches a dozen routes.
+  const isPrefetch = request.headers.has("next-router-prefetch") || request.headers.get("purpose") === "prefetch";
+  if (!isPrefetch) {
+    const rateKey = session?.user?.id ? `api:user:${session.user.id}` : `api:ip:${getClientIp(request.headers)}`;
+    if (!checkRateLimit(rateKey).allowed) {
+      return NextResponse.json({ error: "Too many requests" }, { status: 429 });
+    }
+  }
 
   if (!session?.user) {
     if (isPublicRoute) {
@@ -56,17 +61,14 @@ export default auth((request) => {
     }
   }
 
-  const response = NextResponse.next();
-
-  response.headers.set("X-Content-Type-Options", "nosniff");
-  response.headers.set("X-Frame-Options", "DENY");
-  response.headers.set("X-XSS-Protection", "1; mode=block");
-  response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
-  response.headers.set("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
-
-  return response;
+  // Security headers are set for every route in next.config.ts `headers()`.
+  return NextResponse.next();
 });
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|public).*)"],
+  // Static files (public/: uploaded logos under /storage and /uploads, svgs, fonts…) skip auth, the
+  // DB-backed session refresh and the rate limiter entirely.
+  matcher: [
+    "/((?!_next/static|_next/image|favicon.ico|storage/|uploads/|.*\\.(?:svg|png|jpe?g|gif|webp|avif|ico|css|js|map|woff2?|ttf|txt|xml)$).*)",
+  ],
 };

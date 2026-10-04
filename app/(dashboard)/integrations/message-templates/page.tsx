@@ -1,12 +1,12 @@
 import { Suspense } from "react"
-import { listMessageTemplates } from "@/actions/message-templates"
+import { listMessageTemplates } from "@/queries/message-templates"
 import { MessageTemplateTable } from "@/components/message-templates/message-template-table"
 import { TableSkeleton } from "@/components/shared/table-skeleton"
 import { getCurrentOrganizationId } from "@/lib/tenant"
 
 export default function MessageTemplatesPage({ searchParams }: { searchParams: Promise<Record<string, string>> }) {
   return (
-    <div className="p-6">
+    <div className="p-4 md:p-6">
       <Suspense fallback={<TableSkeleton />}>
         <MessageTemplatesContent searchParams={searchParams} />
       </Suspense>

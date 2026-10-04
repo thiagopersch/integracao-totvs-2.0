@@ -1,3 +1,4 @@
+import { cache } from "react"
 import { prisma } from "@/lib/prisma"
 import type { RequestContext } from "@/lib/tenant"
 import { hasPermission } from "@/lib/permissions"
@@ -15,7 +16,11 @@ export async function canViewAllAnalysts(ctx: RequestContext): Promise<boolean> 
  */
 export async function getDemandAnalystScope(ctx: RequestContext): Promise<string | undefined> {
   if (await canViewAllAnalysts(ctx)) return undefined
-
-  const analyst = await prisma.analyst.findUnique({ where: { userId: ctx.userId } })
-  return analyst?.id ?? NO_LINKED_ANALYST
+  return (await findLinkedAnalystId(ctx.userId)) ?? NO_LINKED_ANALYST
 }
+
+/** Per-request memo: /demands resolves the scope for the list, the filter options and the periods. */
+const findLinkedAnalystId = cache(async (userId: string) => {
+  const analyst = await prisma.analyst.findUnique({ where: { userId }, select: { id: true } })
+  return analyst?.id ?? null
+})

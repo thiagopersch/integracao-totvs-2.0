@@ -1,3 +1,5 @@
+import { randomInt } from "node:crypto";
+
 const UPPERCASE = "ABCDEFGHJKLMNPQRSTUVWXYZ";
 const LOWERCASE = "abcdefghijkmnpqrstuvwxyz";
 const DIGITS = "23456789";
@@ -5,7 +7,8 @@ const SPECIAL = "!@#$%&*+-";
 const ALL = UPPERCASE + LOWERCASE + DIGITS + SPECIAL;
 
 function randomChar(charset: string): string {
-  return charset[Math.floor(Math.random() * charset.length)];
+  // CSPRNG — Math.random() is predictable and this becomes a real (temporary) login password.
+  return charset[randomInt(charset.length)];
 }
 
 /** Generates a random password guaranteed to satisfy `strongPasswordSchema` (8-32 chars, upper+lower+digit+special). */
@@ -15,7 +18,7 @@ export function generateTemporaryPassword(length = 12): string {
   const chars = [...required, ...rest];
 
   for (let i = chars.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1))
+    const j = randomInt(i + 1)
     const temp = chars[i]
     chars[i] = chars[j]
     chars[j] = temp

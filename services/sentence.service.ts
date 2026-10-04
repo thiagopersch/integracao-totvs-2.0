@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { BaseRepository } from "@/repositories/base.repository";
 import type { CreateSentenceInput, UpdateSentenceInput } from "@/schemas/sentence.schema";
 import type { Sentence } from "@/generated/prisma/client";
+import { safeOrderBy } from "@/lib/sort";
 
 class SentenceRepository extends BaseRepository<Sentence> {
   constructor() {
@@ -17,7 +18,7 @@ export const sentenceService = {
     const pageSize = params.pageSize || 10;
     const where = await sentenceRepository.buildWhere(params, organizationId);
     const orderBy = params.sort
-      ? { [params.sort.field]: params.sort.direction }
+      ? safeOrderBy(params.sort)
       : { createdAt: "desc" as const };
 
     const [data, total] = await Promise.all([

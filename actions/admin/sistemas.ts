@@ -1,29 +1,15 @@
 "use server"
 
-import { updateTag, cacheTag } from "next/cache";
+import { updateTag } from "next/cache";
 import { sistemaService } from "@/services/sistema.service";
 import { auditService } from "@/services/audit.service";
 import { createSistemaSchema, updateSistemaSchema } from "@/schemas/sistema.schema";
 import { requirePermission } from "@/lib/rbac";
 import { getRequestContext } from "@/lib/tenant";
 import { formatBlockingReferences } from "@/lib/entity-relations";
-import type { ListParams } from "@/types/common";
-
 export async function listAllSistemas() {
   const { organizationId } = await getRequestContext();
   return sistemaService.listAll(organizationId);
-}
-
-export async function listSistemas(params: ListParams, organizationId: string) {
-  "use cache";
-  cacheTag("sistemas");
-  return sistemaService.list(params, organizationId);
-}
-
-export async function getSistemaById(id: string, organizationId: string) {
-  "use cache";
-  cacheTag(`sistema-${id}`);
-  return sistemaService.getById(id, organizationId);
 }
 
 export async function createSistema(formData: FormData) {

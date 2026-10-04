@@ -1,7 +1,7 @@
 "use client"
 
+import { useUrlParams } from "@/hooks/use-url-params"
 import { useMemo, useState } from "react"
-import { useRouter, useSearchParams } from "next/navigation"
 import type { ColumnDef } from "@tanstack/react-table"
 import { Eye, RotateCcw, MoreHorizontal } from "lucide-react"
 import { DataTable } from "@/components/shared/data-table"
@@ -27,22 +27,12 @@ interface BackupsHistoryTableProps {
 const SORTABLE_COLUMNS = ["startedAt"]
 
 export function BackupsHistoryTable({ data, meta, onRestoreRun, onRestoreSingle }: BackupsHistoryTableProps) {
-  const router = useRouter()
-  const searchParams = useSearchParams()
+  const { searchParams, isPending, pushParams: pushRunsParams } = useUrlParams()
   const [viewDialog, setViewDialog] = useState<{ open: boolean; backupRunId: string | null; startedAt: Date | null }>({
     open: false,
     backupRunId: null,
     startedAt: null,
   })
-
-  function pushRunsParams(updates: Record<string, string | number | undefined>) {
-    const params = new URLSearchParams(searchParams.toString())
-    Object.entries(updates).forEach(([key, value]) => {
-      if (value === undefined || value === "") params.delete(key)
-      else params.set(key, String(value))
-    })
-    router.push(`?${params.toString()}`)
-  }
 
   const runsSortParam = searchParams.get("runsSort")
   const runsSort = runsSortParam
@@ -83,6 +73,7 @@ export function BackupsHistoryTable({ data, meta, onRestoreRun, onRestoreSingle 
   return (
     <>
       <DataTable
+        refreshing={isPending}
         columns={columns}
         data={data}
         page={meta.page}

@@ -3,6 +3,7 @@ import { findBlockingReferences, formatBlockingReferences, type BlockingReferenc
 import type { CreateTagInput, UpdateTagInput } from "@/schemas/tag.schema";
 import type { ListParams } from "@/types/common";
 import type { BulkDeleteResult } from "@/repositories/base.repository";
+import { safeOrderBy } from "@/lib/sort";
 
 export const tagService = {
   async listAll(organizationId: string) {
@@ -16,7 +17,7 @@ export const tagService = {
       organizationId,
       ...(params.search ? { name: { contains: params.search, mode: "insensitive" as const } } : {}),
     };
-    const orderBy = params.sort ? { [params.sort.field]: params.sort.direction } : { name: "asc" as const };
+    const orderBy = params.sort ? safeOrderBy(params.sort) : { name: "asc" as const };
 
     const [data, total] = await Promise.all([
       prisma.tag.findMany({ where, orderBy, skip: (page - 1) * pageSize, take: pageSize }),

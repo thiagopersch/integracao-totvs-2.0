@@ -41,7 +41,7 @@ import { toast } from "sonner"
 import type { User, Client } from "@/generated/prisma/client"
 import type { PaginationMeta } from "@/types/common"
 
-interface UserRow extends User {
+interface UserRow extends Omit<User, "password"> {
   allowedClients: { id: string; name: string }[]
 }
 
@@ -59,7 +59,6 @@ function normalizeSearch(value: string) {
 
 export function UsersTable({ data, meta, clients }: UsersTableProps) {
   const {
-    router,
     searchParams,
     deleteDialog,
     setDeleteDialog,
@@ -70,6 +69,8 @@ export function UsersTable({ data, meta, clients }: UsersTableProps) {
     handleToggleStatus,
     sort,
     onSortChange,
+    refresh,
+    isPending,
   } = useCrudTable<UserRow>({
     deleteAction: deleteUser,
     restoreAction: restoreUser,
@@ -141,7 +142,7 @@ export function UsersTable({ data, meta, clients }: UsersTableProps) {
     if (result.success) {
       toast.success("Clientes atualizados")
       setClientsDialog({ open: false, selected: new Set() })
-      router.refresh()
+      refresh()
     } else {
       toast.error(result.error || "Erro ao salvar")
     }
@@ -238,7 +239,7 @@ export function UsersTable({ data, meta, clients }: UsersTableProps) {
         <UserForm
           key={editDialog.entity?.id ?? "new"}
           user={editDialog.entity}
-          onSuccess={() => { setEditDialog({ open: false }); router.refresh() }}
+          onSuccess={() => { setEditDialog({ open: false }); refresh() }}
           onCancel={() => setEditDialog({ open: false })}
         />
       </DialogContent>
@@ -306,6 +307,7 @@ export function UsersTable({ data, meta, clients }: UsersTableProps) {
       <PageHeader title="Usuários" description="Gerenciar usuários do sistema" />
 
       <DataTable
+        refreshing={isPending}
         columns={columns}
         data={data}
         page={meta.page}
@@ -325,7 +327,7 @@ export function UsersTable({ data, meta, clients }: UsersTableProps) {
           getId: (row) => row.id,
           getRowLabel: (row) => row.name,
           action: bulkDeleteUsers,
-          onSuccess: () => router.refresh(),
+          onSuccess: () => refresh(),
         }}
       />
 

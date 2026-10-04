@@ -1,6 +1,6 @@
 "use server"
 
-import { updateTag, cacheTag } from "next/cache";
+import { updateTag } from "next/cache";
 import { dataserverService } from "@/services/dataserver.service";
 import { auditService } from "@/services/audit.service";
 import { soapService, type WsName } from "@/services/soap.service";
@@ -10,28 +10,14 @@ import { createDataserverSchema, updateDataserverSchema } from "@/schemas/datase
 import { requirePermission } from "@/lib/rbac";
 import { getRequestContext } from "@/lib/tenant";
 import { formatBlockingReferences } from "@/lib/entity-relations";
-import type { ListParams } from "@/types/common";
 import type { SoapMethod } from "@/generated/prisma/client";
-
 function escapeXml(value: string): string {
   return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-}
-
-export async function listDataservers(params: ListParams, organizationId: string) {
-  "use cache";
-  cacheTag("dataservers");
-  return dataserverService.list(params, organizationId);
 }
 
 export async function listAllDataservers() {
   const { organizationId } = await getRequestContext();
   return dataserverService.listAll(organizationId);
-}
-
-export async function getDataserverById(id: string, organizationId: string) {
-  "use cache";
-  cacheTag(`dataserver-${id}`);
-  return dataserverService.getById(id, organizationId);
 }
 
 export async function createDataserver(formData: FormData) {

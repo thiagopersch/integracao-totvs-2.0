@@ -49,7 +49,6 @@ const SORTABLE_COLUMNS = ["code", "name", "nameAlternative"]
 
 export function DataserverTable({ data, meta, tbcs }: DataserverTableProps) {
   const {
-    router,
     deleteDialog,
     setDeleteDialog,
     editDialog,
@@ -58,6 +57,8 @@ export function DataserverTable({ data, meta, tbcs }: DataserverTableProps) {
     handleDelete,
     sort,
     onSortChange,
+    refresh,
+    isPending,
   } = useCrudTable<Dataserver>({
     deleteAction: deleteDataserver,
     restoreAction: restoreDataserver,
@@ -121,7 +122,7 @@ export function DataserverTable({ data, meta, tbcs }: DataserverTableProps) {
       form.reset()
       setValidatedCode(null)
       setEditDialog({ open: false })
-      router.refresh()
+      refresh()
     } else {
       toast.error(result.error || "Erro ao salvar")
     }
@@ -241,6 +242,7 @@ export function DataserverTable({ data, meta, tbcs }: DataserverTableProps) {
       <PageHeader title="Dataservers" description="Gerenciar dataservers" />
 
       <DataTable
+        refreshing={isPending}
         columns={columns}
         data={data}
         page={meta.page}
@@ -261,7 +263,7 @@ export function DataserverTable({ data, meta, tbcs }: DataserverTableProps) {
                 getId: (row) => row.id,
                 getRowLabel: (row) => row.code,
                 action: bulkDeleteDataservers,
-                onSuccess: () => router.refresh(),
+                onSuccess: () => refresh(),
               }
             : undefined
         }

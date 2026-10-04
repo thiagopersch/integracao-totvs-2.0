@@ -5,6 +5,7 @@ import { assertClientAllowed } from "@/lib/client-access";
 import { timeToMinutes, type CreateDemandInput, type UpdateDemandInput } from "@/schemas/demand.schema";
 import type { Client, Demand, DemandStatus, Priority } from "@/generated/prisma/client";
 import type { ListParams } from "@/types/common";
+import { safeOrderBy } from "@/lib/sort";
 
 function combineDateAndTime(dateStr: string, time: string): Date {
   const date = new Date(dateStr);
@@ -197,7 +198,7 @@ export const demandService = {
     const pageSize = params.pageSize || 10;
     const where = await buildListWhere(params, organizationId, allowedClientIds, analystScope, period);
     const orderBy = params.sort
-      ? [{ [params.sort.field]: params.sort.direction }, { createdAt: "asc" as const }]
+      ? [safeOrderBy(params.sort), { createdAt: "asc" as const }]
       : [{ date: "desc" as const }, { createdAt: "asc" as const }];
 
     const [data, total, totalsRaw] = await Promise.all([
@@ -242,8 +243,9 @@ export const demandService = {
     if (allowedClientIds.length === 0) return empty;
 
     const where = baseDemandWhere(organizationId, allowedClientIds, analystScope, period);
+    // groupBy = SQL GROUP BY (Prisma's `distinct` would load every matching demand and de-duplicate in Node).
     const distinctIds = async (field: "clientId" | "analystId" | "requesterId" | "departmentId" | "demandTypeId") => {
-      const rows = await prisma.demand.findMany({ where, distinct: [field], select: { [field]: true } });
+      const rows = await prisma.demand.groupBy({ by: [field], where });
       return rows.map((r) => (r as unknown as Record<string, string | null>)[field]).filter((v): v is string => !!v);
     };
 
@@ -254,9 +256,9 @@ export const demandService = {
         distinctIds("requesterId"),
         distinctIds("departmentId"),
         distinctIds("demandTypeId"),
-        prisma.demandTag.findMany({ where: { demand: where }, distinct: ["tagId"], select: { tagId: true } }),
-        prisma.demand.findMany({ where, distinct: ["priority"], select: { priority: true } }),
-        prisma.demand.findMany({ where, distinct: ["status"], select: { status: true } }),
+        prisma.demandTag.groupBy({ by: ["tagId"], where: { demand: where } }),
+        prisma.demand.groupBy({ by: ["priority"], where }),
+        prisma.demand.groupBy({ by: ["status"], where }),
         prisma.demand.aggregate({ where, _max: { durationMinutes: true } }),
       ]);
 

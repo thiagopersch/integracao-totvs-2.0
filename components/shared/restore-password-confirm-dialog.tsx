@@ -53,10 +53,10 @@ export function RestorePasswordConfirmDialog({
 
     const result =
       scope.type === "filter-latest"
-        ? await restoreLatestBackupsForFilter(scope.filterId, targetTbcId)
+        ? await restoreLatestBackupsForFilter(scope.filterId, targetTbcId, password)
         : scope.type === "run"
-          ? await restoreBackupsForRun(scope.backupRunId, targetTbcId)
-          : await restoreSingleBackup(scope.backupId, targetTbcId)
+          ? await restoreBackupsForRun(scope.backupRunId, targetTbcId, password)
+          : await restoreSingleBackup(scope.backupId, targetTbcId, password)
 
     setLoading(false)
     if (result.success) {

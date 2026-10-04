@@ -6,6 +6,7 @@ import type { MessageChannel, MessageTemplateEvent, Prisma } from "@/generated/p
 import type { MessageTemplateInput } from "@/schemas/message-template.schema";
 import type { ListParams } from "@/types/common";
 import type { BulkDeleteResult } from "@/repositories/base.repository";
+import { safeOrderBy } from "@/lib/sort";
 
 const SORTABLE_FIELDS = new Set(["name", "channel", "event", "isActive", "updatedAt", "createdAt"]);
 
@@ -39,7 +40,7 @@ export const messageTemplateService = {
     };
     const orderBy =
       params.sort && SORTABLE_FIELDS.has(params.sort.field)
-        ? { [params.sort.field]: params.sort.direction }
+        ? safeOrderBy(params.sort)
         : { updatedAt: "desc" as const };
 
     const [data, total] = await Promise.all([

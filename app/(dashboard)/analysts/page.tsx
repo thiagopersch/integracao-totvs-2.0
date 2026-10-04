@@ -1,12 +1,12 @@
 import { Suspense } from "react"
-import { listAnalysts } from "@/actions/analysts"
+import { listAnalysts } from "@/queries/analysts"
 import { AnalystTable } from "@/components/shared/analyst-table"
 import { TableSkeleton } from "@/components/shared/table-skeleton"
 import { getCurrentOrganizationId } from "@/lib/tenant"
 
 export default function AnalystsPage({ searchParams }: { searchParams: Promise<Record<string, string>> }) {
   return (
-    <div className="p-6">
+    <div className="p-4 md:p-6">
       <Suspense fallback={<TableSkeleton />}>
         <AnalystsContent searchParams={searchParams} />
       </Suspense>

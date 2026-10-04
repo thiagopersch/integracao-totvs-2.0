@@ -210,6 +210,8 @@ export function DemandTable({
     handleDelete,
     sort,
     onSortChange,
+    refresh,
+    isPending,
   } = useCrudTable<DemandRow>({
     deleteAction: deleteDemand,
     deleteSuccessMessage: "Demanda excluída com sucesso",
@@ -232,7 +234,7 @@ export function DemandTable({
   })
   const [expanded, setExpanded] = useState(false)
   const [activeTab, setActiveTab] = useState("identificacao")
-  const { period, setPeriod } = usePeriodFilter(initialPeriod)
+  const { period, setPeriod, isPending: isPeriodPending } = usePeriodFilter(initialPeriod)
 
   const form = useForm<CreateDemandInput>({
     mode: "onChange",
@@ -298,7 +300,7 @@ export function DemandTable({
       form.reset()
       setEditDialog({ open: false })
       setActiveTab("identificacao")
-      router.refresh()
+      refresh()
     } else {
       toast.error(result.error || "Erro ao salvar")
     }
@@ -334,7 +336,7 @@ export function DemandTable({
         return
       }
       toast.success("Demanda duplicada — ajuste a cópia", { id: toastId })
-      router.refresh()
+      refresh()
       if (canUpdate) {
         setActiveTab("identificacao")
         setEditDialog({ open: true, entity: result.data })
@@ -857,6 +859,7 @@ export function DemandTable({
       </PageHeader>
 
       <DataTable
+        refreshing={isPending || isPeriodPending}
         columns={columns}
         data={data}
         page={meta.page}
@@ -891,7 +894,7 @@ export function DemandTable({
           getId: (row) => row.id,
           getRowLabel: (row) => row.name,
           action: bulkDeleteDemands,
-          onSuccess: () => router.refresh(),
+          onSuccess: () => refresh(),
         }}
       />
 

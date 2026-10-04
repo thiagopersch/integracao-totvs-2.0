@@ -17,6 +17,7 @@ import {
 } from "recharts";
 import { shadeColor } from "@/lib/colors";
 import type { ChartKind, ChartSeries } from "./chart-types";
+import { useMediaQuery } from "@/hooks/use-media-query";
 
 /** Fixed categorical order (blue, orange, aqua, yellow, magenta, green, violet, red) — never reassigned by rank. */
 const CATEGORY_COLORS = [
@@ -98,6 +99,8 @@ export function MultiTypeChart({
   height = 260,
   valueFormatter = (v) => String(v),
 }: MultiTypeChartProps) {
+  // Narrower category axis on phones so horizontal bars keep room to render.
+  const narrow = useMediaQuery("(max-width: 639px)");
   if (data.length === 0 || series.length === 0) {
     return (
       <div className="flex items-center justify-center text-sm text-muted-foreground" style={{ height }}>
@@ -150,7 +153,7 @@ export function MultiTypeChart({
                 type="category"
                 dataKey={nameKey}
                 tick={axisTick}
-                width={110}
+                width={narrow ? 72 : 110}
                 axisLine={false}
                 tickLine={false}
                 tickFormatter={(v: string) => truncateLabel(v)}

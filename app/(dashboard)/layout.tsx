@@ -49,7 +49,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }
 
   return (
-    <div className="flex h-screen overflow-hidden bg-background">
+    // h-dvh (not h-screen): on mobile browsers 100vh includes the collapsible address bar.
+    <div className="flex h-dvh overflow-hidden bg-background">
       <aside
         className={cn(
           "hidden md:flex flex-col border-r bg-sidebar-background transition-all duration-300",
@@ -59,23 +60,26 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <DashboardSidebar />
       </aside>
 
-      <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
-        <SheetTrigger className="md:hidden absolute top-4 left-4 z-50 flex items-center justify-center rounded-md p-2 hover:bg-accent cursor-pointer">
-          <Menu className="h-5 w-5" />
-        </SheetTrigger>
-        <SheetContent side="left" className="p-0 w-64">
-          <DashboardSidebar />
-        </SheetContent>
-      </Sheet>
-
-      <div className="flex flex-col flex-1 overflow-hidden">
-        <header className="flex items-center justify-between px-6 py-3 border-b bg-background">
-          <div className="flex items-center gap-4">
-            <Button variant="ghost" size="icon" className="hidden md:flex" onClick={toggle}>
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+        <header className="flex items-center justify-between gap-2 border-b bg-background px-3 py-2 sm:px-4 md:px-6 md:py-3">
+          <div className="flex min-w-0 items-center gap-2 md:gap-4">
+            {/* Mobile: opens the sidebar as a drawer — lives in the header so it never floats over page content. */}
+            <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
+              <SheetTrigger
+                aria-label="Abrir menu"
+                className="flex cursor-pointer items-center justify-center rounded-md p-2 hover:bg-accent md:hidden"
+              >
+                <Menu className="h-5 w-5" />
+              </SheetTrigger>
+              <SheetContent side="left" className="w-64 max-w-[85vw] p-0">
+                <DashboardSidebar />
+              </SheetContent>
+            </Sheet>
+            <Button variant="ghost" size="icon" className="hidden md:flex" onClick={toggle} aria-label="Recolher menu">
               <Menu className="h-4 w-4" />
             </Button>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex shrink-0 items-center gap-1 sm:gap-2">
             <Button variant="ghost" size="icon" onClick={() => setTheme(theme === "dark" ? "light" : "dark")}>
               <Sun className="h-4 w-4 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
               <Moon className="absolute h-4 w-4 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />

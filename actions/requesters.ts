@@ -1,23 +1,15 @@
 "use server"
 
-import { updateTag, cacheTag } from "next/cache";
+import { updateTag } from "next/cache";
 import { requesterService } from "@/services/requester.service";
 import { auditService } from "@/services/audit.service";
 import { createRequesterSchema, updateRequesterSchema } from "@/schemas/requester.schema";
 import { requirePermission } from "@/lib/rbac";
 import { getRequestContext } from "@/lib/tenant";
 import { formatBlockingReferences } from "@/lib/entity-relations";
-import type { ListParams } from "@/types/common";
-
 export async function listAllRequesters() {
   const { organizationId } = await getRequestContext();
   return requesterService.listAll(organizationId);
-}
-
-export async function listRequesters(params: ListParams, organizationId: string) {
-  "use cache";
-  cacheTag("requesters");
-  return requesterService.list(params, organizationId);
 }
 
 export async function createRequester(formData: FormData) {

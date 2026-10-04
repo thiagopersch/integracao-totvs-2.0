@@ -1,8 +1,8 @@
 "use client"
 
-import { useRouter, useSearchParams } from "next/navigation"
 import { useState } from "react"
 import { toast } from "sonner"
+import { useUrlParams } from "@/hooks/use-url-params"
 
 type ActionResult = { success: boolean; error?: string }
 export type SortState = { field: string; direction: "asc" | "desc" }
@@ -21,19 +21,11 @@ interface UseCrudTableOptions {
 }
 
 export function useCrudTable<TEntity>(options: UseCrudTableOptions) {
-  const router = useRouter()
-  const searchParams = useSearchParams()
+  // Every navigation/refresh runs in a transition so the table can show its own pending state
+  // (DataTable `refreshing`) instead of the page freezing or being swapped for a skeleton.
+  const { router, searchParams, isPending, pushParams, refresh } = useUrlParams()
   const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; id?: string }>({ open: false })
   const [editDialog, setEditDialog] = useState<{ open: boolean; entity?: TEntity }>({ open: false })
-
-  function pushParams(updates: Record<string, string | number | undefined>) {
-    const params = new URLSearchParams(searchParams.toString())
-    Object.entries(updates).forEach(([key, value]) => {
-      if (value === undefined || value === "") params.delete(key)
-      else params.set(key, String(value))
-    })
-    router.push(`?${params.toString()}`)
-  }
 
   const sortParam = searchParams.get("sort")
   const sort: SortState | undefined = sortParam
@@ -48,7 +40,7 @@ export function useCrudTable<TEntity>(options: UseCrudTableOptions) {
     const result = await options.deleteAction(id)
     if (result.success) {
       toast.success(options.deleteSuccessMessage)
-      router.refresh()
+      refresh()
     } else {
       toast.error(result.error || options.deleteErrorMessage || "Erro ao excluir")
     }
@@ -60,7 +52,7 @@ export function useCrudTable<TEntity>(options: UseCrudTableOptions) {
     const result = await options.restoreAction(id)
     if (result.success) {
       toast.success(options.restoreSuccessMessage || "Restaurado com sucesso")
-      router.refresh()
+      refresh()
     } else {
       toast.error(result.error || options.restoreErrorMessage || "Erro ao restaurar")
     }
@@ -72,7 +64,7 @@ export function useCrudTable<TEntity>(options: UseCrudTableOptions) {
     const result = await options.setStatusAction(id, nextStatus)
     if (result.success) {
       toast.success(nextStatus ? "Registro ativado" : "Registro desativado")
-      router.refresh()
+      refresh()
     } else {
       toast.error(result.error || `Erro ao ${nextStatus ? "ativar" : "desativar"} registro`)
     }
@@ -86,6 +78,8 @@ export function useCrudTable<TEntity>(options: UseCrudTableOptions) {
     editDialog,
     setEditDialog,
     pushParams,
+    refresh,
+    isPending,
     handleDelete,
     handleRestore,
     handleToggleStatus,

@@ -1,10 +1,12 @@
 import { prisma } from "@/lib/prisma";
 import { BaseRepository } from "@/repositories/base.repository";
 import { assertClientAllowed } from "@/lib/client-access";
+import { encryptSecret } from "@/lib/secret-box";
 import type { CreateTbcInput, UpdateTbcInput } from "@/schemas/tbc.schema";
 import type { PaginationMeta } from "@/types/common";
 import type { TbcCredentials } from "@/services/soap.service";
 import type { Tbc } from "@/generated/prisma/client";
+import { safeOrderBy } from "@/lib/sort";
 
 export type TbcRow = Omit<Tbc, "password"> & { hasPassword: boolean; client?: { id: string; name: string; color: string } | null };
 type TbcWithMaybeClient = Tbc & { client?: { id: string; name: string; color: string } | null };
@@ -37,7 +39,7 @@ export const tbcService = {
     const where = await tbcRepository.buildWhere(params, organizationId);
     where.clientId = { in: allowedClientIds };
     const orderBy = params.sort
-      ? { [params.sort.field]: params.sort.direction }
+      ? safeOrderBy(params.sort)
       : [{ client: { favorite: "desc" as const } }, { client: { name: "asc" as const } }, { name: "asc" as const }];
 
     const [tbcs, total] = await Promise.all([
@@ -77,12 +79,21 @@ export const tbcService = {
     if (existing) {
       throw new Error("Link já cadastrado");
     }
-    const tbc = await tbcRepository.create({ ...input, organizationId });
+    // Stored encrypted at rest; decrypted only in soapService.dispatch when building the RM auth header.
+    const tbc = await tbcRepository.create({ ...input, password: encryptSecret(input.password), organizationId });
     return stripPassword(tbc)!;
   },
 
   async update(id: string, input: UpdateTbcInput, organizationId: string, allowedClientIds: string[]) {
     if (input.clientId) assertClientAllowed(input.clientId, allowedClientIds);
+    if (input.link && !input.password) {
+      // The stored password goes out as Basic auth to whatever host `link` points to — re-pointing a
+      // TBC must not hand the saved credentials to a new host without them being typed again.
+      const current = await prisma.tbc.findFirst({ where: { id, organizationId }, select: { link: true } });
+      if (current && current.link !== input.link) {
+        throw new Error("Ao alterar o link do TBC, informe a senha novamente.");
+      }
+    }
     if (input.link) {
       const existing = await prisma.tbc.findFirst({
         where: { link: input.link, organizationId, id: { not: id } },
@@ -94,6 +105,8 @@ export const tbcService = {
     const updateData = { ...input };
     if (!updateData.password) {
       delete updateData.password;
+    } else {
+      updateData.password = encryptSecret(updateData.password);
     }
     const tbc = await tbcRepository.update(id, updateData, organizationId, { clientId: { in: allowedClientIds } });
     return stripPassword(tbc)!;

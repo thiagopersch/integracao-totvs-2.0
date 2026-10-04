@@ -1,37 +1,13 @@
 "use server"
 
-import { updateTag, cacheTag } from "next/cache";
+import { updateTag } from "next/cache";
 import { userService } from "@/services/user.service";
 import { auditService } from "@/services/audit.service";
 import { createUserSchema, updateUserSchema } from "@/schemas/user.schema";
 import { requirePermission } from "@/lib/rbac";
+import { prisma } from "@/lib/prisma";
 import { formatBlockingReferences } from "@/lib/entity-relations";
 import { generateTemporaryPassword } from "@/lib/password-generator";
-import type { ListParams } from "@/types/common";
-
-export async function listUsers(params: ListParams, organizationId: string) {
-  "use cache";
-  cacheTag("users");
-  const result = await userService.list(params, organizationId);
-  const allowedClientsByUser = await userService.getAllowedClientsForUsers(result.data.map((u) => u.id));
-  return {
-    ...result,
-    data: result.data.map((u) => ({ ...u, allowedClients: allowedClientsByUser[u.id] ?? [] })),
-  };
-}
-
-export async function getUserById(id: string, organizationId: string) {
-  "use cache";
-  cacheTag(`user-${id}`);
-  return userService.getById(id, organizationId);
-}
-
-export async function getUserClientIds(userId: string) {
-  "use cache";
-  cacheTag(`user-clients-${userId}`);
-  return userService.getAllowedClientIds(userId);
-}
-
 export async function setUserClients(userId: string, clientIds: string[]) {
   const { organizationId } = await requirePermission("users", "update");
   try {
@@ -51,7 +27,7 @@ export async function setUserClients(userId: string, clientIds: string[]) {
 }
 
 export async function createUser(formData: FormData) {
-  const { organizationId } = await requirePermission("users", "create");
+  const { organizationId, role: callerRole } = await requirePermission("users", "create");
   const data = {
     name: formData.get("name") as string,
     email: formData.get("email") as string,
@@ -65,6 +41,8 @@ export async function createUser(formData: FormData) {
   if (!parsed.success) {
     return { success: false, error: "Dados inválidos", errors: parsed.error.flatten().fieldErrors };
   }
+  const deniedRole = await denyAdminManagementByNonAdmin(callerRole, null, parsed.data.role);
+  if (deniedRole) return deniedRole;
 
   try {
     const user = await userService.create(parsed.data, organizationId);
@@ -82,7 +60,7 @@ export async function createUser(formData: FormData) {
 }
 
 export async function updateUser(id: string, formData: FormData) {
-  const { organizationId } = await requirePermission("users", "update");
+  const { organizationId, role: callerRole } = await requirePermission("users", "update");
   const data = {
     name: formData.get("name") as string,
     email: formData.get("email") as string,
@@ -95,6 +73,8 @@ export async function updateUser(id: string, formData: FormData) {
   if (!parsed.success) {
     return { success: false, error: "Dados inválidos", errors: parsed.error.flatten().fieldErrors };
   }
+  const deniedRole = await denyAdminManagementByNonAdmin(callerRole, id, parsed.data.role);
+  if (deniedRole) return deniedRole;
 
   try {
     const oldUser = await userService.getById(id, organizationId);
@@ -184,8 +164,24 @@ export async function bulkDeleteUsers(ids: string[]) {
   }
 }
 
+/**
+ * `users:update` alone must not reach ADMIN accounts: resetting an admin's password hands the caller
+ * the temporary password (account takeover), and setting role=ADMIN is privilege escalation.
+ */
+async function denyAdminManagementByNonAdmin(callerRole: string, targetUserId: string | null, nextRole?: string) {
+  if (callerRole === "ADMIN") return null;
+  if (nextRole === "ADMIN") return { success: false as const, error: "Apenas administradores podem atribuir o perfil ADMIN" };
+  if (targetUserId) {
+    const target = await prisma.user.findUnique({ where: { id: targetUserId }, select: { role: true } });
+    if (target?.role === "ADMIN") return { success: false as const, error: "Apenas administradores podem alterar outro administrador" };
+  }
+  return null;
+}
+
 export async function resetUserPassword(id: string) {
-  const { organizationId } = await requirePermission("users", "update");
+  const { organizationId, role } = await requirePermission("users", "update");
+  const denied = await denyAdminManagementByNonAdmin(role, id);
+  if (denied) return denied;
   try {
     const temporaryPassword = generateTemporaryPassword();
     await userService.resetPassword(id, temporaryPassword, organizationId);

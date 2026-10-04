@@ -59,7 +59,6 @@ const SORTABLE_COLUMNS = ["code", "name", "codSystem", "status"]
 
 export function SentenceTable({ data, meta, categories }: SentenceTableProps) {
   const {
-    router,
     searchParams,
     deleteDialog,
     setDeleteDialog,
@@ -70,6 +69,8 @@ export function SentenceTable({ data, meta, categories }: SentenceTableProps) {
     handleToggleStatus,
     sort,
     onSortChange,
+    refresh,
+    isPending,
   } = useCrudTable<SentenceRow>({
     deleteAction: deleteSentence,
     restoreAction: restoreSentence,
@@ -108,7 +109,7 @@ export function SentenceTable({ data, meta, categories }: SentenceTableProps) {
       toast.success(editDialog.entity ? "Sentença atualizada" : "Sentença criada")
       form.reset()
       setEditDialog({ open: false })
-      router.refresh()
+      refresh()
     } else {
       toast.error(result.error || "Erro ao salvar")
     }
@@ -299,6 +300,7 @@ export function SentenceTable({ data, meta, categories }: SentenceTableProps) {
       <PageHeader title="Sentenças Padrões" description="Gerenciar sentenças padrões" />
 
       <DataTable
+        refreshing={isPending}
         columns={columns}
         data={data}
         page={meta.page}
@@ -318,7 +320,7 @@ export function SentenceTable({ data, meta, categories }: SentenceTableProps) {
           getId: (row) => row.id,
           getRowLabel: (row) => row.code,
           action: bulkDeleteSentences,
-          onSuccess: () => router.refresh(),
+          onSuccess: () => refresh(),
         }}
       />
 

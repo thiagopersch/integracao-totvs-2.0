@@ -1,23 +1,15 @@
 "use server"
 
-import { updateTag, cacheTag } from "next/cache";
+import { updateTag } from "next/cache";
 import { demandTypeService } from "@/services/demand-type.service";
 import { auditService } from "@/services/audit.service";
 import { createDemandTypeSchema, updateDemandTypeSchema } from "@/schemas/demand-type.schema";
 import { requirePermission } from "@/lib/rbac";
 import { getRequestContext } from "@/lib/tenant";
 import { formatBlockingReferences } from "@/lib/entity-relations";
-import type { ListParams } from "@/types/common";
-
 export async function listAllDemandTypes() {
   const { organizationId } = await getRequestContext();
   return demandTypeService.listAll(organizationId);
-}
-
-export async function listDemandTypes(params: ListParams, organizationId: string) {
-  "use cache";
-  cacheTag("demandTypes");
-  return demandTypeService.list(params, organizationId);
 }
 
 export async function createDemandType(formData: FormData) {

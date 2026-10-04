@@ -1,6 +1,6 @@
 "use server"
 
-import { updateTag, cacheTag } from "next/cache";
+import { updateTag } from "next/cache";
 import { backupService } from "@/services/backup.service";
 import { authService } from "@/services/auth.service";
 import { filterService } from "@/services/filter.service";
@@ -11,20 +11,7 @@ import { requirePermission } from "@/lib/rbac";
 import { getRequestContext } from "@/lib/tenant";
 import { prisma } from "@/lib/prisma";
 import { formatBlockingReferences } from "@/lib/entity-relations";
-import type { ListParams } from "@/types/common";
-
-export async function listBackups(params: ListParams, organizationId: string) {
-  "use cache";
-  cacheTag("backups");
-  return backupService.list(params, organizationId);
-}
-
-export async function getBackupById(id: string, organizationId: string) {
-  "use cache";
-  cacheTag(`backup-${id}`);
-  return backupService.getById(id, organizationId);
-}
-
+import { checkRateLimit } from "@/lib/rate-limiter";
 export async function createBackup(formData: FormData) {
   const { organizationId } = await requirePermission("backups", "create");
   const data = {
@@ -167,22 +154,6 @@ export async function bulkRestoreBackups(ids: string[]) {
   }
 }
 
-export async function listLatestBackupsForFilter(filterId: string, params: ListParams, organizationId: string, allowedClientIds: string[]) {
-  "use cache";
-  cacheTag(`filter-backups-${filterId}`);
-  const filter = await filterService.getById(filterId, organizationId, allowedClientIds);
-  if (!filter) return { data: [], meta: { page: 1, pageSize: 10, total: 0, totalPages: 0 } };
-  return backupService.listLatestByFilter(filterId, params, organizationId);
-}
-
-export async function listBackupRunsForFilter(filterId: string, params: ListParams, organizationId: string, allowedClientIds: string[]) {
-  "use cache";
-  cacheTag(`filter-backup-runs-${filterId}`);
-  const filter = await filterService.getById(filterId, organizationId, allowedClientIds);
-  if (!filter) return { data: [], meta: { page: 1, pageSize: 10, total: 0, totalPages: 0 } };
-  return backupService.listRunsByFilter(filterId, params, organizationId);
-}
-
 export async function listBackupHistoryForCode(filterId: string, codeSentence: string) {
   const { organizationId, allowedClientIds } = await getRequestContext();
   const filter = await filterService.getById(filterId, organizationId, allowedClientIds);
@@ -208,6 +179,9 @@ export async function listBackupsForRun(backupRunId: string) {
 
 export async function verifyPasswordForRestore(password: string) {
   const { userId } = await requirePermission("backups", "restore");
+  if (!checkRateLimit(`verify-password:${userId}`, 15 * 60 * 1000, 10).allowed) {
+    return { success: false, error: "Muitas tentativas. Tente novamente mais tarde." };
+  }
   try {
     const valid = await authService.verifyPassword(userId, password);
     if (!valid) return { success: false, error: "Senha incorreta" };
@@ -217,14 +191,31 @@ export async function verifyPasswordForRestore(password: string) {
   }
 }
 
+/**
+ * Restores overwrite sentences on a live TOTVS RM, so they require the user's password again — checked
+ * here, inside each restore action, not only by the UI's separate verify step (a direct call to the
+ * restore action would otherwise skip it).
+ */
+async function verifyRestorePassword(userId: string, password: string | undefined) {
+  if (!checkRateLimit(`verify-password:${userId}`, 15 * 60 * 1000, 10).allowed) {
+    return { success: false as const, error: "Muitas tentativas. Tente novamente mais tarde." };
+  }
+  if (!password || !(await authService.verifyPassword(userId, password))) {
+    return { success: false as const, error: "Senha incorreta" };
+  }
+  return null;
+}
+
 function invalidateBackupTags(filterId: string) {
   updateTag("backups");
   updateTag(`filter-backups-${filterId}`);
   updateTag(`filter-backup-runs-${filterId}`);
 }
 
-export async function restoreLatestBackupsForFilter(filterId: string, targetTbcId: string) {
+export async function restoreLatestBackupsForFilter(filterId: string, targetTbcId: string, password: string) {
   const { organizationId, userId, allowedClientIds } = await requirePermission("backups", "restore");
+  const wrongPassword = await verifyRestorePassword(userId, password);
+  if (wrongPassword) return wrongPassword;
   try {
     const filter = await filterService.getById(filterId, organizationId, allowedClientIds);
     if (!filter) return { success: false, error: "Filtro não encontrado ou fora do seu escopo de acesso" };
@@ -244,8 +235,10 @@ export async function restoreLatestBackupsForFilter(filterId: string, targetTbcI
   }
 }
 
-export async function restoreBackupsForRun(backupRunId: string, targetTbcId: string) {
+export async function restoreBackupsForRun(backupRunId: string, targetTbcId: string, password: string) {
   const { organizationId, userId, allowedClientIds } = await requirePermission("backups", "restore");
+  const wrongPassword = await verifyRestorePassword(userId, password);
+  if (wrongPassword) return wrongPassword;
   try {
     const run = await prisma.backupRun.findFirst({ where: { id: backupRunId, organizationId } });
     if (!run) return { success: false, error: "Execução de backup não encontrada" };
@@ -268,8 +261,10 @@ export async function restoreBackupsForRun(backupRunId: string, targetTbcId: str
   }
 }
 
-export async function restoreSingleBackup(backupId: string, targetTbcId: string) {
+export async function restoreSingleBackup(backupId: string, targetTbcId: string, password: string) {
   const { organizationId, userId, allowedClientIds } = await requirePermission("backups", "restore");
+  const wrongPassword = await verifyRestorePassword(userId, password);
+  if (wrongPassword) return wrongPassword;
   try {
     const backup = await prisma.backup.findFirst({ where: { id: backupId, organizationId } });
     if (!backup) return { success: false, error: "Backup não encontrado" };

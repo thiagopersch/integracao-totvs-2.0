@@ -1,7 +1,8 @@
 "use client"
 
 import { useState } from "react"
-import { useRouter } from "next/navigation"
+import { useUrlParams } from "@/hooks/use-url-params"
+import { PendingRegion } from "@/components/shared/pending-region"
 import { PageHeader } from "@/components/shared/page-header"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -22,7 +23,7 @@ export type FavoriteItem = {
 }
 
 export function SoapFavoritesClient({ favorites }: { favorites: FavoriteItem[] }) {
-  const router = useRouter()
+  const { isPending, refresh } = useUrlParams()
   const [removingId, setRemovingId] = useState<string | null>(null)
 
   async function handleRemove(id: string) {
@@ -30,7 +31,7 @@ export function SoapFavoritesClient({ favorites }: { favorites: FavoriteItem[] }
     const result = await deleteSoapFavorite(id)
     if (result.success) {
       toast.success("Removido dos favoritos")
-      router.refresh()
+      refresh()
     } else {
       toast.error(result.error || "Erro ao remover favorito")
     }
@@ -38,7 +39,7 @@ export function SoapFavoritesClient({ favorites }: { favorites: FavoriteItem[] }
   }
 
   return (
-    <div className="p-6">
+    <div className="p-4 md:p-6">
       <PageHeader title="Favoritos SOAP" description="Chamadas SOAP favoritas" />
       {favorites.length === 0 ? (
         <EmptyState
@@ -47,6 +48,7 @@ export function SoapFavoritesClient({ favorites }: { favorites: FavoriteItem[] }
           description="Marque chamadas como favoritas para acesso rápido"
         />
       ) : (
+        <PendingRegion pending={isPending}>
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {favorites.map((fav) => (
             <Card key={fav.id}>
@@ -73,6 +75,7 @@ export function SoapFavoritesClient({ favorites }: { favorites: FavoriteItem[] }
             </Card>
           ))}
         </div>
+        </PendingRegion>
       )}
     </div>
   )

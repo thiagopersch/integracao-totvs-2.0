@@ -25,7 +25,7 @@ export const PageSizeSelect = memo(function PageSizeSelect({ pageSize, onPageSiz
       value={`${pageSize}`}
       onValueChange={(value) => onPageSizeChange(Number(value))}
     >
-      <SelectTrigger className="h-9 w-[190px]">
+      <SelectTrigger className="h-9 w-full sm:w-[190px]">
         <SelectValue />
       </SelectTrigger>
       <SelectContent side="bottom">

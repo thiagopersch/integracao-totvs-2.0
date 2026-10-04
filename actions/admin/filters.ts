@@ -1,6 +1,6 @@
 "use server"
 
-import { updateTag, cacheTag } from "next/cache";
+import { updateTag } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { filterService } from "@/services/filter.service";
 import { backupService } from "@/services/backup.service";
@@ -11,29 +11,9 @@ import { createFilterSchema, updateFilterSchema } from "@/schemas/filter.schema"
 import { requirePermission } from "@/lib/rbac";
 import { getRequestContext } from "@/lib/tenant";
 import { formatBlockingReferences } from "@/lib/entity-relations";
-import type { ListParams } from "@/types/common";
-
-export async function listFilters(params: ListParams, organizationId: string, allowedClientIds: string[]) {
-  "use cache";
-  cacheTag("filters");
-  return filterService.list(params, organizationId, allowedClientIds);
-}
-
 export async function listDistinctSentenceCodes() {
   const { organizationId } = await getRequestContext();
   return filterService.listDistinctSentenceCodes(organizationId);
-}
-
-export async function getFilterById(id: string, organizationId: string, allowedClientIds: string[]) {
-  "use cache";
-  cacheTag(`filter-${id}`);
-  return filterService.getById(id, organizationId, allowedClientIds);
-}
-
-export async function getFilterByIdWithRelations(id: string, organizationId: string, allowedClientIds: string[]) {
-  "use cache";
-  cacheTag(`filter-${id}`);
-  return filterService.getByIdWithRelations(id, organizationId, allowedClientIds);
 }
 
 export async function createFilter(formData: FormData) {

@@ -7,6 +7,7 @@ import type {
 } from "@/schemas/soap-endpoint.schema";
 import type { SoapEndpointType, SoapEndpointMethod } from "@/generated/prisma/client";
 import type { ListParams, PaginationMeta } from "@/types/common";
+import { safeOrderBy } from "@/lib/sort";
 
 export type SoapEndpointTypeWithMethods = SoapEndpointType & { methods: SoapEndpointMethod[] };
 
@@ -67,7 +68,7 @@ export const soapEndpointService = {
     const pageSize = params.pageSize || 10;
     const where = buildTypesWhere(params);
     const orderBy = params.sort
-      ? { [params.sort.field]: params.sort.direction }
+      ? safeOrderBy(params.sort)
       : { type: "asc" as const };
 
     const [data, total] = await Promise.all([
@@ -173,7 +174,7 @@ export const soapEndpointService = {
       endpointTypeId,
     });
     const orderBy = params.sort
-      ? { [params.sort.field]: params.sort.direction }
+      ? safeOrderBy(params.sort)
       : { sortOrder: "asc" as const };
 
     const [data, total] = await Promise.all([

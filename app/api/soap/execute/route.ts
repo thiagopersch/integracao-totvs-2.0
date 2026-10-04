@@ -1,15 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
+import { authorizeRoute } from "@/lib/api-auth";
 import { revalidateTag } from "next/cache";
 import { soapService, type WsName } from "@/services/soap.service";
 import { tbcService } from "@/services/tbc.service";
 import { soapEndpointService } from "@/services/soap-endpoint.service";
 import { logger } from "@/lib/logger";
-import { getRequestContext } from "@/lib/tenant";
 import type { SoapMethod } from "@/generated/prisma/client";
 
 export async function POST(request: NextRequest) {
+  const { ctx, denied } = await authorizeRoute("soap", "execute");
+  if (denied) return denied;
   try {
-    const { organizationId, userId, allowedClientIds } = await getRequestContext();
+    const { organizationId, userId, allowedClientIds } = ctx;
     const body = await request.json();
     const { tbcId, endpointTypeId, methodId, xml, context, timeout } = body;
 
@@ -56,12 +58,14 @@ export async function POST(request: NextRequest) {
       userId
     );
 
-    revalidateTag("dashboard", { expire: 0 });
+    // Stale-while-revalidate: the next dashboard visit gets the cached stats instantly and refreshes
+    // them in the background (expire: 0 made every visit after any SOAP call a blocking ~20-query miss).
+    revalidateTag("dashboard", "max");
     return NextResponse.json(result);
   } catch (error) {
     // soapService.execute logs the SoapLog row even on failure, so the dashboard's
     // recent-executions box needs invalidating here too, not just on the success path.
-    revalidateTag("dashboard", { expire: 0 });
+    revalidateTag("dashboard", "max");
     logger.error("SOAP execute error", { error: (error as Error).message });
     return NextResponse.json(
       { error: (error as Error).message },

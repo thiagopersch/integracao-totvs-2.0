@@ -1,3 +1,4 @@
+import { decryptSecret } from "@/lib/secret-box";
 import nodemailer from "nodemailer";
 import { prisma } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
@@ -32,7 +33,7 @@ export async function sendEmail(
     host: settings.host,
     port: settings.port,
     secure: settings.port === 465,
-    auth: { user: settings.user, pass: settings.password },
+    auth: { user: settings.user, pass: decryptSecret(settings.password) },
   });
 
   try {

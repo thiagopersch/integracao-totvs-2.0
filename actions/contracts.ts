@@ -1,6 +1,6 @@
 "use server"
 
-import { updateTag, cacheTag } from "next/cache";
+import { updateTag } from "next/cache";
 import { contractService } from "@/services/contract.service";
 import { contractUsageService } from "@/services/contract-usage.service";
 import { currentMonth } from "@/lib/contract-usage";
@@ -8,19 +8,6 @@ import { auditService } from "@/services/audit.service";
 import { createContractSchema, updateContractSchema } from "@/schemas/contract.schema";
 import { requirePermission } from "@/lib/rbac";
 import { formatBlockingReferences } from "@/lib/entity-relations";
-import type { ListParams } from "@/types/common";
-
-export async function listContracts(
-  params: ListParams,
-  organizationId: string,
-  allowedClientIds: string[],
-  month: { year: number; month: number }
-) {
-  "use cache";
-  cacheTag("contracts");
-  return contractService.list(params, organizationId, allowedClientIds, month);
-}
-
 function parseContractForm(formData: FormData) {
   return {
     clientId: formData.get("clientId") as string,

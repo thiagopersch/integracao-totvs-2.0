@@ -129,38 +129,38 @@ model Organization {
   updatedAt DateTime  @updatedAt @map("updated_at")
   deletedAt DateTime? @map("deleted_at")
 
-  users              User[]
-  roles              Role[]
-  clients            Client[]
-  tbcs               Tbc[]
-  filters            Filter[]
-  backups            Backup[]
-  backupRuns         BackupRun[]
-  sentenceCategories SentenceCategory[]
-  sentences          Sentence[]
-  dataservers        Dataserver[]
-  processes          Process[]
-  totvsSystems       TotvsSystem[]
-  soapLogs           SoapLog[]
-  soapTemplates      SoapTemplate[]
-  soapFavorites      SoapFavorite[]
-  auditLogs          AuditLog[]
-  emailLogs          EmailLog[]
-  apiLogs            ApiLog[]
-  requesters         Requester[]
-  departments        Department[]
-  demandTypes        DemandType[]
-  tags               Tag[]
-  analysts           Analyst[]
-  demands            Demand[]
-  notifications      Notification[]
-  emailSettings      EmailSettings?
-  usageAlerts        ContractUsageAlert[]
-  messageTemplates   MessageTemplate[]
+  users               User[]
+  roles               Role[]
+  clients             Client[]
+  tbcs                Tbc[]
+  filters             Filter[]
+  backups             Backup[]
+  backupRuns          BackupRun[]
+  sentenceCategories  SentenceCategory[]
+  sentences           Sentence[]
+  dataservers         Dataserver[]
+  processes           Process[]
+  totvsSystems        TotvsSystem[]
+  soapLogs            SoapLog[]
+  soapTemplates       SoapTemplate[]
+  soapFavorites       SoapFavorite[]
+  auditLogs           AuditLog[]
+  emailLogs           EmailLog[]
+  apiLogs             ApiLog[]
+  requesters          Requester[]
+  departments         Department[]
+  demandTypes         DemandType[]
+  tags                Tag[]
+  analysts            Analyst[]
+  demands             Demand[]
+  notifications       Notification[]
+  emailSettings       EmailSettings?
+  usageAlerts         ContractUsageAlert[]
+  messageTemplates    MessageTemplate[]
   fichaAutomationRuns FichaAutomationRun[]
-  mapeadorProjetos   MapeadorProjeto[]
-  mapeadorTemas      MapeadorTema[]
-  mapeadorTemplates  MapeadorTemplateProjeto[]
+  mapeadorProjetos    MapeadorProjeto[]
+  mapeadorTemas       MapeadorTema[]
+  mapeadorTemplates   MapeadorTemplateProjeto[]
 
   @@map("organizations")
 }
@@ -198,42 +198,46 @@ model SoapEndpointMethod {
 }
 
 model User {
-  id             String    @id @default(uuid())
-  organizationId String    @map("organization_id")
-  name           String
-  email          String    @unique
-  password       String
-  image          String?
-  role           UserRoleLevel @default(USER)
-  status         Boolean   @default(true)
-  changePassword Boolean   @default(false) @map("change_password")
-  createdAt      DateTime  @default(now()) @map("created_at")
-  updatedAt      DateTime  @updatedAt @map("updated_at")
-  deletedAt      DateTime? @map("deleted_at")
+  id                String        @id @default(uuid())
+  organizationId    String        @map("organization_id")
+  name              String
+  email             String        @unique
+  password          String
+  image             String?
+  role              UserRoleLevel @default(USER)
+  status            Boolean       @default(true)
+  changePassword    Boolean       @default(false) @map("change_password")
+  /// Sessions signed in before this instant are rejected (password changed/reset elsewhere).
+  passwordChangedAt DateTime?     @map("password_changed_at")
+  createdAt         DateTime      @default(now()) @map("created_at")
+  updatedAt         DateTime      @updatedAt @map("updated_at")
+  deletedAt         DateTime?     @map("deleted_at")
 
-  organization         Organization           @relation(fields: [organizationId], references: [id])
-  auditLogs             AuditLog[]
-  soapLogs              SoapLog[]
-  soapTemplates         SoapTemplate[]
-  soapFavorites         SoapFavorite[]
-  emailLogs             EmailLog[]
-  apiLogs               ApiLog[]
-  userRoles             UserRole[]
-  analyst               Analyst?
-  comments              Comment[]
-  uploadedAttachments   Attachment[]
-  notifications         Notification[]
-  notificationSettings  NotificationSetting[]
-  backupRuns            BackupRun[]
-  filtersLastBackedUp   Filter[]
-  backupsRestored       Backup[]
-  allowedClients        UserClient[]
-  fichaAutomationRuns   FichaAutomationRun[]
+  organization         Organization          @relation(fields: [organizationId], references: [id])
+  auditLogs            AuditLog[]
+  soapLogs             SoapLog[]
+  soapTemplates        SoapTemplate[]
+  soapFavorites        SoapFavorite[]
+  emailLogs            EmailLog[]
+  apiLogs              ApiLog[]
+  userRoles            UserRole[]
+  analyst              Analyst?
+  comments             Comment[]
+  uploadedAttachments  Attachment[]
+  notifications        Notification[]
+  notificationSettings NotificationSetting[]
+  backupRuns           BackupRun[]
+  filtersLastBackedUp  Filter[]
+  backupsRestored      Backup[]
+  allowedClients       UserClient[]
+  fichaAutomationRuns  FichaAutomationRun[]
 
   @@map("users")
 }
 
-/** Restricts which clients a user can see data for — enforced on Filters, Contracts, TBCs and Backups. */
+/**
+ * Restricts which clients a user can see data for — enforced on Filters, Contracts, TBCs and Backups.
+ */
 model UserClient {
   userId   String @map("user_id")
   clientId String @map("client_id")
@@ -299,7 +303,7 @@ model Client {
   updatedAt      DateTime  @updatedAt @map("updated_at")
   deletedAt      DateTime? @map("deleted_at")
 
-  organization     Organization      @relation(fields: [organizationId], references: [id])
+  organization     Organization         @relation(fields: [organizationId], references: [id])
   tbcs             Tbc[]
   filters          Filter[]
   contracts        ClientContract[]
@@ -333,42 +337,45 @@ model Tbc {
   restoredBackups Backup[]     @relation("BackupRestoredToTbc")
 
   @@unique([organizationId, link])
+  @@index([clientId])
   @@map("tbcs")
 }
 
 model Filter {
-  id                    String    @id @default(uuid())
-  organizationId        String    @map("organization_id")
-  tbcId                 String    @map("tbc_id")
-  clientId              String    @map("client_id")
+  id                    String           @id @default(uuid())
+  organizationId        String           @map("organization_id")
+  tbcId                 String           @map("tbc_id")
+  clientId              String           @map("client_id")
   filter                String
-  coligateContext       Int       @map("coligate_context")
-  branchContext         Int       @map("branch_context")
-  levelEducationContext Int       @map("level_education_context")
-  codSystemContext      String    @map("cod_system_context")
-  userContext           String    @map("user_context")
-  codColigadaSentenca   String    @map("cod_coligada_sentenca")
-  codSistemaSentenca    String    @map("cod_sistema_sentenca")
-  status                Boolean   @default(true)
+  coligateContext       Int              @map("coligate_context")
+  branchContext         Int              @map("branch_context")
+  levelEducationContext Int              @map("level_education_context")
+  codSystemContext      String           @map("cod_system_context")
+  userContext           String           @map("user_context")
+  codColigadaSentenca   String           @map("cod_coligada_sentenca")
+  codSistemaSentenca    String           @map("cod_sistema_sentenca")
+  status                Boolean          @default(true)
   lastBackupStatus      BackupRunStatus? @map("last_backup_status")
-  lastBackupAt          DateTime? @map("last_backup_at")
-  lastBackupByUserId    String?   @map("last_backup_by_user_id")
-  schedule              BackupSchedule @default(NONE)
-  scheduleTime          String?   @map("schedule_time")
-  scheduleCategoryId    String?   @map("schedule_category_id")
-  nextRunAt             DateTime? @map("next_run_at")
-  createdAt             DateTime  @default(now()) @map("created_at")
-  updatedAt             DateTime  @updatedAt @map("updated_at")
-  deletedAt             DateTime? @map("deleted_at")
+  lastBackupAt          DateTime?        @map("last_backup_at")
+  lastBackupByUserId    String?          @map("last_backup_by_user_id")
+  schedule              BackupSchedule   @default(NONE)
+  scheduleTime          String?          @map("schedule_time")
+  scheduleCategoryId    String?          @map("schedule_category_id")
+  nextRunAt             DateTime?        @map("next_run_at")
+  createdAt             DateTime         @default(now()) @map("created_at")
+  updatedAt             DateTime         @updatedAt @map("updated_at")
+  deletedAt             DateTime?        @map("deleted_at")
 
-  organization      Organization      @relation(fields: [organizationId], references: [id])
-  tbc               Tbc               @relation(fields: [tbcId], references: [id])
-  client            Client            @relation(fields: [clientId], references: [id])
-  lastBackupBy      User?             @relation(fields: [lastBackupByUserId], references: [id])
-  scheduleCategory  SentenceCategory? @relation(fields: [scheduleCategoryId], references: [id])
-  backups           Backup[]
-  backupRuns        BackupRun[]
+  organization     Organization      @relation(fields: [organizationId], references: [id])
+  tbc              Tbc               @relation(fields: [tbcId], references: [id])
+  client           Client            @relation(fields: [clientId], references: [id])
+  lastBackupBy     User?             @relation(fields: [lastBackupByUserId], references: [id])
+  scheduleCategory SentenceCategory? @relation(fields: [scheduleCategoryId], references: [id])
+  backups          Backup[]
+  backupRuns       BackupRun[]
 
+  @@index([nextRunAt])
+  @@index([organizationId, clientId])
   @@map("filters")
 }
 
@@ -387,33 +394,34 @@ model BackupRun {
   executedBy   User?        @relation(fields: [executedByUserId], references: [id])
   backups      Backup[]
 
+  @@index([filterId, startedAt])
   @@map("backup_runs")
 }
 
 model Backup {
-  id                 String    @id @default(uuid())
-  organizationId     String    @map("organization_id")
-  tbcId              String    @map("tbc_id")
-  filterId           String    @map("filter_id")
-  backupRunId        String?   @map("backup_run_id")
-  sentenceCategoryId String?   @map("sentence_category_id")
-  branchSentence     String?   @map("branch_sentence")
-  codColigada        String?   @map("cod_coligada")
-  codSystem          String?   @map("cod_system")
-  codeSentence       String?   @map("code_sentence")
-  nameSentence       String?   @map("name_sentence")
-  contentSentence    String?   @map("content_sentence")
+  id                 String              @id @default(uuid())
+  organizationId     String              @map("organization_id")
+  tbcId              String              @map("tbc_id")
+  filterId           String              @map("filter_id")
+  backupRunId        String?             @map("backup_run_id")
+  sentenceCategoryId String?             @map("sentence_category_id")
+  branchSentence     String?             @map("branch_sentence")
+  codColigada        String?             @map("cod_coligada")
+  codSystem          String?             @map("cod_system")
+  codeSentence       String?             @map("code_sentence")
+  nameSentence       String?             @map("name_sentence")
+  contentSentence    String?             @map("content_sentence")
   hash               String?
-  isLatest           Boolean   @default(true) @map("is_latest")
-  totvsUpdatedAt      DateTime?           @map("totvs_updated_at")
-  totvsUpdatedBy      String?             @map("totvs_updated_by")
-  restoreStatus       BackupRestoreStatus @default(NOT_RESTORED) @map("restore_status")
-  restoredAt          DateTime?           @map("restored_at")
-  restoredByUserId    String?             @map("restored_by_user_id")
-  restoredToTbcId     String?             @map("restored_to_tbc_id")
-  createdAt          DateTime  @default(now()) @map("created_at")
-  updatedAt          DateTime  @updatedAt @map("updated_at")
-  deletedAt          DateTime? @map("deleted_at")
+  isLatest           Boolean             @default(true) @map("is_latest")
+  totvsUpdatedAt     DateTime?           @map("totvs_updated_at")
+  totvsUpdatedBy     String?             @map("totvs_updated_by")
+  restoreStatus      BackupRestoreStatus @default(NOT_RESTORED) @map("restore_status")
+  restoredAt         DateTime?           @map("restored_at")
+  restoredByUserId   String?             @map("restored_by_user_id")
+  restoredToTbcId    String?             @map("restored_to_tbc_id")
+  createdAt          DateTime            @default(now()) @map("created_at")
+  updatedAt          DateTime            @updatedAt @map("updated_at")
+  deletedAt          DateTime?           @map("deleted_at")
 
   organization     Organization      @relation(fields: [organizationId], references: [id])
   tbc              Tbc               @relation("BackupTbc", fields: [tbcId], references: [id])
@@ -423,6 +431,8 @@ model Backup {
   restoredBy       User?             @relation(fields: [restoredByUserId], references: [id])
   restoredToTbc    Tbc?              @relation("BackupRestoredToTbc", fields: [restoredToTbcId], references: [id])
 
+  @@index([filterId, isLatest, codeSentence])
+  @@index([backupRunId])
   @@map("backups")
 }
 
@@ -537,6 +547,8 @@ model AuditLog {
   organization Organization? @relation(fields: [organizationId], references: [id])
   user         User?         @relation(fields: [userId], references: [id])
 
+  @@index([organizationId, createdAt])
+  @@index([entity, entityId])
   @@map("audit_logs")
 }
 
@@ -564,6 +576,7 @@ model SoapLog {
   endpointType   SoapEndpointType?   @relation(fields: [endpointTypeId], references: [id])
   endpointMethod SoapEndpointMethod? @relation(fields: [methodId], references: [id])
 
+  @@index([organizationId, createdAt])
   @@map("soap_logs")
 }
 
@@ -580,6 +593,7 @@ model EmailLog {
   organization Organization @relation(fields: [organizationId], references: [id])
   user         User?        @relation(fields: [userId], references: [id])
 
+  @@index([organizationId, createdAt])
   @@map("email_logs")
 }
 
@@ -606,6 +620,7 @@ model ApiLog {
   organization Organization @relation(fields: [organizationId], references: [id])
   user         User?        @relation(fields: [userId], references: [id])
 
+  @@index([organizationId, createdAt])
   @@map("api_logs")
 }
 
@@ -777,6 +792,7 @@ model ClientContract {
 
   client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
 
+  @@index([clientId, status])
   @@map("client_contracts")
 }
 
@@ -903,6 +919,9 @@ model Demand {
   comments     Comment[]
   demandTags   DemandTag[]
 
+  @@index([organizationId, deletedAt, date])
+  @@index([clientId])
+  @@index([analystId])
   @@map("demands")
 }
 
@@ -962,6 +981,7 @@ model DemandTag {
   tag    Tag    @relation(fields: [tagId], references: [id], onDelete: Cascade)
 
   @@id([demandId, tagId])
+  @@index([tagId])
   @@map("demand_tags")
 }
 
@@ -979,6 +999,7 @@ model Notification {
   organization Organization @relation(fields: [organizationId], references: [id])
   user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@index([userId, readAt, createdAt])
   @@map("notifications")
 }
 
@@ -994,7 +1015,9 @@ model NotificationSetting {
   @@map("notification_settings")
 }
 
-/** A mapped enrollment process (e.g. "Vestibular Presencial") — the Rubeus Mapeador de Experiências equivalent. */
+/**
+ * A mapped enrollment process (e.g. "Vestibular Presencial") — the Rubeus Mapeador de Experiências equivalent.
+ */
 model MapeadorProjeto {
   id                    String    @id @default(uuid())
   organizationId        String    @map("organization_id")
@@ -1013,7 +1036,9 @@ model MapeadorProjeto {
   @@map("mapeador_projetos")
 }
 
-/** One step of a MapeadorProjeto's ficha — camposPorEtapa holds the free-form passos/campos tree (same shape import/export JSON uses). */
+/**
+ * One step of a MapeadorProjeto's ficha — camposPorEtapa holds the free-form passos/campos tree (same shape import/export JSON uses).
+ */
 model MapeadorEtapa {
   id             String   @id @default(uuid())
   projetoId      String   @map("projeto_id")
@@ -1031,7 +1056,9 @@ model MapeadorEtapa {
   @@map("mapeador_etapas")
 }
 
-/** Reusable Protótipo visual appearance preset (brand/bar color, field/button style, logo, background), shared across every MapeadorProjeto in the organization. */
+/**
+ * Reusable Protótipo visual appearance preset (brand/bar color, field/button style, logo, background), shared across every MapeadorProjeto in the organization.
+ */
 model MapeadorTema {
   id             String   @id @default(uuid())
   organizationId String   @map("organization_id")
@@ -1045,18 +1072,22 @@ model MapeadorTema {
   @@map("mapeador_temas")
 }
 
-/** A reusable snapshot of a MapeadorProjeto's etapas/campos structure, saved by the user from an
- *  existing project ("Salvar como modelo") — sits alongside the static "Padrão Rubeus" templates
- *  as a starting point for new projects, but authored and owned by the organization instead of
- *  shipped in code. No FK to the source MapeadorProjeto — it's a point-in-time copy, same as the
- *  static templates. */
+/**
+ * A reusable snapshot of a MapeadorProjeto's etapas/campos structure, saved by the user from an
+ * existing project ("Salvar como modelo") — sits alongside the static "Padrão Rubeus" templates
+ * as a starting point for new projects, but authored and owned by the organization instead of
+ * shipped in code. No FK to the source MapeadorProjeto — it's a point-in-time copy, same as the
+ * static templates.
+ */
 model MapeadorTemplateProjeto {
   id                    String   @id @default(uuid())
   organizationId        String   @map("organization_id")
   nome                  String
   informacoesAdicionais Json?    @map("informacoes_adicionais")
   etapas                Json
-  /** When true, this modelo replaces the static "Padrão Rubeus" template of the same `nome` for the organization — see mapeadorTemplateService.setPadrao. */
+  /**
+   * When true, this modelo replaces the static "Padrão Rubeus" template of the same `nome` for the organization — see mapeadorTemplateService.setPadrao.
+   */
   isPadrao              Boolean  @default(false) @map("is_padrao")
   createdAt             DateTime @default(now()) @map("created_at")
   updatedAt             DateTime @updatedAt @map("updated_at")
@@ -1066,7 +1097,9 @@ model MapeadorTemplateProjeto {
   @@map("mapeador_templates_projeto")
 }
 
-/** SMTP credentials for the EMAIL notification channel — configured per organization here instead of fixed .env vars. */
+/**
+ * SMTP credentials for the EMAIL notification channel — configured per organization here instead of fixed .env vars.
+ */
 model EmailSettings {
   id                 String   @id @default(uuid())
   organizationId     String   @unique @map("organization_id")

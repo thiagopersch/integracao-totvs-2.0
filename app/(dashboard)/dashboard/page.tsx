@@ -3,12 +3,12 @@ import { cookies } from "next/headers"
 import { getDashboardStats } from "@/actions/dashboard"
 import { getDemandPeriodOptions } from "@/actions/demands"
 import { DashboardClient } from "./dashboard-client"
-import DashboardLoading from "../loading"
+import { DashboardSkeleton } from "./dashboard-skeleton"
 import { PERIOD_COOKIE_NAME, resolvePeriod } from "@/lib/period"
 
 export default function DashboardPage({ searchParams }: { searchParams: Promise<Record<string, string>> }) {
   return (
-    <Suspense fallback={<DashboardLoading />}>
+    <Suspense fallback={<DashboardSkeleton />}>
       <DashboardData searchParams={searchParams} />
     </Suspense>
   )

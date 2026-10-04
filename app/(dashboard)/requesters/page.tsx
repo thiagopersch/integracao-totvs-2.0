@@ -1,12 +1,12 @@
 import { Suspense } from "react"
-import { listRequesters } from "@/actions/requesters"
+import { listRequesters } from "@/queries/requesters"
 import { RequesterTable } from "@/components/shared/requester-table"
 import { TableSkeleton } from "@/components/shared/table-skeleton"
 import { getCurrentOrganizationId } from "@/lib/tenant"
 
 export default function RequestersPage({ searchParams }: { searchParams: Promise<Record<string, string>> }) {
   return (
-    <div className="p-6">
+    <div className="p-4 md:p-6">
       <Suspense fallback={<TableSkeleton />}>
         <RequestersContent searchParams={searchParams} />
       </Suspense>

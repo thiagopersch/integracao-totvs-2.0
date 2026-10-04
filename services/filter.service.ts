@@ -5,6 +5,7 @@ import { assertClientAllowed } from "@/lib/client-access";
 import type { CreateFilterInput, UpdateFilterInput } from "@/schemas/filter.schema";
 import type { ListParams } from "@/types/common";
 import type { Filter } from "@/generated/prisma/client";
+import { safeOrderBy } from "@/lib/sort";
 
 class FilterRepository extends BaseRepository<Filter> {
   constructor() {
@@ -29,7 +30,7 @@ export const filterService = {
     const where = await filterRepository.buildWhere(params, organizationId);
     where.clientId = { in: allowedClientIds };
     const orderBy = params.sort
-      ? { [params.sort.field]: params.sort.direction }
+      ? safeOrderBy(params.sort)
       : [
           { client: { favorite: "desc" as const } },
           { client: { name: "asc" as const } },
@@ -62,7 +63,9 @@ export const filterService = {
   async getByIdWithRelations(id: string, organizationId: string, allowedClientIds: string[]) {
     return prisma.filter.findFirst({
       where: { id, organizationId, deletedAt: null, clientId: { in: allowedClientIds } },
-      include: { client: true, tbc: true },
+      // Never `tbc: true` — this feeds a client component (/admin/backups/[filterId]) and would
+      // ship the TBC password to the browser.
+      include: { client: true, tbc: { select: { id: true, name: true, link: true, clientId: true, status: true } } },
     });
   },
 

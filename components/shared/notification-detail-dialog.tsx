@@ -99,7 +99,7 @@ export function NotificationDetailDialog({ open, onOpenChange, notification }: N
           </DialogTitle>
         </DialogHeader>
         <DialogBody className="space-y-4">
-          <div className="grid grid-cols-2 gap-3 text-sm">
+          <div className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
             <div>
               <p className="text-xs text-muted-foreground">Data</p>
               <p>{formatDate(notification.createdAt)}</p>
@@ -205,7 +205,7 @@ export function NotificationDetailDialog({ open, onOpenChange, notification }: N
               <p className="mb-1.5 text-xs text-muted-foreground">O que mudou</p>
               <div className="divide-y rounded-md border text-xs">
                 {data.changes.map((change) => (
-                  <div key={change.field} className="grid grid-cols-3 gap-2 p-2">
+                  <div key={change.field} className="grid grid-cols-1 gap-1 p-2 sm:grid-cols-3 sm:gap-2">
                     <span className="font-medium">{change.field}</span>
                     {"to" in change && !("from" in change) ? (
                       <span className="col-span-2 break-all">{formatValue(change.to)}</span>

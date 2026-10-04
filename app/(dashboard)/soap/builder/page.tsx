@@ -1,5 +1,5 @@
 import { Suspense } from "react"
-import { listAllSoapEndpointTypes } from "@/actions/admin/soap-endpoints"
+import { listAllSoapEndpointTypes } from "@/queries/admin/soap-endpoints"
 import { listAllTbcs } from "@/actions/admin/tbcs"
 import { listActiveClientsWithTbc } from "@/actions/admin/clients"
 import { listAllSistemas } from "@/actions/admin/sistemas"

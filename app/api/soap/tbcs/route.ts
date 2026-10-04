@@ -1,11 +1,14 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getCurrentOrganizationId } from "@/lib/tenant";
+import { authorizeRoute } from "@/lib/api-auth";
 
 export async function GET() {
-  const organizationId = await getCurrentOrganizationId();
+  const { ctx, denied } = await authorizeRoute("soap", "execute");
+  if (denied) return denied;
+  const { organizationId, allowedClientIds } = ctx;
   const tbcs = await prisma.tbc.findMany({
-    where: { deletedAt: null, status: true, organizationId },
+    // Same client scoping as everywhere else — only TBCs of clients this user can access.
+    where: { deletedAt: null, status: true, organizationId, clientId: { in: allowedClientIds } },
     orderBy: { name: "asc" },
     select: {
       id: true,

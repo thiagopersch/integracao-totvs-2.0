@@ -4,23 +4,32 @@ import { AuthError } from "next-auth";
 import { signIn, signOut, auth } from "@/auth";
 import { authService } from "@/services/auth.service";
 import { loginSchema, resetPasswordSchema } from "@/schemas/auth.schema";
+import { passwordSchema } from "@/lib/validators";
+import { getClientIp } from "@/lib/client-ip";
+import { headers } from "next/headers";
 import { AUTH_CONFIG } from "@/config/auth.config";
 import { checkRateLimit } from "@/lib/rate-limiter";
 import { logger } from "@/lib/logger";
 import { getFirstAllowedRoute } from "@/lib/nav-items";
 
 export async function loginAction(formData: FormData) {
-  const ip = "internal";
-  const rateCheck = checkRateLimit(`login:${ip}`, AUTH_CONFIG.RATE_LIMIT.LOGIN.window, AUTH_CONFIG.RATE_LIMIT.LOGIN.max);
-
-  if (!rateCheck.allowed) {
-    return { success: false, error: "Muitas tentativas. Tente novamente mais tarde." };
-  }
-
   const data = {
     email: formData.get("email") as string,
     password: formData.get("password") as string,
   };
+
+  // Keyed per source IP + account: one attacker can't lock everybody out (the old fixed
+  // "login:internal" key was shared by all users), and authorize() caps attempts per account.
+  const ip = getClientIp(await headers());
+  const rateCheck = checkRateLimit(
+    `login:${ip}:${String(data.email ?? "").toLowerCase()}`,
+    AUTH_CONFIG.RATE_LIMIT.LOGIN.window,
+    AUTH_CONFIG.RATE_LIMIT.LOGIN.max
+  );
+
+  if (!rateCheck.allowed) {
+    return { success: false, error: "Muitas tentativas. Tente novamente mais tarde." };
+  }
 
   const parsed = loginSchema.safeParse(data);
   if (!parsed.success) {
@@ -74,13 +83,29 @@ export async function completeForcedPasswordReset(formData: FormData) {
 }
 
 export async function changePasswordAction(formData: FormData) {
+  // The user is always the session's — never an id sent by the client (that allowed guessing and
+  // changing any user's password).
+  const session = await auth();
+  if (!session?.user) {
+    return { success: false, error: "Sessão inválida" };
+  }
+  const userId = session.user.id;
+
   const currentPassword = formData.get("currentPassword") as string;
   const newPassword = formData.get("newPassword") as string;
-  const userId = formData.get("userId") as string;
-
-  if (!userId || !currentPassword || !newPassword) {
+  if (!currentPassword || !newPassword) {
     return { success: false, error: "Dados incompletos" };
   }
 
-  return authService.changePassword(userId, currentPassword, newPassword);
+  const parsed = passwordSchema(true).safeParse(newPassword);
+  if (!parsed.success) {
+    return { success: false, error: parsed.error.issues[0]?.message ?? "Senha inválida" };
+  }
+
+  const { window, max } = AUTH_CONFIG.RATE_LIMIT.CHANGE_PASSWORD;
+  if (!checkRateLimit(`change-password:${userId}`, window, max).allowed) {
+    return { success: false, error: "Muitas tentativas. Tente novamente mais tarde." };
+  }
+
+  return authService.changePassword(userId, currentPassword, parsed.data);
 }

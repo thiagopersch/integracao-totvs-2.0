@@ -1,29 +1,15 @@
 "use server"
 
-import { updateTag, cacheTag } from "next/cache";
+import { updateTag } from "next/cache";
 import { sentenceCategoryService } from "@/services/sentence-category.service";
 import { auditService } from "@/services/audit.service";
 import { createSentenceCategorySchema, updateSentenceCategorySchema } from "@/schemas/sentence-category.schema";
 import { requirePermission } from "@/lib/rbac";
 import { getRequestContext } from "@/lib/tenant";
 import { formatBlockingReferences } from "@/lib/entity-relations";
-import type { ListParams } from "@/types/common";
-
 export async function listAllSentenceCategories() {
   const { organizationId } = await getRequestContext();
   return sentenceCategoryService.listAll(organizationId);
-}
-
-export async function listSentenceCategories(params: ListParams, organizationId: string) {
-  "use cache";
-  cacheTag("sentenceCategories");
-  return sentenceCategoryService.list(params, organizationId);
-}
-
-export async function getSentenceCategoryById(id: string, organizationId: string) {
-  "use cache";
-  cacheTag(`sentenceCategory-${id}`);
-  return sentenceCategoryService.getById(id, organizationId);
 }
 
 export async function createSentenceCategory(formData: FormData) {

@@ -6,6 +6,7 @@ import { assertClientAllowed } from "@/lib/client-access";
 import type { CreateContractInput, UpdateContractInput } from "@/schemas/contract.schema";
 import type { ListParams } from "@/types/common";
 import type { BulkDeleteResult } from "@/repositories/base.repository";
+import { safeOrderBy } from "@/lib/sort";
 
 const includeRelations = {
   client: { select: { id: true, name: true, color: true, email: true } },
@@ -91,7 +92,7 @@ export const contractService = {
       return { data, meta: { page, pageSize, total, totalPages: Math.ceil(total / pageSize) } };
     }
 
-    const orderBy = { [params.sort.field]: params.sort.direction };
+    const orderBy = safeOrderBy(params.sort);
 
     const [rows, total] = await Promise.all([
       prisma.clientContract.findMany({ where, orderBy, skip: (page - 1) * pageSize, take: pageSize, include: includeRelations }),

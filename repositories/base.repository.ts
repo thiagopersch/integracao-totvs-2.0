@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { Prisma } from "@/generated/prisma/client";
 import { findBlockingReferences, formatBlockingReferences, type BlockingReference } from "@/lib/entity-relations";
 import type { ListParams, PaginationMeta } from "@/types/common";
+import { safeOrderBy } from "@/lib/sort";
 
 export interface BulkDeleteBlocked {
   id: string;
@@ -78,7 +79,9 @@ export class BaseRepository<T extends { id: string; deletedAt: Date | null }> {
 
     if (input.filters) {
       for (const [key, value] of Object.entries(input.filters)) {
-        if (value !== undefined && value !== "") {
+        // Equality on primitives only — an object value (e.g. `{ password: { startsWith: "a" } }`)
+        // would turn this into an arbitrary Prisma query operator.
+        if (value !== undefined && value !== "" && (typeof value === "string" || typeof value === "number" || typeof value === "boolean")) {
           if (value === "true" || value === "false") {
             where[key] = value === "true";
           } else {
@@ -113,7 +116,7 @@ export class BaseRepository<T extends { id: string; deletedAt: Date | null }> {
     const where = await this.buildWhere(params, organizationId);
     if (extraWhere) Object.assign(where, extraWhere);
     const orderBy = params.sort
-      ? { [params.sort.field]: params.sort.direction }
+      ? safeOrderBy(params.sort)
       : this.defaultOrderBy();
 
     const [data, total] = await Promise.all([

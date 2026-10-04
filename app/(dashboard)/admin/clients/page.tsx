@@ -1,12 +1,12 @@
 import { Suspense } from "react"
-import { listClients } from "@/actions/admin/clients"
+import { listClients } from "@/queries/admin/clients"
 import { ClientTable } from "@/components/shared/client-table"
 import { TableSkeleton } from "@/components/shared/table-skeleton"
 import { getRequestContext } from "@/lib/tenant"
 
 export default function ClientsPage({ searchParams }: { searchParams: Promise<Record<string, string>> }) {
   return (
-    <div className="p-6">
+    <div className="p-4 md:p-6">
       <Suspense fallback={<TableSkeleton />}>
         <ClientsContent searchParams={searchParams} />
       </Suspense>

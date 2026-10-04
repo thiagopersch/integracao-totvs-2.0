@@ -8,7 +8,6 @@ import { Download, ClipboardCopy } from "lucide-react"
 import { toast } from "sonner"
 import { documentToMarkdown } from "@/lib/ps-docs/export-markdown"
 import { renderDocumentHtml } from "@/lib/ps-docs/render-html"
-import { buildDocx } from "@/lib/ps-docs/export-docx"
 import { downloadBlob, slugify } from "@/lib/ps-docs/download-utils"
 import type { DocumentacaoPS, StyleConfig } from "@/lib/ps-docs/types"
 
@@ -25,6 +24,8 @@ export function ProcessDocResult({ model, warnings, style }: ProcessDocResultPro
   const hasResult = model.etapas.length > 0
 
   async function handleDownloadDocx() {
+    // The docx library is only downloaded when the user actually exports.
+    const { buildDocx } = await import("@/lib/ps-docs/export-docx")
     const blob = await buildDocx(model, style)
     downloadBlob(blob, `mapeamento-ps-${slugify(model.tituloPortal)}.docx`)
   }

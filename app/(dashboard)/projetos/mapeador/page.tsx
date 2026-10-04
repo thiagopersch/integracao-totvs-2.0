@@ -5,7 +5,7 @@ import { MapeadorProjetosList } from "@/components/mapeador/mapeador-projetos-li
 
 export default function MapeadorPage() {
   return (
-    <div className="p-6">
+    <div className="p-4 md:p-6">
       <Suspense fallback={<TableSkeleton />}>
         <MapeadorPageContent />
       </Suspense>

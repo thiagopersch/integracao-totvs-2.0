@@ -1,5 +1,5 @@
 import { Suspense } from "react"
-import { listUsers } from "@/actions/admin/users"
+import { listUsers } from "@/queries/admin/users"
 import { listAllClientsForAssignment } from "@/actions/admin/clients"
 import { UsersTable } from "@/components/shared/users-table"
 import { TableSkeleton } from "@/components/shared/table-skeleton"
@@ -8,7 +8,7 @@ import { hasPermission } from "@/lib/permissions"
 
 export default function UsersPage({ searchParams }: { searchParams: Promise<Record<string, string>> }) {
   return (
-    <div className="p-6">
+    <div className="p-4 md:p-6">
       <Suspense fallback={<TableSkeleton />}>
         <UsersContent searchParams={searchParams} />
       </Suspense>

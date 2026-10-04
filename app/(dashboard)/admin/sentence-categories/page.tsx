@@ -1,12 +1,12 @@
 import { Suspense } from "react"
-import { listSentenceCategories } from "@/actions/admin/sentence-categories"
+import { listSentenceCategories } from "@/queries/admin/sentence-categories"
 import { SentenceCategoryTable } from "@/components/shared/sentence-category-table"
 import { TableSkeleton } from "@/components/shared/table-skeleton"
 import { getCurrentOrganizationId } from "@/lib/tenant"
 
 export default function SentenceCategoriesPage({ searchParams }: { searchParams: Promise<Record<string, string>> }) {
   return (
-    <div className="p-6">
+    <div className="p-4 md:p-6">
       <Suspense fallback={<TableSkeleton />}>
         <SentenceCategoriesContent searchParams={searchParams} />
       </Suspense>

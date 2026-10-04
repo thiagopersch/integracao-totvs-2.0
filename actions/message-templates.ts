@@ -2,7 +2,7 @@
 
 import { randomUUID } from "crypto";
 import path from "path";
-import { updateTag, cacheTag } from "next/cache";
+import { updateTag } from "next/cache";
 import { messageTemplateService } from "@/services/message-template.service";
 import { messageRenderService, renderEmailFromContent } from "@/services/message-render.service";
 import { auditService } from "@/services/audit.service";
@@ -13,14 +13,6 @@ import { storeUploadedFile } from "@/lib/upload";
 import { sendEmail } from "@/lib/mailer";
 import { exampleVariables } from "@/lib/message-templates/variable-catalog";
 import type { BlockTree } from "@/lib/message-templates/block-types";
-import type { ListParams } from "@/types/common";
-
-export async function listMessageTemplates(params: ListParams, organizationId: string) {
-  "use cache";
-  cacheTag("message_templates");
-  return messageTemplateService.list(params, organizationId);
-}
-
 export async function getMessageTemplate(id: string) {
   const { organizationId } = await requirePermission("message_templates", "read");
   return messageTemplateService.getById(id, organizationId);

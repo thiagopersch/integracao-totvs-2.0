@@ -1,5 +1,5 @@
 import { Suspense } from "react"
-import { listTbcs } from "@/actions/admin/tbcs"
+import { listTbcs } from "@/queries/admin/tbcs"
 import { listAllClients, listActiveClientsWithTbc } from "@/actions/admin/clients"
 import { TbcTable } from "@/components/shared/tbc-table"
 import { TableSkeleton } from "@/components/shared/table-skeleton"
@@ -7,7 +7,7 @@ import { getRequestContext } from "@/lib/tenant"
 
 export default function TbcsPage({ searchParams }: { searchParams: Promise<Record<string, string>> }) {
   return (
-    <div className="p-6">
+    <div className="p-4 md:p-6">
       <Suspense fallback={<TableSkeleton />}>
         <TbcsContent searchParams={searchParams} />
       </Suspense>

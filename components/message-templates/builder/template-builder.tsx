@@ -274,7 +274,7 @@ export function TemplateBuilder({ template, canSave }: TemplateBuilderProps) {
   const isEmail = value.channel === "EMAIL"
 
   return (
-    <div className="space-y-4 p-6">
+    <div className="space-y-4 p-4 md:p-6">
       {/* Toolbar */}
       <div className="flex flex-wrap items-center gap-2 border-b pb-4">
         <Button type="button" variant="ghost" size="icon-sm" title="Voltar" onClick={handleCancel}>
@@ -284,7 +284,7 @@ export function TemplateBuilder({ template, canSave }: TemplateBuilderProps) {
           value={value.name}
           onChange={(e) => patch({ name: e.target.value })}
           placeholder="Nome do template"
-          className="w-64"
+          className="w-full sm:w-64"
           maxLength={120}
           aria-invalid={!!errors.name}
         />
@@ -293,7 +293,7 @@ export function TemplateBuilder({ template, canSave }: TemplateBuilderProps) {
           value={value.channel}
           onValueChange={(v) => v && patch({ channel: v as MessageChannel })}
         >
-          <SelectTrigger className="w-36">
+          <SelectTrigger className="w-full sm:w-36">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -309,7 +309,7 @@ export function TemplateBuilder({ template, canSave }: TemplateBuilderProps) {
           value={value.event}
           onValueChange={(v) => v && changeEvent(v as MessageTemplateEvent)}
         >
-          <SelectTrigger className="w-64" title={MESSAGE_EVENT_DESCRIPTIONS[value.event]}>
+          <SelectTrigger className="w-full sm:w-64" title={MESSAGE_EVENT_DESCRIPTIONS[value.event]}>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>

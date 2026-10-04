@@ -51,7 +51,6 @@ const SORTABLE_COLUMNS = ["code", "name", "status"]
 
 export function SentenceCategoryTable({ data, meta }: SentenceCategoryTableProps) {
   const {
-    router,
     searchParams,
     deleteDialog,
     setDeleteDialog,
@@ -62,6 +61,8 @@ export function SentenceCategoryTable({ data, meta }: SentenceCategoryTableProps
     handleToggleStatus,
     sort,
     onSortChange,
+    refresh,
+    isPending,
   } = useCrudTable<SentenceCategory>({
     deleteAction: deleteSentenceCategory,
     restoreAction: restoreSentenceCategory,
@@ -99,7 +100,7 @@ export function SentenceCategoryTable({ data, meta }: SentenceCategoryTableProps
       toast.success(editDialog.entity ? "Categoria atualizada" : "Categoria criada")
       form.reset()
       setEditDialog({ open: false })
-      router.refresh()
+      refresh()
     } else {
       toast.error(result.error || "Erro ao salvar")
     }
@@ -231,6 +232,7 @@ export function SentenceCategoryTable({ data, meta }: SentenceCategoryTableProps
       <PageHeader title="Categorias de Sentenças" description="Gerenciar categorias de sentenças" />
 
       <DataTable
+        refreshing={isPending}
         columns={columns}
         data={data}
         page={meta.page}
@@ -250,7 +252,7 @@ export function SentenceCategoryTable({ data, meta }: SentenceCategoryTableProps
           getId: (row) => row.id,
           getRowLabel: (row) => row.code,
           action: bulkDeleteSentenceCategories,
-          onSuccess: () => router.refresh(),
+          onSuccess: () => refresh(),
         }}
       />
 

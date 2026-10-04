@@ -1,5 +1,5 @@
 import { Suspense } from "react"
-import { listDataservers } from "@/actions/admin/dataservers"
+import { listDataservers } from "@/queries/admin/dataservers"
 import { listAllTbcs } from "@/actions/admin/tbcs"
 import { DataserverTable } from "@/components/shared/dataserver-table"
 import { TableSkeleton } from "@/components/shared/table-skeleton"
@@ -7,7 +7,7 @@ import { getCurrentOrganizationId } from "@/lib/tenant"
 
 export default function DataserversPage({ searchParams }: { searchParams: Promise<Record<string, string>> }) {
   return (
-    <div className="p-6">
+    <div className="p-4 md:p-6">
       <Suspense fallback={<TableSkeleton />}>
         <DataserversContent searchParams={searchParams} />
       </Suspense>

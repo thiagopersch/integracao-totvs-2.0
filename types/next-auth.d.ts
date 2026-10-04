@@ -18,6 +18,10 @@ declare module "@auth/core/types" {
     permissions: string[];
     allowedClientIds: string[];
     changePassword: boolean;
+    /** Sign-in time (ms) — sessions older than the user's last password change are rejected. */
+    authAt?: number;
+    /** Last time role/permissions were re-read from the DB (ms). */
+    refreshedAt?: number;
   }
 }
 
@@ -29,5 +33,9 @@ declare module "@auth/core/jwt" {
     permissions: string[];
     allowedClientIds: string[];
     changePassword: boolean;
+    /** Sign-in time (ms) — sessions older than the user's last password change are rejected. */
+    authAt?: number;
+    /** Last time role/permissions were re-read from the DB (ms). */
+    refreshedAt?: number;
   }
 }

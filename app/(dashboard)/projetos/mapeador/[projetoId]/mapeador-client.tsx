@@ -192,14 +192,14 @@ export function MapeadorClient({ initialProjeto }: MapeadorClientProps) {
     <div className="flex h-full flex-col">
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as typeof activeTab)} className="flex h-full flex-col">
         <div className="sticky top-0 z-10 flex flex-wrap items-center justify-between gap-3 border-b bg-background p-4">
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex min-w-0 max-w-full flex-wrap items-center gap-3">
             <Button variant="ghost" size="icon" onClick={() => router.push("/projetos/mapeador")}>
               <ArrowLeft className="h-4 w-4" />
             </Button>
             <Input
               value={projeto.nome}
               onChange={(e) => setNome(e.target.value)}
-              className="w-56 border-none text-lg font-bold shadow-none focus-visible:ring-1"
+              className="w-full border-none text-lg font-bold shadow-none focus-visible:ring-1 sm:w-56"
             />
             <TabsList>
               <TabsTrigger value="mapeamento">Mapeamento</TabsTrigger>

@@ -1,5 +1,6 @@
 "use client"
 
+import DOMPurify from "dompurify"
 import { useMemo } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -7,7 +8,6 @@ import { Download, ClipboardCopy } from "lucide-react"
 import { toast } from "sonner"
 import { renderPortalOverviewHtml } from "@/lib/ps-docs/render-html"
 import { portalOverviewToMarkdown } from "@/lib/ps-docs/export-markdown"
-import { buildPortalOverviewDocx } from "@/lib/ps-docs/export-docx"
 import { downloadBlob, slugify } from "@/lib/ps-docs/download-utils"
 import type { PortalOverviewSpec, StyleConfig } from "@/lib/ps-docs/types"
 
@@ -23,6 +23,8 @@ export function PortalOverviewPreview({ overview, style }: PortalOverviewPreview
   const html = useMemo(() => renderPortalOverviewHtml(overview, style), [overview, style])
 
   async function handleDownloadDocx() {
+    // The docx library is only downloaded when the user actually exports.
+    const { buildPortalOverviewDocx } = await import("@/lib/ps-docs/export-docx")
     const blob = await buildPortalOverviewDocx(overview, style)
     downloadBlob(blob, `portal-${slugify(overview.geral.nome)}.docx`)
   }
@@ -63,7 +65,7 @@ export function PortalOverviewPreview({ overview, style }: PortalOverviewPreview
       </div>
       <Card className={style.followAppTheme ? undefined : "doc-preview-light"}>
         <CardContent className="pt-6">
-          <div className="max-w-none" dangerouslySetInnerHTML={{ __html: html }} />
+          <div className="max-w-none" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(html) }} />
         </CardContent>
       </Card>
     </div>

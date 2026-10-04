@@ -73,7 +73,7 @@ export default function TpiIntegrationPage() {
   const loginOk = result?.success && result.data?.data?.LOGADOSUCESSO === true
 
   return (
-    <div className="p-6 space-y-4">
+    <div className="p-4 md:p-6 space-y-4">
       <div>
         <h1 className="text-2xl font-bold flex items-center gap-2">
           <Plug className="h-5 w-5" /> TPI TOTVS — Pagamento Instantâneo

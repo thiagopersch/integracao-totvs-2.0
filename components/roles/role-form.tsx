@@ -85,7 +85,7 @@ export function RoleForm({ role, permissions, canSave }: RoleFormProps) {
   }
 
   return (
-    <div className="space-y-4 p-6">
+    <div className="space-y-4 p-4 md:p-6">
       <form
         onSubmit={form.handleSubmit(onSubmit, (errors) => {
           if (errors.name) setTab("general")

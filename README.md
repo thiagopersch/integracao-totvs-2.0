@@ -134,14 +134,32 @@ src/
 - Taxa de sucesso, falhas, tempo médio
 
 ### Segurança
-- Senha criptografada (bcrypt)
-- Senha TBC em texto puro (nunca retornada ao front)
-- CSRF via Proxy
-- Rate limiting por IP
-- Sanitização de inputs
-- Helmet headers
+- Senha de usuário com hash bcrypt (custo 12); sessões abertas antes de uma troca/reset de senha são invalidadas
+- Senhas de TBC (TOTVS RM) e SMTP criptografadas em repouso com AES-256-GCM (`lib/secret-box.ts`), descriptografadas só em memória no envio ao RM/SMTP e nunca retornadas ao front
+- Toda Server Action e Route Handler valida sessão e permissão no próprio servidor
+- Rate limiting por usuário/IP e por conta no login
+- Headers de segurança (CSP `frame-ancestors`, X-Frame-Options, HSTS em produção) em todas as rotas
 - Auditoria de todas as ações
 - Validação server-side obrigatória (Zod)
+
+#### Chave de criptografia de credenciais (`CREDENTIALS_ENCRYPTION_KEY`)
+
+Obrigatória para cadastrar/alterar senhas de TBC e SMTP. Gere uma vez por ambiente e guarde em local seguro:
+
+```bash
+openssl rand -base64 32
+```
+
+> ⚠️ **Perder a chave obriga a redigitar todas as senhas de TBC e SMTP.** Não troque a chave de um ambiente que já tem senhas criptografadas.
+
+Senhas antigas em texto puro continuam funcionando; para criptografá-las (idempotente, com verificação antes de gravar):
+
+```bash
+npx tsx scripts/encrypt-credentials.ts --dry-run
+npx tsx scripts/encrypt-credentials.ts
+```
+
+Veja o passo a passo completo em [docs/auditoria-2026-10.md](docs/auditoria-2026-10.md).
 
 ## Scripts
 

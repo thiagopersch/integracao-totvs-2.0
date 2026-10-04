@@ -26,6 +26,7 @@ export async function updateProfileAction(formData: FormData) {
     const user = await prisma.user.update({
       where: { id: userId },
       data: { name: parsed.data.name, image: parsed.data.image || null },
+      omit: { password: true },
     });
     return { success: true, data: user };
   } catch (error) {

@@ -1,3 +1,4 @@
+import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { contractUsageService } from "@/services/contract-usage.service";
 import { formatMonthLabel } from "@/lib/contract-usage";
@@ -85,7 +86,6 @@ export const dashboardService = {
       recentLogs,
       clientCount,
       dailyStats,
-      activeTbcs,
       inactiveTbcs,
       activeFilters,
       inactiveFilters,
@@ -108,20 +108,34 @@ export const dashboardService = {
       prisma.soapLog.count({ where: { createdAt: soapCreatedAt, organizationId } }),
       prisma.soapLog.count({ where: { createdAt: soapCreatedAt, error: { not: null }, organizationId } }),
       prisma.soapLog.aggregate({ _avg: { duration: true }, where: { createdAt: soapCreatedAt, organizationId } }),
+      // Only the columns the "últimas execuções" card shows — the full request/response XML of
+      // each log was being cached and serialized to the browser.
       prisma.soapLog.findMany({
         take: 10,
         where: { organizationId, ...(period ? { createdAt: soapCreatedAt } : {}) },
         orderBy: { createdAt: "desc" },
-        include: { user: { select: { name: true } } },
+        select: {
+          id: true,
+          dataserver: true,
+          process: true,
+          method: true,
+          status: true,
+          duration: true,
+          error: true,
+          createdAt: true,
+          user: { select: { name: true } },
+        },
       }),
       prisma.client.count({ where: { deletedAt: null, organizationId, ...clientScope } }),
-      prisma.soapLog.groupBy({
-        by: ["createdAt"],
-        where: { createdAt: dailyStatsCreatedAt, organizationId },
-        _count: { id: true },
-        orderBy: { createdAt: "asc" },
-      }),
-      prisma.tbc.count({ where: { deletedAt: null, status: true, organizationId, ...clientIdScope } }),
+      // Bucketed by day in the database — grouping by the raw timestamp returned one row per log.
+      prisma.$queryRaw<{ day: Date; calls: bigint }[]>(Prisma.sql`
+        SELECT date_trunc('day', "created_at") AS day, COUNT(*) AS calls
+        FROM "soap_logs"
+        WHERE "organization_id" = ${organizationId}
+          AND "created_at" >= ${dailyStatsCreatedAt.gte}
+          ${"lt" in dailyStatsCreatedAt && dailyStatsCreatedAt.lt ? Prisma.sql`AND "created_at" < ${dailyStatsCreatedAt.lt}` : Prisma.empty}
+        GROUP BY day
+        ORDER BY day ASC`),
       prisma.tbc.count({ where: { deletedAt: null, status: false, organizationId, ...clientIdScope } }),
       prisma.filter.count({ where: { deletedAt: null, status: true, organizationId, ...clientIdScope } }),
       prisma.filter.count({ where: { deletedAt: null, status: false, organizationId, ...clientIdScope } }),
@@ -195,15 +209,9 @@ export const dashboardService = {
         level,
       }));
 
-    const dailyAggregated = dailyStats.reduce<Record<string, number>>((acc, item) => {
-      const dateKey = item.createdAt.toISOString().split("T")[0];
-      acc[dateKey] = (acc[dateKey] || 0) + item._count.id;
-      return acc;
-    }, {});
-
-    const chartData = Object.entries(dailyAggregated).map(([date, count]) => ({
-      date: new Date(date).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }),
-      calls: count,
+    const chartData = dailyStats.map((row) => ({
+      date: new Date(row.day.toISOString().split("T")[0]).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }),
+      calls: Number(row.calls),
     }));
 
     const clientStatusData = [
@@ -212,7 +220,7 @@ export const dashboardService = {
     ];
 
     const tbcStatusData = [
-      { name: "Ativos", value: activeTbcs },
+      { name: "Ativos", value: totalTbcs },
       { name: "Inativos", value: inactiveTbcs },
     ];
 
@@ -246,9 +254,27 @@ export const dashboardService = {
       }));
 
     const demandTypeIds = demandsByTypeRaw.flatMap((d) => (d.demandTypeId ? [d.demandTypeId] : []));
-    const demandTypes = demandTypeIds.length
-      ? await prisma.demandType.findMany({ where: { id: { in: demandTypeIds } }, select: { id: true, name: true, color: true } })
-      : [];
+    const tagIds = demandsByTagRaw.map((d) => d.tagId);
+    const analystIds = demandsByAnalystRaw.map((d) => d.analystId);
+    const clientIdsForDemands = demandsByClientRaw.map((d) => d.clientId);
+    const contractedHoursByClientId = new Map(contractsByClient.map((c) => [c.clientId, c._sum.contractedHours || 0]));
+    const spentMinutesByClientId = new Map(demandMinutesByClient.map((d) => [d.clientId, d._sum.durationMinutes || 0]));
+    const rankingClientIds = Array.from(new Set([...contractedHoursByClientId.keys(), ...spentMinutesByClientId.keys()]));
+
+    // Name/color lookups for the grouped ids — independent, so fetched together instead of one after another.
+    const [demandTypes, tags, analysts, clientsForDemands, rankingClients] = await Promise.all([
+      demandTypeIds.length
+        ? prisma.demandType.findMany({ where: { id: { in: demandTypeIds } }, select: { id: true, name: true, color: true } })
+        : [],
+      tagIds.length ? prisma.tag.findMany({ where: { id: { in: tagIds } }, select: { id: true, name: true, color: true } }) : [],
+      analystIds.length ? prisma.analyst.findMany({ where: { id: { in: analystIds } }, select: { id: true, name: true } }) : [],
+      clientIdsForDemands.length
+        ? prisma.client.findMany({ where: { id: { in: clientIdsForDemands } }, select: { id: true, name: true, color: true } })
+        : [],
+      rankingClientIds.length
+        ? prisma.client.findMany({ where: { id: { in: rankingClientIds } }, select: { id: true, name: true, color: true } })
+        : [],
+    ]);
     const demandTypeById = new Map(demandTypes.map((t) => [t.id, t]));
     const demandsByType = demandsByTypeRaw.map((d) => {
       const type = d.demandTypeId ? demandTypeById.get(d.demandTypeId) : undefined;
@@ -259,10 +285,6 @@ export const dashboardService = {
       };
     });
 
-    const tagIds = demandsByTagRaw.map((d) => d.tagId);
-    const tags = tagIds.length
-      ? await prisma.tag.findMany({ where: { id: { in: tagIds } }, select: { id: true, name: true, color: true } })
-      : [];
     const tagById = new Map(tags.map((t) => [t.id, t]));
     const demandsByTag = demandsByTagRaw.map((d) => ({
       name: tagById.get(d.tagId)?.name || "Desconhecido",
@@ -270,23 +292,12 @@ export const dashboardService = {
       color: tagById.get(d.tagId)?.color || NO_DEMAND_TYPE_COLOR,
     }));
 
-    const analystIds = demandsByAnalystRaw.map((d) => d.analystId);
-    const analysts = analystIds.length
-      ? await prisma.analyst.findMany({ where: { id: { in: analystIds } }, select: { id: true, name: true } })
-      : [];
     const analystNameById = new Map(analysts.map((a) => [a.id, a.name]));
     const demandsByAnalyst = demandsByAnalystRaw.map((d) => ({
       name: analystNameById.get(d.analystId) || "Desconhecido",
       value: d._count.id,
     }));
 
-    const clientIdsForDemands = demandsByClientRaw.map((d) => d.clientId);
-    const clientsForDemands = clientIdsForDemands.length
-      ? await prisma.client.findMany({
-          where: { id: { in: clientIdsForDemands } },
-          select: { id: true, name: true, color: true },
-        })
-      : [];
     const clientNameById = new Map(clientsForDemands.map((c) => [c.id, c.name]));
     const clientColorById = new Map(clientsForDemands.map((c) => [c.id, c.color]));
     const demandsByClient = demandsByClientRaw.map((d) => ({
@@ -295,15 +306,6 @@ export const dashboardService = {
       color: clientColorById.get(d.clientId) || "#22c55e",
     }));
 
-    const contractedHoursByClientId = new Map(contractsByClient.map((c) => [c.clientId, c._sum.contractedHours || 0]));
-    const spentMinutesByClientId = new Map(demandMinutesByClient.map((d) => [d.clientId, d._sum.durationMinutes || 0]));
-    const rankingClientIds = Array.from(new Set([...contractedHoursByClientId.keys(), ...spentMinutesByClientId.keys()]));
-    const rankingClients = rankingClientIds.length
-      ? await prisma.client.findMany({
-          where: { id: { in: rankingClientIds } },
-          select: { id: true, name: true, color: true },
-        })
-      : [];
     const rankingClientNameById = new Map(rankingClients.map((c) => [c.id, c.name]));
     const rankingClientColorById = new Map(rankingClients.map((c) => [c.id, c.color]));
     const clientHoursRanking = rankingClientIds

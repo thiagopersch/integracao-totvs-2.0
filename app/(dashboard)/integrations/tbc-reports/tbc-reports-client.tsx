@@ -1,5 +1,6 @@
 "use client"
 
+import { PendingRegion } from "@/components/shared/pending-region"
 import { useEffect, useMemo, useState } from "react"
 import axios from "axios"
 import { toast } from "sonner"
@@ -53,14 +54,22 @@ function setParValueText(par: RptReportPar, text: string): RptReportPar {
 function mimeFromFileName(fileName: string): string {
   const ext = fileName.split(".").pop()?.toLowerCase()
   switch (ext) {
-    case "pdf": return "application/pdf"
-    case "xls": return "application/vnd.ms-excel"
-    case "xlsx": return "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    case "doc": return "application/msword"
-    case "docx": return "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-    case "html": return "text/html"
-    case "txt": return "text/plain"
-    default: return "application/octet-stream"
+    case "pdf":
+      return "application/pdf"
+    case "xls":
+      return "application/vnd.ms-excel"
+    case "xlsx":
+      return "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    case "doc":
+      return "application/msword"
+    case "docx":
+      return "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    case "html":
+      return "text/html"
+    case "txt":
+      return "text/plain"
+    default:
+      return "application/octet-stream"
   }
 }
 
@@ -346,89 +355,104 @@ export function TbcReportsClient({
               </Field>
               <div className="flex items-end">
                 <Button type="button" onClick={handleListReports} disabled={loading} className="w-full">
-                  {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <ListChecks className="h-4 w-4 mr-2" />}
+                  {loading ? (
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  ) : (
+                    <ListChecks className="h-4 w-4 mr-2" />
+                  )}
                   Listar relatórios
                 </Button>
               </div>
             </div>
           </fieldset>
 
-          <fieldset className="space-y-3 rounded-lg border border-input p-3">
-            <legend className="px-1 text-sm font-medium text-muted-foreground">Relatório</legend>
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <Field>
-                <FieldLabel htmlFor="report">Relatório</FieldLabel>
-                <Combobox
-                  items={reports.map((r) => ({
-                    value: `${r.codSistema}::${r.codReport}`,
-                    label: `${r.codigo} - ${r.nome} (${r.codReport})`,
-                  }))}
-                  value={selectedReport ? `${selectedReport.codSistema}::${selectedReport.codReport}` : null}
-                  onValueChange={handleSelectReport}
-                  placeholder="Selecionar relatório..."
-                  searchPlaceholder="Buscar relatório..."
-                  emptyText="Liste os relatórios primeiro."
-                />
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="fileName">Nome do arquivo</FieldLabel>
-                <Input id="fileName" value={fileName} onChange={(e) => setFileName(e.target.value)} placeholder="Relatorio.pdf" />
-              </Field>
-            </div>
-
-            {selectedReport && reportInfo && !hasFiltersOrParams && (
-              <p className="text-sm text-muted-foreground">Este relatório não possui filtros ou parâmetros configuráveis.</p>
-            )}
-
-            {filters.length > 0 && (
-              <div className="space-y-2">
-                <p className="text-sm font-medium">Filtros</p>
-                {filterFields.length > 0 ? (
-                  <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                    {filterFields.map((field) => (
-                      <Field key={`${field.parIndex}:${field.table}.${field.column}`}>
-                        <FieldLabel>
-                          {field.table}.{field.column}
-                        </FieldLabel>
-                        <Input
-                          value={field.value}
-                          onChange={(e) => updateFilterField(field, e.target.value)}
-                        />
-                      </Field>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                    {filters.map((f, i) => (
-                      <Field key={i}>
-                        <FieldLabel>{getParLabel(f)}</FieldLabel>
-                        <Input value={getParValueText(f)} onChange={(e) => updateFilterValue(i, e.target.value)} />
-                      </Field>
-                    ))}
-                  </div>
-                )}
+          {/* Report list/info come from the TBC — dim this block while they're being fetched. */}
+          <PendingRegion pending={loading}>
+            <fieldset className="space-y-3 rounded-lg border border-input p-3">
+              <legend className="px-1 text-sm font-medium text-muted-foreground">Relatório</legend>
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <Field>
+                  <FieldLabel htmlFor="report">Relatório</FieldLabel>
+                  <Combobox
+                    items={reports.map((r) => ({
+                      value: `${r.codSistema}::${r.codReport}`,
+                      label: `${r.codigo} - ${r.nome} (${r.codReport})`,
+                    }))}
+                    value={selectedReport ? `${selectedReport.codSistema}::${selectedReport.codReport}` : null}
+                    onValueChange={handleSelectReport}
+                    placeholder="Selecionar relatório..."
+                    searchPlaceholder="Buscar relatório..."
+                    emptyText="Liste os relatórios primeiro."
+                  />
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor="fileName">Nome do arquivo</FieldLabel>
+                  <Input
+                    id="fileName"
+                    value={fileName}
+                    onChange={(e) => setFileName(e.target.value)}
+                    placeholder="Relatorio.pdf"
+                  />
+                </Field>
               </div>
-            )}
 
-            {parameters.length > 0 && (
-              <div className="space-y-2">
-                <p className="text-sm font-medium">Parâmetros</p>
-                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                  {parameters.map((p, i) => (
-                    <Field key={i}>
-                      <FieldLabel>{getParLabel(p)}</FieldLabel>
-                      <Input value={getParValueText(p)} onChange={(e) => updateParameterValue(i, e.target.value)} />
-                    </Field>
-                  ))}
+              {selectedReport && reportInfo && !hasFiltersOrParams && (
+                <p className="text-sm text-muted-foreground">
+                  Este relatório não possui filtros ou parâmetros configuráveis.
+                </p>
+              )}
+
+              {filters.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-sm font-medium">Filtros</p>
+                  {filterFields.length > 0 ? (
+                    <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                      {filterFields.map((field) => (
+                        <Field key={`${field.parIndex}:${field.table}.${field.column}`}>
+                          <FieldLabel>
+                            {field.table}.{field.column}
+                          </FieldLabel>
+                          <Input value={field.value} onChange={(e) => updateFilterField(field, e.target.value)} />
+                        </Field>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                      {filters.map((f, i) => (
+                        <Field key={i}>
+                          <FieldLabel>{getParLabel(f)}</FieldLabel>
+                          <Input value={getParValueText(f)} onChange={(e) => updateFilterValue(i, e.target.value)} />
+                        </Field>
+                      ))}
+                    </div>
+                  )}
                 </div>
-              </div>
-            )}
+              )}
 
-            <Button type="button" onClick={handleGenerate} disabled={loading || !selectedReport}>
-              {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <FileBarChart2 className="h-4 w-4 mr-2" />}
-              Gerar relatório
-            </Button>
-          </fieldset>
+              {parameters.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-sm font-medium">Parâmetros</p>
+                  <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                    {parameters.map((p, i) => (
+                      <Field key={i}>
+                        <FieldLabel>{getParLabel(p)}</FieldLabel>
+                        <Input value={getParValueText(p)} onChange={(e) => updateParameterValue(i, e.target.value)} />
+                      </Field>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <Button type="button" onClick={handleGenerate} disabled={loading || !selectedReport}>
+                {loading ? (
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                ) : (
+                  <FileBarChart2 className="h-4 w-4 mr-2" />
+                )}
+                Gerar relatório
+              </Button>
+            </fieldset>
+          </PendingRegion>
         </CardContent>
       </Card>
 
@@ -436,7 +460,9 @@ export function TbcReportsClient({
         <CardHeader className="py-3">
           <CardTitle className="text-sm flex items-center justify-between">
             <span>Progresso da geração</span>
-            {generationMode && <Badge variant="outline">{generationMode === "async" ? "Assíncrono" : "Síncrono (fallback)"}</Badge>}
+            {generationMode && (
+              <Badge variant="outline">{generationMode === "async" ? "Assíncrono" : "Síncrono (fallback)"}</Badge>
+            )}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">

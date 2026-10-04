@@ -1,6 +1,6 @@
 "use server"
 
-import { updateTag, cacheTag } from "next/cache";
+import { updateTag } from "next/cache";
 import { clientService } from "@/services/client.service";
 import { auditService } from "@/services/audit.service";
 import { createClientSchema, updateClientSchema } from "@/schemas/client.schema";
@@ -8,36 +8,6 @@ import { requirePermission } from "@/lib/rbac";
 import { getRequestContext } from "@/lib/tenant";
 import { saveImageUpload } from "@/lib/upload";
 import { formatBlockingReferences } from "@/lib/entity-relations";
-import type { ListParams } from "@/types/common";
-
-export async function listAllClients() {
-  const { organizationId, allowedClientIds } = await getRequestContext();
-  return clientService.listAll(organizationId, allowedClientIds);
-}
-
-/** For the "assign clients to a user" picker only — see clientService.listAllUnrestricted. */
-export async function listAllClientsForAssignment() {
-  const { organizationId } = await requirePermission("users", "update");
-  return clientService.listAllUnrestricted(organizationId);
-}
-
-export async function listActiveClientsWithTbc() {
-  const { organizationId, allowedClientIds } = await getRequestContext();
-  return clientService.listActiveWithTbc(organizationId, allowedClientIds);
-}
-
-export async function listClients(params: ListParams, organizationId: string, allowedClientIds: string[]) {
-  "use cache";
-  cacheTag("clients");
-  return clientService.list(params, organizationId, allowedClientIds);
-}
-
-export async function getClientById(id: string, organizationId: string, allowedClientIds: string[]) {
-  "use cache";
-  cacheTag(`client-${id}`);
-  return clientService.getById(id, organizationId, allowedClientIds);
-}
-
 async function parseImageField(formData: FormData, field: string, kind: Parameters<typeof saveImageUpload>[1]) {
   const value = formData.get(field);
   return value instanceof File && value.size > 0 ? await saveImageUpload(value, kind) : (value as string) || undefined;
@@ -67,6 +37,22 @@ async function parseClientForm(formData: FormData) {
     favorite: formData.get("favorite") === "true",
     status: formData.get("status") === "true",
   };
+}
+
+export async function listAllClients() {
+  const { organizationId, allowedClientIds } = await getRequestContext();
+  return clientService.listAll(organizationId, allowedClientIds);
+}
+
+/** For the "assign clients to a user" picker only — see clientService.listAllUnrestricted. */
+export async function listAllClientsForAssignment() {
+  const { organizationId } = await requirePermission("users", "update");
+  return clientService.listAllUnrestricted(organizationId);
+}
+
+export async function listActiveClientsWithTbc() {
+  const { organizationId, allowedClientIds } = await getRequestContext();
+  return clientService.listActiveWithTbc(organizationId, allowedClientIds);
 }
 
 export async function createClient(formData: FormData) {

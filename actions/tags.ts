@@ -1,23 +1,15 @@
 "use server"
 
-import { updateTag as updateCacheTag, cacheTag } from "next/cache";
+import { updateTag as updateCacheTag } from "next/cache";
 import { tagService } from "@/services/tag.service";
 import { auditService } from "@/services/audit.service";
 import { createTagSchema, updateTagSchema } from "@/schemas/tag.schema";
 import { requirePermission } from "@/lib/rbac";
 import { getRequestContext } from "@/lib/tenant";
 import { formatBlockingReferences } from "@/lib/entity-relations";
-import type { ListParams } from "@/types/common";
-
 export async function listAllTags() {
   const { organizationId } = await getRequestContext();
   return tagService.listAll(organizationId);
-}
-
-export async function listTags(params: ListParams, organizationId: string) {
-  "use cache";
-  cacheTag("tags");
-  return tagService.list(params, organizationId);
 }
 
 export async function createTag(formData: FormData) {

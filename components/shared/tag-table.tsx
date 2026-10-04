@@ -48,7 +48,6 @@ function randomColor() {
 export function TagTable({ data, meta }: TagTableProps) {
   const { resolvedTheme } = useTheme()
   const {
-    router,
     deleteDialog,
     setDeleteDialog,
     editDialog,
@@ -57,6 +56,8 @@ export function TagTable({ data, meta }: TagTableProps) {
     handleDelete,
     sort,
     onSortChange,
+    refresh,
+    isPending,
   } = useCrudTable<Tag>({
     deleteAction: deleteTag,
     deleteSuccessMessage: "Tag excluída com sucesso",
@@ -87,7 +88,7 @@ export function TagTable({ data, meta }: TagTableProps) {
       toast.success(editDialog.entity ? "Tag atualizada" : "Tag criada")
       form.reset()
       setEditDialog({ open: false })
-      router.refresh()
+      refresh()
     } else {
       toast.error(result.error || "Erro ao salvar")
     }
@@ -177,6 +178,7 @@ export function TagTable({ data, meta }: TagTableProps) {
       <PageHeader title="Tags" description="Gerenciar tags de demandas" />
 
       <DataTable
+        refreshing={isPending}
         columns={columns}
         data={data}
         page={meta.page}
@@ -195,7 +197,7 @@ export function TagTable({ data, meta }: TagTableProps) {
           getId: (row) => row.id,
           getRowLabel: (row) => row.name,
           action: bulkDeleteTags,
-          onSuccess: () => router.refresh(),
+          onSuccess: () => refresh(),
         }}
       />
 

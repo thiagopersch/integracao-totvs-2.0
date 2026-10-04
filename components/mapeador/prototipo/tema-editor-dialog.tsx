@@ -155,7 +155,7 @@ export function TemaEditorDialog({ open, onOpenChange, tema, onSaved }: TemaEdit
               )}
             </div>
           ) : (
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="space-y-1">
                 <Label className="text-xs text-muted-foreground">Cor da marca</Label>
                 <Input type="color" value={config.corMarca} onChange={(e) => patch({ corMarca: e.target.value })} className="h-8 w-full p-1" />
@@ -163,7 +163,7 @@ export function TemaEditorDialog({ open, onOpenChange, tema, onSaved }: TemaEdit
             </div>
           )}
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             {origem === "manual" && (
               <>
                 <div className="space-y-1">

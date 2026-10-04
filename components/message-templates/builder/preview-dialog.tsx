@@ -1,5 +1,6 @@
 "use client"
 
+import DOMPurify from "dompurify"
 import { useMemo, useState } from "react"
 import { Monitor, Smartphone } from "lucide-react"
 import { Dialog, DialogBody, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -101,7 +102,7 @@ export function WhatsAppBubble({ html }: { html: string }) {
   return (
     <div className="flex min-h-0 flex-1 justify-center overflow-auto rounded-md bg-[#efeae2] p-6 dark:bg-[#0b141a]">
       <div className="h-fit max-w-[420px] rounded-lg rounded-tr-none bg-[#d9fdd3] px-3 py-2 text-[14px] leading-snug text-[#111b21] shadow-sm dark:bg-[#005c4b] dark:text-[#e9edef]">
-        {html ? <div className="break-words" dangerouslySetInnerHTML={{ __html: html }} /> : <span className="opacity-60">(mensagem vazia)</span>}
+        {html ? <div className="break-words" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(html) }} /> : <span className="opacity-60">(mensagem vazia)</span>}
         <div className="mt-1 text-right text-[11px] opacity-60">
           {new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })} ✓✓
         </div>

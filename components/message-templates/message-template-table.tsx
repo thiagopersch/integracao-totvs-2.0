@@ -82,7 +82,7 @@ function FilterSelect({
 }
 
 export function MessageTemplateTable({ data, meta }: { data: MessageTemplateRow[]; meta: PaginationMeta }) {
-  const { router, searchParams, deleteDialog, setDeleteDialog, pushParams, handleDelete, handleToggleStatus, sort, onSortChange } =
+  const { router, searchParams, deleteDialog, setDeleteDialog, pushParams, handleDelete, handleToggleStatus, sort, onSortChange, refresh, isPending } =
     useCrudTable<MessageTemplateRow>({
       deleteAction: deleteMessageTemplate,
       setStatusAction: setMessageTemplateActive,
@@ -226,6 +226,7 @@ export function MessageTemplateTable({ data, meta }: { data: MessageTemplateRow[
         description="Modelos de e-mail e WhatsApp usados nas notificações do sistema. Para cada evento e canal, vale o template ativo mais recente."
       />
       <DataTable
+        refreshing={isPending}
         columns={columns}
         data={data}
         page={meta.page}
@@ -254,7 +255,7 @@ export function MessageTemplateTable({ data, meta }: { data: MessageTemplateRow[
                 getRowLabel: (row) => row.name,
                 action: bulkDeleteMessageTemplates,
                 confirmDescription: (count) => `Tem certeza que deseja excluir ${count} template(s) selecionado(s)?`,
-                onSuccess: () => router.refresh(),
+                onSuccess: () => refresh(),
               }
             : undefined
         }

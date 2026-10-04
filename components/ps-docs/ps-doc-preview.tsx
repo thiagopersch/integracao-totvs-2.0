@@ -1,5 +1,6 @@
 "use client"
 
+import DOMPurify from "dompurify"
 import { useMemo } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { renderDocumentHtml } from "@/lib/ps-docs/render-html"
@@ -16,7 +17,7 @@ export function PsDocPreview({ model, style }: PsDocPreviewProps) {
   return (
     <Card className={style.followAppTheme ? undefined : "doc-preview-light"}>
       <CardContent className="pt-6">
-        <div className="max-w-none" dangerouslySetInnerHTML={{ __html: html }} />
+        <div className="max-w-none" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(html) }} />
       </CardContent>
     </Card>
   )

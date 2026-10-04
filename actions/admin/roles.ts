@@ -1,23 +1,10 @@
 "use server"
 
-import { updateTag, cacheTag } from "next/cache";
+import { updateTag } from "next/cache";
 import { roleService } from "@/services/role.service";
 import { auditService } from "@/services/audit.service";
 import { createRoleSchema, updateRoleSchema } from "@/schemas/role.schema";
 import { requirePermission } from "@/lib/rbac";
-
-export async function listRoles(organizationId: string) {
-  "use cache";
-  cacheTag("roles");
-  return roleService.list(organizationId);
-}
-
-export async function listAllPermissions() {
-  "use cache";
-  cacheTag("permissions");
-  return roleService.listAllPermissions();
-}
-
 export async function getRole(id: string) {
   const { organizationId } = await requirePermission("roles", "read");
   return roleService.getById(id, organizationId);

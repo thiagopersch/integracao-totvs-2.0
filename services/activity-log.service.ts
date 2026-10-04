@@ -44,7 +44,10 @@ export type ActivityFilters = {
 };
 
 type AuditLogWithUser = AuditLog & { user: { name: string } | null };
-type SoapLogWithUser = SoapLog & { user: { name: string } | null };
+// The response payloads (xmlResponse/jsonResponse — a ReadView can return megabytes) are left out of
+// the paginated feed and fetched only when a row's detail is opened (getSoapResponse).
+const SOAP_LIST_OMIT = { xmlResponse: true, jsonResponse: true } as const;
+type SoapLogWithUser = Omit<SoapLog, "xmlResponse" | "jsonResponse"> & { user: { name: string } | null };
 type EmailLogWithUser = EmailLog & { user: { name: string } | null };
 type ApiLogWithUser = ApiLog & { user: { name: string } | null };
 
@@ -377,6 +380,11 @@ function apiWhere(organizationId: string, filters: ActivityFilters): Prisma.ApiL
 const userSelect = { user: { select: { name: true } } } as const;
 
 export const activityLogService = {
+  /** Response payload of one SOAP log, loaded on demand by the activity detail dialog. */
+  async getSoapResponse(id: string, organizationId: string) {
+    return prisma.soapLog.findFirst({ where: { id, organizationId }, select: { xmlResponse: true, jsonResponse: true } });
+  },
+
   /** Paginated, unified feed across AuditLog (CRUD + blocked-deletion) + SoapLog + EmailLog + ApiLog
    *  — the single grid backing every tab of /admin/activity. "Fonte" separates origins via a column
    *  and filter instead of separate pages, so every filter (Cliente, TBC, Tipo, Método,
@@ -408,7 +416,7 @@ export const activityLogService = {
     const take = page * pageSize;
     const [auditRows, soapRows, emailRows, apiRows, deletionRows] = await Promise.all([
       prisma.auditLog.findMany({ where: auditWhere(organizationId, filters), include: userSelect, orderBy: { createdAt: direction }, take }),
-      prisma.soapLog.findMany({ where: soapWhere(organizationId, filters, ctx), include: userSelect, orderBy: { createdAt: direction }, take }),
+      prisma.soapLog.findMany({ where: soapWhere(organizationId, filters, ctx), include: userSelect, omit: SOAP_LIST_OMIT, orderBy: { createdAt: direction }, take }),
       prisma.emailLog.findMany({ where: emailWhere(organizationId, filters), include: userSelect, orderBy: { createdAt: direction }, take }),
       prisma.apiLog.findMany({ where: apiWhere(organizationId, filters), include: userSelect, orderBy: { createdAt: direction }, take }),
       prisma.auditLog.findMany({ where: deletionWhere(organizationId, filters), include: userSelect, orderBy: { createdAt: direction }, take }),
@@ -471,7 +479,7 @@ export const activityLogService = {
     if (source === "SOAP") {
       const where = soapWhere(organizationId, filters, resolvedCtx);
       const [rows, total] = await Promise.all([
-        prisma.soapLog.findMany({ where, include: userSelect, orderBy, skip, take: pageSize }),
+        prisma.soapLog.findMany({ where, include: userSelect, omit: SOAP_LIST_OMIT, orderBy, skip, take: pageSize }),
         prisma.soapLog.count({ where }),
       ]);
       return { data: rows.map(normalizeSoap), meta: { page, pageSize, total, totalPages: Math.ceil(total / pageSize) } };
@@ -498,16 +506,16 @@ export const activityLogService = {
    *  service knows which field to filter on regardless of which "Fonte" (if any) is also selected. */
   async listTipoOptions(organizationId: string) {
     const [crudEntities, deletionEntities] = await Promise.all([
-      prisma.auditLog.findMany({
+      // groupBy = SQL GROUP BY; Prisma's `distinct` (without nativeDistinct) loads every row and
+      // de-duplicates in Node — on log tables that's the whole history on every page load.
+      prisma.auditLog.groupBy({
+        by: ["entity"],
         where: { organizationId, action: { not: BULK_DELETE_BLOCKED_ACTION } },
-        distinct: ["entity"],
-        select: { entity: true },
         orderBy: { entity: "asc" },
       }),
-      prisma.auditLog.findMany({
+      prisma.auditLog.groupBy({
+        by: ["entity"],
         where: { organizationId, action: BULK_DELETE_BLOCKED_ACTION },
-        distinct: ["entity"],
-        select: { entity: true },
         orderBy: { entity: "asc" },
       }),
     ]);
@@ -520,10 +528,9 @@ export const activityLogService = {
   },
 
   async listDistinctApiMethods(organizationId: string) {
-    const rows = await prisma.apiLog.findMany({
+    const rows = await prisma.apiLog.groupBy({
+      by: ["httpMethod"],
       where: { organizationId },
-      distinct: ["httpMethod"],
-      select: { httpMethod: true },
       orderBy: { httpMethod: "asc" },
     });
     return rows.map((r) => r.httpMethod);
@@ -533,16 +540,8 @@ export const activityLogService = {
    *  MultiSelect alongside the fixed `STATUS_SYMBOLS` entries for the sources with no such code. */
   async listStatusCodes(organizationId: string) {
     const [soapStatuses, apiStatuses] = await Promise.all([
-      prisma.soapLog.findMany({
-        where: { organizationId, status: { not: null } },
-        distinct: ["status"],
-        select: { status: true },
-      }),
-      prisma.apiLog.findMany({
-        where: { organizationId, httpStatus: { not: null } },
-        distinct: ["httpStatus"],
-        select: { httpStatus: true },
-      }),
+      prisma.soapLog.groupBy({ by: ["status"], where: { organizationId, status: { not: null } } }),
+      prisma.apiLog.groupBy({ by: ["httpStatus"], where: { organizationId, httpStatus: { not: null } } }),
     ]);
     const codes = new Set<number>();
     for (const r of soapStatuses) if (r.status !== null) codes.add(r.status);

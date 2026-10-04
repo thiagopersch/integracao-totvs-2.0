@@ -22,7 +22,7 @@ import type { ActivitySource } from "@/services/activity-log.service"
 
 export default function ActivityLogPage({ searchParams }: { searchParams: Promise<Record<string, string>> }) {
   return (
-    <div className="p-6">
+    <div className="p-4 md:p-6">
       <PageHeader
         title="Rastreamento de Atividades"
         description="CRUD, chamadas SOAP, e-mails, integrações externas e exclusões bloqueadas — tudo em uma única grade"

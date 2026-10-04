@@ -18,7 +18,7 @@ import { useState } from "react"
 import type { User } from "@/generated/prisma/client"
 
 interface UserFormProps {
-  user?: User
+  user?: Omit<User, "password">
   onSuccess: () => void
   onCancel: () => void
 }

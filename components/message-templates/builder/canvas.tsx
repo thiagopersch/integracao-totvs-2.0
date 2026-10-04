@@ -1,5 +1,6 @@
 "use client"
 
+import DOMPurify from "dompurify"
 import { useDroppable } from "@dnd-kit/core"
 import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
@@ -154,7 +155,11 @@ function LeafView({ block }: { block: LeafBlock }) {
     <div
       className={cn("pointer-events-none", block.type === "text" && EMAIL_TYPOGRAPHY_CLASSES)}
       dangerouslySetInnerHTML={{
-        __html: `<table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0"><tr>${renderLeafBlock(block)}</tr></table>`,
+        // renderLeafBlock already sanitizes server-side-compatibly; DOMPurify is the browser-grade
+        // second layer since this is injected into the app's own origin.
+        __html: DOMPurify.sanitize(
+          `<table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0"><tr>${renderLeafBlock(block)}</tr></table>`
+        ),
       }}
     />
   )

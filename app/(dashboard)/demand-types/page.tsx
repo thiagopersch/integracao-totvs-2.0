@@ -1,12 +1,12 @@
 import { Suspense } from "react"
-import { listDemandTypes } from "@/actions/demand-types"
+import { listDemandTypes } from "@/queries/demand-types"
 import { DemandTypeTable } from "@/components/shared/demand-type-table"
 import { TableSkeleton } from "@/components/shared/table-skeleton"
 import { getCurrentOrganizationId } from "@/lib/tenant"
 
 export default function DemandTypesPage({ searchParams }: { searchParams: Promise<Record<string, string>> }) {
   return (
-    <div className="p-6">
+    <div className="p-4 md:p-6">
       <Suspense fallback={<TableSkeleton />}>
         <DemandTypesContent searchParams={searchParams} />
       </Suspense>

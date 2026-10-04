@@ -1,6 +1,6 @@
 import { Suspense } from "react"
 import { cookies } from "next/headers"
-import { listContracts } from "@/actions/contracts"
+import { listContracts } from "@/queries/contracts"
 import { getDemandPeriodOptions } from "@/actions/demands"
 import { listAllClients } from "@/actions/admin/clients"
 import { ContractTable } from "@/components/shared/contract-table"
@@ -11,7 +11,7 @@ import { formatMonthLabel, monthForPeriod } from "@/lib/contract-usage"
 
 export default function ContractsPage({ searchParams }: { searchParams: Promise<Record<string, string>> }) {
   return (
-    <div className="p-6">
+    <div className="p-4 md:p-6">
       <Suspense fallback={<TableSkeleton />}>
         <ContractsContent searchParams={searchParams} />
       </Suspense>

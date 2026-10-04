@@ -198,15 +198,15 @@ export function TbcChecklistClient({ tbc, dataservers }: TbcChecklistClientProps
 
   return (
     <div className="flex h-full flex-col gap-4">
-      <div className="flex items-center gap-3">
+      <div className="flex min-w-0 items-center gap-3">
         <Link href="/admin/tbcs">
           <Button variant="ghost" size="icon" title="Voltar">
             <ArrowLeft className="h-4 w-4" />
           </Button>
         </Link>
         <div>
-          <h1 className="flex items-center gap-2 text-lg font-semibold">
-            <ListChecks className="h-5 w-5" />
+          <h1 className="flex items-center gap-2 text-base font-semibold sm:text-lg">
+            <ListChecks className="h-5 w-5 shrink-0" />
             Checklist de Configuração — TOTVS
           </h1>
           <p className="text-sm text-muted-foreground">
@@ -215,7 +215,7 @@ export function TbcChecklistClient({ tbc, dataservers }: TbcChecklistClientProps
         </div>
       </div>
 
-      <div className="flex min-h-0 flex-1 gap-4">
+      <div className="flex min-h-0 flex-1 flex-col gap-4 lg:flex-row">
         <ProcessoSeletivoSidebar
           tbcId={tbc.id}
           dataservers={dataservers}

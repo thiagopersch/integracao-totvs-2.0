@@ -110,7 +110,6 @@ export function ContractTable({
   monthsByYear,
 }: ContractTableProps) {
   const {
-    router,
     searchParams,
     deleteDialog,
     setDeleteDialog,
@@ -120,6 +119,8 @@ export function ContractTable({
     handleDelete,
     sort,
     onSortChange,
+    refresh,
+    isPending,
   } = useCrudTable<ContractRow>({
     deleteAction: deleteContract,
     deleteSuccessMessage: "Contrato excluído com sucesso",
@@ -132,7 +133,7 @@ export function ContractTable({
   const [statusFilter, setStatusFilter] = useState(searchParams.get("status") || "")
   const [resendTarget, setResendTarget] = useState<ContractRow | null>(null)
   const [resending, setResending] = useState(false)
-  const { period, setPeriod } = usePeriodFilter(initialPeriod)
+  const { period, setPeriod, isPending: isPeriodPending } = usePeriodFilter(initialPeriod)
 
   async function handleResend() {
     if (!resendTarget) return
@@ -185,7 +186,7 @@ export function ContractTable({
       toast.success(editDialog.entity ? "Contrato atualizado" : "Contrato criado")
       form.reset()
       setEditDialog({ open: false })
-      router.refresh()
+      refresh()
     } else {
       toast.error(result.error || "Erro ao salvar")
     }
@@ -302,7 +303,7 @@ export function ContractTable({
             </Select>
             <FieldError errors={[form.formState.errors.clientId]} />
           </Field>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field>
               <FieldLabel htmlFor="contractedHours">Horas Contratadas</FieldLabel>
               <Controller
@@ -348,7 +349,7 @@ export function ContractTable({
               </Select>
             </Field>
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field>
               <FieldLabel htmlFor="startDate">Início</FieldLabel>
               <DatePicker
@@ -453,6 +454,7 @@ export function ContractTable({
       </PageHeader>
 
       <DataTable
+        refreshing={isPending || isPeriodPending}
         columns={columns}
         data={data}
         page={meta.page}
@@ -475,7 +477,7 @@ export function ContractTable({
                 getRowLabel: (row) => row.client.name,
                 action: bulkDeleteContracts,
                 confirmDescription: (count) => `Tem certeza que deseja excluir ${count} contrato(s) selecionado(s)? Esta ação não pode ser desfeita.`,
-                onSuccess: () => router.refresh(),
+                onSuccess: () => refresh(),
               }
             : undefined
         }

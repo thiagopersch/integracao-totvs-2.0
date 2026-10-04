@@ -38,12 +38,12 @@ export const DataTableToolbar = memo(function DataTableToolbar({
     onSearchRef.current = onSearch
   })
 
-  const isFirstRun = useRef(true)
+  // Compared by value (not a "first run" flag) so StrictMode's double effect run — or a re-mount —
+  // doesn't fire a spurious search, which would trigger an extra navigation/server render.
+  const lastSearch = useRef(searchDefaultValue)
   useEffect(() => {
-    if (isFirstRun.current) {
-      isFirstRun.current = false
-      return
-    }
+    if (debouncedSearch === lastSearch.current) return
+    lastSearch.current = debouncedSearch
     onSearchRef.current?.(debouncedSearch)
   }, [debouncedSearch])
 
@@ -70,7 +70,8 @@ export const DataTableToolbar = memo(function DataTableToolbar({
       )}
       <div className="hidden flex-1 sm:block" />
       {pageSizeSelect}
-      <div className="ml-auto flex items-center gap-2 sm:ml-0">{toolbarActions}</div>
+      {/* Wraps onto extra rows on phones instead of pushing the page wider than the screen. */}
+      <div className="flex w-full flex-wrap items-center gap-2 empty:hidden sm:ml-0 sm:w-auto">{toolbarActions}</div>
     </div>
   )
 })

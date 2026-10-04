@@ -1,7 +1,7 @@
 import { Suspense } from "react"
 import { notFound } from "next/navigation"
-import { getFilterByIdWithRelations } from "@/actions/admin/filters"
-import { listLatestBackupsForFilter, listBackupRunsForFilter } from "@/actions/admin/backups"
+import { getFilterByIdWithRelations } from "@/queries/admin/filters"
+import { listLatestBackupsForFilter, listBackupRunsForFilter } from "@/queries/admin/backups"
 import { BackupsDetailClient } from "@/components/shared/backups-detail-client"
 import { TableSkeleton } from "@/components/shared/table-skeleton"
 import { getRequestContext } from "@/lib/tenant"
@@ -14,7 +14,7 @@ export default function BackupsPage({
   searchParams: Promise<Record<string, string>>
 }) {
   return (
-    <div className="p-6">
+    <div className="p-4 md:p-6">
       <Suspense fallback={<TableSkeleton />}>
         <BackupsContent params={params} searchParams={searchParams} />
       </Suspense>

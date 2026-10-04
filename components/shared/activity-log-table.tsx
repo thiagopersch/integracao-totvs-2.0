@@ -1,7 +1,7 @@
 "use client"
 
-import { useMemo, useState, type ReactNode } from "react"
-import { useRouter, useSearchParams } from "next/navigation"
+import { useUrlParams } from "@/hooks/use-url-params"
+import { useEffect, useMemo, useState, type ReactNode } from "react"
 import { format } from "date-fns"
 import type { DateRange } from "react-day-picker"
 import type { ColumnDef } from "@tanstack/react-table"
@@ -23,6 +23,8 @@ import { formatDate, formatDuration } from "@/utils/format"
 import { safeFormatXmlDeep, extractEntityName } from "@/utils/xml"
 import { ENTITY_LABELS, formatBlockingReferences, type BlockingReference } from "@/lib/entity-labels"
 import { reexecuteSoapLog } from "@/actions/soap"
+import { getActivitySoapResponse } from "@/actions/admin/activity-log"
+import { Skeleton } from "@/components/ui/skeleton"
 import { cn } from "@/utils/cn"
 import { FileText, Radio, Mail, Plug, Trash2, Maximize2, Minimize2, Eye, RotateCcw, Download, Copy } from "lucide-react"
 import { toast } from "sonner"
@@ -129,8 +131,7 @@ export function ActivityLogTable({
   statusCodes,
   canReexecuteSoap,
 }: ActivityLogTableProps) {
-  const router = useRouter()
-  const searchParams = useSearchParams()
+  const { searchParams, isPending, pushParams, refresh } = useUrlParams()
   const [detail, setDetail] = useState<ActivityRow | null>(null)
   const [executing, setExecuting] = useState<string | null>(null)
   const [reexecuteRow, setReexecuteRow] = useState<ActivityRow | null>(null)
@@ -200,15 +201,6 @@ export function ActivityLogTable({
     })),
   ]
 
-  function pushParams(updates: Record<string, string | number | undefined>) {
-    const params = new URLSearchParams(searchParams.toString())
-    Object.entries(updates).forEach(([k, v]) => {
-      if (v === undefined || v === "") params.delete(k)
-      else params.set(k, String(v))
-    })
-    router.push(`?${params.toString()}`)
-  }
-
   function clearFilters() {
     setSourceFilter("")
     setClientFilter("")
@@ -258,7 +250,7 @@ export function ActivityLogTable({
       const result = await reexecuteSoapLog(row.id)
       if (result.success) {
         toast.success("Reexecução concluída")
-        router.refresh()
+        refresh()
       } else {
         toast.error(result.error || "Erro na reexecução")
       }
@@ -444,6 +436,7 @@ export function ActivityLogTable({
   return (
     <>
       <DataTable
+        refreshing={isPending}
         columns={columns}
         data={data}
         page={meta.page}
@@ -538,7 +531,7 @@ function ActivityDetailDialog({ open, onOpenChange, row }: { open: boolean; onOp
           </DetailSection>
 
           {row.source === "CRUD" && <CrudDetail raw={row.raw as AuditLog} />}
-          {row.source === "SOAP" && <SoapDetail raw={row.raw as SoapLog} />}
+          {row.source === "SOAP" && <SoapDetail raw={row.raw as Omit<SoapLog, "xmlResponse" | "jsonResponse">} />}
           {row.source === "EMAIL" && <EmailDetail raw={row.raw as EmailLog} />}
           {row.source === "API" && <ApiDetail raw={row.raw as ApiLog} />}
           {row.source === "DELETION" && <DeletionDetail raw={row.raw as AuditLog} />}
@@ -688,9 +681,27 @@ function DeletionDetail({ raw }: { raw: AuditLog }) {
   )
 }
 
-function SoapDetail({ raw }: { raw: SoapLog }) {
+type SoapResponse = Pick<SoapLog, "xmlResponse" | "jsonResponse">
+
+/** The feed omits the (potentially huge) response payloads — fetched here when the detail opens. */
+function useSoapResponse(id: string) {
+  const [state, setState] = useState<{ id: string; data: SoapResponse | null } | null>(null)
+  useEffect(() => {
+    let cancelled = false
+    getActivitySoapResponse(id)
+      .then((data) => !cancelled && setState({ id, data }))
+      .catch(() => !cancelled && setState({ id, data: null }))
+    return () => {
+      cancelled = true
+    }
+  }, [id])
+  return { response: state?.id === id ? state.data : null, loading: state?.id !== id }
+}
+
+function SoapDetail({ raw }: { raw: Omit<SoapLog, "xmlResponse" | "jsonResponse"> }) {
   const wsName = raw.process as WsName | null
   const entity = raw.xmlRequest ? extractEntityName(raw.xmlRequest) : null
+  const { response, loading } = useSoapResponse(raw.id)
 
   return (
     <>
@@ -722,15 +733,23 @@ function SoapDetail({ raw }: { raw: SoapLog }) {
             />
           </TabsContent>
           <TabsContent value="response-xml">
-            <DataBlock
-              label=""
-              value={raw.xmlResponse ? safeFormatXmlDeep(raw.xmlResponse) : null}
-              language="xml"
-              fileNameHint="resposta"
-            />
+            {loading ? (
+              <Skeleton className="h-40 w-full" />
+            ) : (
+              <DataBlock
+                label=""
+                value={response?.xmlResponse ? safeFormatXmlDeep(response.xmlResponse) : null}
+                language="xml"
+                fileNameHint="resposta"
+              />
+            )}
           </TabsContent>
           <TabsContent value="response-json">
-            <DataBlock label="" value={raw.jsonResponse} fileNameHint="resposta" />
+            {loading ? (
+              <Skeleton className="h-40 w-full" />
+            ) : (
+              <DataBlock label="" value={response?.jsonResponse ?? null} fileNameHint="resposta" />
+            )}
           </TabsContent>
         </Tabs>
       </DetailSection>

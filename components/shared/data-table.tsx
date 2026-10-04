@@ -23,6 +23,7 @@ import { DataTablePagination, PageSizeSelect } from "./data-table-pagination"
 import { DataTableToolbar } from "./data-table-toolbar"
 import { ConfirmDialog } from "./confirm-dialog"
 import { Skeleton } from "@/components/ui/skeleton"
+import { PendingRegion } from "./pending-region"
 
 type SortState = { field: string; direction: "asc" | "desc" }
 
@@ -80,6 +81,12 @@ interface DataTableProps<TData, TValue> {
   onPageChange?: (page: number) => void
   onPageSizeChange?: (pageSize: number) => void
   loading?: boolean
+  /**
+   * New data is being fetched for rows already on screen (navigation/refresh in flight): keeps the
+   * current rows dimmed with a spinner instead of swapping them for skeletons. The toolbar stays
+   * outside so search/filters remain usable.
+   */
+  refreshing?: boolean
   searchable?: boolean
   searchPlaceholder?: string
   searchDefaultValue?: string
@@ -111,6 +118,7 @@ export function DataTable<TData, TValue>({
   onPageChange,
   onPageSizeChange,
   loading = false,
+  refreshing = false,
   searchable = true,
   searchPlaceholder = "Buscar...",
   searchDefaultValue = "",
@@ -257,213 +265,226 @@ export function DataTable<TData, TValue>({
           </Button>
         </div>
       )}
-      <div
-        ref={scrollContainerRef}
-        className={
-          virtualizationEnabled
-            ? // `<Table>`'s own wrapper div sets only `overflow-x-auto` — per the CSS overflow spec,
-              // pairing an explicit axis with the other's default `visible` computes that other axis
-              // to `auto` too, silently turning that div into ANOTHER scrolling ancestor. That breaks
-              // the sticky header, which then sticks to that (never-scrolling) box instead of to this
-              // one. Forcing it back to `overflow-visible` here restores this div as the single real
-              // scroll container.
-              "rounded-md border max-h-[70vh] overflow-auto [&_[data-slot=table-container]]:overflow-visible"
-            : "rounded-md border"
-        }
-      >
-        <Table style={virtualizationEnabled ? { display: "block" } : undefined}>
-          {/* Sticky lives on <thead> itself, not the individual <th> cells — a <th>'s containing
+      <PendingRegion pending={refreshing && !loading}>
+        <div className="space-y-4">
+          <div
+            ref={scrollContainerRef}
+            className={
+              virtualizationEnabled
+                ? // `<Table>`'s own wrapper div sets only `overflow-x-auto` — per the CSS overflow spec,
+                  // pairing an explicit axis with the other's default `visible` computes that other axis
+                  // to `auto` too, silently turning that div into ANOTHER scrolling ancestor. That breaks
+                  // the sticky header, which then sticks to that (never-scrolling) box instead of to this
+                  // one. Forcing it back to `overflow-visible` here restores this div as the single real
+                  // scroll container.
+                  "rounded-md border max-h-[70vh] overflow-auto [&_[data-slot=table-container]]:overflow-visible"
+                : "rounded-md border"
+            }
+          >
+            <Table style={virtualizationEnabled ? { display: "block" } : undefined}>
+              {/* Sticky lives on <thead> itself, not the individual <th> cells — a <th>'s containing
               block is its immediate flex-row parent (only one row tall, so it'd have nowhere to
               stay pinned), whereas <thead>'s containing block is the full-height <table>. The
               "actions" column additionally gets its own (horizontal) sticky so it stays pinned to
               the right within that already-vertically-pinned header row. */}
-          <TableHeader
-            style={virtualizationEnabled ? { display: "block", position: "sticky", top: 0, zIndex: 20 } : undefined}
-            className={virtualizationEnabled ? "bg-background" : undefined}
-          >
-            {table.getHeaderGroups().map((headerGroup) => (
-              <TableRow key={headerGroup.id} style={virtualizationEnabled ? { display: "flex", width: "100%" } : undefined}>
-                {headerGroup.headers.map((header) => {
-                  const isActionsColumn = header.column.id === "actions"
-                  const stickyActionsClass = isActionsColumn ? "sticky right-0 z-10 border-l bg-background" : undefined
-                  const virtualStyle = virtualizationEnabled ? virtualCellStyle(header.column.id) : undefined
-                  if (header.isPlaceholder) return <TableHead key={header.id} className={stickyActionsClass} style={virtualStyle} />
+              <TableHeader
+                style={virtualizationEnabled ? { display: "block", position: "sticky", top: 0, zIndex: 20 } : undefined}
+                className={virtualizationEnabled ? "bg-background" : undefined}
+              >
+                {table.getHeaderGroups().map((headerGroup) => (
+                  <TableRow
+                    key={headerGroup.id}
+                    style={virtualizationEnabled ? { display: "flex", width: "100%" } : undefined}
+                  >
+                    {headerGroup.headers.map((header) => {
+                      const isActionsColumn = header.column.id === "actions"
+                      const stickyActionsClass = isActionsColumn
+                        ? "sticky right-0 z-10 border-l bg-background"
+                        : undefined
+                      const virtualStyle = virtualizationEnabled ? virtualCellStyle(header.column.id) : undefined
+                      if (header.isPlaceholder)
+                        return <TableHead key={header.id} className={stickyActionsClass} style={virtualStyle} />
 
-                  const content = flexRender(header.column.columnDef.header, header.getContext())
-                  const sortEligible = sortableColumns?.includes(header.column.id)
-                  if (!sortEligible)
-                    return (
-                      <TableHead key={header.id} className={stickyActionsClass} style={virtualStyle}>
-                        {content}
-                      </TableHead>
-                    )
+                      const content = flexRender(header.column.columnDef.header, header.getContext())
+                      const sortEligible = sortableColumns?.includes(header.column.id)
+                      if (!sortEligible)
+                        return (
+                          <TableHead key={header.id} className={stickyActionsClass} style={virtualStyle}>
+                            {content}
+                          </TableHead>
+                        )
 
-                  // Server-driven sort (sort/onSortChange passed in): caller re-fetches with the new orderBy.
-                  if (onSortChange) {
-                    const isActive = sort?.field === header.column.id
-                    const direction = isActive ? sort.direction : undefined
+                      // Server-driven sort (sort/onSortChange passed in): caller re-fetches with the new orderBy.
+                      if (onSortChange) {
+                        const isActive = sort?.field === header.column.id
+                        const direction = isActive ? sort.direction : undefined
 
-                    return (
-                      <TableHead key={header.id} className={stickyActionsClass} style={virtualStyle}>
-                        <button
-                          type="button"
-                          className="flex items-center gap-1 hover:text-foreground cursor-pointer"
-                          onClick={() =>
-                            onSortChange({
-                              field: header.column.id,
-                              direction: isActive && direction === "asc" ? "desc" : "asc",
-                            })
-                          }
+                        return (
+                          <TableHead key={header.id} className={stickyActionsClass} style={virtualStyle}>
+                            <button
+                              type="button"
+                              className="flex items-center gap-1 hover:text-foreground cursor-pointer"
+                              onClick={() =>
+                                onSortChange({
+                                  field: header.column.id,
+                                  direction: isActive && direction === "asc" ? "desc" : "asc",
+                                })
+                              }
+                            >
+                              {content}
+                              {direction === "asc" ? (
+                                <ArrowUp className="h-3.5 w-3.5" />
+                              ) : direction === "desc" ? (
+                                <ArrowDown className="h-3.5 w-3.5" />
+                              ) : (
+                                <ArrowUpDown className="h-3.5 w-3.5 opacity-40" />
+                              )}
+                            </button>
+                          </TableHead>
+                        )
+                      }
+
+                      // No server sort wired up: sort the already-loaded rows client-side via TanStack's own state.
+                      const clientDirection = header.column.getIsSorted()
+
+                      return (
+                        <TableHead key={header.id} className={stickyActionsClass} style={virtualStyle}>
+                          <button
+                            type="button"
+                            className="flex items-center gap-1 hover:text-foreground cursor-pointer"
+                            onClick={header.column.getToggleSortingHandler()}
+                          >
+                            {content}
+                            {clientDirection === "asc" ? (
+                              <ArrowUp className="h-3.5 w-3.5" />
+                            ) : clientDirection === "desc" ? (
+                              <ArrowDown className="h-3.5 w-3.5" />
+                            ) : (
+                              <ArrowUpDown className="h-3.5 w-3.5 opacity-40" />
+                            )}
+                          </button>
+                        </TableHead>
+                      )
+                    })}
+                  </TableRow>
+                ))}
+              </TableHeader>
+              <TableBody
+                style={
+                  virtualizationEnabled
+                    ? { display: "block", position: "relative", height: `${rowVirtualizer.getTotalSize()}px` }
+                    : undefined
+                }
+              >
+                {loading ? (
+                  Array.from({ length: 5 }).map((_, i) => (
+                    <TableRow key={i}>
+                      {columns.map((col, j) => (
+                        <TableCell
+                          key={j}
+                          className={col.id === "actions" ? "sticky right-0 z-10 border-l bg-background" : undefined}
                         >
-                          {content}
-                          {direction === "asc" ? (
-                            <ArrowUp className="h-3.5 w-3.5" />
-                          ) : direction === "desc" ? (
-                            <ArrowDown className="h-3.5 w-3.5" />
-                          ) : (
-                            <ArrowUpDown className="h-3.5 w-3.5 opacity-40" />
-                          )}
-                        </button>
-                      </TableHead>
-                    )
-                  }
-
-                  // No server sort wired up: sort the already-loaded rows client-side via TanStack's own state.
-                  const clientDirection = header.column.getIsSorted()
-
-                  return (
-                    <TableHead key={header.id} className={stickyActionsClass} style={virtualStyle}>
-                      <button
-                        type="button"
-                        className="flex items-center gap-1 hover:text-foreground cursor-pointer"
-                        onClick={header.column.getToggleSortingHandler()}
-                      >
-                        {content}
-                        {clientDirection === "asc" ? (
-                          <ArrowUp className="h-3.5 w-3.5" />
-                        ) : clientDirection === "desc" ? (
-                          <ArrowDown className="h-3.5 w-3.5" />
-                        ) : (
-                          <ArrowUpDown className="h-3.5 w-3.5 opacity-40" />
-                        )}
-                      </button>
-                    </TableHead>
-                  )
-                })}
-              </TableRow>
-            ))}
-          </TableHeader>
-          <TableBody
-            style={
-              virtualizationEnabled
-                ? { display: "block", position: "relative", height: `${rowVirtualizer.getTotalSize()}px` }
-                : undefined
-            }
-          >
-            {loading ? (
-              Array.from({ length: 5 }).map((_, i) => (
-                <TableRow key={i}>
-                  {columns.map((col, j) => (
-                    <TableCell key={j} className={col.id === "actions" ? "sticky right-0 z-10 border-l bg-background" : undefined}>
-                      <Skeleton className="h-4 w-full" />
-                    </TableCell>
-                  ))}
-                </TableRow>
-              ))
-            ) : !rows.length ? (
-              <TableRow>
-                <TableCell colSpan={columns.length} className="h-24 text-center">
-                  {emptyMessage}
-                </TableCell>
-              </TableRow>
-            ) : virtualRows ? (
-              virtualRows.map((virtualRow) => {
-                const row = rows[virtualRow.index]
-                return (
-                  <TableRow
-                    key={row.id}
-                    data-index={virtualRow.index}
-                    ref={rowVirtualizer.measureElement}
-                    data-state={row.getIsSelected() && "selected"}
-                    onClick={onRowClick ? () => onRowClick(row.original) : undefined}
-                    className={onRowClick ? "cursor-pointer hover:bg-muted/50" : undefined}
-                    style={{
-                      display: "flex",
-                      position: "absolute",
-                      top: 0,
-                      left: 0,
-                      width: "100%",
-                      transform: `translateY(${virtualRow.start}px)`,
-                    }}
-                  >
-                    {row.getVisibleCells().map((cell) => (
-                      <TableCell
-                        key={cell.id}
-                        className={
-                          cell.column.id === "actions"
-                            ? "sticky right-0 z-10 border-l bg-background group-hover:bg-muted/50 group-data-[state=selected]:bg-muted"
-                            : undefined
-                        }
-                        style={virtualCellStyle(cell.column.id)}
-                        onMouseEnter={COLUMNS_WITHOUT_TITLE.has(cell.column.id) ? undefined : showCellTitle}
-                      >
-                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                      </TableCell>
-                    ))}
-                  </TableRow>
-                )
-              })
-            ) : (
-              rows.map((row) => (
-                <Fragment key={row.id}>
-                  <TableRow
-                    data-state={row.getIsSelected() && "selected"}
-                    onClick={onRowClick ? () => onRowClick(row.original) : undefined}
-                    className={onRowClick ? "cursor-pointer hover:bg-muted/50" : undefined}
-                  >
-                    {row.getVisibleCells().map((cell) => (
-                      <TableCell
-                        key={cell.id}
-                        className={
-                          cell.column.id === "actions"
-                            ? "sticky right-0 z-10 border-l bg-background group-hover:bg-muted/50 group-data-[state=selected]:bg-muted"
-                            : undefined
-                        }
-                        onMouseEnter={COLUMNS_WITHOUT_TITLE.has(cell.column.id) ? undefined : showCellTitle}
-                      >
-                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                      </TableCell>
-                    ))}
-                  </TableRow>
-                  {expandable?.isExpanded(row.original) && (
-                    <TableRow>
-                      <TableCell colSpan={columns.length} className="bg-muted/30 p-0">
-                        {expandable.renderExpanded(row.original)}
-                      </TableCell>
+                          <Skeleton className="h-4 w-full" />
+                        </TableCell>
+                      ))}
                     </TableRow>
-                  )}
-                </Fragment>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </div>
-      {footer}
-      {manual ? (
-        <DataTablePagination
-          page={page}
-          pageCount={pageCount!}
-          total={total ?? data.length}
-          onPageChange={(p) => onPageChange?.(p)}
-        />
-      ) : (
-        <DataTablePagination
-          page={table.getState().pagination.pageIndex + 1}
-          pageCount={table.getPageCount()}
-          total={data.length}
-          onPageChange={(p) => table.setPageIndex(p - 1)}
-        />
-      )}
+                  ))
+                ) : !rows.length ? (
+                  <TableRow>
+                    <TableCell colSpan={columns.length} className="h-24 text-center">
+                      {emptyMessage}
+                    </TableCell>
+                  </TableRow>
+                ) : virtualRows ? (
+                  virtualRows.map((virtualRow) => {
+                    const row = rows[virtualRow.index]
+                    return (
+                      <TableRow
+                        key={row.id}
+                        data-index={virtualRow.index}
+                        ref={rowVirtualizer.measureElement}
+                        data-state={row.getIsSelected() && "selected"}
+                        onClick={onRowClick ? () => onRowClick(row.original) : undefined}
+                        className={onRowClick ? "cursor-pointer hover:bg-muted/50" : undefined}
+                        style={{
+                          display: "flex",
+                          position: "absolute",
+                          top: 0,
+                          left: 0,
+                          width: "100%",
+                          transform: `translateY(${virtualRow.start}px)`,
+                        }}
+                      >
+                        {row.getVisibleCells().map((cell) => (
+                          <TableCell
+                            key={cell.id}
+                            className={
+                              cell.column.id === "actions"
+                                ? "sticky right-0 z-10 border-l bg-background group-hover:bg-muted/50 group-data-[state=selected]:bg-muted"
+                                : undefined
+                            }
+                            style={virtualCellStyle(cell.column.id)}
+                            onMouseEnter={COLUMNS_WITHOUT_TITLE.has(cell.column.id) ? undefined : showCellTitle}
+                          >
+                            {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                          </TableCell>
+                        ))}
+                      </TableRow>
+                    )
+                  })
+                ) : (
+                  rows.map((row) => (
+                    <Fragment key={row.id}>
+                      <TableRow
+                        data-state={row.getIsSelected() && "selected"}
+                        onClick={onRowClick ? () => onRowClick(row.original) : undefined}
+                        className={onRowClick ? "cursor-pointer hover:bg-muted/50" : undefined}
+                      >
+                        {row.getVisibleCells().map((cell) => (
+                          <TableCell
+                            key={cell.id}
+                            className={
+                              cell.column.id === "actions"
+                                ? "sticky right-0 z-10 border-l bg-background group-hover:bg-muted/50 group-data-[state=selected]:bg-muted"
+                                : undefined
+                            }
+                            onMouseEnter={COLUMNS_WITHOUT_TITLE.has(cell.column.id) ? undefined : showCellTitle}
+                          >
+                            {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                          </TableCell>
+                        ))}
+                      </TableRow>
+                      {expandable?.isExpanded(row.original) && (
+                        <TableRow>
+                          <TableCell colSpan={columns.length} className="bg-muted/30 p-0">
+                            {expandable.renderExpanded(row.original)}
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </Fragment>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
+          {footer}
+          {manual ? (
+            <DataTablePagination
+              page={page}
+              pageCount={pageCount!}
+              total={total ?? data.length}
+              onPageChange={(p) => onPageChange?.(p)}
+            />
+          ) : (
+            <DataTablePagination
+              page={table.getState().pagination.pageIndex + 1}
+              pageCount={table.getPageCount()}
+              total={data.length}
+              onPageChange={(p) => table.setPageIndex(p - 1)}
+            />
+          )}
+        </div>
+      </PendingRegion>
       {bulkDelete && (
         <ConfirmDialog
           open={bulkDeleteOpen}

@@ -45,7 +45,6 @@ const SORTABLE_COLUMNS = ["name", "email", "phone", "status"]
 
 export function RequesterTable({ data, meta }: RequesterTableProps) {
   const {
-    router,
     searchParams,
     deleteDialog,
     setDeleteDialog,
@@ -56,6 +55,8 @@ export function RequesterTable({ data, meta }: RequesterTableProps) {
     handleToggleStatus,
     sort,
     onSortChange,
+    refresh,
+    isPending,
   } = useCrudTable<Requester>({
     deleteAction: deleteRequester,
     setStatusAction: setRequesterStatus,
@@ -91,7 +92,7 @@ export function RequesterTable({ data, meta }: RequesterTableProps) {
       toast.success(editDialog.entity ? "Solicitante atualizado" : "Solicitante criado")
       form.reset()
       setEditDialog({ open: false })
-      router.refresh()
+      refresh()
     } else {
       toast.error(result.error || "Erro ao salvar")
     }
@@ -218,6 +219,7 @@ export function RequesterTable({ data, meta }: RequesterTableProps) {
       <PageHeader title="Solicitantes" description="Gerenciar solicitantes de demandas" />
 
       <DataTable
+        refreshing={isPending}
         columns={columns}
         data={data}
         page={meta.page}
@@ -237,7 +239,7 @@ export function RequesterTable({ data, meta }: RequesterTableProps) {
           getId: (row) => row.id,
           getRowLabel: (row) => row.name,
           action: bulkDeleteRequesters,
-          onSuccess: () => router.refresh(),
+          onSuccess: () => refresh(),
         }}
       />
 

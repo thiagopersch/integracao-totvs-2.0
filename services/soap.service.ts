@@ -10,6 +10,7 @@ import { classifyError, isPermissionDeniedMessage, type ErrorKind } from "@/lib/
 import { extractEntityName } from "@/utils/xml";
 import { WS_NAME_LABELS, type WsName } from "@/lib/ws-names";
 import { Prisma, type SoapMethod } from "@/generated/prisma/client";
+import { decryptSecret } from "@/lib/secret-box";
 
 export { WS_NAME_LABELS, type WsName };
 
@@ -192,7 +193,11 @@ export const soapService = {
     const envelope = buildSoapEnvelope(request.xml, request.context);
     const soapAction = resolveSoapAction(request.wsName, request.method);
     const url = resolveUrl(request.tbc, request.wsName, request.method);
-    const authHeader = "Basic " + Buffer.from(`${request.tbc.user}:${request.tbc.password}`).toString("base64");
+    // Single choke point where a TBC password leaves the server: stored passwords are encrypted at
+    // rest (lib/secret-box) and only decrypted here, in memory, to build the RM's Basic auth header.
+    // Legacy plain-text values (and passwords typed in the "testar conexão" form) pass through as-is.
+    const authHeader =
+      "Basic " + Buffer.from(`${request.tbc.user}:${decryptSecret(request.tbc.password)}`).toString("base64");
     let lastError: Error | null = null;
     let lastErrorKind: ErrorKind = "unknown";
     // Raw response of the failed attempt (e.g. the SOAP Fault), kept for the log's xmlResponse.

@@ -34,7 +34,7 @@ export function PreviewClient({ projetos, clienteIdentidade }: PreviewClientProp
   }
 
   return (
-    <div className="mapeador-proto flex h-screen w-full flex-col overflow-y-auto bg-white">
+    <div className="mapeador-proto flex h-dvh w-full flex-col overflow-y-auto bg-white">
       <style dangerouslySetInnerHTML={{ __html: prototipoCss(".mapeador-proto") }} />
       {clienteIdentidade?.mudou && (
         <Alert variant="warning" className="m-2">

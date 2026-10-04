@@ -8,7 +8,7 @@ import { TableSkeleton } from "@/components/shared/table-skeleton"
 
 export default function ProfilePage() {
   return (
-    <div className="p-6">
+    <div className="p-4 md:p-6">
       <PageHeader title="Perfil" description="Gerencie seus dados e sua senha" />
       <Suspense fallback={<TableSkeleton />}>
         <ProfileContent />

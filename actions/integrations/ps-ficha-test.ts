@@ -31,6 +31,7 @@ export async function testFichaPageReachability(input: { pageUrl: string }): Pro
 
   const url = input.pageUrl.trim();
   if (!url) return { success: false, error: "Informe o link da página", url, durationMs: 0 };
+  if (!/^https?:\/\//i.test(url)) return { success: false, error: "O link deve começar com http:// ou https://", url, durationMs: 0 };
 
   const startTime = Date.now();
   try {

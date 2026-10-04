@@ -142,7 +142,7 @@ export function NotificationBell() {
         </PopoverTrigger>
         <PopoverContent
           align="end"
-          className="w-96 !bg-popover !opacity-100 p-0 shadow-lg"
+          className="w-[calc(100vw-2rem)] sm:w-96 !bg-popover !opacity-100 p-0 shadow-lg"
           style={{ backgroundColor: "var(--popover)" }}
         >
           <div className="flex items-center justify-between border-b p-3">

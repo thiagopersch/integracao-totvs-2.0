@@ -1,7 +1,7 @@
 "use client"
 
+import { useUrlParams } from "@/hooks/use-url-params"
 import { useMemo, useState } from "react"
-import { useRouter, useSearchParams } from "next/navigation"
 import { format } from "date-fns"
 import type { DateRange } from "react-day-picker"
 import type { ColumnDef } from "@tanstack/react-table"
@@ -42,8 +42,7 @@ interface BackupsSentencesTableProps {
 }
 
 export function BackupsSentencesTable({ filterId, data, meta, onRestoreSingle }: BackupsSentencesTableProps) {
-  const router = useRouter()
-  const searchParams = useSearchParams()
+  const { searchParams, isPending, pushParams: pushSentenceParams } = useUrlParams()
   const [viewDialog, setViewDialog] = useState<{ open: boolean; backup: Backup | null }>({ open: false, backup: null })
   const [viewingCode, setViewingCode] = useState<string | null>(null)
   const [historyDialog, setHistoryDialog] = useState<{ open: boolean; codeSentence: string | null }>({
@@ -62,15 +61,6 @@ export function BackupsSentencesTable({ filterId, data, meta, onRestoreSingle }:
   const sort = sortParam
     ? { field: sortParam.split(":")[0], direction: sortParam.split(":")[1] as "asc" | "desc" }
     : { field: "codeSentence", direction: "asc" as const }
-
-  function pushSentenceParams(updates: Record<string, string | number | undefined>) {
-    const params = new URLSearchParams(searchParams.toString())
-    Object.entries(updates).forEach(([key, value]) => {
-      if (value === undefined || value === "") params.delete(key)
-      else params.set(key, String(value))
-    })
-    router.push(`?${params.toString()}`)
-  }
 
   async function handleView(row: Backup) {
     if (!row.codeSentence) {
@@ -167,6 +157,7 @@ export function BackupsSentencesTable({ filterId, data, meta, onRestoreSingle }:
   return (
     <>
       <DataTable
+        refreshing={isPending}
         columns={columns}
         data={data}
         page={meta.page}

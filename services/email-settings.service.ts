@@ -1,3 +1,4 @@
+import { encryptSecret } from "@/lib/secret-box";
 import { prisma } from "@/lib/prisma";
 
 export interface EmailSettingsInput {
@@ -32,14 +33,14 @@ export const emailSettingsService = {
         from: input.from,
         enabled: input.enabled,
         contractAlertEmail: input.contractAlertEmail,
-        ...(input.password ? { password: input.password } : {}),
+        ...(input.password ? { password: encryptSecret(input.password) } : {}),
       },
       create: {
         organizationId,
         host: input.host,
         port: input.port,
         user: input.user,
-        password: input.password!,
+        password: encryptSecret(input.password!),
         from: input.from,
         enabled: input.enabled,
         contractAlertEmail: input.contractAlertEmail,

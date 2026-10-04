@@ -1,5 +1,5 @@
 import { Suspense } from "react"
-import { listSoapEndpointTypes, listSoapEndpointFilterOptions } from "@/actions/admin/soap-endpoints"
+import { listSoapEndpointTypes, listSoapEndpointFilterOptions } from "@/queries/admin/soap-endpoints"
 import { SoapEndpointTable } from "@/components/shared/soap-endpoint-table"
 import { TableSkeleton } from "@/components/shared/table-skeleton"
 
@@ -9,7 +9,7 @@ export default function SoapEndpointsPage({
   searchParams: Promise<Record<string, string>>
 }) {
   return (
-    <div className="p-6">
+    <div className="p-4 md:p-6">
       <Suspense fallback={<TableSkeleton />}>
         <SoapEndpointsContent searchParams={searchParams} />
       </Suspense>

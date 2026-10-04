@@ -1,41 +1,15 @@
 "use server"
 
-import { updateTag, cacheTag } from "next/cache";
+import { updateTag } from "next/cache";
 import { soapEndpointService } from "@/services/soap-endpoint.service";
 import { auditService } from "@/services/audit.service";
-import {
-  createSoapEndpointTypeSchema,
-  updateSoapEndpointTypeSchema,
-  createSoapEndpointMethodSchema,
-  updateSoapEndpointMethodSchema,
-} from "@/schemas/soap-endpoint.schema";
-import type { ListParams } from "@/types/common";
-
-export async function listSoapEndpointTypes(params: ListParams) {
-  "use cache";
-  cacheTag("soap-endpoint-types");
-  return soapEndpointService.listTypes(params);
-}
-
-export async function listAllSoapEndpointTypes() {
-  "use cache";
-  cacheTag("soap-endpoint-types");
-  return soapEndpointService.listAllTypes();
-}
-
-export async function listSoapEndpointFilterOptions() {
-  "use cache";
-  cacheTag("soap-endpoint-types");
-  return soapEndpointService.listDistinctFilters();
-}
-
-export async function getSoapEndpointTypeById(id: string) {
-  "use cache";
-  cacheTag(`soap-endpoint-type-${id}`);
-  return soapEndpointService.getTypeById(id);
-}
-
+import { denyUnlessPermitted } from "@/lib/rbac";
+import { createSoapEndpointTypeSchema, updateSoapEndpointTypeSchema, createSoapEndpointMethodSchema, updateSoapEndpointMethodSchema } from "@/schemas/soap-endpoint.schema";
 export async function createSoapEndpointType(formData: FormData) {
+  // Global config (affects every organization's TOTVS URLs) — same permission as the nav item.
+  const denied = await denyUnlessPermitted("settings", "manage");
+  if (denied) return denied;
+
   const data = {
     type: formData.get("type") as string,
     label: formData.get("label") as string,
@@ -64,6 +38,10 @@ export async function createSoapEndpointType(formData: FormData) {
 }
 
 export async function updateSoapEndpointType(id: string, formData: FormData) {
+  // Global config (affects every organization's TOTVS URLs) — same permission as the nav item.
+  const denied = await denyUnlessPermitted("settings", "manage");
+  if (denied) return denied;
+
   const data = {
     type: formData.get("type") as string,
     label: formData.get("label") as string,
@@ -95,6 +73,10 @@ export async function updateSoapEndpointType(id: string, formData: FormData) {
 }
 
 export async function deleteSoapEndpointType(id: string) {
+  // Global config (affects every organization's TOTVS URLs) — same permission as the nav item.
+  const denied = await denyUnlessPermitted("settings", "manage");
+  if (denied) return denied;
+
   try {
     const old = await soapEndpointService.getTypeById(id);
     await soapEndpointService.softDeleteType(id);
@@ -112,6 +94,10 @@ export async function deleteSoapEndpointType(id: string) {
 }
 
 export async function restoreSoapEndpointType(id: string) {
+  // Global config (affects every organization's TOTVS URLs) — same permission as the nav item.
+  const denied = await denyUnlessPermitted("settings", "manage");
+  if (denied) return denied;
+
   try {
     await soapEndpointService.restoreType(id);
     await auditService.log({ action: "RESTORE", entity: "SoapEndpointType", entityId: id });
@@ -123,6 +109,10 @@ export async function restoreSoapEndpointType(id: string) {
 }
 
 export async function bulkDeleteSoapEndpointTypes(ids: string[]) {
+  // Global config (affects every organization's TOTVS URLs) — same permission as the nav item.
+  const denied = await denyUnlessPermitted("settings", "manage");
+  if (denied) return denied;
+
   try {
     const count = await soapEndpointService.bulkSoftDeleteTypes(ids);
     await auditService.log({
@@ -139,6 +129,10 @@ export async function bulkDeleteSoapEndpointTypes(ids: string[]) {
 }
 
 export async function bulkRestoreSoapEndpointTypes(ids: string[]) {
+  // Global config (affects every organization's TOTVS URLs) — same permission as the nav item.
+  const denied = await denyUnlessPermitted("settings", "manage");
+  if (denied) return denied;
+
   try {
     const count = await soapEndpointService.bulkRestoreTypes(ids);
     await auditService.log({
@@ -154,13 +148,11 @@ export async function bulkRestoreSoapEndpointTypes(ids: string[]) {
   }
 }
 
-export async function listSoapEndpointMethods(endpointTypeId: string, params: ListParams) {
-  "use cache";
-  cacheTag(`soap-endpoint-methods-${endpointTypeId}`);
-  return soapEndpointService.listMethods(endpointTypeId, params);
-}
-
 export async function createSoapEndpointMethod(formData: FormData) {
+  // Global config (affects every organization's TOTVS URLs) — same permission as the nav item.
+  const denied = await denyUnlessPermitted("settings", "manage");
+  if (denied) return denied;
+
   const data = {
     endpointTypeId: formData.get("endpointTypeId") as string,
     method: formData.get("method") as string,
@@ -191,6 +183,10 @@ export async function createSoapEndpointMethod(formData: FormData) {
 }
 
 export async function updateSoapEndpointMethod(id: string, formData: FormData) {
+  // Global config (affects every organization's TOTVS URLs) — same permission as the nav item.
+  const denied = await denyUnlessPermitted("settings", "manage");
+  if (denied) return denied;
+
   const data = {
     endpointTypeId: formData.get("endpointTypeId") as string,
     method: formData.get("method") as string,
@@ -225,6 +221,10 @@ export async function updateSoapEndpointMethod(id: string, formData: FormData) {
 }
 
 export async function deleteSoapEndpointMethod(id: string) {
+  // Global config (affects every organization's TOTVS URLs) — same permission as the nav item.
+  const denied = await denyUnlessPermitted("settings", "manage");
+  if (denied) return denied;
+
   try {
     const old = await soapEndpointService.getMethodById(id);
     await soapEndpointService.softDeleteMethod(id);
@@ -245,6 +245,10 @@ export async function deleteSoapEndpointMethod(id: string) {
 }
 
 export async function restoreSoapEndpointMethod(id: string) {
+  // Global config (affects every organization's TOTVS URLs) — same permission as the nav item.
+  const denied = await denyUnlessPermitted("settings", "manage");
+  if (denied) return denied;
+
   try {
     await soapEndpointService.restoreMethod(id);
     await auditService.log({ action: "RESTORE", entity: "SoapEndpointMethod", entityId: id });

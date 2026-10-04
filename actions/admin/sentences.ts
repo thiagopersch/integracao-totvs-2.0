@@ -1,25 +1,11 @@
 "use server"
 
-import { updateTag, cacheTag } from "next/cache";
+import { updateTag } from "next/cache";
 import { sentenceService } from "@/services/sentence.service";
 import { auditService } from "@/services/audit.service";
 import { createSentenceSchema, updateSentenceSchema } from "@/schemas/sentence.schema";
 import { requirePermission } from "@/lib/rbac";
 import { formatBlockingReferences } from "@/lib/entity-relations";
-import type { ListParams } from "@/types/common";
-
-export async function listSentences(params: ListParams, organizationId: string) {
-  "use cache";
-  cacheTag("sentences");
-  return sentenceService.list(params, organizationId);
-}
-
-export async function getSentenceById(id: string, organizationId: string) {
-  "use cache";
-  cacheTag(`sentence-${id}`);
-  return sentenceService.getById(id, organizationId);
-}
-
 export async function createSentence(formData: FormData) {
   const { organizationId } = await requirePermission("sentences", "create");
   const data = {

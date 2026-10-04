@@ -27,3 +27,8 @@ export async function listActivityStatusCodes() {
   const { organizationId } = await requirePermission("activity_logs", "read");
   return activityLogService.listStatusCodes(organizationId);
 }
+
+export async function getActivitySoapResponse(id: string) {
+  const { organizationId } = await requirePermission("activity_logs", "read");
+  return activityLogService.getSoapResponse(id, organizationId);
+}

@@ -92,6 +92,8 @@ export function FilterTable({ data, meta, clients, tbcs, sistemas, categories, f
     handleToggleStatus,
     sort,
     onSortChange,
+    refresh,
+    isPending,
   } = useCrudTable<FilterRow>({
     deleteAction: deleteFilter,
     restoreAction: restoreFilter,
@@ -218,7 +220,7 @@ export function FilterTable({ data, meta, clients, tbcs, sistemas, categories, f
       toast.success(editDialog.entity ? "Filtro atualizado" : "Filtro criado")
       form.reset()
       setEditDialog({ open: false })
-      router.refresh()
+      refresh()
     } else {
       toast.error(result.error || "Erro ao salvar")
     }
@@ -236,7 +238,7 @@ export function FilterTable({ data, meta, clients, tbcs, sistemas, categories, f
       const result = await createBackupFromFilter(filterId, sentenceCategoryId)
       if (result.success) {
         toast.success("Backup realizado com sucesso")
-        router.refresh()
+        refresh()
       } else {
         toast.error(result.error || "Erro ao realizar backup")
       }
@@ -470,7 +472,7 @@ export function FilterTable({ data, meta, clients, tbcs, sistemas, categories, f
             <FieldError errors={[form.formState.errors.filter]} />
           </Field>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field>
               <FieldLabel htmlFor="codColigadaSentenca">Cód. Coligada Sentença</FieldLabel>
               <Input
@@ -786,6 +788,7 @@ export function FilterTable({ data, meta, clients, tbcs, sistemas, categories, f
       <PageHeader title="Filtros" description="Gerenciar filtros" />
 
       <DataTable
+        refreshing={isPending}
         columns={columns}
         data={data}
         page={meta.page}
@@ -797,7 +800,7 @@ export function FilterTable({ data, meta, clients, tbcs, sistemas, categories, f
         searchPlaceholder="Buscar por filtro, código ou usuário..."
         onSearch={(v) => pushParams({ search: v || undefined, page: 1 })}
         toolbarActions={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {canCreate && importDialog}
             {canCreate && newDialog}
           </div>
@@ -810,7 +813,7 @@ export function FilterTable({ data, meta, clients, tbcs, sistemas, categories, f
           getId: (row) => row.id,
           getRowLabel: (row) => row.filter,
           action: bulkDeleteFilters,
-          onSuccess: () => router.refresh(),
+          onSuccess: () => refresh(),
         }}
       />
 
@@ -873,7 +876,7 @@ export function FilterTable({ data, meta, clients, tbcs, sistemas, categories, f
         }
         scope={passwordDialog.scope}
         targetTbcId={passwordDialog.targetTbcId}
-        onSuccess={() => router.refresh()}
+        onSuccess={() => refresh()}
       />
     </>
   )

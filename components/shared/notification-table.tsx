@@ -1,7 +1,7 @@
 "use client"
 
+import { useUrlParams } from "@/hooks/use-url-params"
 import { useMemo, useState } from "react"
-import { useRouter, useSearchParams } from "next/navigation"
 import type { ColumnDef } from "@tanstack/react-table"
 import { DataTable } from "@/components/shared/data-table"
 import { PageHeader } from "@/components/shared/page-header"
@@ -25,18 +25,8 @@ interface NotificationTableProps {
 const SORTABLE_COLUMNS = ["title", "createdAt"]
 
 export function NotificationTable({ data, meta, unreadCount }: NotificationTableProps) {
-  const router = useRouter()
-  const searchParams = useSearchParams()
+  const { searchParams, isPending, pushParams, refresh } = useUrlParams()
   const [detail, setDetail] = useState<Notification | null>(null)
-
-  function pushParams(updates: Record<string, string | number | undefined>) {
-    const params = new URLSearchParams(searchParams.toString())
-    Object.entries(updates).forEach(([k, v]) => {
-      if (v === undefined || v === "") params.delete(k)
-      else params.set(k, String(v))
-    })
-    router.push(`?${params.toString()}`)
-  }
 
   const sortParam = searchParams.get("sort")
   const sort = sortParam
@@ -45,14 +35,14 @@ export function NotificationTable({ data, meta, unreadCount }: NotificationTable
 
   async function handleRead(id: string) {
     await markNotificationAsRead(id)
-    router.refresh()
+    refresh()
   }
 
   async function handleReadAll() {
     const result = await markAllNotificationsAsRead()
     if (result.success) {
       toast.success("Todas as notificações marcadas como lidas")
-      router.refresh()
+      refresh()
     }
   }
 
@@ -122,6 +112,7 @@ export function NotificationTable({ data, meta, unreadCount }: NotificationTable
       </PageHeader>
 
       <DataTable
+        refreshing={isPending}
         columns={columns}
         data={data}
         page={meta.page}

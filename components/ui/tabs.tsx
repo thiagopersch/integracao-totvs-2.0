@@ -1,8 +1,11 @@
 "use client"
 
+import { useCallback, useEffect, useRef, useState } from "react"
 import { Tabs as TabsPrimitive } from "@base-ui/react/tabs"
 import { cva, type VariantProps } from "class-variance-authority"
+import { ChevronLeft, ChevronRight } from "lucide-react"
 
+import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 
 function Tabs({
@@ -28,7 +31,9 @@ const tabsListVariants = cva(
   {
     variants: {
       variant: {
-        default: "bg-muted",
+        // On narrow screens the list scrolls sideways (scrollbar hidden) instead of overflowing the page.
+        default:
+          "bg-muted max-w-full justify-start overflow-x-auto overflow-y-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
         line: "gap-1 bg-transparent",
       },
     },
@@ -50,6 +55,96 @@ function TabsList({
       className={cn(tabsListVariants({ variant }), className)}
       {...props}
     />
+  )
+}
+
+/** Single-row tab list that never wraps: when the tabs outgrow the width it scrolls sideways and
+ *  shows ‹ › buttons on both sides (disabled at each edge), like Material's mat-tab pagination.
+ *  Without overflow it renders just like `TabsList`. The clicked/focused tab is scrolled into view. */
+function ScrollableTabsList({
+  className,
+  ...props
+}: Omit<TabsPrimitive.List.Props, "ref"> & VariantProps<typeof tabsListVariants>) {
+  const listRef = useRef<HTMLDivElement>(null)
+  const [scroll, setScroll] = useState({ overflowing: false, canLeft: false, canRight: false })
+
+  const update = useCallback(() => {
+    const list = listRef.current
+    if (!list) return
+    const { scrollLeft, scrollWidth, clientWidth } = list
+    const next = {
+      overflowing: scrollWidth > clientWidth + 1,
+      canLeft: scrollLeft > 1,
+      canRight: scrollLeft + clientWidth < scrollWidth - 1,
+    }
+    setScroll((prev) =>
+      prev.overflowing === next.overflowing && prev.canLeft === next.canLeft && prev.canRight === next.canRight
+        ? prev
+        : next
+    )
+  }, [])
+
+  useEffect(() => {
+    const list = listRef.current
+    if (!list) return
+    update()
+    list.addEventListener("scroll", update, { passive: true })
+    const observer = new ResizeObserver(update)
+    observer.observe(list)
+    for (const child of Array.from(list.children)) observer.observe(child)
+    return () => {
+      list.removeEventListener("scroll", update)
+      observer.disconnect()
+    }
+  }, [update])
+
+  // Tabs added/removed (e.g. another Data Server) change scrollWidth without resizing the list.
+  useEffect(update)
+
+  function scrollByPage(direction: 1 | -1) {
+    const list = listRef.current
+    if (list) list.scrollBy({ left: direction * list.clientWidth * 0.8, behavior: "smooth" })
+  }
+
+  function revealTab(target: EventTarget) {
+    const tab = (target as HTMLElement).closest?.('[data-slot="tabs-trigger"]')
+    tab?.scrollIntoView({ inline: "nearest", block: "nearest", behavior: "smooth" })
+  }
+
+  return (
+    <div className="flex w-full max-w-full min-w-0 items-center gap-1">
+      {scroll.overflowing && (
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          aria-label="Tabs anteriores"
+          disabled={!scroll.canLeft}
+          onClick={() => scrollByPage(-1)}
+        >
+          <ChevronLeft />
+        </Button>
+      )}
+      <TabsList
+        ref={listRef}
+        className={cn("min-w-0 flex-1 justify-start [&>[data-slot=tabs-trigger]]:flex-none", className)}
+        onClickCapture={(event) => revealTab(event.target)}
+        onFocusCapture={(event) => revealTab(event.target)}
+        {...props}
+      />
+      {scroll.overflowing && (
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          aria-label="Próximas tabs"
+          disabled={!scroll.canRight}
+          onClick={() => scrollByPage(1)}
+        >
+          <ChevronRight />
+        </Button>
+      )}
+    </div>
   )
 }
 
@@ -79,4 +174,4 @@ function TabsContent({ className, ...props }: TabsPrimitive.Panel.Props) {
   )
 }
 
-export { Tabs, TabsList, TabsTrigger, TabsContent, tabsListVariants }
+export { Tabs, TabsList, ScrollableTabsList, TabsTrigger, TabsContent, tabsListVariants }

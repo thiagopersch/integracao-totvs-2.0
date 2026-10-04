@@ -14,6 +14,7 @@ import { soapEndpointService } from "@/services/soap-endpoint.service";
 import type { CreateBackupInput, UpdateBackupInput } from "@/schemas/backup.schema";
 import type { ListParams } from "@/types/common";
 import type { Backup, Prisma } from "@/generated/prisma/client";
+import { safeOrderBy } from "@/lib/sort";
 
 class BackupRepository extends BaseRepository<Backup> {
   constructor() {
@@ -327,7 +328,7 @@ export const backupService = {
       }));
     }
     const orderBy = params.sort
-      ? { [params.sort.field]: params.sort.direction }
+      ? safeOrderBy(params.sort)
       : { codeSentence: "asc" as const };
 
     const [data, total] = await Promise.all([
@@ -362,7 +363,7 @@ export const backupService = {
     const page = params.page || 1;
     const pageSize = params.pageSize || 10;
     const where = { filterId, organizationId };
-    const orderBy = params.sort ? { [params.sort.field]: params.sort.direction } : { startedAt: "desc" as const };
+    const orderBy = params.sort ? safeOrderBy(params.sort) : { startedAt: "desc" as const };
 
     const [data, total] = await Promise.all([
       prisma.backupRun.findMany({

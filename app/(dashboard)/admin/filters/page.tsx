@@ -1,5 +1,6 @@
 import { Suspense } from "react"
-import { listFilters, listDistinctSentenceCodes } from "@/actions/admin/filters"
+import { listDistinctSentenceCodes } from "@/actions/admin/filters"
+import { listFilters } from "@/queries/admin/filters"
 import { listAllClients, listActiveClientsWithTbc } from "@/actions/admin/clients"
 import { listAllTbcs } from "@/actions/admin/tbcs"
 import { listAllSistemas } from "@/actions/admin/sistemas"
@@ -10,7 +11,7 @@ import { getRequestContext } from "@/lib/tenant"
 
 export default function FiltersPage({ searchParams }: { searchParams: Promise<Record<string, string>> }) {
   return (
-    <div className="p-6">
+    <div className="p-4 md:p-6">
       <Suspense fallback={<TableSkeleton />}>
         <FiltersContent searchParams={searchParams} />
       </Suspense>

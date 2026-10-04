@@ -47,6 +47,8 @@ export async function launchBrowser(): Promise<Browser> {
 }
 
 export async function openFichaPage(browser: Browser, url: string): Promise<{ context: BrowserContext; page: Page }> {
+  // A real browser would happily open file:// or other local schemes — only public web pages here.
+  if (!/^https?:\/\//i.test(url.trim())) throw new Error("O link da ficha deve começar com http:// ou https://");
   const context = await browser.newContext();
   const page = await context.newPage();
   await page.goto(url, { waitUntil: "domcontentloaded", timeout: NAV_TIMEOUT_MS });

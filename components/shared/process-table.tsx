@@ -40,7 +40,6 @@ const SORTABLE_COLUMNS = ["code", "name", "nameAlternative"]
 
 export function ProcessTable({ data, meta }: ProcessTableProps) {
   const {
-    router,
     deleteDialog,
     setDeleteDialog,
     editDialog,
@@ -49,6 +48,8 @@ export function ProcessTable({ data, meta }: ProcessTableProps) {
     handleDelete,
     sort,
     onSortChange,
+    refresh,
+    isPending,
   } = useCrudTable<Process>({
     deleteAction: deleteProcess,
     restoreAction: restoreProcess,
@@ -84,7 +85,7 @@ export function ProcessTable({ data, meta }: ProcessTableProps) {
       toast.success(editDialog.entity ? "Processo atualizado" : "Processo criado")
       form.reset()
       setEditDialog({ open: false })
-      router.refresh()
+      refresh()
     } else {
       toast.error(result.error || "Erro ao salvar")
     }
@@ -169,6 +170,7 @@ export function ProcessTable({ data, meta }: ProcessTableProps) {
       <PageHeader title="Processos" description="Gerenciar processos" />
 
       <DataTable
+        refreshing={isPending}
         columns={columns}
         data={data}
         page={meta.page}
@@ -187,7 +189,7 @@ export function ProcessTable({ data, meta }: ProcessTableProps) {
           getId: (row) => row.id,
           getRowLabel: (row) => row.code,
           action: bulkDeleteProcesses,
-          onSuccess: () => router.refresh(),
+          onSuccess: () => refresh(),
         }}
       />
 

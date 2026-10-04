@@ -1,13 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
+import { authorizeRoute } from "@/lib/api-auth";
 import { tbcService } from "@/services/tbc.service";
 import { lookupSentenceContent } from "@/services/rm-sentence.service";
 import { extractSentenceParameters } from "@/utils/sql-sentence-params";
 import { logger } from "@/lib/logger";
-import { getRequestContext } from "@/lib/tenant";
 
 export async function POST(request: NextRequest) {
+  const { ctx, denied } = await authorizeRoute("soap", "execute");
+  if (denied) return denied;
   try {
-    const { organizationId, allowedClientIds } = await getRequestContext();
+    const { organizationId, allowedClientIds } = ctx;
     const body = await request.json();
     const { tbcId, codColigada, codSistema, codSentenca, context } = body;
 

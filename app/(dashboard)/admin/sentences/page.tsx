@@ -1,5 +1,5 @@
 import { Suspense } from "react"
-import { listSentences } from "@/actions/admin/sentences"
+import { listSentences } from "@/queries/admin/sentences"
 import { listAllSentenceCategories } from "@/actions/admin/sentence-categories"
 import { SentenceTable } from "@/components/shared/sentence-table"
 import { TableSkeleton } from "@/components/shared/table-skeleton"
@@ -7,7 +7,7 @@ import { getCurrentOrganizationId } from "@/lib/tenant"
 
 export default function SentencesPage({ searchParams }: { searchParams: Promise<Record<string, string>> }) {
   return (
-    <div className="p-6">
+    <div className="p-4 md:p-6">
       <Suspense fallback={<TableSkeleton />}>
         <SentencesContent searchParams={searchParams} />
       </Suspense>

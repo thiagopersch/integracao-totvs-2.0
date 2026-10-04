@@ -1,12 +1,12 @@
 import { Suspense } from "react"
-import { listProcesses } from "@/actions/admin/processes"
+import { listProcesses } from "@/queries/admin/processes"
 import { ProcessTable } from "@/components/shared/process-table"
 import { TableSkeleton } from "@/components/shared/table-skeleton"
 import { getCurrentOrganizationId } from "@/lib/tenant"
 
 export default function ProcessesPage({ searchParams }: { searchParams: Promise<Record<string, string>> }) {
   return (
-    <div className="p-6">
+    <div className="p-4 md:p-6">
       <Suspense fallback={<TableSkeleton />}>
         <ProcessesContent searchParams={searchParams} />
       </Suspense>

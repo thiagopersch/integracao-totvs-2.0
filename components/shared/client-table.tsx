@@ -44,7 +44,6 @@ const SORTABLE_COLUMNS = ["name", "linkCrm", "document", "email", "status"]
 
 export function ClientTable({ data, meta }: ClientTableProps) {
   const {
-    router,
     searchParams,
     deleteDialog,
     setDeleteDialog,
@@ -55,6 +54,8 @@ export function ClientTable({ data, meta }: ClientTableProps) {
     handleToggleStatus,
     sort,
     onSortChange,
+    refresh,
+    isPending,
   } = useCrudTable<Client>({
     deleteAction: deleteClient,
     restoreAction: restoreClient,
@@ -138,7 +139,7 @@ export function ClientTable({ data, meta }: ClientTableProps) {
       form.reset()
       resetImageFields()
       setEditDialog({ open: false })
-      router.refresh()
+      refresh()
     } else {
       toast.error(result.error || "Erro ao salvar")
     }
@@ -585,6 +586,7 @@ export function ClientTable({ data, meta }: ClientTableProps) {
       <PageHeader title="Clientes" description="Gerenciar clientes (TOTVS RM e demandas)" />
 
       <DataTable
+        refreshing={isPending}
         columns={columns}
         data={data}
         page={meta.page}
@@ -606,7 +608,7 @@ export function ClientTable({ data, meta }: ClientTableProps) {
                 getId: (row) => row.id,
                 getRowLabel: (row) => row.name,
                 action: bulkDeleteClients,
-                onSuccess: () => router.refresh(),
+                onSuccess: () => refresh(),
               }
             : undefined
         }
