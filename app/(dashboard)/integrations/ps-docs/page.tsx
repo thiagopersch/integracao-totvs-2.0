@@ -14,6 +14,7 @@ import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip"
 import { Skeleton } from "@/components/ui/skeleton"
 import { CredentialsFormFields } from "@/components/ps-docs/credentials-form-fields"
+import { CollapsibleCardHeader } from "@/components/shared/collapsible-card-header"
 import { StylePanel } from "@/components/ps-docs/style-panel"
 import { ProcessDocResult } from "@/components/ps-docs/process-doc-result"
 import { PortalOverviewPreview } from "@/components/ps-docs/portal-overview-preview"
@@ -40,7 +41,13 @@ export default function PsDocsPage() {
     defaultValues: { docMode: "processo", branch: "master", clientId: "", session: "", xsrf: "", idPs: "", crmDomain: "", idPortal: "", localId: "2" },
   })
   const docMode = useWatch({ control, name: "docMode" }) as DocMode
+  const idPsValue = useWatch({ control, name: "idPs" })
+  const idPortalValue = useWatch({ control, name: "idPortal" })
   const [style, setStyle] = useState<StyleConfig>(DEFAULT_STYLE)
+  // The parameters form starts open and collapses once the documentation renders, so the result
+  // gets the room; the user can reopen it from the header.
+  const [formOpen, setFormOpen] = useState(true)
+  const [processesOpen, setProcessesOpen] = useState(true)
 
   // Modo "processo seletivo específico" — inalterado em relação ao comportamento anterior.
   const [loading, setLoading] = useState(false)
@@ -103,6 +110,7 @@ export default function PsDocsPage() {
       }
 
       setWarnings(allWarnings)
+      setFormOpen(false)
       toast.success("Documentação gerada com sucesso")
       if (allWarnings.length > 0) toast.warning(`${allWarnings.length} aviso(s) durante a leitura da estrutura — confira o resultado.`)
     } finally {
@@ -179,6 +187,9 @@ export default function PsDocsPage() {
 
       const initial: PortalProcessDocState[] = listRes.processes.map((ref) => ({ ref, status: "pending", warnings: [] }))
       setProcessDocs(initial)
+      setProcessesOpen(true)
+      // Each process reports its own progress in the list below, so the form can step aside now.
+      setFormOpen(false)
       toast.success(`Gerando a documentação de ${initial.length} processo(s) seletivo(s)...`)
 
       // Dispara a geração de cada processo em paralelo, sem aguardar aqui — cada uma atualiza sua
@@ -209,7 +220,16 @@ export default function PsDocsPage() {
       </div>
 
       <Card>
-        <CardContent className="pt-6">
+        <CollapsibleCardHeader
+          title="Parâmetros da documentação"
+          open={formOpen}
+          onToggle={() => setFormOpen((open) => !open)}
+          controlsId="ps-docs-form"
+          expandLabel="Expandir parâmetros"
+          collapseLabel="Recolher parâmetros"
+          summary={docMode === "portal" ? `Portal inteiro · ${idPortalValue || "—"}` : `Processo seletivo · ${idPsValue || "—"}`}
+        />
+        <CardContent id="ps-docs-form" hidden={!formOpen}>
           <form onSubmit={handleSubmit((d) => (d.docMode === "processo" ? handleSubmitProcesso(d) : handleSubmitPortal(d)))} className="space-y-4" noValidate>
             <Field>
               <FieldLabel>Deseja realizar a documentação de um processo seletivo específico ou do portal inteiro?</FieldLabel>
@@ -329,10 +349,15 @@ export default function PsDocsPage() {
 
       {docMode === "portal" && processDocs.length > 0 && (
         <Card>
-          <CardHeader>
-            <CardTitle className="text-sm">Processos seletivos do portal</CardTitle>
-          </CardHeader>
-          <CardContent>
+          <CollapsibleCardHeader
+            title={`Processos seletivos do portal (${processDocs.length})`}
+            open={processesOpen}
+            onToggle={() => setProcessesOpen((open) => !open)}
+            controlsId="ps-docs-processes"
+            expandLabel="Expandir processos"
+            collapseLabel="Recolher processos"
+          />
+          <CardContent id="ps-docs-processes" hidden={!processesOpen}>
             <Accordion defaultValue={[processDocs[0].ref.id]}>
               {processDocs.map((p) => (
                 <AccordionItem key={p.ref.id} value={p.ref.id}>

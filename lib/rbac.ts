@@ -16,6 +16,17 @@ export async function requirePermission(resource: string, action: string = "read
   return ctx;
 }
 
+/** Like `requirePermission`, but passes when the session holds ANY of the given grants — for
+ *  actions shared by more than one screen (e.g. the PS structure readers used by both
+ *  "Documentação PS" and "Busca de campos PS"). Throws for the first grant when none match. */
+export async function requireAnyPermission(grants: [resource: string, action: string][]) {
+  const ctx = await getRequestContext();
+  if (!grants.some(([resource, action]) => hasPermission(ctx.permissions, resource, action))) {
+    throw new ForbiddenError(grants[0][0], grants[0][1]);
+  }
+  return ctx;
+}
+
 /**
  * Server Action guard that returns the action's usual `{ success: false, error }` shape instead of
  * throwing. Every exported Server Action is a public POST endpoint (callable without the UI, even

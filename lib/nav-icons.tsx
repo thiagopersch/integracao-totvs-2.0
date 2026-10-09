@@ -37,6 +37,7 @@ import {
   FolderKanban,
   GraduationCap,
   Map,
+  SearchCode,
   type LucideIcon,
 } from "lucide-react";
 
@@ -79,4 +80,5 @@ export const NAV_ICONS: Record<string, LucideIcon> = {
   FolderKanban,
   GraduationCap,
   Map,
+  SearchCode,
 };

@@ -1,9 +1,9 @@
 "use server";
 
 import axios from "axios";
-import { requirePermission } from "@/lib/rbac";
+import { requireAnyPermission } from "@/lib/rbac";
 import { hasRequiredCredentials, type PsCredentials } from "@/lib/ps-docs/credential";
-import { authHeaders, sessionErrorMessage, unwrapData, asArray, logApiCall, logAndNotifyFailure } from "@/lib/ps-docs/api-helpers";
+import { PS_STRUCTURE_GRANTS, authHeaders, sessionErrorMessage, unwrapData, asArray, logApiCall, logAndNotifyFailure } from "@/lib/ps-docs/api-helpers";
 import {
   buildFieldCatalog,
   buildIdTitleCatalog,
@@ -122,7 +122,7 @@ export interface ListStagesResult {
  *  `list-data-server-types`, `list-process-types`, `popups`, `pages` — all confirmed live, each a
  *  small one-shot `{id, title|name}` list, fetched once for the whole process). */
 export async function listSelectiveProcessStages(input: { credentials: PsCredentials; idPs: string; crmDomain?: string }): Promise<ListStagesResult> {
-  const { organizationId, userId } = await requirePermission("ps_docs", "execute");
+  const { organizationId, userId } = await requireAnyPermission(PS_STRUCTURE_GRANTS);
 
   const idPs = input.idPs.trim();
   const credentials = input.credentials;
@@ -288,7 +288,7 @@ export async function fetchStageDocumentation(input: {
   fieldCatalogEntries: [number, string][];
   actionCatalogEntries?: ActionCatalogEntries;
 }): Promise<FetchStageResult> {
-  const { organizationId, userId } = await requirePermission("ps_docs", "execute");
+  const { organizationId, userId } = await requireAnyPermission(PS_STRUCTURE_GRANTS);
 
   const idPs = input.idPs.trim();
   const credentials = input.credentials;

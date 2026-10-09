@@ -120,6 +120,9 @@ export interface PessoaVinculadaSpec {
 
 export interface AcaoBotaoSpec {
   ordem: number;
+  /** The button_action group's own `description` (HTML stripped) — the name the builder shows for
+   *  the action, e.g. "[FV#155]: Atualizar escola anterior". Used by "Busca de campos PS". */
+  titulo?: string;
   plano: PlanoExecucao;
   grupo: string; // e.g. "Ações TOTVS" / "Ações Rubeus" / "Integrações" / "Gerar relatório"
   tipoAcao: TipoAcao;
@@ -156,6 +159,11 @@ export interface EncaminhamentoSpec {
    *  instruction. `popupDetalhe` stays absent if the fetch failed or hasn't happened yet. */
   popupId?: number;
   popupDetalhe?: PopupSpec;
+  /** Only present for "Página" (`redirect_type_id` 6) — the raw `page_id`, used by "Busca de
+   *  campos PS" to know which `GET /api/pages/{id}` calls to make; `paginaDetalhe` is attached
+   *  by that screen after the fetch (never by the documentation pipeline). */
+  paginaId?: number;
+  paginaDetalhe?: PaginaSpec;
 }
 
 /** A pop-up's own full configuration — `GET /api/popups/{popup_id}`, per explicit instruction.
@@ -171,6 +179,13 @@ export interface PopupSpec {
   larguraMaxima?: string;
   itens: ItemSpec[];
   consultaSql: ConsultaSqlSpec;
+}
+
+/** A page's own content — `GET /api/pages/{page_id}`, assumed to share the pop-up's shape (a flat
+ *  `content` item list parsed with the same `mapItem` tree). Used by "Busca de campos PS". */
+export interface PaginaSpec {
+  nome: string;
+  itens: ItemSpec[];
 }
 
 export interface ValidacaoRegra {
@@ -249,6 +264,9 @@ export interface ItemSpec {
    *  ao vivo), usado pela automação de preenchimento (`lib/ps-ficha-automation/`) para montar o
    *  seletor do campo no navegador sem precisar adivinhar por texto/label. */
   fieldId?: number;
+  /** The component record's own `id` — the one `GET /api/custom-component/{id}` takes. Used by
+   *  "Busca de campos PS" to load a component's full config on demand. */
+  componentId?: number;
   classeCss?: string;
   padding?: string;
   larguraMaxima?: string;
@@ -268,7 +286,7 @@ export interface ItemSpec {
   filhos?: ItemSpec[];
 
   // categoria "botao"
-  nomeComponente?: string; // internal reference name (`name`) — distinct from `nome`, which is the visible label
+  nomeComponente?: string; // internal reference name (`name`) — distinct from `nome`, which is the visible label; set for every category, rendered in the docs only for botões
   tema?: string; // friendly name, e.g. "Elevado (btn-raised)"
   corBotao?: string;
   corTexto?: string;

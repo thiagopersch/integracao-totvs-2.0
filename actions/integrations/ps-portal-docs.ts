@@ -1,9 +1,9 @@
 "use server";
 
 import axios from "axios";
-import { requirePermission } from "@/lib/rbac";
+import { requireAnyPermission } from "@/lib/rbac";
 import { hasRequiredCredentials, type PsCredentials } from "@/lib/ps-docs/credential";
-import { authHeaders, sessionErrorMessage, unwrapData, asArray, logApiCall, logAndNotifyFailure, type Raw } from "@/lib/ps-docs/api-helpers";
+import { PS_STRUCTURE_GRANTS, authHeaders, sessionErrorMessage, unwrapData, asArray, logApiCall, logAndNotifyFailure, type Raw } from "@/lib/ps-docs/api-helpers";
 import { buildIdTitleCatalog, buildFieldCatalog, formatFieldRefOptional, formatCacheInterval, parsePopup, mapItem, EMPTY_CATALOGS } from "@/lib/ps-docs/parse-structure";
 import type { PortalOverviewSpec, PortalConsultaSpec, PortalIntegracaoSpec, PortalSegurancaCampoSpec, PortalGeralSpec, PortalApplymentDetailFieldSpec, PortalCampoResumo, PortalProcessRef } from "@/lib/ps-docs/types";
 
@@ -65,7 +65,7 @@ export interface FetchPortalOverviewResult {
 }
 
 export async function fetchPortalOverview(input: { credentials: PsCredentials; idPortal: string; localId?: string }): Promise<FetchPortalOverviewResult> {
-  const { organizationId, userId } = await requirePermission("ps_docs", "execute");
+  const { organizationId, userId } = await requireAnyPermission(PS_STRUCTURE_GRANTS);
 
   const idPortal = input.idPortal.trim();
   const credentials = input.credentials;
@@ -306,7 +306,7 @@ export interface ListPortalProcessesResult {
 }
 
 export async function listPortalSelectiveProcesses(input: { credentials: PsCredentials; idPortal: string }): Promise<ListPortalProcessesResult> {
-  const { organizationId, userId } = await requirePermission("ps_docs", "execute");
+  const { organizationId, userId } = await requireAnyPermission(PS_STRUCTURE_GRANTS);
 
   const idPortal = input.idPortal.trim();
   const credentials = input.credentials;

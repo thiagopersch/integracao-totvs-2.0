@@ -65,6 +65,13 @@ export const PERMISSIONS: PermissionDef[] = [
     module: "integrations",
   },
   {
+    resource: "ps_field_search",
+    action: "execute",
+    name: "Buscar Campos em Processos Seletivos",
+    description: "Localizar onde um campo/componente é usado (etapa, passo, feedback, página, pop-up) num processo seletivo ou portal",
+    module: "integrations",
+  },
+  {
     resource: "ps_ficha_test",
     action: "execute",
     name: "Testar Configuração de Processo Seletivo",
@@ -98,6 +105,7 @@ Object.assign(resourceLabels, {
   tbc_reports: "Relatórios TBC",
   ps_docs: "Documentação PS",
   ps_ficha_test: "Teste de Ficha PS",
+  ps_field_search: "Busca de campos PS",
   dashboard: "Dashboard",
   settings: "Configurações",
   notifications: "Notificações",
@@ -119,7 +127,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<"ADMIN" | "MANAGER" | "USER", stri
       ? p.action !== "delete"
       : ["dataservers", "processes"].includes(p.resource)
         ? p.action === "read"
-        : ["soap", "integrations", "tbc_reports", "ps_docs", "ps_ficha_test", "dashboard", "notifications", "reports", "deletion_logs", "activity_logs"].includes(p.resource)
+        : ["soap", "integrations", "tbc_reports", "ps_docs", "ps_ficha_test", "ps_field_search", "dashboard", "notifications", "reports", "deletion_logs", "activity_logs"].includes(p.resource)
           ? true
           : ["analysts", "contracts", "requesters", "departments", "demand_types", "tags", "demands", "mapeador_projetos", "mapeador_temas", "message_templates"].includes(p.resource)
             ? p.action !== "delete"

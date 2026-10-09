@@ -15,6 +15,7 @@ import type {
   ItemSpec,
   LogicaSpec,
   ParametroAcaoSpec,
+  PaginaSpec,
   PassoSpec,
   PessoaVinculadaSpec,
   PopupSpec,
@@ -243,7 +244,7 @@ function firstString(obj: Raw, keys: string[]): string | undefined {
   return undefined;
 }
 
-function stripHtml(html: string): string {
+export function stripHtml(html: string): string {
   return html
     .replace(/<style[\s\S]*?<\/style>/gi, "")
     .replace(/<[^>]+>/g, " ")
@@ -336,7 +337,7 @@ function logicsToText(items: RegraLogicaItem[] | undefined): string | undefined 
  *  phrasings applies: "elemento" (Mostrar/Ocultar) for a displayed component, "acao" (Executar/Não
  *  executar) for a button action or encaminhamento. Returns `undefined` when there are no rules,
  *  same as `describeLogicsStructured` — nothing to show either way. */
-function describeLogica(raw: Raw, fieldCatalog: Map<number, string>, wording: "elemento" | "acao"): LogicaSpec | undefined {
+export function describeLogica(raw: Raw, fieldCatalog: Map<number, string>, wording: "elemento" | "acao"): LogicaSpec | undefined {
   const regras = describeLogicsStructured(raw.logics, fieldCatalog);
   if (!regras || regras.length === 0) return undefined;
   const actionLabels = wording === "acao" ? ACTION_LOGIC_LABELS_ACAO : ACTION_LOGIC_LABELS_ELEMENTO;
@@ -491,7 +492,7 @@ const ACTION_TITLE_TO_TIPO: Record<string, TipoAcao> = {
   "Executar Processo": "Executar processo",
 };
 
-function resolveTipoAcao(group: Raw, action: Raw, actionTypes: Map<number, string>): TipoAcao {
+export function resolveTipoAcao(group: Raw, action: Raw, actionTypes: Map<number, string>): TipoAcao {
   const buttonActionsTypeId = Number(group.button_actions_type_id);
   if (buttonActionsTypeId === 2) return "Ação Rubeus";
   if (buttonActionsTypeId === 3) return "Integração";
@@ -539,7 +540,7 @@ function buildColunas(action: Raw, fieldCatalog: Map<number, string>): ColunaDat
 /** `rubeus_event` is a string code (e.g. "107") — resolved to its real name via the
  *  `list-rubeus-events` catalog, falling back to the event's own `event_description` (when the
  *  builder sent one inline) and finally to the bare code. */
-function buildEventos(action: Raw, rubeusEvents: Map<string, string>): EventoRubeusSpec[] | undefined {
+export function buildEventos(action: Raw, rubeusEvents: Map<string, string>): EventoRubeusSpec[] | undefined {
   const events = asArray(action.events);
   if (events.length === 0) return undefined;
   return events.map((e) => {
@@ -596,6 +597,7 @@ function mapButtonActionGroups(item: Raw, fieldCatalog: Map<number, string>, cat
         plano,
         grupo: groupTitle,
         tipoAcao,
+        titulo: firstString(group, ["description"]) ? stripHtml(firstString(group, ["description"])!) : undefined,
         descricao: stripHtml(firstString(action, ["discription", "description"]) ?? "(sem descrição)"),
         mensagemErro: errorMessage,
         acaoParametrizada: isConsulta ? firstString(action, ["code"]) : undefined,
@@ -679,7 +681,7 @@ function describeForwardTarget(fd: Raw, catalogs: ActionCatalogs, fieldCatalog: 
  *  effect for this encaminhamento — confirmed live: a real `forwardData` entry carries empty
  *  `parameters`/`logics` arrays alongside these flags regardless of whether they're set, so the
  *  flag (not just array length) decides whether the section is shown at all. */
-function mapForwardData(item: Raw, fieldCatalog: Map<number, string>, catalogs: ActionCatalogs): EncaminhamentoSpec[] {
+export function mapForwardData(item: Raw, fieldCatalog: Map<number, string>, catalogs: ActionCatalogs): EncaminhamentoSpec[] {
   return asArray(item.forwardData)
     .sort((a, b) => Number(a.position ?? 0) - Number(b.position ?? 0))
     .map((fd) => {
@@ -697,6 +699,7 @@ function mapForwardData(item: Raw, fieldCatalog: Map<number, string>, catalogs: 
         // (actions/integrations/ps-docs.ts) knows which `GET /api/popups/{id}` calls to make and
         // where to attach the result (`popupDetalhe`, filled in after this parse returns).
         popupId: type === 7 && fd.popup_id ? Number(fd.popup_id) : undefined,
+        paginaId: type === 6 && fd.page_id ? Number(fd.page_id) : undefined,
       };
     });
 }
@@ -724,6 +727,19 @@ export function parsePopup(rawPopup: unknown, rawPopupQuery: unknown, fieldCatal
     larguraMaxima: numericOrStringField(data, "maximum_width"),
     itens: asArray(data.content).map((item) => mapItem(item, fieldCatalog, catalogs)),
     consultaSql: buildConsultaSql(rawPopupQuery, fieldCatalog),
+  };
+}
+
+/** A page's own content — `GET /api/pages/{page_id}`. Assumed (not yet confirmed live) to share
+ *  the pop-up's shape: `name` + a flat `content` item list. Tolerant by design: when no `content`
+ *  array is found, `itens` comes back empty and the caller reports it as a warning. */
+export function parsePage(rawPage: unknown, fieldCatalog: Map<number, string>, catalogs: ActionCatalogs): PaginaSpec {
+  const data = (unwrapData(rawPage) as Raw) ?? {};
+  const nested = data.page && typeof data.page === "object" ? (data.page as Raw) : undefined;
+  const content = Array.isArray(data.content) ? data.content : nested && Array.isArray(nested.content) ? nested.content : [];
+  return {
+    nome: firstString(data, ["name", "title"]) ?? (nested ? firstString(nested, ["name", "title"]) : undefined) ?? "(página sem nome)",
+    itens: asArray(content).map((item) => mapItem(item, fieldCatalog, catalogs)),
   };
 }
 
@@ -939,6 +955,8 @@ export function mapItem(item: Raw, fieldCatalog: Map<number, string>, catalogs: 
     categoria: "componente",
     nome,
     tipo: formioType,
+    componentId: Number(item.id) || undefined,
+    nomeComponente: firstString(item, ["name"]),
     classeCss: firstString(formBuild, ["customClass"]),
     padding: firstString(item, ["padding"]) ?? undefined,
     larguraMaxima: firstString(item, ["max_width"]) ?? undefined,
@@ -954,7 +972,6 @@ export function mapItem(item: Raw, fieldCatalog: Map<number, string>, catalogs: 
     return {
       ...base,
       categoria: "botao",
-      nomeComponente: firstString(item, ["name"]),
       tema: describeButtonStyle(firstString(formBuild, ["style"])),
       corBotao: firstString(formBuild, ["externalColor"]),
       corTexto: firstString(formBuild, ["internalColor"]),
