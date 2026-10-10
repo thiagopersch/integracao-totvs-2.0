@@ -98,8 +98,8 @@ export function FilterTable({ data, meta, clients, tbcs, sistemas, categories, f
     deleteAction: deleteFilter,
     restoreAction: restoreFilter,
     setStatusAction: setFilterStatus,
-    deleteSuccessMessage: "Filtro excluído com sucesso",
-    restoreSuccessMessage: "Filtro restaurado com sucesso",
+    deleteSuccessMessage: "Filtro para backup excluído com sucesso",
+    restoreSuccessMessage: "Filtro para backup restaurado com sucesso",
   })
   const canCreate = useHasPermission("filters", "create")
   const canUpdate = useHasPermission("filters", "update")
@@ -223,7 +223,7 @@ export function FilterTable({ data, meta, clients, tbcs, sistemas, categories, f
       : await createFilter(formData)
 
     if (result.success) {
-      toast.success(editDialog.entity ? "Filtro atualizado" : "Filtro criado")
+      toast.success(editDialog.entity ? "Filtro para backup atualizado" : "Filtro para backup criado")
       form.reset()
       setEditDialog({ open: false })
       refresh()
@@ -414,10 +414,10 @@ export function FilterTable({ data, meta, clients, tbcs, sistemas, categories, f
 
   const newDialog = (
     <Dialog open={editDialog.open} onOpenChange={(open) => { setEditDialog({ open, entity: open ? editDialog.entity : undefined }); if (!open) form.reset() }}>
-      <DialogTrigger render={<Button><Plus className="h-4 w-4 mr-2" /> Novo Filtro</Button>} />
+      <DialogTrigger render={<Button><Plus className="h-4 w-4 mr-2" /> Novo filtro para backup</Button>} />
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>{editDialog.entity ? "Editar Filtro" : "Novo Filtro"}</DialogTitle>
+          <DialogTitle>{editDialog.entity ? "Editar filtro para backup" : "Novo filtro para backup"}</DialogTitle>
         </DialogHeader>
         <form onSubmit={form.handleSubmit(onSubmit)} className="flex min-h-0 flex-1 flex-col overflow-hidden">
         <DialogBody>
@@ -433,7 +433,7 @@ export function FilterTable({ data, meta, clients, tbcs, sistemas, categories, f
                 />
               )}
             />
-            <Label htmlFor="status">Filtro ativo</Label>
+            <Label htmlFor="status">Filtro para backup ativo</Label>
           </div>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <Field>
@@ -803,7 +803,7 @@ export function FilterTable({ data, meta, clients, tbcs, sistemas, categories, f
 
   return (
     <>
-      <PageHeader title="Filtros" description="Gerenciar filtros" />
+      <PageHeader title="Filtros para backup" description="Gerenciar filtros para backup" />
 
       <DataTable
         refreshing={isPending}
@@ -815,7 +815,7 @@ export function FilterTable({ data, meta, clients, tbcs, sistemas, categories, f
         pageCount={meta.totalPages}
         onPageChange={(p) => pushParams({ page: p })}
         onPageSizeChange={(ps) => pushParams({ pageSize: ps, page: 1 })}
-        searchPlaceholder="Buscar por filtro, código ou usuário..."
+        searchPlaceholder="Buscar por filtro para backup, código ou usuário..."
         onSearch={(v) => pushParams({ search: v || undefined, page: 1 })}
         toolbarActions={
           <div className="flex flex-wrap items-center gap-2">
@@ -838,8 +838,8 @@ export function FilterTable({ data, meta, clients, tbcs, sistemas, categories, f
       <ConfirmDialog
         open={deleteDialog.open}
         onOpenChange={(open) => setDeleteDialog({ open, id: deleteDialog.id })}
-        title="Excluir Filtro"
-        description="Tem certeza que deseja excluir este filtro? Esta ação pode ser revertida posteriormente."
+        title="Excluir filtro para backup"
+        description="Tem certeza que deseja excluir este filtro para backup? Esta ação pode ser revertida posteriormente."
         confirmLabel="Excluir"
         variant="destructive"
         onConfirm={() => deleteDialog.id && handleDelete(deleteDialog.id)}

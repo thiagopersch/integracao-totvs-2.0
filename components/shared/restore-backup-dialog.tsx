@@ -74,10 +74,8 @@ export function RestoreBackupDialog({
         </DialogHeader>
         <DialogBody>
           <div className="space-y-1 text-sm">
-            <p><span className="text-muted-foreground">Cliente:</span> {clientName}</p>
-            <p><span className="text-muted-foreground">TBC:</span> {tbcName}</p>
-            <p>
-              <span className="text-muted-foreground">Filtro:</span>{" "}
+            <p className="break-words [overflow-wrap:anywhere]">
+              <span className="text-muted-foreground">Filtro para backup:</span> {clientName} | {tbcName} |{" "}
               <span className="font-jetbrains font-bold">{filterValue}</span>
             </p>
           </div>

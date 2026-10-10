@@ -8,6 +8,7 @@ import { auditService, RESTORE_ERROR_ACTION } from "@/services/audit.service";
 import { notificationService } from "@/services/notification.service";
 import { buildBackupRunFailedNotification, buildBackupRunSucceededNotification } from "@/lib/notification-types";
 import { classifyError } from "@/lib/error-kind";
+import { formatBackupFilterLabel } from "@/lib/backup-filter-label";
 import { fetchSentencesForFilter, restoreSentenceToTbc } from "@/services/rm-sentence.service";
 import { soapService, type WsName } from "@/services/soap.service";
 import { soapEndpointService } from "@/services/soap-endpoint.service";
@@ -130,7 +131,7 @@ export const backupService = {
       where: { id: filterId, organizationId },
       include: { tbc: true, client: { select: { id: true, name: true } } },
     });
-    if (!filter) throw new Error("Filtro não encontrado");
+    if (!filter) throw new Error("Filtro para backup não encontrado");
 
     const backupRun = await prisma.backupRun.create({
       data: { organizationId, filterId, executedByUserId, status: "RUNNING" },
@@ -218,7 +219,7 @@ export const backupService = {
       if (!executedByUserId) {
         const notification = buildBackupRunSucceededNotification({
           filterId,
-          filterLabel: filter.filter,
+          filterLabel: formatBackupFilterLabel({ clientName: filter.client.name, tbcName: filter.tbc.name, filter: filter.filter }),
           tbcName: filter.tbc.name,
           clientId: filter.client.id,
           clientName: filter.client.name,
@@ -241,7 +242,7 @@ export const backupService = {
 
       const notification = buildBackupRunFailedNotification({
         filterId,
-        filterLabel: filter.filter,
+        filterLabel: formatBackupFilterLabel({ clientName: filter.client.name, tbcName: filter.tbc.name, filter: filter.filter }),
         tbcName: filter.tbc.name,
         errorMessage,
         clientId: filter.client.id,

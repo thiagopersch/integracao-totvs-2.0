@@ -218,7 +218,7 @@ export async function restoreLatestBackupsForFilter(filterId: string, targetTbcI
   if (wrongPassword) return wrongPassword;
   try {
     const filter = await filterService.getById(filterId, organizationId, allowedClientIds);
-    if (!filter) return { success: false, error: "Filtro não encontrado ou fora do seu escopo de acesso" };
+    if (!filter) return { success: false, error: "Filtro para backup não encontrado ou fora do seu escopo de acesso" };
     const targetTbc = await tbcService.getById(targetTbcId, organizationId, allowedClientIds);
     if (!targetTbc) return { success: false, error: "TBC de destino não encontrado ou fora do seu escopo de acesso" };
     const result = await backupService.restoreLatestForFilter(filterId, targetTbcId, organizationId, userId);

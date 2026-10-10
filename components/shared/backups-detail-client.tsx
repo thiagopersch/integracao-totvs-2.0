@@ -55,7 +55,7 @@ export function BackupsDetailClient({ filter, sentences, sentencesMeta, runs, ru
         </Link>
         {/* The filter expression can be a long unbroken string — let it wrap instead of overflowing. */}
         <h1 className="min-w-0 text-base break-words [overflow-wrap:anywhere] sm:text-lg">
-          {filter.client.name} - {filter.tbc.name} Filtro:{" "}
+          {filter.client.name} | {filter.tbc.name} |{" "}
           <span className="font-jetbrains font-bold">{filter.filter}</span>
         </h1>
       </div>

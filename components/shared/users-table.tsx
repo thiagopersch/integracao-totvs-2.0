@@ -384,7 +384,7 @@ export function UsersTable({ data, meta, clients }: UsersTableProps) {
           </DialogHeader>
           <div className="shrink-0 space-y-3 border-b p-4">
             <p className="text-sm text-muted-foreground">
-              Selecione os clientes que este usuário pode acessar. Sem clientes selecionados, o usuário não visualiza filtros, contratos, TBCs ou backups de nenhum cliente.
+              Selecione os clientes que este usuário pode acessar. Sem clientes selecionados, o usuário não visualiza filtros para backup, contratos, TBCs ou backups de nenhum cliente.
             </p>
             <div className="relative">
               <Search className="pointer-events-none absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />

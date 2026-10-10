@@ -91,7 +91,7 @@ export function RestorePasswordConfirmDialog({
         </DialogHeader>
         <DialogBody>
           <p className="text-sm text-muted-foreground">
-            Esta ação irá restaurar as sentenças do filtro selecionado no TOTVS RM. Digite sua senha para confirmar.
+            Esta ação irá restaurar as sentenças do filtro para backup selecionado no TOTVS RM. Digite sua senha para confirmar.
           </p>
           <div className="space-y-2">
             <Label htmlFor="restore-password">Senha</Label>

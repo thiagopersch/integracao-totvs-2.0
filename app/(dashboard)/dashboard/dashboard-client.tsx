@@ -224,7 +224,7 @@ export function DashboardClient({
         <TabsList>
           <TabsTrigger value="overview">Visão Geral</TabsTrigger>
           <TabsTrigger value="integrations">Integrações</TabsTrigger>
-          <TabsTrigger value="clients">Clientes/TBCs/Filtros</TabsTrigger>
+          <TabsTrigger value="clients">Clientes/TBCs/Filtros para backup</TabsTrigger>
           <TabsTrigger value="demands">Demandas</TabsTrigger>
         </TabsList>
 
@@ -467,14 +467,14 @@ export function DashboardClient({
               valueFormatter={formatNumber}
             />
             <ChartCard
-              title="Filtros por Status"
+              title="Filtros para backup por Status"
               data={filterStatusData}
               nameKey="name"
               series={VALUE_SERIES}
               kind={filterStatusKind}
               onKindChange={setFilterStatusKind}
               colorByIndex
-              emptyMessage="Nenhum filtro cadastrado"
+              emptyMessage="Nenhum filtro para backup cadastrado"
               valueFormatter={formatNumber}
             />
           </div>

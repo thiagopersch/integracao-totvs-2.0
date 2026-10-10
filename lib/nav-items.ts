@@ -85,7 +85,7 @@ export const navGroups: NavGroup[] = [
     icon: "Server",
     items: [
       { href: "/admin/tbcs", label: "TBCs", icon: "Server", resource: "tbcs" },
-      { href: "/admin/filters", label: "Filtros", icon: "Filter", resource: "filters" },
+      { href: "/admin/filters", label: "Backups de sentenças", icon: "Filter", resource: "filters" },
     ],
   },
   {

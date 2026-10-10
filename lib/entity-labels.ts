@@ -11,7 +11,7 @@ export const ENTITY_LABELS: Record<string, string> = {
   Process: "Processos",
   Client: "Clientes",
   Tbc: "TBCs",
-  Filter: "Filtros",
+  Filter: "Filtros para backup",
   Backup: "Backups",
   BackupRun: "Execuções de Backup",
   SentenceCategory: "Categorias de Sentença",

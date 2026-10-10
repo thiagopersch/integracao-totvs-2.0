@@ -36,13 +36,13 @@ export function buildBackupRunFailedNotification(params: {
   return {
     type: NOTIFICATION_TYPES.BACKUP_RUN_FAILED,
     title: `Falha no backup — ${params.filterLabel}`,
-    body: `O backup do filtro "${params.filterLabel}" (TBC ${params.tbcName}) falhou: ${params.errorMessage}`,
+    body: `O backup do filtro para backup "${params.filterLabel}" falhou: ${params.errorMessage}`,
     data: {
       filterId: params.filterId,
       href: `/admin/backups/${params.filterId}`,
       filterLabel: params.filterLabel,
       source: "filter",
-      sourceLabel: "Filtro (Backup)",
+      sourceLabel: "Filtro para backup",
       tbcName: params.tbcName,
       clientId: params.clientId,
       clientName: params.clientName,
@@ -62,13 +62,13 @@ export function buildBackupRunSucceededNotification(params: {
   return {
     type: NOTIFICATION_TYPES.BACKUP_RUN_SUCCEEDED,
     title: `Backup concluído — ${params.filterLabel}`,
-    body: `O backup agendado do filtro "${params.filterLabel}" (TBC ${params.tbcName}) foi concluído com sucesso.`,
+    body: `O backup agendado do filtro para backup "${params.filterLabel}" foi concluído com sucesso.`,
     data: {
       filterId: params.filterId,
       href: `/admin/backups/${params.filterId}`,
       filterLabel: params.filterLabel,
       source: "filter",
-      sourceLabel: "Filtro (Backup)",
+      sourceLabel: "Filtro para backup",
       tbcName: params.tbcName,
       clientId: params.clientId,
       clientName: params.clientName,

@@ -81,7 +81,7 @@ export async function updateFilter(id: string, formData: FormData) {
 
   try {
     const old = await filterService.getById(id, organizationId, allowedClientIds);
-    if (!old) return { success: false, error: "Filtro não encontrado ou fora do seu escopo de acesso" };
+    if (!old) return { success: false, error: "Filtro para backup não encontrado ou fora do seu escopo de acesso" };
     const entity = await filterService.update(id, parsed.data, organizationId, allowedClientIds);
     await auditService.log({
       action: "UPDATE",
@@ -102,7 +102,7 @@ export async function deleteFilter(id: string) {
   const { organizationId, allowedClientIds } = await requirePermission("filters", "delete");
   try {
     const old = await filterService.getById(id, organizationId, allowedClientIds);
-    if (!old) return { success: false, error: "Filtro não encontrado ou fora do seu escopo de acesso" };
+    if (!old) return { success: false, error: "Filtro para backup não encontrado ou fora do seu escopo de acesso" };
     await filterService.softDelete(id, organizationId, allowedClientIds);
     await auditService.log({
       action: "DELETE",
@@ -174,7 +174,7 @@ export async function createBackupFromFilter(filterId: string, sentenceCategoryI
   const { organizationId, userId, allowedClientIds } = await requirePermission("backups", "create");
   try {
     const filter = await filterService.getById(filterId, organizationId, allowedClientIds);
-    if (!filter) return { success: false, error: "Filtro não encontrado ou fora do seu escopo de acesso" };
+    if (!filter) return { success: false, error: "Filtro para backup não encontrado ou fora do seu escopo de acesso" };
     await backupService.createFromFilter(filterId, organizationId, sentenceCategoryId, userId)
     await auditService.log({ action: "CREATE", entity: "BackupRun", entityId: filterId, organizationId, userId })
     updateTag("backups")

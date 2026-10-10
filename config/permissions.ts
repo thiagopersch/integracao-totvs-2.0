@@ -25,7 +25,7 @@ export const PERMISSIONS: PermissionDef[] = [
   ...crud("processes", "Processos", "totvs"),
   ...crud("clients", "Clientes", "totvs"),
   ...crud("tbcs", "TBCs", "totvs"),
-  ...crud("filters", "Filtros", "totvs"),
+  ...crud("filters", "Filtros para backup", "totvs"),
   ...crud("backups", "Backups", "totvs"),
   { resource: "backups", action: "restore", name: "Restaurar Backup", description: "Restaurar sentenças de backup para o TBC de destino no TOTVS RM", module: "totvs" },
   ...crud("sentence_categories", "Categorias de Sentença", "totvs"),
