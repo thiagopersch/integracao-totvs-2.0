@@ -129,6 +129,9 @@ export const contractService = {
     if (!existing) throw new Error("Contrato não encontrado");
 
     const { startDate, endDate, ...rest } = input;
+    // Clearing the end date removes the reason for expiration, so an expired contract goes back to active.
+    const endDateCleared = existing.endDate !== null && endDate !== undefined && !endDate;
+    if (endDateCleared && (rest.status ?? existing.status) === "EXPIRED") rest.status = "ACTIVE";
     return prisma.clientContract.update({
       where: { id },
       data: {

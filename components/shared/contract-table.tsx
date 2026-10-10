@@ -365,7 +365,11 @@ export function ContractTable({
               <DatePicker
                 id="endDate"
                 value={form.watch("endDate") || ""}
-                onValueChange={(v) => form.setValue("endDate", v)}
+                onValueChange={(v) => {
+                  form.setValue("endDate", v)
+                  // Sem data de término não há como estar expirado: volta para ativo.
+                  if (!v && form.getValues("status") === "EXPIRED") form.setValue("status", "ACTIVE")
+                }}
                 aria-invalid={!!form.formState.errors.endDate}
               />
               <FieldError errors={[form.formState.errors.endDate]} />
