@@ -7,6 +7,10 @@ export function TbcChecklistSkeleton() {
         <Skeleton className="h-9 w-9 rounded-md" />
         <Skeleton className="h-6 w-72 max-w-full" />
       </div>
+      <div className="flex items-end gap-2">
+        <Skeleton className="h-9 w-80 max-w-full" />
+        <Skeleton className="h-9 w-20" />
+      </div>
       <div className="flex min-h-0 flex-1 flex-col gap-4 lg:flex-row">
         <div className="flex w-full shrink-0 flex-col gap-2 rounded-md border p-3 lg:w-[380px]">
           <Skeleton className="h-8 w-full" />

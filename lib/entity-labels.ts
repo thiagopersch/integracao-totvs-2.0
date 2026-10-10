@@ -39,6 +39,8 @@ export const ENTITY_LABELS: Record<string, string> = {
   MapeadorProjeto: "Projetos Mapeados",
   MapeadorEtapa: "Etapas Mapeadas",
   MapeadorTema: "Temas do Mapeador",
+  TbcChecklist: "Checklists do TBC",
+  TbcChecklistDataserver: "Data Servers do Checklist",
 };
 
 export interface BlockingReference {

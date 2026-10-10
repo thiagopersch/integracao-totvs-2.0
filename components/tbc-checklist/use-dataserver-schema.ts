@@ -17,7 +17,7 @@ import type { Dataserver } from "@/generated/prisma/client"
  */
 export function useDataserverSchema(
   tbcId: string,
-  dataserver: Dataserver | undefined,
+  dataserver: Pick<Dataserver, "code" | "name"> | undefined,
   contextForm: ChecklistContextForm,
   onLoaded: (tables: SchemaTable[]) => void
 ) {

@@ -161,6 +161,7 @@ model Organization {
   mapeadorProjetos    MapeadorProjeto[]
   mapeadorTemas       MapeadorTema[]
   mapeadorTemplates   MapeadorTemplateProjeto[]
+  tbcChecklists       TbcChecklist[]
 
   @@map("organizations")
 }
@@ -330,15 +331,58 @@ model Tbc {
   updatedAt          DateTime  @updatedAt @map("updated_at")
   deletedAt          DateTime? @map("deleted_at")
 
-  organization    Organization @relation(fields: [organizationId], references: [id])
-  client          Client       @relation(fields: [clientId], references: [id])
+  organization    Organization   @relation(fields: [organizationId], references: [id])
+  client          Client         @relation(fields: [clientId], references: [id])
   filters         Filter[]
-  backups         Backup[]     @relation("BackupTbc")
-  restoredBackups Backup[]     @relation("BackupRestoredToTbc")
+  backups         Backup[]       @relation("BackupTbc")
+  restoredBackups Backup[]       @relation("BackupRestoredToTbc")
+  checklists      TbcChecklist[]
 
   @@unique([organizationId, link])
   @@index([clientId])
   @@map("tbcs")
+}
+
+/// A named, user-built configuration checklist of one TBC: which Data Servers (and which of their
+/// fields) to validate, plus the Contexto and processo-listing setup of the checklist screen.
+model TbcChecklist {
+  id                    String    @id @default(uuid())
+  organizationId        String    @map("organization_id")
+  tbcId                 String    @map("tbc_id")
+  name                  String
+  coligateContext       Int?      @map("coligate_context")
+  branchContext         Int?      @map("branch_context")
+  levelEducationContext Int?      @map("level_education_context")
+  listingDataserverCode String?   @map("listing_dataserver_code")
+  listingIdFields       String[]  @default([]) @map("listing_id_fields")
+  listingLabelField     String?   @map("listing_label_field")
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
+  deletedAt             DateTime? @map("deleted_at")
+
+  organization Organization             @relation(fields: [organizationId], references: [id])
+  tbc          Tbc                      @relation(fields: [tbcId], references: [id])
+  dataservers  TbcChecklistDataserver[]
+
+  @@index([tbcId])
+  @@map("tbc_checklists")
+}
+
+/// One Data Server of a TbcChecklist and the fields picked for validation — `fields` is
+/// `{ table: string; name: string }[]` (tables as GetSchema names them).
+model TbcChecklistDataserver {
+  id             String   @id @default(uuid())
+  checklistId    String   @map("checklist_id")
+  dataserverCode String   @map("dataserver_code")
+  position       Int      @default(0)
+  fields         Json
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  checklist TbcChecklist @relation(fields: [checklistId], references: [id], onDelete: Cascade)
+
+  @@unique([checklistId, dataserverCode])
+  @@map("tbc_checklist_dataservers")
 }
 
 model Filter {

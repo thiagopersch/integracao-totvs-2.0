@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useRef, useState } from "react"
 import { Loader2, Search, Settings2, FolderKanban, PanelLeftClose, PanelLeftOpen, RefreshCw, Filter as FilterIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -19,7 +19,12 @@ import { useDataserverSchema } from "@/components/tbc-checklist/use-dataserver-s
 import { cn } from "@/lib/utils"
 import { fetchDataserverRows, type ChecklistContext } from "@/actions/integrations/tbc-checklist"
 import { buildPkFiltro } from "@/lib/tbc-checklist-filtro"
-import { EMPTY_CONTEXT_FORM, PROCESSO_SELETIVO_DATASERVER, type ChecklistContextForm } from "@/lib/tbc-checklist-dataservers"
+import {
+  EMPTY_CONTEXT_FORM,
+  PROCESSO_SELETIVO_DATASERVER,
+  toChecklistContext,
+  type ChecklistContextForm,
+} from "@/lib/tbc-checklist-dataservers"
 import type { SchemaTable } from "@/utils/soap-schema"
 import type { Dataserver } from "@/generated/prisma/client"
 import { toast } from "sonner"
@@ -41,6 +46,14 @@ export type ProcessoSeletivo = {
   context: ChecklistContext
 }
 
+/** Processo-listing setup saved with a checklist, so reopening it lists the processos right away. */
+export type ChecklistListing = {
+  dataserverCode: string | null
+  context: ChecklistContextForm
+  idFields: string[]
+  labelField: string | null
+}
+
 interface ProcessoSeletivoSidebarProps {
   tbcId: string
   dataservers: Dataserver[]
@@ -48,6 +61,11 @@ interface ProcessoSeletivoSidebarProps {
   onSelectProcesso: (processo: ProcessoSeletivo | null) => void
   /** TBC user the SOAP calls run as — named in the "sem permissão" message. */
   tbcUser?: string
+  /** Setup saved with the active checklist — pre-fills the form; when complete, the processos are
+   *  listed as soon as the schema arrives. Read on mount only (remount with a key to change it). */
+  initialListing?: ChecklistListing
+  /** Every successful listing reports the setup it used, for the caller to persist. */
+  onListingFetched?: (listing: ChecklistListing) => void
 }
 
 type SchemaFieldOption = { name: string; caption: string; isPrimaryKey: boolean }
@@ -82,13 +100,21 @@ export function ProcessoSeletivoSidebar({
   selectedProcesso,
   onSelectProcesso,
   tbcUser,
+  initialListing,
+  onListingFetched,
 }: ProcessoSeletivoSidebarProps) {
   const [collapsed, setCollapsed] = useState(false)
   const [configuring, setConfiguring] = useState(true)
   const [dataserverId, setDataserverId] = useState(
-    () => dataservers.find((d) => d.code === PROCESSO_SELETIVO_DATASERVER)?.id ?? ""
+    () =>
+      dataservers.find((d) => d.code === (initialListing?.dataserverCode || PROCESSO_SELETIVO_DATASERVER))?.id ??
+      dataservers.find((d) => d.code === PROCESSO_SELETIVO_DATASERVER)?.id ??
+      ""
   )
-  const [contextForm, setContextForm] = useState<ChecklistContextForm>(EMPTY_CONTEXT_FORM)
+  const [contextForm, setContextForm] = useState<ChecklistContextForm>(initialListing?.context ?? EMPTY_CONTEXT_FORM)
+  // The saved setup is applied (and listed) on the first schema load only — later loads are the
+  // user reconfiguring, which gets the regular defaults.
+  const savedListingRef = useRef(initialListing?.dataserverCode ? initialListing : undefined)
   const [pkValues, setPkValues] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(false)
   // ReadView of the listing refused by TOTVS for lack of permission (code of that Data Server).
@@ -106,6 +132,42 @@ export function ProcessoSeletivoSidebar({
 
   const selectedDataserver = dataservers.find((d) => d.id === dataserverId)
 
+  async function fetchRows(
+    dataserverCode: string,
+    table: string,
+    pk: Record<string, string>,
+    context: ChecklistContext,
+    usedIdFields: string[],
+    usedLabelField: string
+  ) {
+    setLoading(true)
+    const result = await fetchDataserverRows({
+      tbcId,
+      dataserverCode,
+      filtro: buildPkFiltro(table, pk),
+      context,
+    })
+    setLoading(false)
+    if (!result.success) {
+      if (result.permissionDenied) {
+        setRowsDeniedCode(dataserverCode)
+        return
+      }
+      toast.error(result.error || "Falha ao buscar processos seletivos")
+      return
+    }
+    setRowsDeniedCode("")
+    setRows(result.rows)
+    setListedContext(context)
+    setConfiguring(false)
+    onListingFetched?.({
+      dataserverCode,
+      context: { coligate: String(context.coligate), branch: String(context.branch), levelEducation: String(context.levelEducation) },
+      idFields: usedIdFields,
+      labelField: usedLabelField || null,
+    })
+  }
+
   function handleSchemaLoaded(tables: SchemaTable[]) {
     setTableName(tables[0]?.name ?? "")
     const schemaFields = (tables[0]?.fields ?? []).map((f) => ({
@@ -116,16 +178,30 @@ export function ProcessoSeletivoSidebar({
     setFields(schemaFields)
     const pkNames = schemaFields.filter((f) => f.isPrimaryKey).map((f) => f.name)
     // The coligada typed in the Contexto is the processo's coligada too — pre-fill it (editable).
-    setPkValues(
-      Object.fromEntries(pkNames.map((name) => [name, name.toUpperCase() === "CODCOLIGADA" ? contextForm.coligate.trim() : ""]))
+    const initialPkValues = Object.fromEntries(
+      pkNames.map((name) => [name, name.toUpperCase() === "CODCOLIGADA" ? contextForm.coligate.trim() : ""])
     )
+    setPkValues(initialPkValues)
     // Identification defaults to the whole primary key (coligada + processo seletivo), so processos
     // of different coligadas sharing an IDPS never collapse into one.
-    setIdFields(pkNames.length ? pkNames : schemaFields.slice(0, 1).map((f) => f.name))
     const nonPk = schemaFields.filter((f) => !f.isPrimaryKey)
-    setLabelField(
-      nonPk.find((f) => NAME_FIELD_PATTERN.test(f.name))?.name || nonPk[0]?.name || schemaFields[0]?.name || ""
-    )
+    const exists = (name: string | null | undefined) => !!name && schemaFields.some((f) => f.name === name)
+    const saved = savedListingRef.current
+    savedListingRef.current = undefined
+    const savedIdFields = saved?.idFields.filter(exists) ?? []
+    const nextIdFields = savedIdFields.length ? savedIdFields : pkNames.length ? pkNames : schemaFields.slice(0, 1).map((f) => f.name)
+    const nextLabelField = exists(saved?.labelField)
+      ? (saved?.labelField as string)
+      : nonPk.find((f) => NAME_FIELD_PATTERN.test(f.name))?.name || nonPk[0]?.name || schemaFields[0]?.name || ""
+    setIdFields(nextIdFields)
+    setLabelField(nextLabelField)
+
+    const table = tables[0]?.name ?? ""
+    const context = toChecklistContext(contextForm)
+    // Saved setup: list the processos right away, as if "Buscar registros" had been clicked.
+    if (saved && selectedDataserver && context && table) {
+      void fetchRows(selectedDataserver.code, table, initialPkValues, context, nextIdFields, nextLabelField)
+    }
   }
 
   const schema = useDataserverSchema(tbcId, selectedDataserver, contextForm, handleSchemaLoaded)
@@ -142,27 +218,7 @@ export function ProcessoSeletivoSidebar({
 
   async function handleFetch() {
     if (!selectedDataserver || !schema.context) return
-    const context = schema.context
-    setLoading(true)
-    const result = await fetchDataserverRows({
-      tbcId,
-      dataserverCode: selectedDataserver.code,
-      filtro: buildPkFiltro(tableName, pkValues),
-      context,
-    })
-    setLoading(false)
-    if (!result.success) {
-      if (result.permissionDenied) {
-        setRowsDeniedCode(selectedDataserver.code)
-        return
-      }
-      toast.error(result.error || "Falha ao buscar processos seletivos")
-      return
-    }
-    setRowsDeniedCode("")
-    setRows(result.rows)
-    setListedContext(context)
-    setConfiguring(false)
+    await fetchRows(selectedDataserver.code, tableName, pkValues, schema.context, idFields, labelField)
   }
 
   const pkFields = fields.filter((f) => f.isPrimaryKey)

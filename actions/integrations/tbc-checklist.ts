@@ -5,10 +5,10 @@ import { soapService, SoapPermissionDeniedError } from "@/services/soap.service"
 import { soapEndpointService } from "@/services/soap-endpoint.service"
 import { requirePermission } from "@/lib/rbac"
 import { escapeXml, type SoapContext } from "@/utils/soap-envelope"
-import { parseDataServerSchema, parseReadViewResult, type SchemaTable, type DataTable } from "@/utils/soap-schema"
+import { parseDataServerSchema, parseReadViewResult } from "@/utils/soap-schema"
 import type { WsName } from "@/lib/ws-names"
 import { buildPkFiltro, pickKnownPkValues } from "@/lib/tbc-checklist-filtro"
-import { isConfiguredValue } from "@/lib/tbc-checklist-values"
+import { buildTableResult, rowsForTable, rowValue, toFieldMeta, type ChecklistMainRecord } from "@/lib/tbc-checklist-records"
 
 export type ChecklistFieldRow = {
   table: string
@@ -66,80 +66,6 @@ export type ChecklistParent = {
 export type ChecklistRelatedGroup = {
   parentKey: string
   results: Record<string, ChecklistTableResult>
-}
-
-const NAME_FIELD_PATTERN = /^(NOME|DESCRICAO|DESC)/i
-
-/** Picks a human label for one row of a table: prefers a "nome"/"descrição" column, then the first
- *  non-PK field with a real value, prefixed by the row's last PK value (its own id, e.g. IDPS or
- *  IDAREAOFERTADA); falls back to the PK values, then a plain ordinal — so every accordion item has
- *  something to show even for oddly-shaped tables. */
-function pickRecordLabel(fields: ChecklistFieldMeta[], row: Record<string, string>, index: number): string {
-  const hasValue = (name: string) => (row[name] ?? "").trim().length > 0
-  const pkValues = fields.filter((f) => f.isPrimaryKey && hasValue(f.name)).map((f) => row[f.name])
-  const nonPk = fields.filter((f) => !f.isPrimaryKey && hasValue(f.name))
-  const nameField = nonPk.find((f) => NAME_FIELD_PATTERN.test(f.name) || /nome|descri/i.test(f.caption)) ?? nonPk[0]
-  if (nameField) {
-    const id = pkValues[pkValues.length - 1]
-    return id ? `${id} - ${row[nameField.name]}` : row[nameField.name]
-  }
-  if (pkValues.length) return pkValues.join(" - ")
-  return `Registro ${index + 1}`
-}
-
-function toFieldMeta(table: SchemaTable): ChecklistTableMeta {
-  return {
-    name: table.name,
-    fields: table.fields.map((f) => ({
-      name: f.name,
-      caption: f.caption && f.caption !== "-" ? f.caption : f.name,
-      isPrimaryKey: f.isPrimaryKey,
-      type: f.type,
-    })),
-  }
-}
-
-/** Merges a table's schema fields with the rows TOTVS returned for it. A field is "configurado"
- *  per `isConfiguredValue` (any value but an unchecked "F" flag). No rows → one blank record,
- *  flagged `empty`. */
-function buildTableResult(table: ChecklistTableMeta, rows: Record<string, string>[], keyPrefix = table.name): ChecklistTableResult {
-  const effectiveRows = rows.length ? rows : [{}]
-  return {
-    table: table.name,
-    empty: rows.length === 0,
-    records: effectiveRows.map((row, index) => ({
-      key: `${keyPrefix}-${index}`,
-      label: pickRecordLabel(table.fields, row, index),
-      fields: table.fields.map((field) => {
-        const rawValue = row[field.name] ?? ""
-        return {
-          table: table.name,
-          name: field.name,
-          caption: field.caption,
-          isPrimaryKey: field.isPrimaryKey,
-          type: field.type,
-          configurado: isConfiguredValue(rawValue),
-          valor: rawValue,
-        }
-      }),
-    })),
-  }
-}
-
-/** Rows of `tableName` in a ReadView/ReadRecord result — matched case-insensitively, since the
- *  DataSet element name isn't guaranteed to share the GetSchema casing. */
-function rowsForTable(dataTables: DataTable[], tableName: string): Record<string, string>[] {
-  const target = tableName.toLowerCase()
-  return dataTables.filter((t) => t.name.toLowerCase() === target).flatMap((t) => t.rows)
-}
-
-/** Value of `field` in `row`, matching the column name case-insensitively. */
-function rowValue(row: Record<string, string>, field: string): string | undefined {
-  const target = field.toLowerCase()
-  for (const [key, value] of Object.entries(row)) {
-    if (key.toLowerCase() === target) return value
-  }
-  return undefined
 }
 
 /** Runs `fn` over `items` with at most `limit` in flight, preserving order. */
@@ -249,19 +175,20 @@ export async function fetchDataserverSchema(input: { tbcId: string; dataserverCo
 }
 
 /**
- * Loads a Data Server's MAIN table, scoped by known values: `pkValues` may carry e.g.
- * CODCOLIGADA/IDPS of the selected processo, or what the user typed in the PK inputs — only those
- * naming a main-table column (case-insensitive) and non-empty become the filtro
- * (`TABLE.FIELD = 'value' AND ...`). `context` (coligada/filial/tipo de curso) is always sent,
- * mirroring the SOAP Builder — TOTVS RM uses it to resolve the base before applying the filtro.
+ * Step 1 of loading a Data Server's MAIN table (the client then asks for the records in batches,
+ * so it can show progress): GetSchema + ReadView, scoped by known values — `pkValues` may carry
+ * e.g. CODCOLIGADA/IDPS of the selected processo; only those naming a main-table column
+ * (case-insensitive) and non-empty become the filtro (`TABLE.FIELD = 'value' AND ...`). `context`
+ * (coligada/filial/tipo de curso) is always sent, mirroring the SOAP Builder — TOTVS RM uses it to
+ * resolve the base before applying the filtro.
  *
  * ReadView only finds WHICH rows match: it returns just the columns of the Data Server's view
  * (13 of the 117 SPSProcessoSeletivo columns, for instance), so every other field would look "não
- * configurado". The values therefore come from one ReadRecord per matched row (`parents`), which
- * returns the full record. Related (child) tables are loaded per tab by
- * `fetchChecklistRelatedTable`.
+ * configurado". The values therefore come from one ReadRecord per matched row
+ * (`fetchChecklistMainRecords`, keyed by `primaryKeys`). With no primary key there is no
+ * ReadRecord: `primaryKeys` is empty and the view columns are all there is.
  */
-export async function fetchChecklistMainTable(input: {
+export async function fetchChecklistMainView(input: {
   tbcId: string
   dataserverCode: string
   pkValues: Record<string, string>
@@ -283,44 +210,54 @@ export async function fetchChecklistMainTable(input: {
     )
     const filtro = buildPkFiltro(mainTable.name, appliedFilter)
     const allViewRows = rowsForTable(parseReadViewResult(await session.readView(input.dataserverCode, filtro)), mainTable.name)
-    const truncated = allViewRows.length > MAX_PARENTS
     const viewRows = allViewRows.slice(0, MAX_PARENTS)
+    const primaryKeys = pkFieldNames.length ? viewRows.map((row) => pkFieldNames.map((name) => row[name] ?? "").join(";")) : []
 
-    if (!pkFieldNames.length) {
-      // No primary key → no ReadRecord possible; the view columns are all there is.
-      return {
-        success: true as const,
-        tables,
-        mainTable: mainTable.name,
-        pkFieldNames,
-        appliedFilter,
-        mainResult: buildTableResult(mainTable, viewRows),
-        parents: [] as ChecklistParent[],
-        truncated,
-      }
+    return {
+      success: true as const,
+      tables,
+      mainTable: mainTable.name,
+      appliedFilter,
+      viewRows,
+      primaryKeys,
+      truncated: allViewRows.length > MAX_PARENTS,
     }
+  } catch (error) {
+    return failure(error)
+  }
+}
 
-    const loaded = await mapWithLimit(viewRows, 4, async (viewRow) => {
-      const primaryKey = pkFieldNames.map((name) => viewRow[name] ?? "").join(";")
+/** Most ReadRecords one `fetchChecklistMainRecords` call runs — the client sends small batches. */
+const MAX_RECORDS_PER_CALL = 10
+
+/**
+ * Step 2: the full main-table record (every column — unlike ReadView) of each primary key, one
+ * ReadRecord each, at most 4 in flight. A failed row is reported in its slot (the client falls
+ * back to its ReadView columns); no access to the Data Server fails the whole call.
+ */
+export async function fetchChecklistMainRecords(input: {
+  tbcId: string
+  dataserverCode: string
+  context: ChecklistContext
+  mainTable: string
+  primaryKeys: string[]
+}) {
+  try {
+    if (input.primaryKeys.length > MAX_RECORDS_PER_CALL) {
+      return { success: false as const, error: `No máximo ${MAX_RECORDS_PER_CALL} registros por chamada.`, permissionDenied: false }
+    }
+    const session = await openDataserverSession(input.tbcId, input.context)
+    const records: ChecklistMainRecord[] = await mapWithLimit(input.primaryKeys, 4, async (primaryKey) => {
       try {
-        const fullRow = rowsForTable(await session.readRecord(input.dataserverCode, primaryKey), mainTable.name)[0]
-        return { primaryKey, row: fullRow ?? viewRow, error: fullRow ? undefined : "ReadRecord não retornou o registro." }
+        const row = rowsForTable(await session.readRecord(input.dataserverCode, primaryKey), input.mainTable)[0]
+        return row ? { primaryKey, row } : { primaryKey, row: null, error: "ReadRecord não retornou o registro." }
       } catch (error) {
         // No access to this Data Server fails the whole load (shown as such), not just this row.
         if (error instanceof SoapPermissionDeniedError) throw error
-        return { primaryKey, row: viewRow, error: (error as Error).message }
+        return { primaryKey, row: null, error: (error as Error).message }
       }
     })
-
-    const mainResult = buildTableResult(mainTable, loaded.map((l) => l.row))
-    const parents: ChecklistParent[] = loaded.map((l, index) => ({
-      key: mainResult.records[index].key,
-      label: mainResult.records[index].label,
-      primaryKey: l.primaryKey,
-      ...(l.error ? { error: l.error } : {}),
-    }))
-
-    return { success: true as const, tables, mainTable: mainTable.name, pkFieldNames, appliedFilter, mainResult, parents, truncated }
+    return { success: true as const, records }
   } catch (error) {
     return failure(error)
   }
