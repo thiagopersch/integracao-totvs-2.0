@@ -12,13 +12,15 @@ import {
   type ChecklistTableResult,
 } from "@/actions/integrations/tbc-checklist"
 import {
+  addTbcChecklistProcessos,
   removeTbcChecklistDataserver,
+  removeTbcChecklistProcesso,
   saveTbcChecklistDataserverFields,
   saveTbcChecklistListing,
 } from "@/actions/integrations/tbc-checklist-templates"
 import {
   ProcessoSeletivoSidebar,
-  type ChecklistListing,
+  type ProcessoSearchSetup,
   type ProcessoSeletivo,
 } from "@/components/tbc-checklist/processo-seletivo-sidebar"
 import { DataserverFieldsDialog, type DataserverFieldsDialogMode } from "@/components/tbc-checklist/dataserver-fields-dialog"
@@ -35,6 +37,7 @@ import {
 } from "@/lib/tbc-checklist-dataservers"
 import { checklistSelection, type ChecklistSelection } from "@/lib/tbc-checklist-selection"
 import { isFinished, type DataserverLoadProgress } from "@/lib/tbc-checklist-progress"
+import type { ProcessoSeletivoOption } from "@/lib/tbc-checklist-processos"
 import type { TbcChecklistField } from "@/schemas/tbc-checklist.schema"
 import type { TbcChecklistImportSource, TbcChecklistView } from "@/services/tbc-checklist.service"
 import type { TbcRow } from "@/services/tbc.service"
@@ -101,16 +104,9 @@ function contextFormOf(checklist: TbcChecklistView): ChecklistContextForm {
   }
 }
 
-function listingOf(checklist: TbcChecklistView): ChecklistListing {
-  return {
-    dataserverCode: checklist.listingDataserverCode,
-    context: contextFormOf(checklist),
-    idFields: checklist.listingIdFields,
-    labelField: checklist.listingLabelField,
-  }
+function searchSetupOf(checklist: TbcChecklistView) {
+  return { dataserverCode: checklist.listingDataserverCode, context: contextFormOf(checklist) }
 }
-
-const sameListing = (a: ChecklistListing, b: ChecklistListing) => JSON.stringify(a) === JSON.stringify(b)
 
 /** Keeps `?checklist=` in sync without a navigation (the checklists already live in this state). */
 function syncChecklistParam(id: string | null) {
@@ -285,22 +281,49 @@ export function TbcChecklistClient({ tbc, dataservers, checklists: initialCheckl
     await loadDataservers(checklist.dataservers, processo, order, selectionId)
   }
 
-  async function handleListingFetched(listing: ChecklistListing) {
-    if (!active || sameListing(listing, listingOf(active))) return
+  /** Keeps the Data Server + Contexto of the last processo search, to pre-fill the next one. */
+  async function handleSearched(setup: ProcessoSearchSetup) {
+    if (!active || JSON.stringify(setup) === JSON.stringify(searchSetupOf(active))) return
     const toInt = (value: string) => (value.trim() === "" ? null : Number(value))
     const result = await saveTbcChecklistListing(active.id, {
-      coligateContext: toInt(listing.context.coligate),
-      branchContext: toInt(listing.context.branch),
-      levelEducationContext: toInt(listing.context.levelEducation),
-      listingDataserverCode: listing.dataserverCode,
-      listingIdFields: listing.idFields,
-      listingLabelField: listing.labelField,
+      coligateContext: toInt(setup.context.coligate),
+      branchContext: toInt(setup.context.branch),
+      levelEducationContext: toInt(setup.context.levelEducation),
+      listingDataserverCode: setup.dataserverCode,
+      listingIdFields: active.listingIdFields,
+      listingLabelField: active.listingLabelField,
     })
     if (!result.success) {
       toast.error(`Não foi possível salvar a configuração no checklist: ${result.error}`)
       return
     }
     replaceChecklist(result.data)
+  }
+
+  async function handleAddProcessos(processos: ProcessoSeletivoOption[]): Promise<boolean> {
+    if (!active) return false
+    const result = await addTbcChecklistProcessos(active.id, { processos })
+    if (!result.success) {
+      toast.error(result.error)
+      return false
+    }
+    replaceChecklist(result.data)
+    toast.success(
+      processos.length === 1 ? "Processo seletivo adicionado ao checklist" : `${processos.length} processos seletivos adicionados ao checklist`
+    )
+    return true
+  }
+
+  async function handleRemoveProcesso(id: string) {
+    if (!active) return
+    const result = await removeTbcChecklistProcesso(active.id, id)
+    if (!result.success) {
+      toast.error(result.error)
+      return
+    }
+    replaceChecklist(result.data)
+    if (selectedProcesso?.id === id) resetLoaded()
+    toast.success("Processo seletivo removido do checklist")
   }
 
   function openFieldsDialog(mode: DataserverFieldsDialogMode) {
@@ -511,11 +534,14 @@ export function TbcChecklistClient({ tbc, dataservers, checklists: initialCheckl
               key={active.id}
               tbcId={tbc.id}
               dataservers={dataservers}
+              processos={active.processos}
               selectedProcesso={selectedProcesso}
               onSelectProcesso={handleSelectProcesso}
               tbcUser={tbc.user}
-              initialListing={listingOf(active)}
-              onListingFetched={handleListingFetched}
+              initialSearch={searchSetupOf(active)}
+              onSearched={handleSearched}
+              onAddProcessos={handleAddProcessos}
+              onRemoveProcesso={handleRemoveProcesso}
             />
           )}
 

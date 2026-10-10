@@ -9,6 +9,7 @@ import { parseDataServerSchema, parseReadViewResult } from "@/utils/soap-schema"
 import type { WsName } from "@/lib/ws-names"
 import { buildPkFiltro, pickKnownPkValues } from "@/lib/tbc-checklist-filtro"
 import { buildTableResult, rowsForTable, rowValue, toFieldMeta, type ChecklistMainRecord } from "@/lib/tbc-checklist-records"
+import { findNameField, toProcessoOptions } from "@/lib/tbc-checklist-processos"
 
 export type ChecklistFieldRow = {
   table: string
@@ -315,62 +316,43 @@ export async function fetchChecklistRelatedTable(input: {
 }
 
 /**
- * Live-lists the rows of a Data Server via ReadView, for a Data Server the user has designated as
- * the "processo seletivo" catalog (fully configured by the user — code, id/label fields — since
- * this app has no such entity of its own, see plan). Returns raw rows plus the schema so the
- * caller can offer id/label field pickers.
+ * Lists the processos seletivos of a Data Server (EduPSProcessoSeletivoData by default) so the user
+ * can pick which ones the checklist keeps — only run when adding processos, never to show the
+ * checklist. Scoped by the Contexto's coligada and, when given, one IDPS; empty IDPS = all of them.
  */
-export async function fetchDataserverRows(input: {
+export async function searchProcessosSeletivos(input: {
   tbcId: string
   dataserverCode: string
-  filtro?: string
-  context?: ChecklistContext
+  context: ChecklistContext
+  idps?: string
 }) {
   try {
-    const { organizationId, allowedClientIds, userId } = await requirePermission("tbcs", "read")
-    const credentials = await tbcService.getCredentialsForRequest(input.tbcId, organizationId, allowedClientIds)
-    const dataserverType = await soapEndpointService.getActiveTypeByKey("dataserver")
-    const wsName = dataserverType.suffix as WsName
-    const soapContext: SoapContext = { ...input.context, user: credentials.user }
-
-    const schemaRes = await soapService.execute(
-      {
-        tbc: credentials,
-        wsName,
-        method: "GETSCHEMA",
-        xml: `<GetSchema>\n  <DataServerName>${escapeXml(input.dataserverCode)}</DataServerName>\n</GetSchema>`,
-        context: soapContext,
-      },
-      organizationId,
-      userId
-    )
-    const tables = parseDataServerSchema(schemaRes.xmlResponse)
-
-    const filtro = input.filtro?.trim() ?? ""
-    const readViewXml = filtro
-      ? `<ReadView>\n  <DataServerName>${escapeXml(input.dataserverCode)}</DataServerName>\n  <Filtro>${escapeXml(filtro)}</Filtro>\n</ReadView>`
-      : `<ReadView>\n  <DataServerName>${escapeXml(input.dataserverCode)}</DataServerName>\n</ReadView>`
-    const viewRes = await soapService.execute(
-      { tbc: credentials, wsName, method: "READVIEW", xml: readViewXml, context: soapContext },
-      organizationId,
-      userId
-    )
-    const dataTables = parseReadViewResult(viewRes.xmlResponse)
-    const mainTable = dataTables[0]
+    const idps = input.idps?.trim() ?? ""
+    if (idps && !/^\d+$/.test(idps)) {
+      return { success: false as const, error: "IDPS deve ser um número.", permissionDenied: false }
+    }
+    const session = await openDataserverSession(input.tbcId, input.context)
+    const mainTable = parseDataServerSchema(await session.getSchema(input.dataserverCode))[0]
     if (!mainTable) {
-      return { success: false as const, error: `Nenhum registro retornado pelo Data Server "${input.dataserverCode}".`, permissionDenied: false }
+      return { success: false as const, error: `Nenhuma tabela encontrada no schema do Data Server "${input.dataserverCode}".`, permissionDenied: false }
+    }
+    const fieldNamed = (name: string) => mainTable.fields.find((f) => f.name.toUpperCase() === name)?.name
+    const coligadaField = fieldNamed("CODCOLIGADA")
+    const idpsField = fieldNamed("IDPS")
+    if (!coligadaField || !idpsField) {
+      return {
+        success: false as const,
+        error: `O Data Server "${input.dataserverCode}" não tem os campos CODCOLIGADA e IDPS — não é um Data Server de processos seletivos.`,
+        permissionDenied: false,
+      }
     }
 
-    return {
-      success: true as const,
-      fields: (tables[0]?.fields ?? []).map((f) => ({
-        name: f.name,
-        caption: f.caption && f.caption !== "-" ? f.caption : f.name,
-        isPrimaryKey: f.isPrimaryKey,
-      })),
-      columns: mainTable.columns,
-      rows: mainTable.rows,
-    }
+    const filtro = buildPkFiltro(mainTable.name, {
+      [coligadaField]: String(input.context.coligate),
+      ...(idps ? { [idpsField]: idps } : {}),
+    })
+    const rows = rowsForTable(parseReadViewResult(await session.readView(input.dataserverCode, filtro)), mainTable.name)
+    return { success: true as const, processos: toProcessoOptions(rows, findNameField(mainTable.fields), input.context) }
   } catch (error) {
     return failure(error)
   }

@@ -363,9 +363,29 @@ model TbcChecklist {
   organization Organization             @relation(fields: [organizationId], references: [id])
   tbc          Tbc                      @relation(fields: [tbcId], references: [id])
   dataservers  TbcChecklistDataserver[]
+  processos    TbcChecklistProcesso[]
 
   @@index([tbcId])
   @@map("tbc_checklists")
+}
+
+/// Processo seletivo picked for a TbcChecklist — saved so the checklist screen doesn't re-list
+/// every processo from TOTVS on each visit. coligada + IDPS are the key the checklist is loaded by;
+/// filial + nível de ensino complete the SOAP Contexto.
+model TbcChecklistProcesso {
+  id             String   @id @default(uuid())
+  checklistId    String   @map("checklist_id")
+  codColigada    Int      @map("cod_coligada")
+  codFilial      Int      @map("cod_filial")
+  levelEducation Int      @map("level_education")
+  idps           Int
+  name           String
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  checklist TbcChecklist @relation(fields: [checklistId], references: [id], onDelete: Cascade)
+
+  @@unique([checklistId, codColigada, idps])
+  @@map("tbc_checklist_processos")
 }
 
 /// One Data Server of a TbcChecklist and the fields picked for validation — `fields` is

@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import type {
+  TbcChecklistAddProcessosInput,
   TbcChecklistDataserverFieldsInput,
   TbcChecklistField,
   TbcChecklistImportInput,
@@ -19,9 +20,23 @@ export type TbcChecklistView = {
   listingLabelField: string | null;
   updatedAt: Date;
   dataservers: { id: string; dataserverCode: string; position: number; fields: TbcChecklistField[] }[];
+  processos: TbcChecklistProcessoView[];
 };
 
-const include = { dataservers: { orderBy: { position: "asc" as const } } };
+/** A processo seletivo saved in the checklist — listed without going to TOTVS. */
+export type TbcChecklistProcessoView = {
+  id: string;
+  codColigada: number;
+  codFilial: number;
+  levelEducation: number;
+  idps: number;
+  name: string;
+};
+
+const include = {
+  dataservers: { orderBy: { position: "asc" as const } },
+  processos: { orderBy: [{ codColigada: "desc" as const }, { idps: "desc" as const }] },
+};
 
 type ChecklistWithDataservers = NonNullable<Awaited<ReturnType<typeof findScoped>>>;
 
@@ -51,6 +66,14 @@ function toView(checklist: ChecklistWithDataservers): TbcChecklistView {
       dataserverCode: d.dataserverCode,
       position: d.position,
       fields: toFields(d.fields),
+    })),
+    processos: checklist.processos.map((p) => ({
+      id: p.id,
+      codColigada: p.codColigada,
+      codFilial: p.codFilial,
+      levelEducation: p.levelEducation,
+      idps: p.idps,
+      name: p.name,
     })),
   };
 }
@@ -159,6 +182,26 @@ export const tbcChecklistService = {
     return toView(await prisma.tbcChecklist.update({ where: { id }, data: { updatedAt: new Date() }, include }));
   },
 
+  /** Saves the picked processos seletivos — one already in the checklist (same coligada + IDPS)
+   *  is skipped. */
+  async addProcessos(id: string, input: TbcChecklistAddProcessosInput, organizationId: string, allowedClientIds: string[]) {
+    await requireChecklist(id, organizationId, allowedClientIds);
+    await prisma.tbcChecklistProcesso.createMany({
+      data: input.processos.map((p) => ({ ...p, checklistId: id })),
+      skipDuplicates: true,
+    });
+    return toView(await prisma.tbcChecklist.update({ where: { id }, data: { updatedAt: new Date() }, include }));
+  },
+
+  async removeProcesso(id: string, processoId: string, organizationId: string, allowedClientIds: string[]) {
+    const checklist = await requireChecklist(id, organizationId, allowedClientIds);
+    if (!checklist.processos.some((p) => p.id === processoId)) {
+      throw new Error("Processo seletivo não faz parte deste checklist");
+    }
+    await prisma.tbcChecklistProcesso.delete({ where: { id: processoId } });
+    return toView(await prisma.tbcChecklist.update({ where: { id }, data: { updatedAt: new Date() }, include }));
+  },
+
   async listImportSources(targetId: string, organizationId: string, allowedClientIds: string[]): Promise<TbcChecklistImportSource[]> {
     const checklists = await prisma.tbcChecklist.findMany({
       where: { id: { not: targetId }, organizationId, deletedAt: null, tbc: tbcScope(organizationId, allowedClientIds) },
@@ -184,7 +227,8 @@ export const tbcChecklistService = {
   /**
    * Copies the Data Servers/fields of `input.sourceId` into `targetId`: "replace" swaps the whole
    * structure for the source's; "merge" adds missing Data Servers and joins the fields of shared
-   * ones. The source's Contexto/listing setup is only copied when the target has none yet.
+   * ones. The source's Contexto/listing setup is only copied when the target has none yet. Its
+   * processos seletivos are never copied — they belong to the source TBC's base.
    */
   async importStructure(targetId: string, input: TbcChecklistImportInput, organizationId: string, allowedClientIds: string[]) {
     if (input.sourceId === targetId) throw new Error("Não é possível importar um checklist nele mesmo");

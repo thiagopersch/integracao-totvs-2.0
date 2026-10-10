@@ -8,6 +8,7 @@ import {
   type TbcChecklistView,
 } from "@/services/tbc-checklist.service"
 import {
+  tbcChecklistAddProcessosSchema,
   tbcChecklistDataserverFieldsSchema,
   tbcChecklistImportSchema,
   tbcChecklistListingSchema,
@@ -91,6 +92,27 @@ export async function removeTbcChecklistDataserver(id: string, dataserverCode: s
   return mutate(
     (ctx) => tbcChecklistService.removeDataserver(id, dataserverCode, ctx.organizationId, ctx.allowedClientIds),
     (c) => ({ action: "UPDATE", entity: "TbcChecklist", entityId: c.id, oldData: { dataserverCode } })
+  )
+}
+
+export async function addTbcChecklistProcessos(id: string, input: unknown): Promise<ChecklistResult> {
+  const parsed = tbcChecklistAddProcessosSchema.safeParse(input)
+  if (!parsed.success) return invalid(parsed.error)
+  return mutate(
+    (ctx) => tbcChecklistService.addProcessos(id, parsed.data, ctx.organizationId, ctx.allowedClientIds),
+    (c) => ({
+      action: "UPDATE",
+      entity: "TbcChecklist",
+      entityId: c.id,
+      newData: { processosAdded: parsed.data.processos.map((p) => ({ codColigada: p.codColigada, idps: p.idps, name: p.name })) },
+    })
+  )
+}
+
+export async function removeTbcChecklistProcesso(id: string, processoId: string): Promise<ChecklistResult> {
+  return mutate(
+    (ctx) => tbcChecklistService.removeProcesso(id, processoId, ctx.organizationId, ctx.allowedClientIds),
+    (c) => ({ action: "UPDATE", entity: "TbcChecklist", entityId: c.id, oldData: { processoId } })
   )
 }
 
