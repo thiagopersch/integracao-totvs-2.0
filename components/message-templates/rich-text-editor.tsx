@@ -24,6 +24,7 @@ import {
 import { cn } from "@/lib/utils"
 import type { VariableGroup } from "@/lib/message-templates/variable-catalog"
 import { VariablePicker } from "./variable-picker"
+import { WithTooltip } from "@/components/shared/with-tooltip"
 
 interface RichTextEditorProps {
   value: string
@@ -49,18 +50,20 @@ function ToolbarButton({
   children: React.ReactNode
 }) {
   return (
-    <button
-      type="button"
-      title={title}
-      onMouseDown={(e) => e.preventDefault()}
-      onClick={onClick}
-      className={cn(
-        "inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground",
-        active && "bg-accent text-foreground"
-      )}
-    >
-      {children}
-    </button>
+    <WithTooltip label={title}>
+      <button
+        type="button"
+        aria-label={title}
+        onMouseDown={(e) => e.preventDefault()}
+        onClick={onClick}
+        className={cn(
+          "inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground",
+          active && "bg-accent text-foreground"
+        )}
+      >
+        {children}
+      </button>
+    </WithTooltip>
   )
 }
 

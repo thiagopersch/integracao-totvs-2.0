@@ -44,6 +44,7 @@ import { useHasPermission } from "@/hooks/use-permissions"
 import type { Sentence } from "@/generated/prisma/client"
 import type { SentenceCategory } from "@/generated/prisma/client"
 import type { PaginationMeta } from "@/types/common"
+import { WithTooltip } from "@/components/shared/with-tooltip"
 
 interface SentenceRow extends Sentence {
   category: { id: string; name: string } | null
@@ -178,15 +179,17 @@ export function SentenceTable({ data, meta, categories }: SentenceTableProps) {
           fullscreen && "h-[95vh]! max-h-[95vh]! w-[95vw]! max-w-[95vw]!"
         )}
         headerActions={
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            onClick={() => setFullscreen((v) => !v)}
-            title={fullscreen ? "Tamanho normal" : "Expandir"}
-          >
-            {fullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
-          </Button>
+          <WithTooltip label={fullscreen ? "Tamanho normal" : "Expandir"}>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              onClick={() => setFullscreen((v) => !v)}
+              aria-label={fullscreen ? "Tamanho normal" : "Expandir"}
+            >
+              {fullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+            </Button>
+          </WithTooltip>
         }
       >
         <DialogHeader>

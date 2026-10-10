@@ -15,6 +15,7 @@ import type { Backup, BackupRun, Client, Filter, Tbc } from "@/generated/prisma/
 
 type FilterTbc = Pick<Tbc, "id" | "name" | "link" | "clientId" | "status">
 import type { PaginationMeta } from "@/types/common"
+import { WithTooltip } from "@/components/shared/with-tooltip"
 
 interface BackupsDetailClientProps {
   filter: Filter & { client: Client; tbc: FilterTbc }
@@ -49,9 +50,11 @@ export function BackupsDetailClient({ filter, sentences, sentencesMeta, runs, ru
     <div className="space-y-4">
       <div className="flex min-w-0 items-start gap-3">
         <Link href="/admin/filters">
-          <Button variant="ghost" size="icon" title="Voltar">
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
+          <WithTooltip label="Voltar">
+            <Button variant="ghost" size="icon" aria-label="Voltar">
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+          </WithTooltip>
         </Link>
         {/* The filter expression can be a long unbroken string — let it wrap instead of overflowing. */}
         <h1 className="min-w-0 text-base break-words [overflow-wrap:anywhere] sm:text-lg">

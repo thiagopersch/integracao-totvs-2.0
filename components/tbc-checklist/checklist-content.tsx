@@ -17,6 +17,8 @@ import type { ProcessoSeletivo } from "@/components/tbc-checklist/processo-selet
 import type { ChecklistParent, ChecklistRecord, ChecklistTableResult } from "@/actions/integrations/tbc-checklist"
 import type { TbcChecklistView } from "@/services/tbc-checklist.service"
 import { ChecklistLoadProgress } from "@/components/tbc-checklist/checklist-load-progress"
+import { WithTooltip } from "@/components/shared/with-tooltip"
+import { cn } from "@/lib/utils"
 import { describeStep, isFinished, type DataserverLoadProgress } from "@/lib/tbc-checklist-progress"
 
 type LoadTables = (dataserver: AddedDataserver, tables: string[], parentKeys?: string[]) => void
@@ -38,6 +40,8 @@ interface ChecklistContentProps {
   onEditFields: (code: string) => void
   onOpenAddDialog: () => void
   onLoadTables: LoadTables
+  /** Fetches the selected processo's Data Servers again from TOTVS. */
+  onRefreshProcesso: () => void
 }
 
 /** TBC user for the "sem permissão" messages deep in the tab tree, without prop-drilling it. */
@@ -512,6 +516,7 @@ export function ChecklistContent({
   onEditFields,
   onOpenAddDialog,
   onLoadTables,
+  onRefreshProcesso,
 }: ChecklistContentProps) {
   const addButton = (
     <Button type="button" size="sm" onClick={onOpenAddDialog}>
@@ -563,7 +568,15 @@ export function ChecklistContent({
       <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-y-auto rounded-md border p-3 sm:p-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-base font-semibold">Processo: {selectedProcesso.label}</h2>
-          {addButton}
+          <div className="flex flex-wrap items-center gap-2">
+            <WithTooltip label="Buscar novamente no TOTVS os dados deste processo seletivo" disabledSafe>
+              <Button type="button" variant="outline" size="sm" onClick={onRefreshProcesso} disabled={pending.length > 0}>
+                <RefreshCw className={cn("mr-2 h-4 w-4", pending.length > 0 && "animate-spin")} />
+                Atualizar
+              </Button>
+            </WithTooltip>
+            {addButton}
+          </div>
         </div>
 
         {loadProgress && <ChecklistLoadProgress items={loadProgress} />}

@@ -25,6 +25,7 @@ import type { BlockLocation } from "@/lib/message-templates/block-tree-utils"
 import { RichTextEditor, EMAIL_TYPOGRAPHY_CLASSES } from "../rich-text-editor"
 import { PALETTE_ITEMS } from "./block-palette"
 import { useBuilder } from "./builder-context"
+import { WithTooltip } from "@/components/shared/with-tooltip"
 
 type SortableHandle = ReturnType<typeof useSortable>
 
@@ -115,18 +116,20 @@ function FrameAction({
   children: React.ReactNode
 }) {
   return (
-    <button
-      type="button"
-      title={title}
-      disabled={disabled}
-      onClick={onClick}
-      className={cn(
-        "inline-flex h-5 w-5 items-center justify-center rounded hover:bg-accent disabled:pointer-events-none disabled:opacity-30",
-        danger && "text-destructive"
-      )}
-    >
-      {children}
-    </button>
+    <WithTooltip label={title} disabledSafe>
+      <button
+        type="button"
+        aria-label={title}
+        disabled={disabled}
+        onClick={onClick}
+        className={cn(
+          "inline-flex h-5 w-5 items-center justify-center rounded hover:bg-accent disabled:pointer-events-none disabled:opacity-30",
+          danger && "text-destructive"
+        )}
+      >
+        {children}
+      </button>
+    </WithTooltip>
   )
 }
 
@@ -244,17 +247,19 @@ function RowView({ block }: { block: RowBlock }) {
                 Coluna {i + 1} · {column.props.widthPercent}%
               </span>
               {selected && block.children.length > 1 && (
-                <button
-                  type="button"
-                  title="Remover coluna"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    removeColumn(block.id, column.id)
-                  }}
-                  className="rounded p-0.5 hover:bg-neutral-100 hover:text-destructive"
-                >
-                  <Minus className="h-3 w-3" />
-                </button>
+                <WithTooltip label="Remover coluna">
+                  <button
+                    type="button"
+                    aria-label="Remover coluna"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      removeColumn(block.id, column.id)
+                    }}
+                    className="rounded p-0.5 hover:bg-neutral-100 hover:text-destructive"
+                  >
+                    <Minus className="h-3 w-3" />
+                  </button>
+                </WithTooltip>
               )}
             </div>
             <ChildrenZone

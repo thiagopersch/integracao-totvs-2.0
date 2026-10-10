@@ -12,6 +12,7 @@ import { whatsappToHtml } from "@/lib/message-templates/whatsapp"
 import { VariablePicker } from "../variable-picker"
 import { insertAtCursor } from "../variable-input"
 import { WhatsAppBubble } from "./preview-dialog"
+import { WithTooltip } from "@/components/shared/with-tooltip"
 
 const MAX_LENGTH = 4096
 
@@ -58,16 +59,17 @@ export function WhatsAppEditor({
         <div className={cn("overflow-hidden rounded-md border", invalid && "border-destructive")}>
           <div className="flex items-center gap-0.5 border-b bg-muted/40 p-1">
             {FORMATS.map(({ marker, title, icon: Icon }) => (
-              <button
-                key={marker}
-                type="button"
-                title={title}
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={() => wrapSelection(marker)}
-                className="inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
-              >
-                <Icon className="h-3.5 w-3.5" />
-              </button>
+              <WithTooltip key={marker} label={title}>
+                <button
+                  type="button"
+                  aria-label={title}
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => wrapSelection(marker)}
+                  className="inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
+                >
+                  <Icon className="h-3.5 w-3.5" />
+                </button>
+              </WithTooltip>
             ))}
             <span className="ml-auto" />
             <VariablePicker

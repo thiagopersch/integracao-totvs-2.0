@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label"
 import { Slider } from "@/components/ui/slider"
 import { cn } from "@/lib/utils"
 import type { BlockAlign } from "@/lib/message-templates/block-types"
+import { WithTooltip } from "@/components/shared/with-tooltip"
 
 export function FieldRow({ label, children, className }: { label: string; children: React.ReactNode; className?: string }) {
   return (
@@ -127,18 +128,18 @@ export function SegmentedField<T extends string>({
     <FieldRow label={label}>
       <div className="flex w-full rounded-md border p-0.5">
         {options.map((option) => (
-          <button
-            key={option.value}
-            type="button"
-            title={option.title}
-            onClick={() => onChange(option.value)}
-            className={cn(
-              "flex h-7 flex-1 items-center justify-center rounded-[5px] px-2 text-xs transition-colors",
-              value === option.value ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-accent"
-            )}
-          >
-            {option.label}
-          </button>
+          <WithTooltip key={option.value} label={option.title}>
+            <button
+              type="button"
+              onClick={() => onChange(option.value)}
+              className={cn(
+                "flex h-7 flex-1 items-center justify-center rounded-[5px] px-2 text-xs transition-colors",
+                value === option.value ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-accent"
+              )}
+            >
+              {option.label}
+            </button>
+          </WithTooltip>
         ))}
       </div>
     </FieldRow>

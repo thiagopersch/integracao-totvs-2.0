@@ -15,6 +15,7 @@ import {
 import { formatDate } from "@/utils/format"
 import { Maximize2, Minimize2 } from "lucide-react"
 import type { Backup } from "@/generated/prisma/client"
+import { WithTooltip } from "@/components/shared/with-tooltip"
 
 interface ViewBackupSentenceDialogProps {
   open: boolean
@@ -40,15 +41,17 @@ export function ViewBackupSentenceDialog({ open, onOpenChange, backup, onRestore
           fullscreen && "h-[95vh]! max-h-[95vh]! w-[95vw]! max-w-[95vw]!"
         )}
         headerActions={
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            onClick={() => setFullscreen((v) => !v)}
-            title={fullscreen ? "Tamanho normal" : "Expandir"}
-          >
-            {fullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
-          </Button>
+          <WithTooltip label={fullscreen ? "Tamanho normal" : "Expandir"}>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              onClick={() => setFullscreen((v) => !v)}
+              aria-label={fullscreen ? "Tamanho normal" : "Expandir"}
+            >
+              {fullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+            </Button>
+          </WithTooltip>
         }
       >
         <DialogHeader>

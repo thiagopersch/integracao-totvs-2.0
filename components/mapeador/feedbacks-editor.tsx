@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { updateMapeadorEtapa } from "@/actions/mapeador"
 import { useDebounce } from "@/hooks/use-debounce"
 import { MAPEADOR_FEEDBACK_TIPO_LABELS, type MapeadorFeedback, type MapeadorFeedbackTipo } from "@/types/mapeador"
+import { WithTooltip } from "@/components/shared/with-tooltip"
 
 interface FeedbacksEditorProps {
   etapaId: string
@@ -142,9 +143,11 @@ export function FeedbacksEditor({ etapaId, etapaNome, projetoId, feedbacks, onCh
           placeholder="Digite o status e Enter (ex.: Aprovado)"
           className="border-none shadow-none focus-visible:ring-0"
         />
-        <button type="button" onClick={handleAdd} className="shrink-0 text-muted-foreground hover:text-foreground" title="Adicionar">
-          <Plus className="h-4 w-4" />
-        </button>
+        <WithTooltip label="Adicionar">
+          <button type="button" onClick={handleAdd} className="shrink-0 text-muted-foreground hover:text-foreground" aria-label="Adicionar">
+            <Plus className="h-4 w-4" />
+          </button>
+        </WithTooltip>
       </div>
     </div>
   )

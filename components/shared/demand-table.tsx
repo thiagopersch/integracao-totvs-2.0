@@ -64,6 +64,7 @@ import { DemandImportDialog } from "@/components/shared/demand-import-dialog"
 import type { Analyst, Client, Requester, Department, DemandType, Tag } from "@/generated/prisma/client"
 import type { PaginationMeta } from "@/types/common"
 import type { Period } from "@/lib/period"
+import { WithTooltip } from "@/components/shared/with-tooltip"
 
 type DemandRow = {
   id: string
@@ -466,15 +467,17 @@ export function DemandTable({
       <DialogContent
         className={expanded ? "h-[99vh]! max-h-[99vh]! w-[99vw]! max-w-[99vw]!" : undefined}
         headerActions={
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            onClick={() => setExpanded((v) => !v)}
-            title={expanded ? "Tamanho normal" : "Expandir"}
-          >
-            {expanded ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
-          </Button>
+          <WithTooltip label={expanded ? "Tamanho normal" : "Expandir"}>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              onClick={() => setExpanded((v) => !v)}
+              aria-label={expanded ? "Tamanho normal" : "Expandir"}
+            >
+              {expanded ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+            </Button>
+          </WithTooltip>
         }
       >
         <DialogHeader>

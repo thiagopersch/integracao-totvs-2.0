@@ -35,6 +35,7 @@ import type { PaginationMeta } from "@/types/common"
 import type { TbcRow } from "@/services/tbc.service"
 import type { SoapEndpointTypeWithMethods } from "@/services/soap-endpoint.service"
 import { WS_NAME_LABELS, type WsName } from "@/lib/ws-names"
+import { WithTooltip } from "@/components/shared/with-tooltip"
 
 interface TipoOption {
   value: string
@@ -415,18 +416,22 @@ export function ActivityLogTable({
         if (row.original.source !== "SOAP" || !canReexecuteSoap) return null
         return (
           <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
-            <Button variant="ghost" size="sm" onClick={() => setDetail(row.original)} title="Ver detalhes">
-              <Eye className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              disabled={executing === row.original.id}
-              onClick={() => setReexecuteRow(row.original)}
-              title="Reexecutar"
-            >
-              <RotateCcw className={cn("h-4 w-4", executing === row.original.id && "animate-spin")} />
-            </Button>
+            <WithTooltip label="Ver detalhes">
+              <Button variant="ghost" size="sm" onClick={() => setDetail(row.original)} aria-label="Ver detalhes">
+                <Eye className="h-4 w-4" />
+              </Button>
+            </WithTooltip>
+            <WithTooltip label="Reexecutar" disabledSafe>
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={executing === row.original.id}
+                onClick={() => setReexecuteRow(row.original)}
+                aria-label="Reexecutar"
+              >
+                <RotateCcw className={cn("h-4 w-4", executing === row.original.id && "animate-spin")} />
+              </Button>
+            </WithTooltip>
           </div>
         )
       },
@@ -492,15 +497,17 @@ function ActivityDetailDialog({ open, onOpenChange, row }: { open: boolean; onOp
           expanded ? "h-[90vh]! max-h-[90vh]! w-[90vw]! max-w-[90vw]!" : "h-[70vh]! max-h-[70vh]! w-[70vw]! max-w-[70vw]!"
         )}
         headerActions={
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            onClick={() => setExpanded((v) => !v)}
-            title={expanded ? "Tamanho normal" : "Expandir"}
-          >
-            {expanded ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
-          </Button>
+          <WithTooltip label={expanded ? "Tamanho normal" : "Expandir"}>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              onClick={() => setExpanded((v) => !v)}
+              aria-label={expanded ? "Tamanho normal" : "Expandir"}
+            >
+              {expanded ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+            </Button>
+          </WithTooltip>
         }
       >
         <DialogHeader>
@@ -522,9 +529,11 @@ function ActivityDetailDialog({ open, onOpenChange, row }: { open: boolean; onOp
               <DetailField label="ID do registro">
                 <span className="flex items-center gap-1">
                   <span className="min-w-0 font-mono text-xs break-all">{row.id}</span>
-                  <Button type="button" variant="ghost" size="icon-xs" onClick={handleCopyId} title="Copiar ID">
-                    <Copy />
-                  </Button>
+                  <WithTooltip label="Copiar ID">
+                    <Button type="button" variant="ghost" size="icon-xs" onClick={handleCopyId} aria-label="Copiar ID">
+                      <Copy />
+                    </Button>
+                  </WithTooltip>
                 </span>
               </DetailField>
             </DetailGrid>

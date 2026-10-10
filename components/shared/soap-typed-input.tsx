@@ -15,6 +15,7 @@ import {
   toDateTimeInputValue,
   type FieldInputMeta,
 } from "@/utils/soap-field-input"
+import { WithTooltip } from "@/components/shared/with-tooltip"
 
 const EMPTY = "__empty__"
 const FLAG_OPTIONS = [
@@ -95,9 +96,11 @@ export function SoapTypedInput({ id, meta, value, onChange, disabled }: SoapType
           <span className="truncate">{value ? `Arquivo carregado (${Math.round((value.length * 3) / 4 / 1024)} KB)` : "Selecionar arquivo"}</span>
         </Button>
         {value && (
-          <Button type="button" variant="ghost" size="icon-sm" onClick={() => onChange("")} title="Remover arquivo" disabled={disabled}>
-            <X className="h-4 w-4" />
-          </Button>
+          <WithTooltip label="Remover arquivo" disabledSafe>
+            <Button type="button" variant="ghost" size="icon-sm" onClick={() => onChange("")} aria-label="Remover arquivo" disabled={disabled}>
+              <X className="h-4 w-4" />
+            </Button>
+          </WithTooltip>
         )}
       </div>
     )

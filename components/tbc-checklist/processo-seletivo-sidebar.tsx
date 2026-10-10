@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import { Loader2, Search, FolderKanban, PanelLeftClose, PanelLeftOpen, Plus, Trash2 } from "lucide-react"
+import { Loader2, Search, FolderKanban, PanelLeftClose, PanelLeftOpen, Plus, RefreshCcw, RefreshCw, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -10,6 +10,7 @@ import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
+import { WithTooltip } from "@/components/shared/with-tooltip"
 import { ChecklistContextFields } from "@/components/tbc-checklist/checklist-context-fields"
 import { PermissionDeniedAlert } from "@/components/tbc-checklist/permission-denied-alert"
 import { cn } from "@/lib/utils"
@@ -56,6 +57,10 @@ interface ProcessoSeletivoSidebarProps {
   /** Saves the picked processos; resolves `true` once they are in the checklist. */
   onAddProcessos: (processos: ProcessoSeletivoOption[]) => Promise<boolean>
   onRemoveProcesso: (id: string) => Promise<void>
+  /** Fetches this processo's checklist data again from TOTVS (and opens it). */
+  onRefreshProcesso: (processo: ProcessoSeletivo) => void
+  /** Drops the loaded data of every processo, so each one is fetched again. */
+  onRefreshAll: () => void
 }
 
 export function toProcessoSeletivo(p: TbcChecklistProcessoView): ProcessoSeletivo {
@@ -80,6 +85,8 @@ export function ProcessoSeletivoSidebar({
   onSearched,
   onAddProcessos,
   onRemoveProcesso,
+  onRefreshProcesso,
+  onRefreshAll,
 }: ProcessoSeletivoSidebarProps) {
   const [collapsed, setCollapsed] = useState(false)
   const [searchOpen, setSearchOpen] = useState(false)
@@ -222,13 +229,24 @@ export function ProcessoSeletivoSidebar({
       </div>
       <div className="flex items-center">
         {!searching && (
-          <Button type="button" variant="ghost" size="icon" title="Adicionar processo seletivo" onClick={openSearch}>
-            <Plus className="h-4 w-4" />
-          </Button>
+          <>
+            <WithTooltip label="Atualizar dados de todos os processos seletivos">
+              <Button type="button" variant="ghost" size="icon" aria-label="Atualizar dados de todos os processos seletivos" onClick={onRefreshAll}>
+                <RefreshCcw className="h-4 w-4" />
+              </Button>
+            </WithTooltip>
+            <WithTooltip label="Adicionar processo seletivo">
+              <Button type="button" variant="ghost" size="icon" aria-label="Adicionar processo seletivo" onClick={openSearch}>
+                <Plus className="h-4 w-4" />
+              </Button>
+            </WithTooltip>
+          </>
         )}
-        <Button type="button" variant="ghost" size="icon" title="Recolher" onClick={() => setCollapsed(true)}>
-          <PanelLeftClose className="h-4 w-4" />
-        </Button>
+        <WithTooltip label="Recolher">
+          <Button type="button" variant="ghost" size="icon" aria-label="Recolher" onClick={() => setCollapsed(true)}>
+            <PanelLeftClose className="h-4 w-4" />
+          </Button>
+        </WithTooltip>
       </div>
     </div>
   )
@@ -243,9 +261,11 @@ export function ProcessoSeletivoSidebar({
     >
       {collapsed ? (
         <div className="flex flex-1 flex-col items-center gap-3 p-2">
-          <Button type="button" variant="ghost" size="icon" title="Expandir processos seletivos" onClick={() => setCollapsed(false)}>
-            <PanelLeftOpen className="h-4 w-4" />
-          </Button>
+          <WithTooltip label="Expandir processos seletivos" side="right">
+            <Button type="button" variant="ghost" size="icon" aria-label="Expandir processos seletivos" onClick={() => setCollapsed(false)}>
+              <PanelLeftOpen className="h-4 w-4" />
+            </Button>
+          </WithTooltip>
           <FolderKanban className="h-4 w-4 text-muted-foreground" />
         </div>
       ) : searching ? (
@@ -394,16 +414,30 @@ export function ProcessoSeletivoSidebar({
                       />
                       <TooltipContent>{processo.label}</TooltipContent>
                     </Tooltip>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7 shrink-0 text-muted-foreground hover:text-destructive"
-                      title="Remover do checklist"
-                      onClick={() => setRemovingId(processo.id)}
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
+                    <WithTooltip label="Atualizar dados deste processo seletivo">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 shrink-0 text-muted-foreground"
+                        aria-label="Atualizar dados deste processo seletivo"
+                        onClick={() => onRefreshProcesso(processo)}
+                      >
+                        <RefreshCw className="h-3.5 w-3.5" />
+                      </Button>
+                    </WithTooltip>
+                    <WithTooltip label="Remover do checklist">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 shrink-0 text-muted-foreground hover:text-destructive"
+                        aria-label="Remover do checklist"
+                        onClick={() => setRemovingId(processo.id)}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </WithTooltip>
                   </div>
                 )
               })}

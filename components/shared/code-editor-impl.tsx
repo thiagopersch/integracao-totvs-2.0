@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/context-menu"
 import { Copy, Wand2, Maximize2, Minimize2 } from "lucide-react"
 import { toast } from "sonner"
+import { WithTooltip } from "@/components/shared/with-tooltip"
 
 export type CodeEditorLanguage = "sql" | "html" | "css" | "javascript" | "php" | "json" | "xml"
 
@@ -163,23 +164,29 @@ export function CodeEditor({
           <Badge variant="outline" className="uppercase text-[10px]">{language}</Badge>
           <div className="flex items-center gap-1">
             {FORMATTABLE_LANGUAGES.has(language) && !readOnly && (
-              <Button type="button" variant="ghost" size="sm" onClick={handleFormat} title="Formatar">
-                <Wand2 className="h-4 w-4" />
-              </Button>
+              <WithTooltip label="Formatar">
+                <Button type="button" variant="ghost" size="sm" onClick={handleFormat} aria-label="Formatar">
+                  <Wand2 className="h-4 w-4" />
+                </Button>
+              </WithTooltip>
             )}
-            <Button type="button" variant="ghost" size="sm" onClick={handleCopy} title="Copiar">
-              <Copy className="h-4 w-4" />
-            </Button>
-            {onFullscreenChange && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() => onFullscreenChange(!fullscreen)}
-                title={fullscreen ? "Sair da tela cheia" : "Tela cheia"}
-              >
-                {fullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+            <WithTooltip label="Copiar">
+              <Button type="button" variant="ghost" size="sm" onClick={handleCopy} aria-label="Copiar">
+                <Copy className="h-4 w-4" />
               </Button>
+            </WithTooltip>
+            {onFullscreenChange && (
+              <WithTooltip label={fullscreen ? "Sair da tela cheia" : "Tela cheia"}>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => onFullscreenChange(!fullscreen)}
+                  aria-label={fullscreen ? "Sair da tela cheia" : "Tela cheia"}
+                >
+                  {fullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+                </Button>
+              </WithTooltip>
             )}
           </div>
         </div>

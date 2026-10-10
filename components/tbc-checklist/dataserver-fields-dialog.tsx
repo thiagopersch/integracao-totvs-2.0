@@ -16,6 +16,7 @@ import { cn } from "@/lib/utils"
 import type { TbcChecklistField } from "@/schemas/tbc-checklist.schema"
 import type { SchemaTable } from "@/utils/soap-schema"
 import type { Dataserver } from "@/generated/prisma/client"
+import { WithTooltip } from "@/components/shared/with-tooltip"
 
 /** "add": pick a Data Server not in the checklist yet. "edit": change the fields of one already in it. */
 export type DataserverFieldsDialogMode = { kind: "add" } | { kind: "edit"; code: string; fields: TbcChecklistField[] }
@@ -91,15 +92,17 @@ export function DataserverFieldsDialog({
       <DialogContent
         className={cn("transition-[width,height]", maximized && "h-[99vh]! max-h-[99vh]! w-[99vw]! max-w-[99vw]!")}
         headerActions={
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            onClick={() => setMaximized((v) => !v)}
-            title={maximized ? "Tamanho normal" : "Maximizar"}
-          >
-            {maximized ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
-          </Button>
+          <WithTooltip label={maximized ? "Tamanho normal" : "Maximizar"}>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              onClick={() => setMaximized((v) => !v)}
+              aria-label={maximized ? "Tamanho normal" : "Maximizar"}
+            >
+              {maximized ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+            </Button>
+          </WithTooltip>
         }
       >
         <DialogHeader>
@@ -124,18 +127,19 @@ export function DataserverFieldsDialog({
 
           <div className="flex items-center justify-between gap-2">
             <FieldLabel>Campos do Data Server</FieldLabel>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="h-6 gap-1 px-2 text-xs"
-              onClick={() => void schema.refetch()}
-              disabled={!selected || !schema.contextComplete || schema.loading}
-              title="Buscar campos novamente no TOTVS"
-            >
-              <RefreshCw className={schema.loading ? "h-3 w-3 animate-spin" : "h-3 w-3"} />
-              Buscar campos
-            </Button>
+            <WithTooltip label="Buscar campos novamente no TOTVS" disabledSafe>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-6 gap-1 px-2 text-xs"
+                onClick={() => void schema.refetch()}
+                disabled={!selected || !schema.contextComplete || schema.loading}
+              >
+                <RefreshCw className={schema.loading ? "h-3 w-3 animate-spin" : "h-3 w-3"} />
+                Buscar campos
+              </Button>
+            </WithTooltip>
           </div>
 
           {!selected || !schema.contextComplete ? (

@@ -22,6 +22,7 @@ import {
   type MapeadorColuna,
   type MapeadorEtapaDTO,
 } from "@/types/mapeador"
+import { WithTooltip } from "@/components/shared/with-tooltip"
 
 const ACAO_BOTAO_OPCOES: { value: "__nenhuma__" | MapeadorBotaoAcao; label: string }[] = [
   { value: "__nenhuma__", label: "Nenhuma" },
@@ -371,18 +372,19 @@ export function CampoRow({ campo, etapas, passoCampos, onChange, onRemove, activ
               <Label className="text-xs">Alinhamento</Label>
               <div className="flex overflow-hidden rounded-md border">
                 {ALINHAMENTO_OPCOES.map(({ value, label, icon: Icon }) => (
-                  <button
-                    key={value}
-                    type="button"
-                    title={label}
-                    className={cn(
-                      "flex flex-1 items-center justify-center py-1.5",
-                      (campo.alinhamento ?? "left") === value ? "bg-primary text-primary-foreground" : "bg-background hover:bg-muted"
-                    )}
-                    onClick={() => onChange({ alinhamento: value })}
-                  >
-                    <Icon className="h-3.5 w-3.5" />
-                  </button>
+                  <WithTooltip key={value} label={label}>
+                    <button
+                      type="button"
+                      aria-label={label}
+                      className={cn(
+                        "flex flex-1 items-center justify-center py-1.5",
+                        (campo.alinhamento ?? "left") === value ? "bg-primary text-primary-foreground" : "bg-background hover:bg-muted"
+                      )}
+                      onClick={() => onChange({ alinhamento: value })}
+                    >
+                      <Icon className="h-3.5 w-3.5" />
+                    </button>
+                  </WithTooltip>
                 ))}
               </div>
             </div>

@@ -43,6 +43,7 @@ import type { TbcChecklistImportSource, TbcChecklistView } from "@/services/tbc-
 import type { TbcRow } from "@/services/tbc.service"
 import type { Dataserver } from "@/generated/prisma/client"
 import { toast } from "sonner"
+import { WithTooltip } from "@/components/shared/with-tooltip"
 
 /** Load state of one related (child) table for one parent row — fetched lazily the first time a
  *  tab showing it opens. Absent from `relatedStates` = not requested yet. */
@@ -86,6 +87,8 @@ type LoadOutcome =
   | { kind: "denied"; denied: DeniedDataserver }
   | { kind: "failed" }
   | { kind: "cancelled" }
+
+type CachedProcesso = { added: AddedDataserver[]; denied: DeniedDataserver[] }
 
 /** How long the finished progress bar stays on screen before it goes away. */
 const PROGRESS_HIDE_DELAY_MS = 1000
@@ -140,6 +143,9 @@ export function TbcChecklistClient({ tbc, dataservers, checklists: initialCheckl
   // "dataserverId|table|parentKey" requests on their way — sections that ask for their own table in
   // the same render all see the same (stale) relatedStates, so this keeps them from duplicating.
   const inFlightRef = useRef(new Set<string>())
+  // Loaded cards of the processos that are NOT on screen, by processo id — reopening one shows them
+  // without going back to TOTVS. Cleared whenever the checklist structure changes.
+  const cacheRef = useRef(new Map<string, CachedProcesso>())
 
   const active = checklists.find((c) => c.id === activeId) ?? null
   const nameOf = (code: string) => dataservers.find((d) => d.code === code)?.name ?? code
@@ -156,8 +162,32 @@ export function TbcChecklistClient({ tbc, dataservers, checklists: initialCheckl
     setLoadProgress(null)
   }
 
+  function clearCache() {
+    cacheRef.current.clear()
+  }
+
+  /** Keeps the processo on screen in the cache — only once every Data Server of the checklist has
+   *  loaded (or been refused), so a failed one is fetched again next time. Related tables still
+   *  loading are dropped; their tab requests them again when opened. */
+  function stashCurrent() {
+    if (!selectedProcesso || !active) return
+    const settled = new Set([...addedDataservers.map((d) => d.code), ...deniedDataservers.map((d) => d.code)])
+    if (!active.dataservers.every((d) => settled.has(d.dataserverCode))) return
+    const added = addedDataservers.map((d) => ({
+      ...d,
+      relatedStates: Object.fromEntries(
+        Object.entries(d.relatedStates).map(([table, byParent]) => [
+          table,
+          Object.fromEntries(Object.entries(byParent).filter(([, state]) => state.status !== "loading")),
+        ])
+      ),
+    }))
+    cacheRef.current.set(selectedProcesso.id, { added, denied: deniedDataservers })
+  }
+
   function handleSelectChecklist(id: string | null) {
     if (id === activeId) return
+    clearCache()
     resetLoaded()
     setActiveId(id)
     syncChecklistParam(id)
@@ -264,10 +294,25 @@ export function TbcChecklistClient({ tbc, dataservers, checklists: initialCheckl
 
   /** Selecting a processo loads every Data Server of the checklist (the active one unless given —
    *  e.g. its just-imported state), keyed by the processo's PK (coligada + IDPS) and the Contexto
-   *  it was listed with. */
-  async function handleSelectProcesso(processo: ProcessoSeletivo | null, checklist: TbcChecklistView | null = active) {
+   *  it was saved with. A processo seen before comes from the cache unless `force` (Atualizar). */
+  async function handleSelectProcesso(
+    processo: ProcessoSeletivo | null,
+    checklist: TbcChecklistView | null = active,
+    { force = false }: { force?: boolean } = {}
+  ) {
+    // Clicking the processo already on screen keeps it as is — "Atualizar" is the way to refetch.
+    if (!force && processo && processo.id === selectedProcesso?.id) return
     const selectionId = ++selectionRef.current
+    if (processo?.id !== selectedProcesso?.id) stashCurrent()
     setSelectedProcesso(processo)
+    const cached = processo && !force ? cacheRef.current.get(processo.id) : undefined
+    if (processo) cacheRef.current.delete(processo.id)
+    if (cached) {
+      setAddedDataservers(cached.added)
+      setDeniedDataservers(cached.denied)
+      setLoadProgress(null)
+      return
+    }
     setAddedDataservers([])
     setDeniedDataservers([])
     if (!processo || !checklist || !checklist.dataservers.length) {
@@ -279,6 +324,17 @@ export function TbcChecklistClient({ tbc, dataservers, checklists: initialCheckl
     )
     const order = checklist.dataservers.map((d) => d.dataserverCode)
     await loadDataservers(checklist.dataservers, processo, order, selectionId)
+  }
+
+  function handleRefreshProcesso(processo: ProcessoSeletivo) {
+    void handleSelectProcesso(processo, active, { force: true })
+  }
+
+  /** Drops every cached processo; the one on screen is fetched again now, the others when opened. */
+  function handleRefreshAll() {
+    clearCache()
+    if (selectedProcesso) handleRefreshProcesso(selectedProcesso)
+    toast.success("Os dados de todos os processos seletivos serão buscados novamente no TOTVS")
   }
 
   /** Keeps the Data Server + Contexto of the last processo search, to pre-fill the next one. */
@@ -322,6 +378,7 @@ export function TbcChecklistClient({ tbc, dataservers, checklists: initialCheckl
       return
     }
     replaceChecklist(result.data)
+    cacheRef.current.delete(id)
     if (selectedProcesso?.id === id) resetLoaded()
     toast.success("Processo seletivo removido do checklist")
   }
@@ -342,6 +399,8 @@ export function TbcChecklistClient({ tbc, dataservers, checklists: initialCheckl
     }
     const saved = await withSavedContext(result.data, contextForm)
     replaceChecklist(saved)
+    // Cached processos were loaded with the old field selection.
+    clearCache()
     setSavingFields(false)
     setFieldsDialog(null)
     toast.success("Campos do checklist salvos")
@@ -397,6 +456,7 @@ export function TbcChecklistClient({ tbc, dataservers, checklists: initialCheckl
       return
     }
     replaceChecklist(result.data)
+    clearCache()
     if (!result.data.dataservers.length) {
       // Back to "not configured": the processo listing hides until a Data Server is added again.
       resetLoaded()
@@ -471,9 +531,11 @@ export function TbcChecklistClient({ tbc, dataservers, checklists: initialCheckl
     <div className="flex h-full flex-col gap-4">
       <div className="flex min-w-0 items-center gap-3">
         <Link href="/admin/tbcs">
-          <Button variant="ghost" size="icon" title="Voltar">
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
+          <WithTooltip label="Voltar">
+            <Button variant="ghost" size="icon" aria-label="Voltar">
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+          </WithTooltip>
         </Link>
         <div>
           <h1 className="flex items-center gap-2 text-base font-semibold sm:text-lg">
@@ -499,11 +561,13 @@ export function TbcChecklistClient({ tbc, dataservers, checklists: initialCheckl
           replaceChecklist(checklist)
           toast.success(`Estrutura importada de "${source.name}"`)
           // Cards on screen follow the new structure.
-          if (selectedProcesso) void handleSelectProcesso(selectedProcesso, checklist)
+          clearCache()
+          if (selectedProcesso) void handleSelectProcesso(selectedProcesso, checklist, { force: true })
         }}
         onDeleted={(id) => {
           const remaining = checklists.filter((c) => c.id !== id)
           setChecklists(remaining)
+          clearCache()
           resetLoaded()
           setActiveId(remaining[0]?.id ?? null)
           syncChecklistParam(remaining[0]?.id ?? null)
@@ -542,6 +606,8 @@ export function TbcChecklistClient({ tbc, dataservers, checklists: initialCheckl
               onSearched={handleSearched}
               onAddProcessos={handleAddProcessos}
               onRemoveProcesso={handleRemoveProcesso}
+              onRefreshProcesso={handleRefreshProcesso}
+              onRefreshAll={handleRefreshAll}
             />
           )}
 
@@ -558,6 +624,7 @@ export function TbcChecklistClient({ tbc, dataservers, checklists: initialCheckl
               openFieldsDialog({ kind: "edit", code, fields: active.dataservers.find((d) => d.dataserverCode === code)?.fields ?? [] })
             }
             onOpenAddDialog={() => openFieldsDialog({ kind: "add" })}
+            onRefreshProcesso={() => selectedProcesso && handleRefreshProcesso(selectedProcesso)}
             onLoadTables={handleLoadTables}
           />
         </div>

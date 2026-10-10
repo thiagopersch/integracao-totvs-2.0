@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { uploadMapeadorImagem } from "@/actions/mapeador-upload"
+import { WithTooltip } from "@/components/shared/with-tooltip"
 
 interface ImageInputProps {
   label: string
@@ -91,9 +92,11 @@ export function ImageInput({ label, value, onChange, hint, kind = "logo" }: Imag
         </PopoverContent>
       </Popover>
       {value && (
-        <Button variant="ghost" size="icon-sm" type="button" onClick={() => onChange(null)} title="Remover">
-          <X className="h-3.5 w-3.5 text-destructive" />
-        </Button>
+        <WithTooltip label="Remover">
+          <Button variant="ghost" size="icon-sm" type="button" onClick={() => onChange(null)} aria-label="Remover">
+            <X className="h-3.5 w-3.5 text-destructive" />
+          </Button>
+        </WithTooltip>
       )}
     </div>
   )

@@ -15,6 +15,7 @@ import { ConfirmDialog } from "@/components/shared/confirm-dialog"
 import { cn } from "@/lib/utils"
 import { commitDemandImport } from "@/actions/import"
 import type { ParsedDemandRow } from "@/schemas/demand-import.schema"
+import { WithTooltip } from "@/components/shared/with-tooltip"
 
 const PRIORITY_OPTIONS: ComboboxItem[] = [
   { value: "LOW", label: "Baixa" },
@@ -244,16 +245,18 @@ export function DemandImportReviewDialog({
   function renderFillDownButton(field: FillDownField, row: EditableRow) {
     if (!row[field]) return null
     return (
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon"
-        className="h-6 w-6 shrink-0 text-muted-foreground hover:text-foreground"
-        title={`Aplicar este valor a todas as linhas abaixo (${FILL_DOWN_COLUMN_LABELS[field]})`}
-        onClick={() => requestFillDown(field, row)}
-      >
-        <ArrowDownToLine className="h-3.5 w-3.5" />
-      </Button>
+      <WithTooltip label={`Aplicar este valor a todas as linhas abaixo (${FILL_DOWN_COLUMN_LABELS[field]})`}>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className="h-6 w-6 shrink-0 text-muted-foreground hover:text-foreground"
+          aria-label={`Aplicar este valor a todas as linhas abaixo (${FILL_DOWN_COLUMN_LABELS[field]})`}
+          onClick={() => requestFillDown(field, row)}
+        >
+          <ArrowDownToLine className="h-3.5 w-3.5" />
+        </Button>
+      </WithTooltip>
     )
   }
 
@@ -307,15 +310,17 @@ export function DemandImportReviewDialog({
             "[&_[data-slot=dialog-close]]:text-red-500 [&_[data-slot=dialog-close]]:hover:text-red-600"
           )}
           headerActions={
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              onClick={() => setExpanded((v) => !v)}
-              title={expanded ? "Tamanho normal" : "Expandir"}
-            >
-              {expanded ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
-            </Button>
+            <WithTooltip label={expanded ? "Tamanho normal" : "Expandir"}>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                onClick={() => setExpanded((v) => !v)}
+                aria-label={expanded ? "Tamanho normal" : "Expandir"}
+              >
+                {expanded ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+              </Button>
+            </WithTooltip>
           }
         >
           <DialogHeader>

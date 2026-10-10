@@ -38,6 +38,7 @@ import { useCrudTable } from "@/hooks/use-crud-table"
 import { useHasPermission } from "@/hooks/use-permissions"
 import type { Dataserver } from "@/generated/prisma/client"
 import type { PaginationMeta } from "@/types/common"
+import { WithTooltip } from "@/components/shared/with-tooltip"
 
 interface DataserverTableProps {
   data: Dataserver[]
@@ -227,10 +228,12 @@ export function DataserverTable({ data, meta, tbcs }: DataserverTableProps) {
         </DialogBody>
         <DialogFooter>
           <Button type="button" variant="outline" onClick={handleCancel} disabled={loading}>Cancelar</Button>
-          <Button type="submit" disabled={loading || !isValidated} title={!isValidated ? "Valide o dataserver antes de salvar" : undefined}>
-            {loading && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-            Salvar
-          </Button>
+          <WithTooltip label={!isValidated ? "Valide o dataserver antes de salvar" : undefined} disabledSafe>
+            <Button type="submit" disabled={loading || !isValidated}>
+              {loading && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+              Salvar
+            </Button>
+          </WithTooltip>
         </DialogFooter>
         </form>
       </DialogContent>

@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button"
 import { Field, FieldError, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { WithTooltip } from "@/components/shared/with-tooltip"
 
 const LIST_HREF = "/admin/roles"
 
@@ -93,9 +94,11 @@ export function RoleForm({ role, permissions, canSave }: RoleFormProps) {
         className="space-y-4"
       >
         <div className="flex flex-wrap items-center gap-2 border-b pb-4">
-          <Button type="button" variant="ghost" size="icon-sm" title="Voltar" onClick={handleCancel}>
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
+          <WithTooltip label="Voltar">
+            <Button type="button" variant="ghost" size="icon-sm" aria-label="Voltar" onClick={handleCancel}>
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+          </WithTooltip>
           <h1 className="text-lg font-semibold">{role ? role.name : "Novo Papel"}</h1>
           {role?.isSystem && <Badge variant="secondary">sistema</Badge>}
           <div className="ml-auto flex items-center gap-2">

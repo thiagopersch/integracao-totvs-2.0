@@ -15,6 +15,7 @@ import { usageLevel } from "@/lib/contract-usage"
 import { ContractUsageBar } from "@/components/shared/contract-usage-bar"
 import { cn } from "@/lib/utils"
 import type { Notification } from "@/generated/prisma/client"
+import { WithTooltip } from "@/components/shared/with-tooltip"
 
 type ChangeEntry = { field: string; from?: unknown; to?: unknown }
 
@@ -79,15 +80,17 @@ export function NotificationDetailDialog({ open, onOpenChange, notification }: N
           expanded ? "h-[90vh]! max-h-[90vh]! w-[90vw]! max-w-[90vw]!" : "h-[70vh]! max-h-[70vh]! w-[70vw]! max-w-[70vw]!"
         )}
         headerActions={
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            onClick={() => setExpanded((v) => !v)}
-            title={expanded ? "Tamanho normal" : "Expandir"}
-          >
-            {expanded ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
-          </Button>
+          <WithTooltip label={expanded ? "Tamanho normal" : "Expandir"}>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              onClick={() => setExpanded((v) => !v)}
+              aria-label={expanded ? "Tamanho normal" : "Expandir"}
+            >
+              {expanded ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+            </Button>
+          </WithTooltip>
         }
       >
         <DialogHeader>

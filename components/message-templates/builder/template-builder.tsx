@@ -53,6 +53,7 @@ import { Canvas } from "./canvas"
 import { InspectorPanel } from "./inspector-panel"
 import { PreviewDialog } from "./preview-dialog"
 import { WhatsAppEditor } from "./whatsapp-editor"
+import { WithTooltip } from "@/components/shared/with-tooltip"
 
 export interface TemplateBuilderValue {
   name: string
@@ -277,9 +278,11 @@ export function TemplateBuilder({ template, canSave }: TemplateBuilderProps) {
     <div className="space-y-4 p-4 md:p-6">
       {/* Toolbar */}
       <div className="flex flex-wrap items-center gap-2 border-b pb-4">
-        <Button type="button" variant="ghost" size="icon-sm" title="Voltar" onClick={handleCancel}>
-          <ArrowLeft className="h-4 w-4" />
-        </Button>
+        <WithTooltip label="Voltar">
+          <Button type="button" variant="ghost" size="icon-sm" aria-label="Voltar" onClick={handleCancel}>
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+        </WithTooltip>
         <Input
           value={value.name}
           onChange={(e) => patch({ name: e.target.value })}
@@ -340,10 +343,12 @@ export function TemplateBuilder({ template, canSave }: TemplateBuilderProps) {
             <Eye className="mr-2 h-4 w-4" /> Preview
           </Button>
           {template && isEmail && (
-            <Button type="button" variant="outline" onClick={handleTest} disabled={testing} title="Envia para o seu e-mail com dados de exemplo">
-              {testing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
-              Enviar teste
-            </Button>
+            <WithTooltip label="Envia para o seu e-mail com dados de exemplo" disabledSafe>
+              <Button type="button" variant="outline" onClick={handleTest} disabled={testing}>
+                {testing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
+                Enviar teste
+              </Button>
+            </WithTooltip>
           )}
           {canSave && (
             <Button type="button" onClick={handleSave} disabled={saving}>

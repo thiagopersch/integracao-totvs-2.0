@@ -31,6 +31,7 @@ import {
   type MapeadorProjetoDTO,
   type MapeadorTemaDTO,
 } from "@/types/mapeador"
+import { WithTooltip } from "@/components/shared/with-tooltip"
 
 function isVoltarButton(label: string) {
   return /voltar/i.test(label)
@@ -366,18 +367,20 @@ export function PrototipoTab() {
                       <SelectItem value="__new__">+ Criar novo tema</SelectItem>
                     </SelectContent>
                   </Select>
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    disabled={!temaAtivo}
-                    title="Editar tema atual"
-                    onClick={() => {
-                      setEditingTema(temaAtivo)
-                      setTemaDialogOpen(true)
-                    }}
-                  >
-                    <Pencil className="h-3.5 w-3.5" />
-                  </Button>
+                  <WithTooltip label="Editar tema atual" disabledSafe>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      disabled={!temaAtivo}
+                      aria-label="Editar tema atual"
+                      onClick={() => {
+                        setEditingTema(temaAtivo)
+                        setTemaDialogOpen(true)
+                      }}
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </Button>
+                  </WithTooltip>
                 </div>
               </div>
               <div className="space-y-1">
