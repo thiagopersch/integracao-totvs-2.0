@@ -17,10 +17,17 @@ type CountDelegate = { count(args: { where: Record<string, unknown> }): Promise<
 
 /**
  * Returns which other registries still hold live rows pointing at `id` —
- * an empty array means the record is free to be (soft) deleted.
+ * an empty array means the record is free to be (soft) deleted. `ignoreModels` skips
+ * child models the caller cleans up itself (e.g. a task's checklist items, which have
+ * no `deletedAt` and would otherwise always block).
  */
-export async function findBlockingReferences(targetModelName: string, id: string): Promise<BlockingReference[]> {
-  const refs = findReferencingFields(targetModelName);
+export async function findBlockingReferences(
+  targetModelName: string,
+  id: string,
+  options?: { ignoreModels?: string[] },
+): Promise<BlockingReference[]> {
+  const ignore = new Set(options?.ignoreModels ?? []);
+  const refs = findReferencingFields(targetModelName).filter((ref) => !ignore.has(ref.modelName));
   const results: BlockingReference[] = [];
 
   for (const ref of refs) {

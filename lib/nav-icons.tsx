@@ -38,6 +38,8 @@ import {
   GraduationCap,
   Map,
   SearchCode,
+  SquareKanban,
+  SlidersHorizontal,
   type LucideIcon,
 } from "lucide-react";
 
@@ -81,4 +83,6 @@ export const NAV_ICONS: Record<string, LucideIcon> = {
   GraduationCap,
   Map,
   SearchCode,
+  SquareKanban,
+  SlidersHorizontal,
 };

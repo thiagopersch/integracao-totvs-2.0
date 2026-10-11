@@ -41,6 +41,17 @@ export const ENTITY_LABELS: Record<string, string> = {
   MapeadorTema: "Temas do Mapeador",
   TbcChecklist: "Checklists do TBC",
   TbcChecklistDataserver: "Data Servers do Checklist",
+  Project: "Projetos",
+  ProjectMember: "Membros de Projeto",
+  ProjectTask: "Tarefas de Projeto",
+  ProjectTaskDependency: "Dependências de Tarefa",
+  ProjectTimeEntry: "Apontamentos de Horas",
+  ProjectTaskComment: "Comentários de Tarefa",
+  ProjectTaskChecklistItem: "Checklist de Tarefa",
+  ProjectTaskTag: "Tags de Tarefa",
+  ProjectRisk: "Riscos de Projeto",
+  CustomFieldDefinition: "Campos Personalizados",
+  ProjectTaskDueAlert: "Alertas de Prazo",
 };
 
 export interface BlockingReference {

@@ -47,6 +47,8 @@ export const navGroups: NavGroup[] = [
     icon: "FolderKanban",
     forceCollapsible: true,
     items: [
+      { href: "/projetos/gestao", label: "Gestão de Projetos", icon: "SquareKanban", resource: "projects", action: "read" },
+      { href: "/projetos/gestao/campos", label: "Campos personalizados", icon: "SlidersHorizontal", resource: "project_custom_fields", action: "read" },
       { href: "/projetos/mapeador", label: "Mapeador", icon: "Map", resource: "mapeador_projetos", action: "read" },
     ],
   },

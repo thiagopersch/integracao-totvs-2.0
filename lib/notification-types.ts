@@ -13,6 +13,10 @@ export const NOTIFICATION_TYPES = {
   AUTH_LOGIN_SUSPICIOUS: "auth.login.suspicious",
   INTEGRATION_TEST_FAILED: "integrations.test.failed",
   CONTRACT_USAGE_THRESHOLD: "contracts.usage.threshold",
+  PROJECT_TASK_ASSIGNED: "projects.task.assigned",
+  PROJECT_TASK_DUE_SOON: "projects.task.due_soon",
+  PROJECT_TASK_OVERDUE: "projects.task.overdue",
+  PROJECT_TASK_DUE_DIGEST: "projects.task.due_digest",
 } as const;
 
 export type NotificationType = (typeof NOTIFICATION_TYPES)[keyof typeof NOTIFICATION_TYPES];
@@ -178,5 +182,74 @@ export function buildContractUsageThresholdNotification(params: {
       period: params.period,
       periodLabel: params.periodLabel,
     },
+  };
+}
+
+type ProjectTaskRef = {
+  projectId: string;
+  projectCode: string;
+  projectName: string;
+  taskId: string;
+  taskNumber: number;
+  taskTitle: string;
+};
+
+function projectTaskHref(ref: Pick<ProjectTaskRef, "projectId" | "taskId">) {
+  return `/projetos/gestao/${ref.projectId}?task=${ref.taskId}`;
+}
+
+function projectTaskData(ref: ProjectTaskRef, extra: Record<string, unknown> = {}) {
+  return {
+    href: projectTaskHref(ref),
+    source: "project",
+    sourceLabel: `Projeto ${ref.projectCode} — ${ref.projectName}`,
+    projectId: ref.projectId,
+    taskId: ref.taskId,
+    ...extra,
+  };
+}
+
+const formatDueDate = (date: Date) => new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeZone: "UTC" }).format(date);
+
+export function buildProjectTaskAssignedNotification(params: ProjectTaskRef & { assignedBy: string; dueDate: Date | null }): BuiltNotification {
+  return {
+    type: NOTIFICATION_TYPES.PROJECT_TASK_ASSIGNED,
+    title: `Nova tarefa: ${params.projectCode}-${params.taskNumber} ${params.taskTitle}`,
+    body: `${params.assignedBy} atribuiu a você a tarefa "${params.taskTitle}" do projeto ${params.projectName}${
+      params.dueDate ? `, com prazo em ${formatDueDate(params.dueDate)}` : ""
+    }.`,
+    data: projectTaskData(params),
+  };
+}
+
+export function buildProjectTaskDueSoonNotification(params: ProjectTaskRef & { dueDate: Date; daysLeft: number }): BuiltNotification {
+  const when = params.daysLeft === 0 ? "vence hoje" : params.daysLeft === 1 ? "vence amanhã" : `vence em ${params.daysLeft} dias`;
+  return {
+    type: NOTIFICATION_TYPES.PROJECT_TASK_DUE_SOON,
+    title: `Prazo próximo: ${params.projectCode}-${params.taskNumber} ${params.taskTitle}`,
+    body: `A tarefa "${params.taskTitle}" do projeto ${params.projectName} ${when} (${formatDueDate(params.dueDate)}).`,
+    data: projectTaskData(params, { dueDate: params.dueDate.toISOString() }),
+  };
+}
+
+export function buildProjectTaskOverdueNotification(params: ProjectTaskRef & { dueDate: Date; daysLate: number }): BuiltNotification {
+  return {
+    type: NOTIFICATION_TYPES.PROJECT_TASK_OVERDUE,
+    title: `Tarefa atrasada: ${params.projectCode}-${params.taskNumber} ${params.taskTitle}`,
+    body: `A tarefa "${params.taskTitle}" do projeto ${params.projectName} venceu em ${formatDueDate(params.dueDate)} (${params.daysLate} dia(s) de atraso).`,
+    data: projectTaskData(params, { dueDate: params.dueDate.toISOString() }),
+  };
+}
+
+export function buildProjectTaskDueDigestNotification(params: { dueSoon: number; overdue: number; tasks: string[] }): BuiltNotification {
+  const parts = [
+    params.overdue ? `${params.overdue} tarefa(s) atrasada(s)` : "",
+    params.dueSoon ? `${params.dueSoon} tarefa(s) com prazo próximo` : "",
+  ].filter(Boolean);
+  return {
+    type: NOTIFICATION_TYPES.PROJECT_TASK_DUE_DIGEST,
+    title: `Prazos de projetos: ${parts.join(" e ")}`,
+    body: `Você tem ${parts.join(" e ")}: ${params.tasks.slice(0, 5).join("; ")}${params.tasks.length > 5 ? "; …" : ""}.`,
+    data: { href: "/projetos/gestao?mine=true", source: "project", sourceLabel: "Gestão de Projetos" },
   };
 }

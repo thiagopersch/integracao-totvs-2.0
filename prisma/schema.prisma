@@ -129,39 +129,44 @@ model Organization {
   updatedAt DateTime  @updatedAt @map("updated_at")
   deletedAt DateTime? @map("deleted_at")
 
-  users               User[]
-  roles               Role[]
-  clients             Client[]
-  tbcs                Tbc[]
-  filters             Filter[]
-  backups             Backup[]
-  backupRuns          BackupRun[]
-  sentenceCategories  SentenceCategory[]
-  sentences           Sentence[]
-  dataservers         Dataserver[]
-  processes           Process[]
-  totvsSystems        TotvsSystem[]
-  soapLogs            SoapLog[]
-  soapTemplates       SoapTemplate[]
-  soapFavorites       SoapFavorite[]
-  auditLogs           AuditLog[]
-  emailLogs           EmailLog[]
-  apiLogs             ApiLog[]
-  requesters          Requester[]
-  departments         Department[]
-  demandTypes         DemandType[]
-  tags                Tag[]
-  analysts            Analyst[]
-  demands             Demand[]
-  notifications       Notification[]
-  emailSettings       EmailSettings?
-  usageAlerts         ContractUsageAlert[]
-  messageTemplates    MessageTemplate[]
-  fichaAutomationRuns FichaAutomationRun[]
-  mapeadorProjetos    MapeadorProjeto[]
-  mapeadorTemas       MapeadorTema[]
-  mapeadorTemplates   MapeadorTemplateProjeto[]
-  tbcChecklists       TbcChecklist[]
+  users                  User[]
+  roles                  Role[]
+  clients                Client[]
+  tbcs                   Tbc[]
+  filters                Filter[]
+  backups                Backup[]
+  backupRuns             BackupRun[]
+  sentenceCategories     SentenceCategory[]
+  sentences              Sentence[]
+  dataservers            Dataserver[]
+  processes              Process[]
+  totvsSystems           TotvsSystem[]
+  soapLogs               SoapLog[]
+  soapTemplates          SoapTemplate[]
+  soapFavorites          SoapFavorite[]
+  auditLogs              AuditLog[]
+  emailLogs              EmailLog[]
+  apiLogs                ApiLog[]
+  requesters             Requester[]
+  departments            Department[]
+  demandTypes            DemandType[]
+  tags                   Tag[]
+  analysts               Analyst[]
+  demands                Demand[]
+  notifications          Notification[]
+  emailSettings          EmailSettings?
+  usageAlerts            ContractUsageAlert[]
+  messageTemplates       MessageTemplate[]
+  fichaAutomationRuns    FichaAutomationRun[]
+  mapeadorProjetos       MapeadorProjeto[]
+  mapeadorTemas          MapeadorTema[]
+  mapeadorTemplates      MapeadorTemplateProjeto[]
+  tbcChecklists          TbcChecklist[]
+  projects               Project[]
+  projectTasks           ProjectTask[]
+  projectTimeEntries     ProjectTimeEntry[]
+  customFieldDefinitions CustomFieldDefinition[]
+  projectTaskDueAlerts   ProjectTaskDueAlert[]
 
   @@map("organizations")
 }
@@ -232,6 +237,12 @@ model User {
   backupsRestored      Backup[]
   allowedClients       UserClient[]
   fichaAutomationRuns  FichaAutomationRun[]
+  managedProjects      Project[]             @relation("ProjectManager")
+  projectMemberships   ProjectMember[]
+  assignedProjectTasks ProjectTask[]         @relation("ProjectTaskAssignee")
+  projectTimeEntries   ProjectTimeEntry[]
+  projectTaskComments  ProjectTaskComment[]
+  ownedProjectRisks    ProjectRisk[]         @relation("ProjectRiskOwner")
 
   @@map("users")
 }
@@ -312,6 +323,7 @@ model Client {
   userClients      UserClient[]
   mapeadorProjetos MapeadorProjeto[]
   usageAlerts      ContractUsageAlert[]
+  projects         Project[]
 
   @@unique([organizationId, linkCrm])
   @@map("clients")
@@ -854,7 +866,8 @@ model ClientContract {
   createdAt       DateTime       @default(now()) @map("created_at")
   updatedAt       DateTime       @updatedAt @map("updated_at")
 
-  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  client   Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  projects Project[]
 
   @@index([clientId, status])
   @@map("client_contracts")
@@ -1030,8 +1043,9 @@ model Tag {
   color          String   @default("#8b5cf6")
   createdAt      DateTime @default(now()) @map("created_at")
 
-  organization Organization @relation(fields: [organizationId], references: [id])
-  demandTags   DemandTag[]
+  organization    Organization     @relation(fields: [organizationId], references: [id])
+  demandTags      DemandTag[]
+  projectTaskTags ProjectTaskTag[]
 
   @@unique([organizationId, name])
   @@map("tags")
@@ -1180,4 +1194,346 @@ model EmailSettings {
   organization Organization @relation(fields: [organizationId], references: [id])
 
   @@map("email_settings")
+}
+
+// ── Gestão de Projetos ────────────────────────────────────────────────────────
+
+enum ProjectStatus {
+  PLANNING
+  IN_PROGRESS
+  ON_HOLD
+  COMPLETED
+  CANCELLED
+}
+
+enum ProjectHealth {
+  GREEN
+  YELLOW
+  RED
+}
+
+enum ProjectTaskStatus {
+  BACKLOG
+  TODO
+  IN_PROGRESS
+  IN_REVIEW
+  BLOCKED
+  DONE
+  CANCELLED
+}
+
+enum ProjectDependencyType {
+  FINISH_TO_START
+}
+
+enum ProjectRiskStatus {
+  OPEN
+  MITIGATING
+  OCCURRED
+  CLOSED
+}
+
+enum CustomFieldEntity {
+  PROJECT
+  TASK
+}
+
+enum CustomFieldType {
+  TEXT
+  LONG_TEXT
+  NUMBER
+  CURRENCY
+  DATE
+  SELECT
+  MULTISELECT
+  BOOLEAN
+  USER
+  URL
+}
+
+enum ProjectDueAlertKind {
+  DUE_SOON
+  OVERDUE
+}
+
+/**
+ * Managed project (Gestão de Projetos) — the project charter. `status` is the lifecycle (like
+ * ClientContract.status), not an active flag. `progress` is denormalized from tasks
+ * (lib/project-metrics.ts) so the list can sort by it; `health` null = computed on read.
+ * Time logged on tasks of a project with `contractId` consumes the client's contract hours.
+ */
+model Project {
+  id               String         @id @default(uuid())
+  organizationId   String         @map("organization_id")
+  code             String
+  name             String
+  description      String?        @db.Text
+  objective        String?        @db.Text
+  scope            String?        @db.Text
+  outOfScope       String?        @map("out_of_scope") @db.Text
+  assumptions      String?        @db.Text
+  successCriteria  String?        @map("success_criteria") @db.Text
+  clientId         String?        @map("client_id")
+  contractId       String?        @map("contract_id")
+  managerId        String?        @map("manager_id")
+  sponsorName      String?        @map("sponsor_name")
+  status           ProjectStatus  @default(PLANNING)
+  health           ProjectHealth?
+  priority         Priority       @default(MEDIUM)
+  plannedStartDate DateTime?      @map("planned_start_date")
+  plannedEndDate   DateTime?      @map("planned_end_date")
+  actualStartDate  DateTime?      @map("actual_start_date")
+  actualEndDate    DateTime?      @map("actual_end_date")
+  budgetHours      Float?         @map("budget_hours")
+  budgetAmount     Float?         @map("budget_amount")
+  progress         Float          @default(0)
+  color            String         @default("#6366f1")
+  /// { wipLimits?: Partial<Record<ProjectTaskStatus, number>>, wipEnforced?: boolean, dueSoonDays?: number }
+  settings         Json?
+  /// Values of CustomFieldDefinition (entity PROJECT), keyed by definition id.
+  customFields     Json           @default("{}") @map("custom_fields")
+  createdAt        DateTime       @default(now()) @map("created_at")
+  updatedAt        DateTime       @updatedAt @map("updated_at")
+  deletedAt        DateTime?      @map("deleted_at")
+
+  organization Organization       @relation(fields: [organizationId], references: [id])
+  client       Client?            @relation(fields: [clientId], references: [id])
+  contract     ClientContract?    @relation(fields: [contractId], references: [id])
+  manager      User?              @relation("ProjectManager", fields: [managerId], references: [id])
+  members      ProjectMember[]
+  tasks        ProjectTask[]
+  timeEntries  ProjectTimeEntry[]
+  risks        ProjectRisk[]
+
+  @@unique([organizationId, code])
+  @@index([organizationId, deletedAt, status])
+  @@index([clientId])
+  @@index([contractId])
+  @@index([managerId])
+  @@map("projects")
+}
+
+model ProjectMember {
+  id                String   @id @default(uuid())
+  projectId         String   @map("project_id")
+  userId            String   @map("user_id")
+  role              String?
+  allocationPercent Int?     @map("allocation_percent")
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id])
+
+  @@unique([projectId, userId])
+  @@index([userId])
+  @@map("project_members")
+}
+
+/**
+ * Task/activity of a Project. `boardPosition` orders cards inside a kanban column and
+ * `outlinePosition` orders siblings in the WBS (list/gantt) — both fractional (lib/project-tasks.ts).
+ */
+model ProjectTask {
+  id              String            @id @default(uuid())
+  organizationId  String            @map("organization_id")
+  projectId       String            @map("project_id")
+  parentId        String?           @map("parent_id")
+  number          Int
+  title           String
+  description     String?           @db.Text
+  status          ProjectTaskStatus @default(TODO)
+  priority        Priority          @default(MEDIUM)
+  assigneeId      String?           @map("assignee_id")
+  startDate       DateTime?         @map("start_date")
+  dueDate         DateTime?         @map("due_date")
+  completedAt     DateTime?         @map("completed_at")
+  estimateHours   Float?            @map("estimate_hours")
+  loggedMinutes   Int               @default(0) @map("logged_minutes")
+  progress        Int               @default(0)
+  isMilestone     Boolean           @default(false) @map("is_milestone")
+  boardPosition   Float             @default(0) @map("board_position")
+  outlinePosition Float             @default(0) @map("outline_position")
+  /// Values of CustomFieldDefinition (entity TASK), keyed by definition id.
+  customFields    Json              @default("{}") @map("custom_fields")
+  createdAt       DateTime          @default(now()) @map("created_at")
+  updatedAt       DateTime          @updatedAt @map("updated_at")
+  deletedAt       DateTime?         @map("deleted_at")
+
+  organization   Organization               @relation(fields: [organizationId], references: [id])
+  project        Project                    @relation(fields: [projectId], references: [id])
+  parent         ProjectTask?               @relation("ProjectTaskTree", fields: [parentId], references: [id])
+  children       ProjectTask[]              @relation("ProjectTaskTree")
+  assignee       User?                      @relation("ProjectTaskAssignee", fields: [assigneeId], references: [id])
+  predecessors   ProjectTaskDependency[]    @relation("DependencySuccessor")
+  successors     ProjectTaskDependency[]    @relation("DependencyPredecessor")
+  timeEntries    ProjectTimeEntry[]
+  comments       ProjectTaskComment[]
+  checklistItems ProjectTaskChecklistItem[]
+  tags           ProjectTaskTag[]
+  dueAlerts      ProjectTaskDueAlert[]
+
+  @@unique([projectId, number])
+  @@index([projectId, deletedAt, status, boardPosition])
+  @@index([parentId])
+  @@index([assigneeId, status])
+  @@index([organizationId, dueDate])
+  @@map("project_tasks")
+}
+
+model ProjectTaskDependency {
+  id            String                @id @default(uuid())
+  predecessorId String                @map("predecessor_id")
+  successorId   String                @map("successor_id")
+  type          ProjectDependencyType @default(FINISH_TO_START)
+  lagDays       Int                   @default(0) @map("lag_days")
+  createdAt     DateTime              @default(now()) @map("created_at")
+
+  predecessor ProjectTask @relation("DependencyPredecessor", fields: [predecessorId], references: [id], onDelete: Cascade)
+  successor   ProjectTask @relation("DependencySuccessor", fields: [successorId], references: [id], onDelete: Cascade)
+
+  @@unique([predecessorId, successorId])
+  @@index([successorId])
+  @@map("project_task_dependencies")
+}
+
+/// Hours logged on a task. `projectId` is denormalized for the contract-usage groupBy.
+model ProjectTimeEntry {
+  id             String    @id @default(uuid())
+  organizationId String    @map("organization_id")
+  projectId      String    @map("project_id")
+  taskId         String    @map("task_id")
+  userId         String    @map("user_id")
+  date           DateTime
+  minutes        Int
+  note           String?   @db.Text
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+  deletedAt      DateTime? @map("deleted_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  project      Project      @relation(fields: [projectId], references: [id])
+  task         ProjectTask  @relation(fields: [taskId], references: [id])
+  user         User         @relation(fields: [userId], references: [id])
+
+  @@index([organizationId, deletedAt, date])
+  @@index([projectId, date])
+  @@index([taskId])
+  @@index([userId, date])
+  @@map("project_time_entries")
+}
+
+model ProjectTaskComment {
+  id        String    @id @default(uuid())
+  taskId    String    @map("task_id")
+  userId    String    @map("user_id")
+  content   String    @db.Text
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  task ProjectTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user User        @relation(fields: [userId], references: [id])
+
+  @@index([taskId, createdAt])
+  @@map("project_task_comments")
+}
+
+model ProjectTaskChecklistItem {
+  id        String   @id @default(uuid())
+  taskId    String   @map("task_id")
+  title     String
+  done      Boolean  @default(false)
+  position  Float    @default(0)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  task ProjectTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@index([taskId])
+  @@map("project_task_checklist_items")
+}
+
+/// Reuses the org Tag catalog (same as DemandTag).
+model ProjectTaskTag {
+  taskId String @map("task_id")
+  tagId  String @map("tag_id")
+
+  task ProjectTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  tag  Tag         @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([taskId, tagId])
+  @@index([tagId])
+  @@map("project_task_tags")
+}
+
+model ProjectRisk {
+  id             String            @id @default(uuid())
+  projectId      String            @map("project_id")
+  title          String
+  description    String?           @db.Text
+  /// 1–5
+  probability    Int               @default(3)
+  /// 1–5
+  impact         Int               @default(3)
+  status         ProjectRiskStatus @default(OPEN)
+  ownerId        String?           @map("owner_id")
+  mitigationPlan String?           @map("mitigation_plan") @db.Text
+  dueDate        DateTime?         @map("due_date")
+  createdAt      DateTime          @default(now()) @map("created_at")
+  updatedAt      DateTime          @updatedAt @map("updated_at")
+  deletedAt      DateTime?         @map("deleted_at")
+
+  project Project @relation(fields: [projectId], references: [id])
+  owner   User?   @relation("ProjectRiskOwner", fields: [ownerId], references: [id])
+
+  @@index([projectId])
+  @@map("project_risks")
+}
+
+/**
+ * Org-level custom field ("campo complementar") created from the UI — no migration per field.
+ * Values live in Project/ProjectTask.customFields keyed by this id. `options` = [{ id, label, color? }]
+ * for SELECT/MULTISELECT; values store option ids so renaming a label is safe.
+ */
+model CustomFieldDefinition {
+  id             String            @id @default(uuid())
+  organizationId String            @map("organization_id")
+  entity         CustomFieldEntity
+  label          String
+  type           CustomFieldType
+  helpText       String?           @map("help_text")
+  required       Boolean           @default(false)
+  options        Json?
+  position       Int               @default(0)
+  showInList     Boolean           @default(false) @map("show_in_list")
+  status         Boolean           @default(true)
+  createdAt      DateTime          @default(now()) @map("created_at")
+  updatedAt      DateTime          @updatedAt @map("updated_at")
+  deletedAt      DateTime?         @map("deleted_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId, entity, deletedAt, status, position])
+  @@map("custom_field_definitions")
+}
+
+/**
+ * Dedup for deadline alerts, like ContractUsageAlert: one row per (task, recipient, kind, due date
+ * snapshot) — changing the due date or the assignee yields a new key, so no reset logic is needed.
+ * `userId` deliberately has no @relation so it never blocks deleting a user.
+ */
+model ProjectTaskDueAlert {
+  id             String              @id @default(uuid())
+  organizationId String              @map("organization_id")
+  taskId         String              @map("task_id")
+  userId         String              @map("user_id")
+  kind           ProjectDueAlertKind
+  dueDate        DateTime            @map("due_date")
+  createdAt      DateTime            @default(now()) @map("created_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  task         ProjectTask  @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@unique([taskId, userId, kind, dueDate])
+  @@map("project_task_due_alerts")
 }

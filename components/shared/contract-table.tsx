@@ -68,7 +68,7 @@ type ContractRow = {
   notes: string | null
   client: { id: string; name: string; color: string; email: string | null }
   /** Consumption (per client) of the month being viewed — null when the contract isn't in force that month. */
-  usage: { usedHours: number; contractedHours: number; percent: number; level: UsageLevel } | null
+  usage: { usedHours: number; demandHours?: number; projectHours?: number; contractedHours: number; percent: number; level: UsageLevel } | null
 }
 
 interface ContractTableProps {

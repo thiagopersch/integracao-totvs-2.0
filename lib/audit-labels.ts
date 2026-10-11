@@ -12,4 +12,7 @@ export const ACTION_LABELS: Record<string, string> = {
   ACTIVATE: "ativou",
   DEACTIVATE: "desativou",
   IMPORT_STANDARD_SENTENCES: "importou sentenças padrões para",
+  MOVE: "moveu",
+  RESCHEDULE: "reagendou",
+  LOG_TIME: "apontou horas em",
 };

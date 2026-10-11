@@ -14,7 +14,7 @@ export type ExportPeriod =
 
 /** "Today" as a date-only value (UTC midnight for the calendar day in APP_TIME_ZONE) — matches the
  *  convention that `demand.date` is always stored at UTC midnight (see `utils/format.ts`). */
-function getTodayDateOnly(): Date {
+export function getTodayDateOnly(): Date {
   const zoned = toZonedTime(new Date(), APP_TIME_ZONE);
   return new Date(Date.UTC(zoned.getFullYear(), zoned.getMonth(), zoned.getDate()));
 }

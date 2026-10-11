@@ -69,6 +69,9 @@ export type AuditInput = {
   newData?: Record<string, unknown>;
   ip?: string;
   userAgent?: string;
+  /** false = record the audit row only, without broadcasting a notification to the organization —
+   *  for high-frequency actions (kanban moves, time entries, checklist, comments). Default true. */
+  notify?: boolean;
 };
 
 export const BULK_DELETE_BLOCKED_ACTION = "BULK_DELETE_BLOCKED";
@@ -118,7 +121,7 @@ export const auditService = {
     // BULK_DELETE_BLOCKED is an internal bookkeeping marker for the deletion-errors log page, not
     // a real user action — never worth a notification, and a blocked bulk delete already surfaces
     // its own toast to the user who triggered it.
-    if (organizationId && input.action !== BULK_DELETE_BLOCKED_ACTION && input.action !== RESTORE_ERROR_ACTION) {
+    if (organizationId && input.notify !== false && input.action !== BULK_DELETE_BLOCKED_ACTION && input.action !== RESTORE_ERROR_ACTION) {
       try {
         const entityLabel = ENTITY_LABELS[input.entity] ?? input.entity;
         const actionLabel = ACTION_LABELS[input.action] ?? input.action.toLowerCase();

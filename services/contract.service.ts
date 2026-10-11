@@ -15,7 +15,7 @@ const includeRelations = {
 /** Field the contracts table sorts the "Consumo (mês)" column by — computed, so sorted in memory. */
 const USAGE_SORT_FIELD = "usagePercent";
 
-type ContractUsage = Pick<ClientMonthlyUsage, "usedHours" | "contractedHours" | "percent" | "level">;
+type ContractUsage = Pick<ClientMonthlyUsage, "usedHours" | "demandHours" | "projectHours" | "contractedHours" | "percent" | "level">;
 
 type Month = { year: number; month: number };
 
@@ -30,6 +30,8 @@ async function withMonthlyUsage<T extends { id: string; clientId: string }>(orga
     for (const contractId of u.contractIds) {
       usageByContractId.set(contractId, {
         usedHours: u.usedHours,
+        demandHours: u.demandHours,
+        projectHours: u.projectHours,
         contractedHours: u.contractedHours,
         percent: u.percent,
         level: u.level,

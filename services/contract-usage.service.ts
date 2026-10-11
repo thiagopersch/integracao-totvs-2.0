@@ -6,6 +6,7 @@ import { periodToDateRange } from "@/lib/period";
 import {
   CONTRACT_ATTENTION_PERCENT,
   formatMonthLabel,
+  sumMinutesByClient,
   monthOf,
   pendingThresholds,
   periodKey,
@@ -26,13 +27,19 @@ export type ClientMonthlyUsage = {
   clientColor: string;
   clientEmail: string | null;
   contractedHours: number;
+  /** demandHours + projectHours */
   usedHours: number;
+  demandHours: number;
+  /** Hours logged on tasks of projects linked to one of the client's contracts. */
+  projectHours: number;
   percent: number;
   level: UsageLevel;
   notifyClient: boolean;
   contractIds: string[];
   /** Demands launched for the client in the month. */
   demandsCount: number;
+  /** Project time entries logged for the client in the month. */
+  timeEntriesCount: number;
 };
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
@@ -41,7 +48,9 @@ const round2 = (n: number) => Math.round(n * 100) / 100;
  * Monthly consumption per client: `contractedHours` is a monthly allowance, summed across every
  * contract in force during the month (not CANCELLED/SUSPENDED, validity overlapping the month — so
  * retroactive demands of a since-EXPIRED contract still count). Demands have no contract FK, so
- * usage is the client's demand time inside the month, same scoping the dashboard ranking uses.
+ * usage is the client's demand time inside the month, same scoping the dashboard ranking uses —
+ * plus hours logged on tasks of the client's projects that are linked to a contract (Gestão de
+ * Projetos). Both are summed per client (lib/contract-usage.ts sumMinutesByClient).
  */
 async function getMonthlyUsage(organizationId: string, month: Month, clientIds?: string[]): Promise<ClientMonthlyUsage[]> {
   const range = periodToDateRange(month)!;
@@ -70,23 +79,52 @@ async function getMonthlyUsage(organizationId: string, month: Month, clientIds?:
     _sum: { durationMinutes: true },
     _count: { _all: true },
   });
-  const usedMinutesByClientId = new Map(minutesByClient.map((d) => [d.clientId, d._sum.durationMinutes || 0]));
+  const projectMinutes = await prisma.projectTimeEntry.groupBy({
+    by: ["projectId"],
+    where: {
+      deletedAt: null,
+      organizationId,
+      date: range,
+      task: { deletedAt: null },
+      project: { deletedAt: null, contractId: { not: null }, clientId: { in: contractClientIds } },
+    },
+    _sum: { minutes: true },
+    _count: { _all: true },
+  });
+  const projects = projectMinutes.length
+    ? await prisma.project.findMany({ where: { id: { in: projectMinutes.map((p) => p.projectId) } }, select: { id: true, clientId: true } })
+    : [];
+  const clientIdByProjectId = new Map(projects.filter((p) => p.clientId).map((p) => [p.id, p.clientId!]));
+  const minutesByClientId = sumMinutesByClient(
+    minutesByClient.map((d) => ({ clientId: d.clientId, minutes: d._sum.durationMinutes || 0 })),
+    projectMinutes.map((p) => ({ projectId: p.projectId, minutes: p._sum.minutes || 0 })),
+    clientIdByProjectId
+  );
   const demandsCountByClientId = new Map(minutesByClient.map((d) => [d.clientId, d._count._all]));
+  const timeEntriesCountByClientId = new Map<string, number>();
+  for (const p of projectMinutes) {
+    const clientId = clientIdByProjectId.get(p.projectId);
+    if (clientId) timeEntriesCountByClientId.set(clientId, (timeEntriesCountByClientId.get(clientId) ?? 0) + p._count._all);
+  }
 
   const byClient = new Map<string, ClientMonthlyUsage>();
   for (const contract of contracts) {
+    const minutes = minutesByClientId.get(contract.clientId);
     const entry = byClient.get(contract.clientId) ?? {
       clientId: contract.clientId,
       clientName: contract.client.name,
       clientColor: contract.client.color,
       clientEmail: contract.client.email?.trim() || null,
       contractedHours: 0,
-      usedHours: round2((usedMinutesByClientId.get(contract.clientId) || 0) / 60),
+      usedHours: round2(((minutes?.demandMinutes ?? 0) + (minutes?.projectMinutes ?? 0)) / 60),
+      demandHours: round2((minutes?.demandMinutes ?? 0) / 60),
+      projectHours: round2((minutes?.projectMinutes ?? 0) / 60),
       percent: 0,
       level: "ok" as UsageLevel,
       notifyClient: false,
       contractIds: [],
       demandsCount: demandsCountByClientId.get(contract.clientId) ?? 0,
+      timeEntriesCount: timeEntriesCountByClientId.get(contract.clientId) ?? 0,
     };
     entry.contractedHours = round2(entry.contractedHours + contract.contractedHours);
     entry.notifyClient ||= contract.notifyClient;
@@ -100,7 +138,9 @@ async function getMonthlyUsage(organizationId: string, month: Month, clientIds?:
   });
 }
 
-export type UsageCheckTrigger = "demand" | "contract" | "manual";
+/** `time_entry`: hours logged on a contract-linked project task — emails only on a NEW threshold
+ *  (time entries are frequent; re-sending the "X% de 100%" email on each one would spam). */
+export type UsageCheckTrigger = "demand" | "contract" | "manual" | "time_entry";
 
 export type UsageNotifyResult = {
   /** NO_CONTRACT: no contract in force this month; NO_RECIPIENT: no client/alert email configured;
@@ -201,7 +241,7 @@ async function sendUsageEmail(
  * - Bell (in-app, users linked to the client): only when a NEW threshold (80/85/90/95/100%) is
  *   reached in the month — recorded in `contract_usage_alerts`, one alert for the highest of them.
  * - Email (template CONTRACT_USAGE): `demand` → every time the month is at 80%+ (each new demand
- *   re-sends the current "X% de 100%"); `contract` → only with a new threshold; `manual` → always,
+ *   re-sends the current "X% de 100%"); `contract`/`time_entry` → only with a new threshold; `manual` → always,
  *   whatever the percentage.
  */
 async function checkAndNotify(
