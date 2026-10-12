@@ -26,7 +26,11 @@ export const createDemandSchema = z
     departmentId: z.string().min(1, "Departamento é obrigatório"),
     demandTypeId: z.string().min(1, "Tipo é obrigatório"),
     tagIds: z.array(z.string()).default([]),
+    /** Gestão de Projetos: project (must be of the same client) and, optionally, one of its tasks. */
+    projectId: z.string().optional(),
+    projectTaskId: z.string().optional(),
   })
+  .refine((data) => !data.projectTaskId || !!data.projectId, { message: "Selecione o projeto da tarefa", path: ["projectTaskId"] })
   .refine((data) => timeToMinutes(data.endTime) > timeToMinutes(data.startTime), {
     message: "Hora de término deve ser depois da hora de início",
     path: ["endTime"],
@@ -48,6 +52,9 @@ export const updateDemandSchema = z
     departmentId: z.string().min(1, "Departamento é obrigatório").optional(),
     demandTypeId: z.string().min(1, "Tipo é obrigatório").optional(),
     tagIds: z.array(z.string()).default([]),
+    /** "" clears the link; undefined keeps it. */
+    projectId: z.string().optional(),
+    projectTaskId: z.string().optional(),
   })
   .refine((data) => !data.startTime || !data.endTime || timeToMinutes(data.endTime) > timeToMinutes(data.startTime), {
     message: "Hora de término deve ser depois da hora de início",

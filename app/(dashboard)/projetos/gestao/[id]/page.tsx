@@ -32,7 +32,7 @@ async function ProjectWorkspaceContent({ params, searchParams }: PageProps) {
   const project = await getProjectById(id, organizationId, allowedClientIds)
   if (!project) notFound()
 
-  const workspace = parseWorkspaceParams(rawParams)
+  const workspace = parseWorkspaceParams(rawParams, project.settings)
   const view = workspace.view
   // Only the active view's data is fetched; the overview reuses the dashboard numbers + tasks.
   const needsTasks = view !== "dashboard"
@@ -47,7 +47,7 @@ async function ProjectWorkspaceContent({ params, searchParams }: PageProps) {
 
   const [tasks, dashboard, risks, taskDetail] = await Promise.all([
     needsTasks
-      ? listProjectTasks(id, view === "overview" ? { ...workspace.filters, status: [], showCancelled: false } : workspace.filters, ctx, taskDefs)
+      ? listProjectTasks(id, view === "overview" ? { ...workspace.filters, stage: [], phase: undefined, showCancelled: false } : workspace.filters, ctx, taskDefs)
       : Promise.resolve(null),
     needsDashboard ? getProjectDashboard(id, ctx) : Promise.resolve(null),
     view === "overview" ? listProjectRisks(id) : Promise.resolve([]),

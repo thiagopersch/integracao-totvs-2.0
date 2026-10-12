@@ -45,34 +45,36 @@ export const projectDashboardService = {
           createdAt: true,
           completedAt: true,
           assigneeId: true,
+          stageId: true,
           loggedMinutes: true,
         },
       }),
-      prisma.projectTimeEntry.groupBy({
-        by: ["userId"],
-        where: { projectId, deletedAt: null, task: { deletedAt: null } },
-        _sum: { minutes: true },
+      // Hours are the project's demands (Demandas) — cost uses each demand's analyst rate.
+      prisma.demand.groupBy({
+        by: ["analystId"],
+        where: { projectId, deletedAt: null },
+        _sum: { durationMinutes: true },
       }),
-      prisma.projectTimeEntry.findMany({
-        where: { projectId, deletedAt: null, task: { deletedAt: null }, date: { gte: new Date(weekStart(today).getTime() - 11 * 7 * DAY_MS) } },
-        select: { date: true, minutes: true },
+      prisma.demand.findMany({
+        where: { projectId, deletedAt: null, date: { gte: new Date(weekStart(today).getTime() - 11 * 7 * DAY_MS) } },
+        select: { date: true, durationMinutes: true },
       }),
     ]);
 
-    const userIds = [...new Set([...tasks.map((t) => t.assigneeId), ...minutesByUser.map((m) => m.userId)].filter((id): id is string => !!id))];
+    const userIds = [...new Set(tasks.map((t) => t.assigneeId).filter((id): id is string => !!id))];
     const [users, analysts] = await Promise.all([
       prisma.user.findMany({ where: { id: { in: userIds } }, select: { id: true, name: true } }),
-      prisma.analyst.findMany({ where: { userId: { in: userIds }, deletedAt: null }, select: { userId: true, hourlyRate: true } }),
+      prisma.analyst.findMany({ where: { id: { in: minutesByUser.map((m) => m.analystId) } }, select: { id: true, hourlyRate: true } }),
     ]);
     const nameById = new Map(users.map((u) => [u.id, u.name]));
-    const rateByUserId = new Map(analysts.map((a) => [a.userId!, a.hourlyRate]));
+    const rateByAnalystId = new Map(analysts.map((a) => [a.id, a.hourlyRate]));
 
-    // Cost = logged hours × the analyst hourly rate of each user (users without a linked analyst/rate don't count).
+    // Cost = demand hours × the analyst's hourly rate (analysts without a rate don't count).
     let cost = 0;
     let costCoveredHours = 0;
     for (const row of minutesByUser) {
-      const hours = (row._sum.minutes ?? 0) / 60;
-      const rate = rateByUserId.get(row.userId);
+      const hours = (row._sum.durationMinutes ?? 0) / 60;
+      const rate = rateByAnalystId.get(row.analystId);
       if (rate) {
         cost += hours * rate;
         costCoveredHours += hours;
@@ -82,6 +84,7 @@ export const projectDashboardService = {
     const live = tasks.filter((t) => t.status !== "CANCELLED");
     const milestones = live.filter((t) => t.isMilestone);
     const statusCounts = countByStatus(tasks);
+    const stageCounts = project.stages.map((stage) => ({ ...stage, count: tasks.filter((t) => t.stageId === stage.id).length }));
     const workload = buildWorkload(live, today).map((row) => ({
       ...row,
       name: row.assigneeId ? nameById.get(row.assigneeId) ?? "Usuário" : "Sem responsável",
@@ -93,7 +96,7 @@ export const projectDashboardService = {
     for (let i = 0; i < 12; i++) weeks.set(toDateKey(new Date(firstWeek.getTime() + i * 7 * DAY_MS)), 0);
     for (const entry of entries) {
       const key = toDateKey(weekStart(entry.date));
-      if (weeks.has(key)) weeks.set(key, weeks.get(key)! + entry.minutes / 60);
+      if (weeks.has(key)) weeks.set(key, weeks.get(key)! + entry.durationMinutes / 60);
     }
 
     const upcoming = live
@@ -106,6 +109,7 @@ export const projectDashboardService = {
         title: t.title,
         dueDate: t.dueDate!,
         status: t.status,
+        stageId: t.stageId,
         isMilestone: t.isMilestone,
         overdue: isOverdue(t, today),
         assignee: t.assigneeId ? nameById.get(t.assigneeId) ?? null : null,
@@ -136,6 +140,7 @@ export const projectDashboardService = {
         budgetAmount: project.budgetAmount,
       },
       statusCounts,
+      stageCounts,
       burn: buildBurnSeries(live, project.plannedStartDate, project.plannedEndDate, today),
       workload,
       hoursByWeek: [...weeks.entries()].map(([week, hours]) => ({ week, hours: Math.round(hours * 10) / 10 })),

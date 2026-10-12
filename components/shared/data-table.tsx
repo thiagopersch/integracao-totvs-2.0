@@ -39,6 +39,21 @@ const COLUMNS_WITHOUT_TITLE = new Set(["select", "actions"])
  * Native `title` fallback so a cell's full content is visible on hover — computed lazily from the
  * rendered text, and skipped when the cell already has its own tooltip (e.g. TruncatedText).
  */
+const INTERACTIVE_SELECTOR =
+  "button, a, input, label, select, textarea, [role=checkbox], [role=menuitem], [role=menu], [data-no-row-click]"
+
+/**
+ * Row click (open/navigate) only for clicks on the row's own plain content: skips clicks inside
+ * interactive controls (actions ⋯, checkbox, links) and clicks that bubble through React portals
+ * (dropdown/dialog content opened from a cell — not DOM descendants of the row).
+ */
+function handleRowClick(event: React.MouseEvent<HTMLElement>, open: () => void) {
+  const target = event.target as HTMLElement
+  if (!event.currentTarget.contains(target)) return
+  if (target.closest(INTERACTIVE_SELECTOR)) return
+  open()
+}
+
 function showCellTitle(event: React.MouseEvent<HTMLTableCellElement>) {
   const cell = event.currentTarget
   const text = cell.querySelector('[data-slot="tooltip-trigger"]') ? "" : cell.innerText.trim()
@@ -404,7 +419,7 @@ export function DataTable<TData, TValue>({
                         data-index={virtualRow.index}
                         ref={rowVirtualizer.measureElement}
                         data-state={row.getIsSelected() && "selected"}
-                        onClick={onRowClick ? () => onRowClick(row.original) : undefined}
+                        onClick={onRowClick ? (e) => handleRowClick(e, () => onRowClick(row.original)) : undefined}
                         className={onRowClick ? "cursor-pointer hover:bg-muted/50" : undefined}
                         style={{
                           display: "flex",
@@ -437,7 +452,7 @@ export function DataTable<TData, TValue>({
                     <Fragment key={row.id}>
                       <TableRow
                         data-state={row.getIsSelected() && "selected"}
-                        onClick={onRowClick ? () => onRowClick(row.original) : undefined}
+                        onClick={onRowClick ? (e) => handleRowClick(e, () => onRowClick(row.original)) : undefined}
                         className={onRowClick ? "cursor-pointer hover:bg-muted/50" : undefined}
                       >
                         {row.getVisibleCells().map((cell) => (

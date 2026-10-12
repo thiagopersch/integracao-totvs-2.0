@@ -2,17 +2,10 @@
 
 import { useMemo, useState } from "react"
 import type { ColumnDef } from "@tanstack/react-table"
-import { useForm, type Resolver } from "react-hook-form"
+import { useForm, type Resolver, type UseFormReturn } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { toast } from "sonner"
-import {
-  DndContext,
-  PointerSensor,
-  closestCenter,
-  useSensor,
-  useSensors,
-  type DragEndEvent,
-} from "@dnd-kit/core"
+import { DndContext, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core"
 import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
 import { GripVertical, ListOrdered, Loader2, Plus, Trash2 } from "lucide-react"
@@ -23,11 +16,15 @@ import { ConfirmDialog } from "@/components/shared/confirm-dialog"
 import { EntityActionsCell } from "@/components/shared/entity-actions-cell"
 import { createSelectColumn } from "@/components/shared/select-column"
 import { ColorBadge } from "@/components/shared/color-badge"
+import { CustomFieldPreview, type CustomFieldDraft } from "@/components/projects/custom-fields/custom-field-preview"
 import { WithTooltip } from "@/components/shared/with-tooltip"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
+import { DatePicker } from "@/components/ui/date-picker"
+import { TimePicker } from "@/components/ui/time-picker"
+import { CurrencyInput } from "@/components/ui/currency-input"
 import { Field, FieldDescription, FieldError, FieldLabel } from "@/components/ui/field"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
@@ -53,9 +50,11 @@ import {
   type CustomFieldDefinitionInput,
 } from "@/schemas/custom-field.schema"
 import {
+  CONFIG_KEYS_BY_TYPE,
   CUSTOM_FIELD_ENTITY_LABELS,
   CUSTOM_FIELD_TYPE_LABELS,
   OPTION_FIELD_TYPES,
+  type CustomFieldConfig,
   type CustomFieldDef,
   type CustomFieldEntity,
   type CustomFieldOption,
@@ -88,6 +87,7 @@ const EMPTY_FORM: CustomFieldDefinitionFormValues = {
   showInList: false,
   status: true,
   options: [],
+  config: {},
 }
 
 function newOption(index: number): CustomFieldOption {
@@ -102,7 +102,13 @@ function SortableRow({ id, children }: { id: string; children: React.ReactNode }
       style={{ transform: CSS.Transform.toString(transform), transition }}
       className={`flex items-center gap-2 rounded-md border bg-background p-1.5 ${isDragging ? "z-10 shadow-md" : ""}`}
     >
-      <button type="button" className="cursor-grab touch-none p-1 text-muted-foreground" aria-label="Arrastar" {...attributes} {...listeners}>
+      <button
+        type="button"
+        className="cursor-grab touch-none p-1 text-muted-foreground"
+        aria-label="Arrastar"
+        {...attributes}
+        {...listeners}
+      >
         <GripVertical className="h-4 w-4" />
       </button>
       {children}
@@ -170,6 +176,126 @@ function OptionsEditor({
   )
 }
 
+type DefinitionForm = UseFormReturn<CustomFieldDefinitionFormValues, unknown, CustomFieldDefinitionInput>
+
+/** "Validações" section: the rules that apply to the selected type (CONFIG_KEYS_BY_TYPE). */
+function ValidationRules({ form, type }: { form: DefinitionForm; type: CustomFieldType }) {
+  const keys = CONFIG_KEYS_BY_TYPE[type]
+  if (keys.length === 0) return null
+  const config = form.watch("config") ?? {}
+  const errors = (form.formState.errors.config ?? {}) as Record<string, { message?: string } | undefined>
+  const setConfig = (key: keyof CustomFieldConfig, value: unknown) =>
+    form.setValue("config", { ...config, [key]: value }, { shouldValidate: true })
+  const numberInput = (
+    key: "minLength" | "maxLength" | "min" | "max" | "minSelected" | "maxSelected",
+    label: string,
+    step = "1"
+  ) => (
+    <Field key={key}>
+      <FieldLabel htmlFor={`cfg-${key}`}>{label}</FieldLabel>
+      {type === "CURRENCY" && (key === "min" || key === "max") ? (
+        <CurrencyInput
+          id={`cfg-${key}`}
+          value={(config[key] as number | null | undefined) ?? null}
+          onValueChange={(v) => setConfig(key, v)}
+          aria-invalid={!!errors[key]}
+        />
+      ) : (
+        <Input
+          id={`cfg-${key}`}
+          type="number"
+          step={step}
+          min={key === "min" || key === "max" ? undefined : 0}
+          value={config[key] ?? ""}
+          onChange={(e) => setConfig(key, e.target.value === "" ? null : Number(e.target.value))}
+          placeholder="Sem limite"
+          aria-invalid={!!errors[key]}
+        />
+      )}
+      <FieldError errors={[errors[key]]} />
+    </Field>
+  )
+
+  return (
+    <div className="space-y-3 rounded-md border p-3">
+      <div>
+        <p className="text-sm font-medium">Validações</p>
+        <p className="text-xs text-muted-foreground">
+          Regras aplicadas ao preencher o campo nos formulários. Deixe em branco para não limitar.
+        </p>
+      </div>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        {keys.includes("placeholder") && (
+          <Field className="sm:col-span-2">
+            <FieldLabel htmlFor="cfg-placeholder">Texto de exemplo (placeholder)</FieldLabel>
+            <Input
+              id="cfg-placeholder"
+              value={config.placeholder ?? ""}
+              onChange={(e) => setConfig("placeholder", e.target.value)}
+            />
+          </Field>
+        )}
+        {keys.includes("minLength") && numberInput("minLength", "Mínimo de caracteres")}
+        {keys.includes("maxLength") && numberInput("maxLength", "Máximo de caracteres")}
+        {keys.includes("min") && numberInput("min", "Valor mínimo", "any")}
+        {keys.includes("max") && numberInput("max", "Valor máximo", "any")}
+        {keys.includes("minSelected") && numberInput("minSelected", "Mínimo de opções marcadas")}
+        {keys.includes("maxSelected") && numberInput("maxSelected", "Máximo de opções marcadas")}
+        {keys.includes("minDate") && (
+          <Field>
+            <FieldLabel>Data mínima</FieldLabel>
+            <DatePicker
+              value={config.minDate ?? ""}
+              onValueChange={(v) => setConfig("minDate", v)}
+              aria-invalid={!!errors.minDate}
+            />
+            <FieldError errors={[errors.minDate]} />
+          </Field>
+        )}
+        {keys.includes("maxDate") && (
+          <Field>
+            <FieldLabel>Data máxima</FieldLabel>
+            <DatePicker
+              value={config.maxDate ?? ""}
+              onValueChange={(v) => setConfig("maxDate", v)}
+              aria-invalid={!!errors.maxDate}
+            />
+            <FieldError errors={[errors.maxDate]} />
+          </Field>
+        )}
+        {keys.includes("minTime") && (
+          <Field>
+            <FieldLabel>Hora mínima</FieldLabel>
+            <TimePicker
+              value={config.minTime ?? ""}
+              onValueChange={(v) => setConfig("minTime", v)}
+              aria-invalid={!!errors.minTime}
+            />
+            <FieldError errors={[errors.minTime]} />
+          </Field>
+        )}
+        {keys.includes("maxTime") && (
+          <Field>
+            <FieldLabel>Hora máxima</FieldLabel>
+            <TimePicker
+              value={config.maxTime ?? ""}
+              onValueChange={(v) => setConfig("maxTime", v)}
+              aria-invalid={!!errors.maxTime}
+            />
+            <FieldError errors={[errors.maxTime]} />
+          </Field>
+        )}
+        {keys.includes("integer") && (
+          <Field orientation="horizontal" className="sm:col-span-2">
+            <Switch id="cfg-integer" checked={!!config.integer} onCheckedChange={(c) => setConfig("integer", c)} />
+            <FieldLabel htmlFor="cfg-integer">Somente números inteiros</FieldLabel>
+          </Field>
+        )}
+      </div>
+    </div>
+  )
+}
+
 function ReorderDialog({ orderLists }: { orderLists: Record<CustomFieldEntity, CustomFieldDef[]> }) {
   const { refresh } = useUrlParams()
   const [open, setOpen] = useState(false)
@@ -186,7 +312,13 @@ function ReorderDialog({ orderLists }: { orderLists: Record<CustomFieldEntity, C
   function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event
     if (!over || active.id === over.id) return
-    setItems((prev) => arrayMove(prev, prev.findIndex((d) => d.id === active.id), prev.findIndex((d) => d.id === over.id)))
+    setItems((prev) =>
+      arrayMove(
+        prev,
+        prev.findIndex((d) => d.id === active.id),
+        prev.findIndex((d) => d.id === over.id)
+      )
+    )
   }
 
   async function save() {
@@ -194,7 +326,7 @@ function ReorderDialog({ orderLists }: { orderLists: Record<CustomFieldEntity, C
     const result = await reorderCustomFieldDefinitions({ entity, ids: items.map((d) => d.id) })
     setSaving(false)
     if (result.success) {
-      toast.success("Ordem dos campos salva")
+      toast.success("Ordem das propriedades salva")
       setOpen(false)
       refresh()
     } else toast.error(result.error || "Erro ao salvar ordem")
@@ -208,10 +340,16 @@ function ReorderDialog({ orderLists }: { orderLists: Record<CustomFieldEntity, C
         if (next) selectEntity(entity)
       }}
     >
-      <DialogTrigger render={<Button variant="outline"><ListOrdered className="mr-2 h-4 w-4" /> Ordenar campos</Button>} />
+      <DialogTrigger
+        render={
+          <Button variant="outline">
+            <ListOrdered className="mr-2 h-4 w-4" /> Ordenar propriedades
+          </Button>
+        }
+      />
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Ordem dos campos no formulário</DialogTitle>
+          <DialogTitle>Ordem das propriedades no formulário</DialogTitle>
         </DialogHeader>
         <DialogBody>
           <Field>
@@ -226,13 +364,15 @@ function ReorderDialog({ orderLists }: { orderLists: Record<CustomFieldEntity, C
               </SelectTrigger>
               <SelectContent>
                 {Object.entries(CUSTOM_FIELD_ENTITY_LABELS).map(([value, label]) => (
-                  <SelectItem key={value} value={value}>{label}</SelectItem>
+                  <SelectItem key={value} value={value}>
+                    {label}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </Field>
           {items.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Nenhum campo ativo para esta entidade.</p>
+            <p className="text-sm text-muted-foreground">Nenhuma propriedade ativa para esta entidade.</p>
           ) : (
             <div className="space-y-1.5">
               <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
@@ -249,7 +389,9 @@ function ReorderDialog({ orderLists }: { orderLists: Record<CustomFieldEntity, C
           )}
         </DialogBody>
         <DialogFooter>
-          <Button variant="outline" onClick={() => setOpen(false)} disabled={saving}>Cancelar</Button>
+          <Button variant="outline" onClick={() => setOpen(false)} disabled={saving}>
+            Cancelar
+          </Button>
           <Button onClick={save} disabled={saving || items.length === 0}>
             {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Salvar ordem
@@ -277,7 +419,7 @@ export function CustomFieldDefinitionTable({ data, meta, orderLists }: CustomFie
   } = useCrudTable<CustomFieldDefinitionRow>({
     deleteAction: deleteCustomFieldDefinition,
     setStatusAction: setCustomFieldDefinitionStatus,
-    deleteSuccessMessage: "Campo excluído com sucesso",
+    deleteSuccessMessage: "Propriedade excluída com sucesso",
     defaultSort: { field: "position", direction: "asc" },
   })
   const canCreate = useHasPermission("project_custom_fields", "create")
@@ -291,7 +433,11 @@ export function CustomFieldDefinitionTable({ data, meta, orderLists }: CustomFie
   const editing = editDialog.entity
   const form = useForm<CustomFieldDefinitionFormValues, unknown, CustomFieldDefinitionInput>({
     mode: "onChange",
-    resolver: zodResolver(customFieldDefinitionSchema) as Resolver<CustomFieldDefinitionFormValues, unknown, CustomFieldDefinitionInput>,
+    resolver: zodResolver(customFieldDefinitionSchema) as Resolver<
+      CustomFieldDefinitionFormValues,
+      unknown,
+      CustomFieldDefinitionInput
+    >,
     values: editing
       ? {
           entity: editing.entity,
@@ -302,6 +448,7 @@ export function CustomFieldDefinitionTable({ data, meta, orderLists }: CustomFie
           showInList: editing.showInList,
           status: editing.status,
           options: editing.options ?? [],
+          config: editing.config ?? {},
         }
       : EMPTY_FORM,
   })
@@ -311,13 +458,12 @@ export function CustomFieldDefinitionTable({ data, meta, orderLists }: CustomFie
 
   async function onSubmit(values: CustomFieldDefinitionInput) {
     setLoading(true)
-    const payload = { ...values, options: hasOptions ? values.options : [] }
     const result = editing
-      ? await updateCustomFieldDefinition(editing.id, payload)
-      : await createCustomFieldDefinition(payload)
+      ? await updateCustomFieldDefinition(editing.id, values)
+      : await createCustomFieldDefinition(values)
     setLoading(false)
     if (result.success) {
-      toast.success(editing ? "Campo atualizado" : "Campo criado")
+      toast.success(editing ? "Propriedade atualizada" : "Propriedade criada")
       form.reset(EMPTY_FORM)
       setEditDialog({ open: false })
       refresh()
@@ -331,7 +477,7 @@ export function CustomFieldDefinitionTable({ data, meta, orderLists }: CustomFie
       createSelectColumn<CustomFieldDefinitionRow>(),
       {
         accessorKey: "label",
-        header: "Campo",
+        header: "Propriedade",
         cell: ({ row }) => (
           <div className="flex flex-col">
             <span className="font-medium">
@@ -346,7 +492,10 @@ export function CustomFieldDefinitionTable({ data, meta, orderLists }: CustomFie
         accessorKey: "entity",
         header: "Entidade",
         cell: ({ row }) => (
-          <ColorBadge label={CUSTOM_FIELD_ENTITY_LABELS[row.original.entity]} color={ENTITY_COLORS[row.original.entity]} />
+          <ColorBadge
+            label={CUSTOM_FIELD_ENTITY_LABELS[row.original.entity]}
+            color={ENTITY_COLORS[row.original.entity]}
+          />
         ),
       },
       {
@@ -395,7 +544,10 @@ export function CustomFieldDefinitionTable({ data, meta, orderLists }: CustomFie
         accessorKey: "status",
         header: "Status",
         cell: ({ row }) => (
-          <ColorBadge label={row.original.status ? "Ativo" : "Inativo"} color={row.original.status ? "#22c55e" : "#6b7280"} />
+          <ColorBadge
+            label={row.original.status ? "Ativo" : "Inativo"}
+            color={row.original.status ? "#22c55e" : "#6b7280"}
+          />
         ),
       },
     ]
@@ -424,100 +576,158 @@ export function CustomFieldDefinitionTable({ data, meta, orderLists }: CustomFie
         if (!open) form.reset(EMPTY_FORM)
       }}
     >
-      <DialogTrigger render={<Button><Plus className="mr-2 h-4 w-4" /> Novo Campo</Button>} />
-      <DialogContent className="sm:max-w-lg">
+      <DialogTrigger
+        render={
+          <Button>
+            <Plus className="mr-2 h-4 w-4" /> Nova Propriedade
+          </Button>
+        }
+      />
+      <DialogContent className="sm:max-w-lg lg:max-w-5xl">
         <DialogHeader>
-          <DialogTitle>{editing ? "Editar Campo" : "Novo Campo Personalizado"}</DialogTitle>
+          <DialogTitle>{editing ? "Editar Propriedade" : "Nova Propriedade"}</DialogTitle>
         </DialogHeader>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="flex min-h-0 flex-1 flex-col overflow-hidden">
-          <DialogBody>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <Field>
-                <FieldLabel>Aplica-se a</FieldLabel>
-                <Select
-                  items={Object.entries(CUSTOM_FIELD_ENTITY_LABELS).map(([value, label]) => ({ value, label }))}
-                  value={form.watch("entity")}
-                  onValueChange={(v) => v && form.setValue("entity", v as CustomFieldEntity, { shouldValidate: true })}
-                  disabled={lockedType}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {Object.entries(CUSTOM_FIELD_ENTITY_LABELS).map(([value, label]) => (
-                      <SelectItem key={value} value={value}>{label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </Field>
-              <Field>
-                <FieldLabel>Tipo</FieldLabel>
-                <Select
-                  items={Object.entries(CUSTOM_FIELD_TYPE_LABELS).map(([value, label]) => ({ value, label }))}
-                  value={type}
-                  onValueChange={(v) => {
-                    if (!v) return
-                    form.setValue("type", v as CustomFieldType, { shouldValidate: true })
-                    if (OPTION_FIELD_TYPES.includes(v as CustomFieldType) && !(form.getValues("options") ?? []).length) {
-                      form.setValue("options", [newOption(0), newOption(1)])
+        <form
+          onSubmit={form.handleSubmit(onSubmit, (errors) =>
+            toast.error(
+              (errors.options as { message?: string } | undefined)?.message ||
+                (Object.values(errors.config ?? {}) as ({ message?: string } | undefined)[]).find((e) => e?.message)
+                  ?.message ||
+                "Verifique os campos destacados"
+            )
+          )}
+          className="flex min-h-0 flex-1 flex-col overflow-hidden"
+        >
+          <DialogBody className="lg:grid lg:grid-cols-[minmax(0,1fr)_360px] lg:gap-6 lg:space-y-0">
+            <div className="min-w-0 space-y-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <Field>
+                  <FieldLabel>Aplica-se a</FieldLabel>
+                  <Select
+                    items={Object.entries(CUSTOM_FIELD_ENTITY_LABELS).map(([value, label]) => ({ value, label }))}
+                    value={form.watch("entity")}
+                    onValueChange={(v) =>
+                      v && form.setValue("entity", v as CustomFieldEntity, { shouldValidate: true })
                     }
-                  }}
-                  disabled={lockedType}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {Object.entries(CUSTOM_FIELD_TYPE_LABELS).map(([value, label]) => (
-                      <SelectItem key={value} value={value}>{label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </Field>
-            </div>
-            {lockedType && (
-              <FieldDescription>
-                Tipo e entidade não podem ser alterados: o campo já tem valor em {editing?.usageCount} registro(s).
-              </FieldDescription>
-            )}
-            <Field>
-              <FieldLabel htmlFor="label">Nome do campo</FieldLabel>
-              <Input id="label" {...form.register("label")} placeholder="Ex.: Centro de custo" aria-invalid={!!form.formState.errors.label} />
-              <FieldError errors={[form.formState.errors.label]} />
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="helpText">Texto de ajuda (opcional)</FieldLabel>
-              <Input id="helpText" {...form.register("helpText")} placeholder="Exibido abaixo do campo no formulário" />
-              <FieldError errors={[form.formState.errors.helpText]} />
-            </Field>
-            {hasOptions && (
+                    disabled={lockedType}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Object.entries(CUSTOM_FIELD_ENTITY_LABELS).map(([value, label]) => (
+                        <SelectItem key={value} value={value}>
+                          {label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </Field>
+                <Field>
+                  <FieldLabel>Tipo</FieldLabel>
+                  <Select
+                    items={Object.entries(CUSTOM_FIELD_TYPE_LABELS).map(([value, label]) => ({ value, label }))}
+                    value={type}
+                    onValueChange={(v) => {
+                      if (!v) return
+                      form.setValue("type", v as CustomFieldType, { shouldValidate: true })
+                      // Options/rules only belong to some types — reset them so leftovers of the
+                      // previous type never block saving.
+                      form.setValue("config", {})
+                      if (!OPTION_FIELD_TYPES.includes(v as CustomFieldType)) form.setValue("options", [])
+                      else if (!(form.getValues("options") ?? []).length)
+                        form.setValue("options", [newOption(0), newOption(1)])
+                      form.clearErrors(["options", "config"])
+                    }}
+                    disabled={lockedType}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Object.entries(CUSTOM_FIELD_TYPE_LABELS).map(([value, label]) => (
+                        <SelectItem key={value} value={value}>
+                          {label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </Field>
+              </div>
+              {lockedType && (
+                <FieldDescription>
+                  Tipo e entidade não podem ser alterados: a propriedade já tem valor em {editing?.usageCount}{" "}
+                  registro(s).
+                </FieldDescription>
+              )}
               <Field>
-                <FieldLabel>Opções</FieldLabel>
-                <OptionsEditor
-                  value={(form.watch("options") ?? []) as CustomFieldOption[]}
-                  onChange={(options) => form.setValue("options", options, { shouldValidate: true })}
-                  invalid={!!form.formState.errors.options}
+                <FieldLabel htmlFor="label">Nome da propriedade</FieldLabel>
+                <Input
+                  id="label"
+                  {...form.register("label")}
+                  placeholder="Ex.: Centro de custo"
+                  aria-invalid={!!form.formState.errors.label}
                 />
-                <FieldError errors={[form.formState.errors.options as { message?: string } | undefined]} />
+                <FieldError errors={[form.formState.errors.label]} />
               </Field>
-            )}
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-              <Field orientation="horizontal">
-                <Switch id="required" checked={!!form.watch("required")} onCheckedChange={(c) => form.setValue("required", c)} />
-                <FieldLabel htmlFor="required">Obrigatório</FieldLabel>
+              <Field>
+                <FieldLabel htmlFor="helpText">Texto de ajuda (opcional)</FieldLabel>
+                <Input
+                  id="helpText"
+                  {...form.register("helpText")}
+                  placeholder="Exibido abaixo do campo no formulário"
+                />
+                <FieldError errors={[form.formState.errors.helpText]} />
               </Field>
-              <Field orientation="horizontal">
-                <Switch id="showInList" checked={!!form.watch("showInList")} onCheckedChange={(c) => form.setValue("showInList", c)} />
-                <FieldLabel htmlFor="showInList">Coluna na listagem</FieldLabel>
-              </Field>
-              <Field orientation="horizontal">
-                <Switch id="status" checked={!!form.watch("status")} onCheckedChange={(c) => form.setValue("status", c)} />
-                <FieldLabel htmlFor="status">Ativo</FieldLabel>
-              </Field>
+              {hasOptions && (
+                <Field>
+                  <FieldLabel>Opções</FieldLabel>
+                  <OptionsEditor
+                    value={(form.watch("options") ?? []) as CustomFieldOption[]}
+                    onChange={(options) => form.setValue("options", options, { shouldValidate: true })}
+                    invalid={!!form.formState.errors.options}
+                  />
+                  <FieldError errors={[form.formState.errors.options as { message?: string } | undefined]} />
+                </Field>
+              )}
+              <ValidationRules form={form} type={type} />
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                <Field orientation="horizontal">
+                  <Switch
+                    id="required"
+                    checked={!!form.watch("required")}
+                    onCheckedChange={(c) => form.setValue("required", c)}
+                  />
+                  <FieldLabel htmlFor="required">
+                    {type === "CHECKBOX" ? "Obrigatório marcar" : "Obrigatório"}
+                  </FieldLabel>
+                </Field>
+                <Field orientation="horizontal">
+                  <Switch
+                    id="showInList"
+                    checked={!!form.watch("showInList")}
+                    onCheckedChange={(c) => form.setValue("showInList", c)}
+                  />
+                  <FieldLabel htmlFor="showInList">Coluna na listagem</FieldLabel>
+                </Field>
+                <Field orientation="horizontal">
+                  <Switch
+                    id="status"
+                    checked={!!form.watch("status")}
+                    onCheckedChange={(c) => form.setValue("status", c)}
+                  />
+                  <FieldLabel htmlFor="status">Ativo</FieldLabel>
+                </Field>
+              </div>
             </div>
+            <aside className="mt-4 rounded-lg border bg-muted/30 p-4 lg:sticky lg:top-0 lg:mt-0 lg:self-start">
+              <CustomFieldPreview draft={form.watch() as CustomFieldDraft} />
+            </aside>
           </DialogBody>
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setEditDialog({ open: false })} disabled={loading}>Cancelar</Button>
+            <Button type="button" variant="outline" onClick={() => setEditDialog({ open: false })} disabled={loading}>
+              Cancelar
+            </Button>
             <Button type="submit" disabled={loading}>
               {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Salvar
@@ -530,7 +740,14 @@ export function CustomFieldDefinitionTable({ data, meta, orderLists }: CustomFie
 
   const filterPanel = (
     <DataTableFilterPanel
-      onApply={() => pushParams({ entity: entityFilter || undefined, type: typeFilter || undefined, status: statusFilter || undefined, page: 1 })}
+      onApply={() =>
+        pushParams({
+          entity: entityFilter || undefined,
+          type: typeFilter || undefined,
+          status: statusFilter || undefined,
+          page: 1,
+        })
+      }
       onClear={() => {
         setEntityFilter("")
         setTypeFilter("")
@@ -541,15 +758,22 @@ export function CustomFieldDefinitionTable({ data, meta, orderLists }: CustomFie
       <div className="space-y-2">
         <Label>Entidade</Label>
         <Select
-          items={[{ value: "all", label: "Todas" }, ...Object.entries(CUSTOM_FIELD_ENTITY_LABELS).map(([value, label]) => ({ value, label }))]}
+          items={[
+            { value: "all", label: "Todas" },
+            ...Object.entries(CUSTOM_FIELD_ENTITY_LABELS).map(([value, label]) => ({ value, label })),
+          ]}
           value={entityFilter || "all"}
           onValueChange={(v) => setEntityFilter(!v || v === "all" ? "" : v)}
         >
-          <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+          <SelectTrigger className="w-full">
+            <SelectValue />
+          </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todas</SelectItem>
             {Object.entries(CUSTOM_FIELD_ENTITY_LABELS).map(([value, label]) => (
-              <SelectItem key={value} value={value}>{label}</SelectItem>
+              <SelectItem key={value} value={value}>
+                {label}
+              </SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -557,15 +781,22 @@ export function CustomFieldDefinitionTable({ data, meta, orderLists }: CustomFie
       <div className="space-y-2">
         <Label>Tipo</Label>
         <Select
-          items={[{ value: "all", label: "Todos" }, ...Object.entries(CUSTOM_FIELD_TYPE_LABELS).map(([value, label]) => ({ value, label }))]}
+          items={[
+            { value: "all", label: "Todos" },
+            ...Object.entries(CUSTOM_FIELD_TYPE_LABELS).map(([value, label]) => ({ value, label })),
+          ]}
           value={typeFilter || "all"}
           onValueChange={(v) => setTypeFilter(!v || v === "all" ? "" : v)}
         >
-          <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+          <SelectTrigger className="w-full">
+            <SelectValue />
+          </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todos</SelectItem>
             {Object.entries(CUSTOM_FIELD_TYPE_LABELS).map(([value, label]) => (
-              <SelectItem key={value} value={value}>{label}</SelectItem>
+              <SelectItem key={value} value={value}>
+                {label}
+              </SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -573,11 +804,17 @@ export function CustomFieldDefinitionTable({ data, meta, orderLists }: CustomFie
       <div className="space-y-2">
         <Label>Status</Label>
         <Select
-          items={[{ value: "all", label: "Todos" }, { value: "true", label: "Ativo" }, { value: "false", label: "Inativo" }]}
+          items={[
+            { value: "all", label: "Todos" },
+            { value: "true", label: "Ativo" },
+            { value: "false", label: "Inativo" },
+          ]}
           value={statusFilter || "all"}
           onValueChange={(v) => setStatusFilter(!v || v === "all" ? "" : v)}
         >
-          <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+          <SelectTrigger className="w-full">
+            <SelectValue />
+          </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todos</SelectItem>
             <SelectItem value="true">Ativo</SelectItem>
@@ -591,47 +828,48 @@ export function CustomFieldDefinitionTable({ data, meta, orderLists }: CustomFie
   return (
     <>
       <PageHeader
-        title="Campos personalizados"
-        description="Campos complementares de Projetos e Tarefas — criados aqui, sem alterar o banco de dados"
+        title="Propriedades"
+        description="Propriedades complementares de Projetos e Tarefas — criadas aqui, sem alterar o banco de dados"
       >
         {canUpdate && <ReorderDialog orderLists={orderLists} />}
       </PageHeader>
 
       <DataTable
-          refreshing={isPending}
-          columns={columns}
-          data={data}
-          page={meta.page}
-          pageSize={meta.pageSize}
-          total={meta.total}
-          pageCount={meta.totalPages}
-          onPageChange={(p) => pushParams({ page: p })}
-          onPageSizeChange={(ps) => pushParams({ pageSize: ps, page: 1 })}
-          searchPlaceholder="Buscar campo..."
-          onSearch={(v) => pushParams({ search: v || undefined, page: 1 })}
-          toolbarActions={canCreate ? formDialog : undefined}
-          filterPanel={filterPanel}
-          sort={sort}
-          onSortChange={onSortChange}
-          sortableColumns={SORTABLE_COLUMNS}
-          bulkDelete={
-            canDelete
-              ? {
-                  getId: (row) => row.id,
-                  getRowLabel: (row) => row.label,
-                  action: bulkDeleteCustomFieldDefinitions,
-                  confirmDescription: (count) => `Excluir ${count} campo(s)? Campos com valores preenchidos não serão excluídos — desative-os.`,
-                  onSuccess: () => refresh(),
-                }
-              : undefined
-          }
-        />
+        refreshing={isPending}
+        columns={columns}
+        data={data}
+        page={meta.page}
+        pageSize={meta.pageSize}
+        total={meta.total}
+        pageCount={meta.totalPages}
+        onPageChange={(p) => pushParams({ page: p })}
+        onPageSizeChange={(ps) => pushParams({ pageSize: ps, page: 1 })}
+        searchPlaceholder="Buscar propriedade..."
+        onSearch={(v) => pushParams({ search: v || undefined, page: 1 })}
+        toolbarActions={canCreate ? formDialog : undefined}
+        filterPanel={filterPanel}
+        sort={sort}
+        onSortChange={onSortChange}
+        sortableColumns={SORTABLE_COLUMNS}
+        bulkDelete={
+          canDelete
+            ? {
+                getId: (row) => row.id,
+                getRowLabel: (row) => row.label,
+                action: bulkDeleteCustomFieldDefinitions,
+                confirmDescription: (count) =>
+                  `Excluir ${count} propriedade(s)? Propriedades com valores preenchidos não serão excluídas — desative-as.`,
+                onSuccess: () => refresh(),
+              }
+            : undefined
+        }
+      />
 
       <ConfirmDialog
         open={deleteDialog.open}
         onOpenChange={(open) => setDeleteDialog({ open, id: deleteDialog.id })}
-        title="Excluir Campo"
-        description="Tem certeza que deseja excluir este campo? Campos com valores preenchidos não podem ser excluídos — desative-os."
+        title="Excluir Propriedade"
+        description="Tem certeza que deseja excluir esta propriedade? Propriedades com valores preenchidos não podem ser excluídas — desative-as."
         confirmLabel="Excluir"
         variant="destructive"
         onConfirm={() => deleteDialog.id && handleDelete(deleteDialog.id)}

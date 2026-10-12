@@ -24,7 +24,7 @@ import {
   DropdownMenuSubTrigger,
 } from "@/components/ui/dropdown-menu"
 import { OptionSelect, toOptions } from "@/components/projects/option-select"
-import { ProjectFormDialog, type ProjectPickerOptions } from "@/components/projects/project-form-dialog"
+import type { ProjectPickerOptions } from "@/components/projects/project-settings-form"
 import { PriorityBadge, ProgressCell, ProjectHealthBadge, ProjectStatusBadge } from "@/components/projects/project-badges"
 import { CustomFieldValueView } from "@/components/projects/custom-fields/custom-field-value"
 import { bulkDeleteProjects, deleteProject, setProjectLifecycleStatus } from "@/actions/projects"
@@ -67,15 +67,13 @@ const BASE_SORTABLE = [
 ]
 
 /** Custom field types that make sense as an exact-match filter in the panel. */
-const FILTERABLE_TYPES = new Set(["SELECT", "MULTISELECT", "BOOLEAN", "USER", "TEXT"])
+const FILTERABLE_TYPES = new Set(["SELECT", "MULTISELECT", "CHECKBOX_GROUP", "BOOLEAN", "CHECKBOX", "USER", "TEXT"])
 
 export function ProjectTable({ data, meta, options, defs }: ProjectTableProps) {
   const {
     searchParams,
     deleteDialog,
     setDeleteDialog,
-    editDialog,
-    setEditDialog,
     pushParams,
     refresh,
     isPending,
@@ -231,7 +229,8 @@ export function ProjectTable({ data, meta, options, defs }: ProjectTableProps) {
               )}
             </>
           }
-          onEdit={canUpdate ? () => setEditDialog({ open: true, entity: row.original }) : undefined}
+          onEdit={canUpdate ? () => router.push(`/projetos/gestao/${row.original.id}/configuracoes`) : undefined}
+          editLabel="Configurações"
           onDelete={canDelete ? () => setDeleteDialog({ open: true, id: row.original.id }) : undefined}
         />
       ),
@@ -294,7 +293,7 @@ export function ProjectTable({ data, meta, options, defs }: ProjectTableProps) {
             ) : (
               <OptionSelect
                 options={
-                  def.type === "BOOLEAN"
+                  def.type === "BOOLEAN" || def.type === "CHECKBOX"
                     ? [{ value: "true", label: "Sim" }, { value: "false", label: "Não" }]
                     : def.type === "USER"
                       ? options.users.map((u) => ({ value: u.id, label: u.name }))
@@ -331,7 +330,7 @@ export function ProjectTable({ data, meta, options, defs }: ProjectTableProps) {
         onRowClick={(row) => router.push(`/projetos/gestao/${row.id}`)}
         toolbarActions={
           canCreate ? (
-            <Button onClick={() => setEditDialog({ open: true })}>
+            <Button onClick={() => router.push("/projetos/gestao/novo")}>
               <Plus className="mr-2 h-4 w-4" /> Novo Projeto
             </Button>
           ) : undefined
@@ -353,15 +352,6 @@ export function ProjectTable({ data, meta, options, defs }: ProjectTableProps) {
               }
             : undefined
         }
-      />
-
-      <ProjectFormDialog
-        open={editDialog.open}
-        onOpenChange={(open) => setEditDialog({ open, entity: open ? editDialog.entity : undefined })}
-        project={editDialog.entity}
-        options={options}
-        defs={defs}
-        onSaved={(id) => (editDialog.entity ? refresh() : id ? router.push(`/projetos/gestao/${id}`) : refresh())}
       />
 
       <ConfirmDialog

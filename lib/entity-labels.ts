@@ -50,7 +50,7 @@ export const ENTITY_LABELS: Record<string, string> = {
   ProjectTaskChecklistItem: "Checklist de Tarefa",
   ProjectTaskTag: "Tags de Tarefa",
   ProjectRisk: "Riscos de Projeto",
-  CustomFieldDefinition: "Campos Personalizados",
+  CustomFieldDefinition: "Propriedades",
   ProjectTaskDueAlert: "Alertas de Prazo",
 };
 

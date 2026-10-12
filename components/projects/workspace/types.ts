@@ -4,6 +4,7 @@ import type { ProjectDashboardData } from "@/services/project-dashboard.service"
 import type { projectService } from "@/services/project.service"
 
 export type { ProjectRow, ProjectTaskDTO, ProjectDashboardData }
+export type { StageRef, PhaseRef } from "@/lib/projects"
 
 export type TaskDetail = NonNullable<Awaited<ReturnType<typeof projectTaskService.getDetail>>>
 export type TaskOptions = Awaited<ReturnType<typeof projectTaskService.listOptions>>
@@ -15,12 +16,14 @@ export type TeamMember = { id: string; name: string; image?: string | null }
 export type WorkspaceActions = {
   openTask: (taskId: string) => void
   newTask: (defaults?: NewTaskDefaults) => void
-  logTime: (taskId: string) => void
+  /** Opens the shared demand form linked to the project (and the task, when given). */
+  logTime: (taskId?: string) => void
   refresh: () => void
 }
 
 export type NewTaskDefaults = {
-  status?: ProjectTaskDTO["status"]
+  stageId?: string
+  phaseId?: string
   parentId?: string
   startDate?: string
   dueDate?: string

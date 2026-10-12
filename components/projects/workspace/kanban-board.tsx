@@ -24,23 +24,14 @@ import { Button } from "@/components/ui/button"
 import { ColorBadge } from "@/components/shared/color-badge"
 import { DueDateLabel, PriorityDot, TaskMeta, UserAvatar } from "@/components/projects/workspace/task-card-bits"
 import { moveProjectTask, quickCreateProjectTask } from "@/actions/project-tasks"
-import {
-  PRIORITIES,
-  PRIORITY_LABELS,
-  TASK_STATUSES,
-  TASK_STATUS_COLORS,
-  TASK_STATUS_LABELS,
-  taskKey,
-  type ProjectSettings,
-  type TaskStatus,
-} from "@/lib/projects"
+import { PRIORITIES, PRIORITY_LABELS, taskKey, type ProjectSettings, type StageRef } from "@/lib/projects"
 import type { Swimlane } from "@/lib/project-workspace-params"
 import { cn } from "@/lib/utils"
 import type { ProjectTaskDTO, WorkspaceActions } from "@/components/projects/workspace/types"
 
 const SEP = "::"
-const containerId = (lane: string, status: TaskStatus) => `${lane}${SEP}${status}`
-const statusOf = (container: string) => container.split(SEP)[1] as TaskStatus
+const containerId = (lane: string, stageId: string) => `${lane}${SEP}${stageId}`
+const stageOf = (container: string) => container.split(SEP)[1]
 
 type Lane = { id: string; label: string }
 
@@ -49,7 +40,8 @@ interface KanbanBoardProps {
   projectCode: string
   tasks: ProjectTaskDTO[]
   settings: ProjectSettings
-  statuses: TaskStatus[]
+  /** Visible workflow stages (kanban columns), in order. */
+  stages: StageRef[]
   swimlane: Swimlane
   today: string
   canCreate: boolean
@@ -63,12 +55,13 @@ function laneKey(task: ProjectTaskDTO, swimlane: Swimlane) {
   return "all"
 }
 
-function buildColumns(tasks: ProjectTaskDTO[], lanes: Lane[], statuses: TaskStatus[], swimlane: Swimlane) {
+function buildColumns(tasks: ProjectTaskDTO[], lanes: Lane[], stages: StageRef[], swimlane: Swimlane) {
   const columns: Record<string, string[]> = {}
-  for (const lane of lanes) for (const status of statuses) columns[containerId(lane.id, status)] = []
+  for (const lane of lanes) for (const stage of stages) columns[containerId(lane.id, stage.id)] = []
   const sorted = [...tasks].sort((a, b) => a.boardPosition - b.boardPosition || a.number - b.number)
   for (const task of sorted) {
-    const key = containerId(laneKey(task, swimlane), task.status)
+    if (!task.stageId) continue
+    const key = containerId(laneKey(task, swimlane), task.stageId)
     if (columns[key]) columns[key].push(task.id)
   }
   return columns
@@ -141,7 +134,7 @@ function SortableCard(props: { task: ProjectTaskDTO; projectCode: string; today:
 
 function Column({
   id,
-  status,
+  stage,
   ids,
   tasksById,
   limit,
@@ -154,7 +147,7 @@ function Column({
   onQuickAdd,
 }: {
   id: string
-  status: TaskStatus
+  stage: StageRef
   ids: string[]
   tasksById: Map<string, ProjectTaskDTO>
   limit?: number
@@ -164,7 +157,7 @@ function Column({
   canCreate: boolean
   canUpdate: boolean
   onOpen: (id: string) => void
-  onQuickAdd: (status: TaskStatus, title: string) => Promise<boolean>
+  onQuickAdd: (stageId: string, title: string) => Promise<boolean>
 }) {
   const { setNodeRef, isOver } = useDroppable({ id })
   const [adding, setAdding] = useState(false)
@@ -172,11 +165,14 @@ function Column({
   const exceeded = !!limit && ids.length > limit
 
   return (
-    <div className={cn("flex w-72 shrink-0 flex-col rounded-lg bg-muted/40", exceeded && "ring-1 ring-destructive/60")}>
+    <div
+      className={cn("flex w-72 shrink-0 flex-col rounded-lg bg-muted/40", exceeded && "ring-1 ring-destructive/60")}
+      style={{ borderTop: `3px solid ${stage.color}` }}
+    >
       {showHeader && (
         <div className="flex items-center gap-2 border-b px-3 py-2">
-          <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: TASK_STATUS_COLORS[status] }} />
-          <span className="text-sm font-medium">{TASK_STATUS_LABELS[status]}</span>
+          <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: stage.color }} />
+          <span className="truncate text-sm font-medium">{stage.name}</span>
           <span className={cn("ml-auto text-xs tabular-nums", exceeded ? "font-semibold text-destructive" : "text-muted-foreground")}>
             {ids.length}
             {limit ? ` / ${limit}` : ""}
@@ -198,7 +194,7 @@ function Column({
               onSubmit={async (e) => {
                 e.preventDefault()
                 if (!title.trim()) return setAdding(false)
-                if (await onQuickAdd(status, title)) setTitle("")
+                if (await onQuickAdd(stage.id, title)) setTitle("")
               }}
             >
               <Input
@@ -221,7 +217,7 @@ function Column({
   )
 }
 
-export function KanbanBoard({ projectId, projectCode, tasks, settings, statuses, swimlane, today, canCreate, canUpdate, actions }: KanbanBoardProps) {
+export function KanbanBoard({ projectId, projectCode, tasks, settings, stages, swimlane, today, canCreate, canUpdate, actions }: KanbanBoardProps) {
   const router = useRouter()
   const [, startTransition] = useTransition()
   const tasksById = useMemo(() => new Map(tasks.map((t) => [t.id, t])), [tasks])
@@ -240,7 +236,7 @@ export function KanbanBoard({ projectId, projectCode, tasks, settings, statuses,
 
   // Server data wins whenever it changes (after a refresh or a filter change); local state only
   // holds the optimistic order while dragging.
-  const base = useMemo(() => buildColumns(tasks, lanes, statuses, swimlane), [tasks, lanes, statuses, swimlane])
+  const base = useMemo(() => buildColumns(tasks, lanes, stages, swimlane), [tasks, lanes, stages, swimlane])
   const [board, setBoard] = useState({ base, columns: base })
   if (board.base !== base) setBoard({ base, columns: base })
   const columns = board.columns
@@ -289,7 +285,7 @@ export function KanbanBoard({ projectId, projectCode, tasks, settings, statuses,
     const id = String(active.id)
     setActiveId(null)
     const container = findContainer(id)
-    if (!over || !container) return setColumns(buildColumns(tasks, lanes, statuses, swimlane))
+    if (!over || !container) return setColumns(buildColumns(tasks, lanes, stages, swimlane))
 
     // Reorder inside the final container.
     let ids = columns[container]
@@ -303,35 +299,36 @@ export function KanbanBoard({ projectId, projectCode, tasks, settings, statuses,
     }
 
     const task = tasksById.get(id)!
-    const status = statusOf(container)
+    const stageId = stageOf(container)
+    const stage = stages.find((s) => s.id === stageId)!
     const index = ids.indexOf(id)
     const beforeId = index > 0 ? ids[index - 1] : null
     const afterId = index < ids.length - 1 ? ids[index + 1] : null
-    if (status === task.status && origin === container && activeIndex === index) return
+    if (stageId === task.stageId && origin === container && activeIndex === index) return
 
     // WIP limit (column total across lanes, without the moved card).
-    const limit = settings.wipLimits?.[status]
-    if (limit && settings.wipEnforced && status !== task.status) {
-      const inColumn = tasks.filter((t) => t.status === status).length
+    const limit = stage.wipLimit
+    if (limit && settings.wipEnforced && stageId !== task.stageId) {
+      const inColumn = tasks.filter((t) => t.stageId === stageId).length
       if (inColumn >= limit) {
-        toast.error(`Limite WIP de "${TASK_STATUS_LABELS[status]}" atingido (${limit}).`)
-        return setColumns(buildColumns(tasks, lanes, statuses, swimlane))
+        toast.error(`Limite WIP de "${stage.name}" atingido (${limit}).`)
+        return setColumns(buildColumns(tasks, lanes, stages, swimlane))
       }
     }
     if (swimlane !== "none" && origin && origin.split(SEP)[0] !== container.split(SEP)[0]) {
       toast.info("Mover entre raias altera apenas o status — edite a tarefa para trocar responsável ou prioridade.")
     }
 
-    const result = await moveProjectTask(projectId, id, { status, beforeId, afterId })
+    const result = await moveProjectTask(projectId, id, { stageId, beforeId, afterId })
     if (!result.success) {
       toast.error(result.error || "Erro ao mover tarefa")
-      setColumns(buildColumns(tasks, lanes, statuses, swimlane))
+      setColumns(buildColumns(tasks, lanes, stages, swimlane))
     } else if (result.warning) toast.warning(result.warning)
     refresh()
   }
 
-  async function quickAdd(status: TaskStatus, title: string, lane: string) {
-    const result = await quickCreateProjectTask(projectId, { title, status })
+  async function quickAdd(stageId: string, title: string, lane: string) {
+    const result = await quickCreateProjectTask(projectId, { title, stageId })
     if (!result.success) {
       toast.error(result.error || "Erro ao criar tarefa")
       return false
@@ -352,20 +349,20 @@ export function KanbanBoard({ projectId, projectCode, tasks, settings, statuses,
       onDragEnd={onDragEnd}
       onDragCancel={() => {
         setActiveId(null)
-        setColumns(buildColumns(tasks, lanes, statuses, swimlane))
+        setColumns(buildColumns(tasks, lanes, stages, swimlane))
       }}
     >
       <div className="overflow-x-auto pb-2">
         <div className="inline-flex min-w-full flex-col gap-4">
           {swimlane !== "none" && (
             <div className="flex gap-3">
-              {statuses.map((status) => {
-                const count = tasks.filter((t) => t.status === status).length
-                const limit = settings.wipLimits?.[status]
+              {stages.map((stage) => {
+                const count = tasks.filter((t) => t.stageId === stage.id).length
+                const limit = stage.wipLimit
                 return (
-                  <div key={status} className="flex w-72 shrink-0 items-center gap-2 px-3">
-                    <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: TASK_STATUS_COLORS[status] }} />
-                    <span className="text-sm font-medium">{TASK_STATUS_LABELS[status]}</span>
+                  <div key={stage.id} className="flex w-72 shrink-0 items-center gap-2 px-3">
+                    <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: stage.color }} />
+                    <span className="truncate text-sm font-medium">{stage.name}</span>
                     <span className={cn("ml-auto text-xs tabular-nums", limit && count > limit ? "font-semibold text-destructive" : "text-muted-foreground")}>
                       {count}
                       {limit ? ` / ${limit}` : ""}
@@ -379,16 +376,16 @@ export function KanbanBoard({ projectId, projectCode, tasks, settings, statuses,
             <div key={lane.id} className="space-y-2">
               {swimlane !== "none" && <p className="px-1 text-sm font-semibold text-muted-foreground">{lane.label}</p>}
               <div className="flex items-stretch gap-3">
-                {statuses.map((status) => {
-                  const id = containerId(lane.id, status)
+                {stages.map((stage) => {
+                  const id = containerId(lane.id, stage.id)
                   return (
                     <Column
                       key={id}
                       id={id}
-                      status={status}
+                      stage={stage}
                       ids={columns[id] ?? []}
                       tasksById={tasksById}
-                      limit={swimlane === "none" ? settings.wipLimits?.[status] : undefined}
+                      limit={swimlane === "none" ? (stage.wipLimit ?? undefined) : undefined}
                       showHeader={swimlane === "none"}
                       projectCode={projectCode}
                       today={today}
@@ -409,8 +406,8 @@ export function KanbanBoard({ projectId, projectCode, tasks, settings, statuses,
   )
 }
 
-/** Columns shown: status filter if any, otherwise every status except Cancelada (unless asked). */
-export function kanbanStatuses(statusFilter: TaskStatus[], showCancelled: boolean): TaskStatus[] {
-  if (statusFilter.length) return TASK_STATUSES.filter((s) => statusFilter.includes(s))
-  return TASK_STATUSES.filter((s) => s !== "CANCELLED" || showCancelled)
+/** Columns shown: the stage filter if any, otherwise every stage except cancelled ones (unless asked). */
+export function kanbanStages(stages: StageRef[], stageFilter: string[], showCancelled: boolean): StageRef[] {
+  if (stageFilter.length) return stages.filter((s) => stageFilter.includes(s.id))
+  return stages.filter((s) => s.category !== "CANCELLED" || showCancelled)
 }

@@ -13,7 +13,7 @@ import {
   statusSideEffects,
   wouldCreateCycle,
 } from "@/lib/project-tasks";
-import { CLOSED_TASK_STATUSES, TASK_STATUS_LABELS, parseProjectSettings, type TaskStatus } from "@/lib/projects";
+import { CLOSED_TASK_STATUSES, parseProjectSettings, type TaskStatus } from "@/lib/projects";
 import type { TaskFilters } from "@/lib/project-workspace-params";
 import { buildProjectTaskAssignedNotification } from "@/lib/notification-types";
 import { customFieldService } from "@/services/custom-field.service";
@@ -39,6 +39,8 @@ export const taskListSelect = {
   id: true,
   projectId: true,
   parentId: true,
+  stageId: true,
+  phaseId: true,
   number: true,
   title: true,
   status: true,
@@ -103,8 +105,10 @@ export function buildTaskWhere(projectId: string, filters: TaskFilters, userId: 
   else if (filters.assignee === "none") and.push({ assigneeId: null });
   else if (filters.assignee) and.push({ assigneeId: filters.assignee });
 
-  if (filters.status.length) and.push({ status: { in: filters.status } });
+  if (filters.stage.length) and.push({ stageId: { in: filters.stage } });
   else if (!filters.showCancelled) and.push({ status: { not: "CANCELLED" } });
+  if (filters.phase === "none") and.push({ phaseId: null });
+  else if (filters.phase) and.push({ phaseId: filters.phase });
 
   if (filters.priority.length) and.push({ priority: { in: filters.priority } });
   if (filters.tag) and.push({ tags: { some: { tagId: filters.tag } } });
@@ -122,9 +126,9 @@ async function nextNumber(tx: Tx, projectId: string) {
   return (last._max.number ?? 0) + 1;
 }
 
-async function endOfColumn(tx: Tx, projectId: string, status: TaskStatus, excludeId?: string) {
+async function endOfColumn(tx: Tx, projectId: string, stageId: string, excludeId?: string) {
   const last = await tx.projectTask.aggregate({
-    where: { projectId, status, deletedAt: null, ...(excludeId ? { id: { not: excludeId } } : {}) },
+    where: { projectId, stageId, deletedAt: null, ...(excludeId ? { id: { not: excludeId } } : {}) },
     _max: { boardPosition: true },
   });
   return (last._max.boardPosition ?? 0) + POSITION_STEP;
@@ -133,6 +137,45 @@ async function endOfColumn(tx: Tx, projectId: string, status: TaskStatus, exclud
 async function endOfSiblings(tx: Tx, projectId: string, parentId: string | null) {
   const last = await tx.projectTask.aggregate({ where: { projectId, parentId, deletedAt: null }, _max: { outlinePosition: true } });
   return (last._max.outlinePosition ?? 0) + POSITION_STEP;
+}
+
+/**
+ * Resolves the workflow stage of a task: the given one (must belong to the project) or, by default,
+ * the first "a fazer" stage (else the first stage). The task status mirrors the stage category.
+ */
+async function resolveStage(projectId: string, stageId?: string | null) {
+  if (stageId) {
+    const stage = await prisma.projectStage.findFirst({ where: { id: stageId, projectId, deletedAt: null } });
+    if (!stage) throw new Error("Etapa não encontrada neste projeto");
+    return stage;
+  }
+  const stages = await prisma.projectStage.findMany({ where: { projectId, deletedAt: null }, orderBy: { position: "asc" } });
+  const stage = stages.find((s) => s.category === "TODO") ?? stages.find((s) => s.category === "BACKLOG") ?? stages[0];
+  if (!stage) throw new Error("Defina as etapas do projeto antes de criar tarefas");
+  return stage;
+}
+
+async function resolvePhase(projectId: string, phaseId?: string | null) {
+  if (!phaseId) return null;
+  const phase = await prisma.projectPhase.findFirst({ where: { id: phaseId, projectId, deletedAt: null }, select: { id: true } });
+  if (!phase) throw new Error("Fase não encontrada neste projeto");
+  return phase.id;
+}
+
+/**
+ * Hours logged on tasks are demands (Demandas) linked to them: keeps the denormalized
+ * `ProjectTask.loggedMinutes` equal to the sum of their live demands' duration.
+ */
+export async function syncTaskLoggedMinutes(taskIds: (string | null | undefined)[]) {
+  const ids = [...new Set(taskIds.filter((id): id is string => !!id))];
+  if (!ids.length) return;
+  const sums = await prisma.demand.groupBy({
+    by: ["projectTaskId"],
+    where: { projectTaskId: { in: ids }, deletedAt: null },
+    _sum: { durationMinutes: true },
+  });
+  const byTask = new Map(sums.map((s) => [s.projectTaskId, s._sum.durationMinutes ?? 0]));
+  await prisma.$transaction(ids.map((id) => prisma.projectTask.update({ where: { id }, data: { loggedMinutes: byTask.get(id) ?? 0 } })));
 }
 
 function isUniqueViolation(error: unknown) {
@@ -175,14 +218,14 @@ export const projectTaskService = {
         parent: { select: { id: true, number: true, title: true } },
         children: {
           where: { deletedAt: null },
-          select: { id: true, number: true, title: true, status: true, assignee: { select: { name: true } }, dueDate: true },
+          select: { id: true, number: true, title: true, status: true, stage: { select: { name: true, color: true } }, assignee: { select: { name: true } }, dueDate: true },
           orderBy: [{ outlinePosition: "asc" }, { number: "asc" }],
         },
         predecessors: {
-          select: { id: true, predecessorId: true, lagDays: true, predecessor: { select: { id: true, number: true, title: true, status: true, dueDate: true } } },
+          select: { id: true, predecessorId: true, lagDays: true, predecessor: { select: { id: true, number: true, title: true, status: true, stage: { select: { name: true, color: true } }, dueDate: true } } },
         },
         successors: {
-          select: { id: true, successorId: true, lagDays: true, successor: { select: { id: true, number: true, title: true, status: true, startDate: true } } },
+          select: { id: true, successorId: true, lagDays: true, successor: { select: { id: true, number: true, title: true, status: true, stage: { select: { name: true, color: true } }, startDate: true } } },
         },
         checklistItems: { select: { id: true, title: true, done: true, position: true }, orderBy: [{ position: "asc" }, { createdAt: "asc" }] },
         comments: {
@@ -190,10 +233,19 @@ export const projectTaskService = {
           select: { id: true, content: true, createdAt: true, updatedAt: true, user: { select: { id: true, name: true, image: true } } },
           orderBy: { createdAt: "asc" },
         },
-        timeEntries: {
+        demands: {
           where: { deletedAt: null },
-          select: { id: true, date: true, minutes: true, note: true, createdAt: true, user: { select: { id: true, name: true } } },
-          orderBy: [{ date: "desc" }, { createdAt: "desc" }],
+          select: {
+            id: true,
+            name: true,
+            date: true,
+            startTime: true,
+            endTime: true,
+            durationMinutes: true,
+            status: true,
+            analyst: { select: { id: true, name: true, userId: true } },
+          },
+          orderBy: [{ date: "desc" }, { startTime: "desc" }],
           take: 200,
         },
       },
@@ -277,7 +329,9 @@ export const projectTaskService = {
     await this.assertAssignee(projectId, project.managerId, input.assigneeId);
     const tagIds = await this.assertTags(ctx.organizationId, input.tagIds);
     const customFields = await customFieldService.validateValues(ctx.organizationId, "TASK", input.customFields);
-    const effects = statusSideEffects(null, input.status, new Date());
+    const stage = await resolveStage(projectId, input.stageId);
+    const phaseId = await resolvePhase(projectId, input.phaseId);
+    const effects = statusSideEffects(null, stage.category, new Date());
 
     const task = await this.withNumberRetry((tx) =>
       (async () => {
@@ -289,7 +343,9 @@ export const projectTaskService = {
             number: await nextNumber(tx, projectId),
             title: input.title,
             description: input.description || null,
-            status: input.status,
+            stageId: stage.id,
+            phaseId,
+            status: stage.category,
             priority: input.priority,
             assigneeId: input.assigneeId || null,
             startDate: toDateOrNull(input.startDate),
@@ -297,7 +353,7 @@ export const projectTaskService = {
             estimateHours: input.estimateHours,
             progress: input.progress,
             isMilestone: input.isMilestone,
-            boardPosition: await endOfColumn(tx, projectId, input.status),
+            boardPosition: await endOfColumn(tx, projectId, stage.id),
             outlinePosition: await endOfSiblings(tx, projectId, parentId),
             customFields: customFields as Prisma.InputJsonValue,
             tags: { create: tagIds.map((tagId) => ({ tagId })) },
@@ -316,7 +372,9 @@ export const projectTaskService = {
   async quickCreate(projectId: string, input: QuickTaskInput, ctx: ProjectCtx) {
     const project = await projectService.assertAccessible(projectId, ctx);
     const parentId = await this.assertParent(projectId, input.parentId);
-    const effects = statusSideEffects(null, input.status, new Date());
+    const stage = await resolveStage(projectId, input.stageId);
+    const parent = parentId ? await prisma.projectTask.findUnique({ where: { id: parentId }, select: { phaseId: true } }) : null;
+    const effects = statusSideEffects(null, stage.category, new Date());
     const task = await this.withNumberRetry((tx) =>
       (async () => {
         const created = await tx.projectTask.create({
@@ -326,9 +384,11 @@ export const projectTaskService = {
             parentId,
             number: await nextNumber(tx, projectId),
             title: input.title,
-            status: input.status,
+            stageId: stage.id,
+            phaseId: parent?.phaseId ?? null,
+            status: stage.category,
             dueDate: toDateOrNull(input.dueDate),
-            boardPosition: await endOfColumn(tx, projectId, input.status),
+            boardPosition: await endOfColumn(tx, projectId, stage.id),
             outlinePosition: await endOfSiblings(tx, projectId, parentId),
             ...effects,
           },
@@ -358,7 +418,9 @@ export const projectTaskService = {
     await this.assertAssignee(projectId, project.managerId, input.assigneeId);
     const tagIds = await this.assertTags(ctx.organizationId, input.tagIds);
     const customFields = await customFieldService.validateValues(ctx.organizationId, "TASK", input.customFields, old.customFields);
-    const effects = statusSideEffects(old.status, input.status, new Date());
+    const stage = await resolveStage(projectId, input.stageId);
+    const phaseId = await resolvePhase(projectId, input.phaseId);
+    const effects = statusSideEffects(old.status, stage.category, new Date());
 
     const task = await prisma.$transaction(async (tx) => {
       await tx.projectTaskTag.deleteMany({ where: { taskId, tagId: { notIn: tagIds } } });
@@ -369,7 +431,9 @@ export const projectTaskService = {
           parentId,
           title: input.title,
           description: input.description || null,
-          status: input.status,
+          stageId: stage.id,
+          phaseId,
+          status: stage.category,
           priority: input.priority,
           assigneeId: input.assigneeId || null,
           startDate: toDateOrNull(input.startDate),
@@ -378,7 +442,7 @@ export const projectTaskService = {
           progress: input.progress,
           isMilestone: input.isMilestone,
           customFields: customFields as Prisma.InputJsonValue,
-          ...(old.status !== input.status ? { boardPosition: await endOfColumn(tx, projectId, input.status, taskId) } : {}),
+          ...(old.stageId !== stage.id ? { boardPosition: await endOfColumn(tx, projectId, stage.id, taskId) } : {}),
           ...(old.parentId !== parentId ? { outlinePosition: await endOfSiblings(tx, projectId, parentId) } : {}),
           ...effects,
         },
@@ -406,18 +470,18 @@ export const projectTaskService = {
    */
   async move(taskId: string, projectId: string, input: MoveTaskInput, ctx: ProjectCtx) {
     const { project, task: old } = await this.loadTask(taskId, projectId, ctx);
+    const stage = await resolveStage(projectId, input.stageId);
     const settings = parseProjectSettings(project.settings);
-    const limit = settings.wipLimits?.[input.status];
-    if (old.status !== input.status && limit && settings.wipEnforced) {
-      const inColumn = await prisma.projectTask.count({ where: { projectId, status: input.status, deletedAt: null } });
-      if (inColumn >= limit) {
-        throw new Error(`Limite WIP de "${TASK_STATUS_LABELS[input.status]}" atingido (${limit}). Conclua ou mova outra tarefa antes.`);
+    if (old.stageId !== stage.id && stage.wipLimit && settings.wipEnforced) {
+      const inColumn = await prisma.projectTask.count({ where: { projectId, stageId: stage.id, deletedAt: null } });
+      if (inColumn >= stage.wipLimit) {
+        throw new Error(`Limite WIP de "${stage.name}" atingido (${stage.wipLimit}). Conclua ou mova outra tarefa antes.`);
       }
     }
 
     const task = await prisma.$transaction(async (tx) => {
       const neighbours = await tx.projectTask.findMany({
-        where: { id: { in: [input.beforeId, input.afterId].filter((x): x is string => !!x) }, projectId, status: input.status, deletedAt: null },
+        where: { id: { in: [input.beforeId, input.afterId].filter((x): x is string => !!x) }, projectId, stageId: stage.id, deletedAt: null },
         select: { id: true, boardPosition: true },
       });
       const before = neighbours.find((n) => n.id === input.beforeId)?.boardPosition ?? null;
@@ -425,11 +489,11 @@ export const projectTaskService = {
 
       let boardPosition: number;
       if (!input.beforeId && !input.afterId) {
-        // No neighbours (empty column, or a status change from the task sheet): end of the column.
-        boardPosition = old.status === input.status ? old.boardPosition : await endOfColumn(tx, projectId, input.status, taskId);
+        // No neighbours (empty column, or a stage change from the task sheet): end of the column.
+        boardPosition = old.stageId === stage.id ? old.boardPosition : await endOfColumn(tx, projectId, stage.id, taskId);
       } else if (needsRebalance(before, after)) {
         const column = await tx.projectTask.findMany({
-          where: { projectId, status: input.status, deletedAt: null },
+          where: { projectId, stageId: stage.id, deletedAt: null },
           select: { id: true },
           orderBy: [{ boardPosition: "asc" }, { number: "asc" }],
         });
@@ -444,12 +508,22 @@ export const projectTaskService = {
 
       const updated = await tx.projectTask.update({
         where: { id: taskId },
-        data: { status: input.status, boardPosition, ...statusSideEffects(old.status, input.status, new Date()) },
+        data: { stageId: stage.id, status: stage.category, boardPosition, ...statusSideEffects(old.status, stage.category, new Date()) },
       });
-      if (old.status !== input.status) await projectService.recomputeProgress(tx, projectId);
+      if (old.status !== stage.category) await projectService.recomputeProgress(tx, projectId);
       return updated;
     });
-    return { task, old, warning: await this.predecessorWarning(taskId, old.status, task.status) };
+    return { task, old, stage, warning: await this.predecessorWarning(taskId, old.status, task.status) };
+  },
+
+  /** Tasks of a project for the demand form's "Tarefa" picker (any accessible project with a client). */
+  async listForDemand(projectId: string, ctx: ProjectCtx) {
+    await projectService.assertAccessible(projectId, ctx);
+    return prisma.projectTask.findMany({
+      where: { projectId, deletedAt: null, status: { not: "CANCELLED" } },
+      select: { id: true, number: true, title: true },
+      orderBy: { number: "asc" },
+    });
   },
 
   async reschedule(taskId: string, projectId: string, input: RescheduleTaskInput, ctx: ProjectCtx) {

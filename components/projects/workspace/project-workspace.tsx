@@ -3,21 +3,17 @@
 import { useMemo, useState } from "react"
 import Link from "next/link"
 import { toast } from "sonner"
-import { ArrowLeft, CalendarDays, ChartGantt, Clock, Gauge, KanbanSquare, LayoutDashboard, List, Pencil, Plus } from "lucide-react"
+import { ArrowLeft, CalendarDays, ChartGantt, Clock, Gauge, KanbanSquare, LayoutDashboard, List, Loader2, Plus, Settings } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Tabs, ScrollableTabsList, TabsTrigger } from "@/components/ui/tabs"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { PendingRegion } from "@/components/shared/pending-region"
 import { ColorBadge } from "@/components/shared/color-badge"
+import { WithTooltip } from "@/components/shared/with-tooltip"
 import { PriorityBadge, ProgressCell, ProjectHealthBadge, ProjectStatusBadge } from "@/components/projects/project-badges"
-import { ProjectFormDialog, type ProjectPickerOptions } from "@/components/projects/project-form-dialog"
+import type { ProjectPickerOptions } from "@/components/projects/project-settings-form"
 import { WorkspaceFilters } from "@/components/projects/workspace/workspace-filters"
-import { KanbanBoard, kanbanStatuses } from "@/components/projects/workspace/kanban-board"
+import { KanbanBoard, kanbanStages } from "@/components/projects/workspace/kanban-board"
 import { TaskListView } from "@/components/projects/workspace/task-list-view"
 import { GanttChart } from "@/components/projects/workspace/gantt-chart"
 import { TaskCalendar } from "@/components/projects/workspace/task-calendar"
@@ -25,8 +21,15 @@ import { ProjectDashboard } from "@/components/projects/workspace/project-dashbo
 import { ProjectOverview } from "@/components/projects/workspace/project-overview"
 import { TaskSheet } from "@/components/projects/workspace/task-sheet"
 import { TaskFormDialog } from "@/components/projects/workspace/task-form-dialog"
-import { TimeEntryDialog, type EditableTimeEntry } from "@/components/projects/workspace/time-entry-dialog"
+import {
+  DemandFormDialog,
+  type DemandFormCatalogs,
+  type DemandFormContext,
+  type DemandFormDefaults,
+  type DemandFormEntity,
+} from "@/components/demands/demand-form-dialog"
 import { setProjectLifecycleStatus } from "@/actions/projects"
+import { getDemandForEdit, getDemandFormData } from "@/actions/demands"
 import { useUrlParams } from "@/hooks/use-url-params"
 import { useHasPermission } from "@/hooks/use-permissions"
 import { WORKSPACE_VIEW_LABELS, type WorkspaceParams, type WorkspaceView } from "@/lib/project-workspace-params"
@@ -68,6 +71,8 @@ interface ProjectWorkspaceProps {
   pickerOptions: ProjectPickerOptions
 }
 
+type DemandDialogState = { open: boolean; demand?: DemandFormEntity | null; defaults?: DemandFormDefaults }
+
 export function ProjectWorkspace({
   project,
   params,
@@ -89,21 +94,57 @@ export function ProjectWorkspace({
     createTask: useHasPermission("project_tasks", "create"),
     updateTask: useHasPermission("project_tasks", "update"),
     deleteTask: useHasPermission("project_tasks", "delete"),
-    logTime: useHasPermission("project_time_entries", "create"),
     updateProject: useHasPermission("projects", "update"),
+    createDemand: useHasPermission("demands", "create"),
+    updateDemand: useHasPermission("demands", "update"),
+    deleteDemand: useHasPermission("demands", "delete"),
   }
 
-  const [editProject, setEditProject] = useState(false)
   const [taskForm, setTaskForm] = useState<{ open: boolean; edit: boolean; defaults?: NewTaskDefaults }>({ open: false, edit: false })
-  const [timeEntry, setTimeEntry] = useState<{ open: boolean; taskId?: string; entry?: EditableTimeEntry | null }>({ open: false })
+  const [demandDialog, setDemandDialog] = useState<DemandDialogState>({ open: false })
+  const [demandForm, setDemandForm] = useState<{ catalogs: DemandFormCatalogs; context: DemandFormContext } | null>(null)
+  const [openingDemand, setOpeningDemand] = useState(false)
 
   const team: TeamMember[] = useMemo(() => project.members.map((m) => ({ id: m.userId, name: m.name, image: m.image })), [project.members])
   const usersById = useMemo(() => Object.fromEntries(pickerOptions.users.map((u) => [u.id, u.name])), [pickerOptions.users])
+  const enabledViews = project.settings.enabledViews
+
+  /**
+   * "Apontar horas" = a demand of the project's client linked to the project (and the task) — the
+   * same form as /demands. Catalogs load on first use; an id opens an existing demand to edit.
+   */
+  async function openDemand(taskId?: string, demandId?: string) {
+    if (!project.client) {
+      toast.error("Defina o cliente do projeto para apontar horas")
+      return
+    }
+    setOpeningDemand(true)
+    try {
+      const data = demandForm ?? (await getDemandFormData())
+      if (!demandForm) setDemandForm(data)
+      if (demandId) {
+        const demand = await getDemandForEdit(demandId)
+        if (!demand) return void toast.error("Demanda não encontrada ou fora do seu escopo")
+        setDemandDialog({ open: true, demand })
+      } else {
+        const task = taskId ? taskOptions.tasks.find((t) => t.id === taskId) : undefined
+        setDemandDialog({
+          open: true,
+          demand: null,
+          defaults: { projectId: project.id, projectTaskId: taskId, clientId: project.client.id, name: task?.title },
+        })
+      }
+    } catch {
+      toast.error("Não foi possível abrir o formulário de demanda")
+    } finally {
+      setOpeningDemand(false)
+    }
+  }
 
   const actions: WorkspaceActions = {
     openTask: (taskId) => sheetNav.pushParams({ task: taskId }),
     newTask: (defaults) => setTaskForm({ open: true, edit: false, defaults }),
-    logTime: (taskId) => setTimeEntry({ open: true, taskId, entry: null }),
+    logTime: (taskId) => void openDemand(taskId),
     refresh: () => nav.refresh(),
   }
 
@@ -117,6 +158,15 @@ export function ProjectWorkspace({
 
   const sheetTask = taskDetail && taskDetail.id === params.task ? taskDetail : null
   const showFilters = !["overview", "dashboard"].includes(params.view)
+  const projectTasksForDemand = taskOptions.tasks.filter((t) => t.status !== "CANCELLED").map((t) => ({ id: t.id, number: t.number, title: t.title }))
+
+  const logTimeButton = can.createDemand && (
+    <WithTooltip label={project.client ? undefined : "Defina o cliente do projeto para apontar horas"} disabledSafe>
+      <Button variant="outline" size="sm" onClick={() => actions.logTime()} disabled={!project.client || openingDemand}>
+        {openingDemand ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Clock className="mr-1.5 h-4 w-4" />} Apontar horas
+      </Button>
+    </WithTooltip>
+  )
 
   return (
     <div className="space-y-4">
@@ -163,14 +213,10 @@ export function ProjectWorkspace({
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
-              {can.logTime && (
-                <Button variant="outline" size="sm" onClick={() => setTimeEntry({ open: true, entry: null })}>
-                  <Clock className="mr-1.5 h-4 w-4" /> Apontar horas
-                </Button>
-              )}
+              {logTimeButton}
               {can.updateProject && (
-                <Button variant="outline" size="sm" onClick={() => setEditProject(true)}>
-                  <Pencil className="mr-1.5 h-4 w-4" /> Editar projeto
+                <Button variant="outline" size="sm" nativeButton={false} render={<Link href={`/projetos/gestao/${project.id}/configuracoes`} />}>
+                  <Settings className="mr-1.5 h-4 w-4" /> Configurações
                 </Button>
               )}
               {can.createTask && (
@@ -183,23 +229,30 @@ export function ProjectWorkspace({
         </div>
       </div>
 
-      <Tabs value={params.view} onValueChange={(v) => nav.pushParams({ view: v === "kanban" ? undefined : (v as string), page: undefined, sort: undefined })}>
-        <ScrollableTabsList>
-          {(Object.keys(WORKSPACE_VIEW_LABELS) as WorkspaceView[]).map((view) => {
-            const Icon = VIEW_ICONS[view]
-            return (
-              <TabsTrigger key={view} value={view}>
-                <Icon className="mr-1.5 h-4 w-4" /> {WORKSPACE_VIEW_LABELS[view]}
-              </TabsTrigger>
-            )
-          })}
-        </ScrollableTabsList>
-      </Tabs>
+      {enabledViews.length > 1 && (
+        <Tabs
+          value={params.view}
+          onValueChange={(v) => nav.pushParams({ view: v === project.settings.defaultView ? undefined : (v as string), page: undefined, sort: undefined })}
+        >
+          <ScrollableTabsList>
+            {enabledViews.map((view) => {
+              const Icon = VIEW_ICONS[view]
+              return (
+                <TabsTrigger key={view} value={view}>
+                  <Icon className="mr-1.5 h-4 w-4" /> {WORKSPACE_VIEW_LABELS[view]}
+                </TabsTrigger>
+              )
+            })}
+          </ScrollableTabsList>
+        </Tabs>
+      )}
 
       {showFilters && (
         <WorkspaceFilters
           view={params.view}
           filters={params.filters}
+          stages={project.stages}
+          phases={project.phases}
           swimlane={params.kanban.swimlane}
           team={team}
           tags={taskOptions.tags}
@@ -216,7 +269,7 @@ export function ProjectWorkspace({
             projectCode={project.code}
             tasks={tasks}
             settings={project.settings}
-            statuses={kanbanStatuses(params.filters.status, params.filters.showCancelled)}
+            stages={kanbanStages(project.stages, params.filters.stage, params.filters.showCancelled)}
             swimlane={params.kanban.swimlane}
             today={today}
             canCreate={can.createTask}
@@ -231,9 +284,11 @@ export function ProjectWorkspace({
             tasks={tasks}
             params={params.list}
             defs={taskDefs}
+            stages={project.stages}
+            phases={project.phases}
             usersById={usersById}
             today={today}
-            can={{ create: can.createTask, update: can.updateTask, delete: can.deleteTask, logTime: can.logTime }}
+            can={{ create: can.createTask, update: can.updateTask, delete: can.deleteTask, logTime: can.createDemand && !!project.client }}
             actions={actions}
           />
         )}
@@ -242,6 +297,8 @@ export function ProjectWorkspace({
             projectId={project.id}
             projectCode={project.code}
             tasks={tasks}
+            stages={project.stages}
+            phases={project.phases}
             zoom={params.gantt.zoom}
             from={params.gantt.from}
             today={today}
@@ -255,6 +312,7 @@ export function ProjectWorkspace({
             projectId={project.id}
             projectCode={project.code}
             tasks={tasks}
+            stages={project.stages}
             month={params.calendar.month}
             by={params.calendar.by}
             today={today}
@@ -285,6 +343,8 @@ export function ProjectWorkspace({
         task={sheetTask}
         projectId={project.id}
         projectCode={project.code}
+        stages={project.stages}
+        phases={project.phases}
         options={taskOptions}
         defs={taskDefs}
         usersById={usersById}
@@ -292,14 +352,15 @@ export function ProjectWorkspace({
         can={{
           update: can.updateTask,
           delete: can.deleteTask,
-          logTime: can.logTime,
-          manageHours: can.updateProject,
+          logTime: can.createDemand && !!project.client,
+          editDemand: can.updateDemand,
+          deleteDemand: can.deleteDemand,
           moderate: can.deleteTask,
         }}
         onClose={() => sheetNav.pushParams({ task: undefined })}
         onOpenTask={actions.openTask}
         onEdit={() => setTaskForm({ open: true, edit: true })}
-        onLogTime={(entry) => setTimeEntry({ open: true, taskId: sheetTask?.id, entry: entry ?? null })}
+        onLogTime={(demandId) => void openDemand(sheetTask?.id, demandId)}
         refresh={() => sheetNav.refresh()}
       />
 
@@ -310,6 +371,8 @@ export function ProjectWorkspace({
         projectCode={project.code}
         task={taskForm.edit ? sheetTask : null}
         defaults={taskForm.defaults}
+        stages={project.stages}
+        phases={project.phases}
         team={team}
         users={pickerOptions.users}
         options={taskOptions}
@@ -317,30 +380,19 @@ export function ProjectWorkspace({
         onSaved={(taskId) => (taskForm.edit || !taskId ? nav.refresh() : sheetNav.pushParams({ task: taskId }))}
       />
 
-      <TimeEntryDialog
-        open={timeEntry.open}
-        onOpenChange={(open) => setTimeEntry((s) => ({ ...s, open }))}
-        projectId={project.id}
-        projectCode={project.code}
-        tasks={taskOptions.tasks}
-        team={team}
-        currentUserId={currentUserId}
-        canManage={can.updateProject}
-        consumesContract={!!project.contract}
-        today={today}
-        defaultTaskId={timeEntry.taskId}
-        entry={timeEntry.entry}
-        onSaved={() => nav.refresh()}
-      />
-
-      <ProjectFormDialog
-        open={editProject}
-        onOpenChange={setEditProject}
-        project={project}
-        options={pickerOptions}
-        defs={projectDefs}
-        onSaved={() => nav.refresh()}
-      />
+      {demandForm && (
+        <DemandFormDialog
+          open={demandDialog.open}
+          onOpenChange={(open) => setDemandDialog((s) => ({ ...s, open }))}
+          catalogs={demandForm.catalogs}
+          context={demandForm.context}
+          demand={demandDialog.demand}
+          defaults={demandDialog.defaults}
+          lockProject={!demandDialog.demand}
+          initialTasks={projectTasksForDemand}
+          onSaved={() => (params.task ? sheetNav.refresh() : nav.refresh())}
+        />
+      )}
     </div>
   )
 }

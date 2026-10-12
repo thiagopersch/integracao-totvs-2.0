@@ -3,7 +3,6 @@
 
 import { cacheTag } from "next/cache";
 import { projectTaskService } from "@/services/project-task.service";
-import { projectTimeEntryService } from "@/services/project-time-entry.service";
 import { projectDashboardService } from "@/services/project-dashboard.service";
 import type { ProjectCtx } from "@/services/project.service";
 import type { TaskFilters } from "@/lib/project-workspace-params";
@@ -25,12 +24,6 @@ export async function getProjectTaskDetail(taskId: string, projectId: string, ct
   "use cache";
   cacheTag(`project-tasks-${projectId}`, `project-task-${taskId}`);
   return projectTaskService.getDetail(taskId, projectId, ctx);
-}
-
-export async function listProjectTimeEntries(projectId: string, ctx: ProjectCtx) {
-  "use cache";
-  cacheTag(`project-tasks-${projectId}`);
-  return projectTimeEntryService.listForProject(projectId, ctx);
 }
 
 export async function getProjectDashboard(projectId: string, ctx: ProjectCtx) {

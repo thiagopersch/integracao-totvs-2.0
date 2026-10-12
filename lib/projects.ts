@@ -106,27 +106,90 @@ export function riskSeverity(probability: number, impact: number): { label: stri
   return { label: "Baixo", color: "#22c55e" };
 }
 
-export type ProjectSettings = {
-  wipLimits?: Partial<Record<TaskStatus, number>>;
-  wipEnforced?: boolean;
-  dueSoonDays?: number;
+/** Workspace views a project can enable (Configurações → Visualizações). */
+export const WORKSPACE_VIEWS = ["overview", "kanban", "list", "gantt", "calendar", "dashboard"] as const;
+export type WorkspaceView = (typeof WORKSPACE_VIEWS)[number];
+
+export const WORKSPACE_VIEW_LABELS: Record<WorkspaceView, string> = {
+  overview: "Visão geral",
+  kanban: "Kanban",
+  list: "Lista",
+  gantt: "Cronograma",
+  calendar: "Calendário",
+  dashboard: "Indicadores",
 };
 
+export const WORKSPACE_VIEW_DESCRIPTIONS: Record<WorkspaceView, string> = {
+  overview: "Termo de abertura, equipe, fases, marcos, riscos e propriedades.",
+  kanban: "Quadro por etapas do fluxo, com arrastar e soltar e limite WIP.",
+  list: "Tabela com hierarquia de tarefas, ordenação e ações em massa.",
+  gantt: "Cronograma por fases com barras arrastáveis e dependências.",
+  calendar: "Prazos (ou inícios) das tarefas num calendário mensal.",
+  dashboard: "Progresso x planejado, burndown, carga da equipe, horas e custo.",
+};
+
+export type ProjectSettings = {
+  wipEnforced?: boolean;
+  dueSoonDays?: number;
+  enabledViews: WorkspaceView[];
+  defaultView: WorkspaceView;
+};
+
+export const DEFAULT_PROJECT_SETTINGS: ProjectSettings = { enabledViews: [...WORKSPACE_VIEWS], defaultView: "kanban" };
+
 export function parseProjectSettings(raw: unknown): ProjectSettings {
-  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
-  const value = raw as Record<string, unknown>;
-  const settings: ProjectSettings = {};
-  if (value.wipLimits && typeof value.wipLimits === "object") {
-    settings.wipLimits = {};
-    for (const status of TASK_STATUSES) {
-      const limit = (value.wipLimits as Record<string, unknown>)[status];
-      if (typeof limit === "number" && limit > 0) settings.wipLimits[status] = limit;
-    }
-  }
+  const value = raw && typeof raw === "object" && !Array.isArray(raw) ? (raw as Record<string, unknown>) : {};
+  const enabledViews = Array.isArray(value.enabledViews)
+    ? WORKSPACE_VIEWS.filter((v) => (value.enabledViews as unknown[]).includes(v))
+    : [...WORKSPACE_VIEWS];
+  const views = enabledViews.length ? enabledViews : [...WORKSPACE_VIEWS];
+  const defaultView = views.includes(value.defaultView as WorkspaceView) ? (value.defaultView as WorkspaceView) : views.includes("kanban") ? "kanban" : views[0];
+  const settings: ProjectSettings = { enabledViews: views, defaultView };
   if (typeof value.wipEnforced === "boolean") settings.wipEnforced = value.wipEnforced;
   if (typeof value.dueSoonDays === "number") settings.dueSoonDays = value.dueSoonDays;
   return settings;
 }
+
+/** How a workflow stage counts for metrics (ProjectStage.category ↔ ProjectTask.status). */
+export const STAGE_CATEGORY_LABELS: Record<TaskStatus, string> = {
+  BACKLOG: "Não iniciada (backlog)",
+  TODO: "Não iniciada (a fazer)",
+  IN_PROGRESS: "Em andamento",
+  IN_REVIEW: "Em revisão",
+  BLOCKED: "Bloqueada",
+  DONE: "Concluída",
+  CANCELLED: "Cancelada",
+};
+
+export type StageInput = { id?: string; name: string; color: string; category: TaskStatus; wipLimit: number | null };
+export type PhaseInput = { id?: string; name: string; color: string; description?: string; startDate?: string; endDate?: string };
+
+/** Workflow created for new projects (and backfilled for existing ones). */
+export const DEFAULT_STAGES: StageInput[] = [
+  { name: "Backlog", color: "#94a3b8", category: "BACKLOG", wipLimit: null },
+  { name: "A fazer", color: "#8b5cf6", category: "TODO", wipLimit: null },
+  { name: "Em andamento", color: "#3b82f6", category: "IN_PROGRESS", wipLimit: null },
+  { name: "Em revisão", color: "#06b6d4", category: "IN_REVIEW", wipLimit: null },
+  { name: "Bloqueada", color: "#ef4444", category: "BLOCKED", wipLimit: null },
+  { name: "Concluída", color: "#22c55e", category: "DONE", wipLimit: null },
+  { name: "Cancelada", color: "#6b7280", category: "CANCELLED", wipLimit: null },
+];
+
+/** Suggested macro phases (PMBOK process groups) — offered as a one-click start in the settings. */
+export const SUGGESTED_PHASES: PhaseInput[] = [
+  { name: "Iniciação", color: "#8b5cf6" },
+  { name: "Planejamento", color: "#3b82f6" },
+  { name: "Execução", color: "#f59e0b" },
+  { name: "Monitoramento e controle", color: "#06b6d4" },
+  { name: "Encerramento", color: "#22c55e" },
+];
+
+/** Risk probability/impact scale 1–5, green → red. */
+export const RISK_SCALE_COLORS: Record<number, string> = { 1: "#22c55e", 2: "#84cc16", 3: "#f59e0b", 4: "#f97316", 5: "#ef4444" };
+export const RISK_SCALE_LABELS: Record<number, string> = { 1: "Muito baixo", 2: "Baixo", 3: "Médio", 4: "Alto", 5: "Muito alto" };
+
+export type StageRef = { id: string; name: string; color: string; category: TaskStatus; wipLimit: number | null };
+export type PhaseRef = { id: string; name: string; color: string; startDate: Date | string | null; endDate: Date | string | null; description: string | null };
 
 /** "PRJ-0001-12" — human task key shown on cards/lists. */
 export function taskKey(projectCode: string, number: number): string {

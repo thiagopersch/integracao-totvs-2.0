@@ -99,25 +99,23 @@ export function formatHours(hours: number): string {
 }
 
 /**
- * Minutes consumed per client in a month: demands (already grouped by client) plus hours logged on
- * tasks of contract-linked projects (grouped by project → mapped to the project's client). Each
- * entry counts once per client, even when the client has several contracts in force.
+ * Minutes consumed per client in a month: every demand counts once; `projectMinutes` is the share of
+ * those demands linked to a project (Gestão de Projetos), reported separately but never added again.
  */
 export function sumMinutesByClient(
   demandRows: { clientId: string; minutes: number }[],
-  projectRows: { projectId: string; minutes: number }[],
-  clientIdByProjectId: Map<string, string>,
-): Map<string, { demandMinutes: number; projectMinutes: number }> {
-  const result = new Map<string, { demandMinutes: number; projectMinutes: number }>();
+  projectDemandRows: { clientId: string; minutes: number }[],
+): Map<string, { totalMinutes: number; projectMinutes: number }> {
+  const result = new Map<string, { totalMinutes: number; projectMinutes: number }>();
   const entry = (clientId: string) => {
-    const current = result.get(clientId) ?? { demandMinutes: 0, projectMinutes: 0 };
+    const current = result.get(clientId) ?? { totalMinutes: 0, projectMinutes: 0 };
     result.set(clientId, current);
     return current;
   };
-  for (const row of demandRows) entry(row.clientId).demandMinutes += row.minutes;
-  for (const row of projectRows) {
-    const clientId = clientIdByProjectId.get(row.projectId);
-    if (clientId) entry(clientId).projectMinutes += row.minutes;
+  for (const row of demandRows) entry(row.clientId).totalMinutes += row.minutes;
+  for (const row of projectDemandRows) {
+    const current = entry(row.clientId);
+    current.projectMinutes = Math.min(current.totalMinutes || row.minutes, current.projectMinutes + row.minutes);
   }
   return result;
 }

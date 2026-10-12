@@ -108,3 +108,47 @@ describe("buildCustomFieldWhere", () => {
     ]);
   });
 });
+
+describe("config-based validation", () => {
+  it("applies text length rules", () => {
+    const schema = buildCustomFieldsSchema([def({ id: "t", type: "TEXT", config: { minLength: 3, maxLength: 5 } })]);
+    expect(schema.safeParse({ t: "ab" }).error?.issues[0].message).toBe("Mínimo de 3 caracteres");
+    expect(schema.safeParse({ t: "abcdef" }).error?.issues[0].message).toBe("Máximo de 5 caracteres");
+    expect(schema.safeParse({ t: "abcd" }).success).toBe(true);
+  });
+
+  it("applies number and currency ranges and integer", () => {
+    const n = buildCustomFieldsSchema([def({ id: "n", type: "NUMBER", config: { min: 1, max: 10, integer: true } })]);
+    expect(n.safeParse({ n: 0 }).success).toBe(false);
+    expect(n.safeParse({ n: 2.5 }).error?.issues[0].message).toBe("Informe um número inteiro");
+    expect(n.safeParse({ n: 10 }).success).toBe(true);
+    const c = buildCustomFieldsSchema([def({ id: "c", type: "CURRENCY", config: { max: 1000 } })]);
+    expect(c.safeParse({ c: 1000.01 }).error?.issues[0].message).toMatch(/Valor máximo R\$\s?1\.000,00/);
+  });
+
+  it("validates date, datetime and time with bounds", () => {
+    const schema = buildCustomFieldsSchema([
+      def({ id: "d", type: "DATE", config: { minDate: "2026-01-01" } }),
+      def({ id: "dt", type: "DATETIME", config: { maxDate: "2026-12-31" } }),
+      def({ id: "h", type: "TIME", config: { minTime: "08:00", maxTime: "18:00" } }),
+    ]);
+    expect(schema.safeParse({ d: "2026-02-01", dt: "2026-05-01T14:30", h: "09:15" }).success).toBe(true);
+    const bad = schema.safeParse({ d: "2025-12-31", dt: "2027-01-01T10:00", h: "19:00" });
+    expect(bad.error?.issues.map((i) => i.message)).toEqual(["Data mínima 01/01/2026", "Data máxima 31/12/2026", "Hora máxima 18:00"]);
+    expect(schema.safeParse({ dt: "2026-05-01" }).success).toBe(false);
+  });
+
+  it("checkbox group selection bounds and required single checkbox", () => {
+    const g = buildCustomFieldsSchema([def({ id: "g", type: "CHECKBOX_GROUP", options, config: { minSelected: 2 } })]);
+    expect(g.safeParse({ g: ["o1"] }).success).toBe(false);
+    expect(g.safeParse({ g: ["o1", "o2"] }).success).toBe(true);
+    const cb = buildCustomFieldsSchema([def({ id: "cb", type: "CHECKBOX", required: true })]);
+    expect(cb.safeParse({ cb: false }).error?.issues[0].message).toBe("Marque esta opção para continuar");
+    expect(cb.safeParse({ cb: true }).success).toBe(true);
+  });
+
+  it("formats the new types", () => {
+    expect(formatCustomFieldValue({ type: "DATETIME", options: null }, "2026-10-11T09:05")).toBe("11/10/2026 09:05");
+    expect(formatCustomFieldValue({ type: "CHECKBOX_GROUP", options }, ["o2"])).toBe("Baixa");
+  });
+});

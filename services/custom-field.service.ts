@@ -5,6 +5,7 @@ import {
   buildCustomFieldsSchema,
   mergeCustomFieldValues,
   parseCustomFieldValues,
+  parseConfig,
   parseOptions,
   type CustomFieldDef,
   type CustomFieldEntity,
@@ -36,6 +37,7 @@ export function toCustomFieldDef(row: CustomFieldDefinition): CustomFieldDef {
     helpText: row.helpText,
     required: row.required,
     options: parseOptions(row.options),
+    config: parseConfig(row.config),
     position: row.position,
     showInList: row.showInList,
     status: row.status,
@@ -104,6 +106,7 @@ export const customFieldService = {
         showInList: input.showInList,
         status: input.status,
         options: input.options as Prisma.InputJsonValue,
+        config: input.config as Prisma.InputJsonValue,
         position: (last._max.position ?? -1) + 1,
       },
     });
@@ -140,6 +143,7 @@ export const customFieldService = {
         showInList: input.showInList,
         status: input.status,
         options: input.options as Prisma.InputJsonValue,
+        config: input.config as Prisma.InputJsonValue,
       },
     });
   },
@@ -216,7 +220,7 @@ export const customFieldService = {
     const parsed = schema.safeParse(incoming);
     if (!parsed.success) {
       const issue = parsed.error.issues[0];
-      const label = defs.find((d) => d.id === issue.path[0])?.label ?? "Campo personalizado";
+      const label = defs.find((d) => d.id === issue.path[0])?.label ?? "Propriedade";
       throw new Error(`${label}: ${issue.message}`);
     }
 

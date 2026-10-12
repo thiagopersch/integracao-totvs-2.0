@@ -11,7 +11,7 @@ import { OptionSelect } from "@/components/projects/option-select"
 import { rescheduleProjectTask } from "@/actions/project-tasks"
 import { useUrlParams } from "@/hooks/use-url-params"
 import { addDays, diffDays, toDateParam, utcDay } from "@/lib/gantt"
-import { CLOSED_TASK_STATUSES, TASK_STATUS_COLORS } from "@/lib/projects"
+import { CLOSED_TASK_STATUSES, type StageRef } from "@/lib/projects"
 import { cn } from "@/lib/utils"
 import type { ProjectTaskDTO, WorkspaceActions } from "@/components/projects/workspace/types"
 
@@ -23,6 +23,7 @@ interface TaskCalendarProps {
   projectId: string
   projectCode: string
   tasks: ProjectTaskDTO[]
+  stages: StageRef[]
   month?: string
   by: "due" | "start"
   today: string
@@ -31,9 +32,8 @@ interface TaskCalendarProps {
   actions: WorkspaceActions
 }
 
-function Chip({ task, today, by, onOpen, draggable }: { task: ProjectTaskDTO; today: string; by: "due" | "start"; onOpen: () => void; draggable: boolean }) {
+function Chip({ task, color, today, by, onOpen, draggable }: { task: ProjectTaskDTO; color: string; today: string; by: "due" | "start"; onOpen: () => void; draggable: boolean }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: task.id, disabled: !draggable })
-  const color = TASK_STATUS_COLORS[task.status]
   const due = task.dueDate ? toDateParam(utcDay(task.dueDate)) : null
   const overdue = by === "due" && !!due && due < today && !CLOSED_TASK_STATUSES.includes(task.status)
   return (
@@ -65,6 +65,7 @@ function DayCell({
   inMonth,
   isToday,
   items,
+  stageColors,
   today,
   by,
   canCreate,
@@ -75,6 +76,7 @@ function DayCell({
   inMonth: boolean
   isToday: boolean
   items: ProjectTaskDTO[]
+  stageColors: Record<string, string>
   today: string
   by: "due" | "start"
   canCreate: boolean
@@ -109,7 +111,7 @@ function DayCell({
         )}
       </div>
       {items.slice(0, MAX_CHIPS).map((task) => (
-        <Chip key={task.id} task={task} today={today} by={by} onOpen={() => actions.openTask(task.id)} draggable={canUpdate} />
+        <Chip key={task.id} task={task} color={stageColors[task.stageId ?? ""] ?? "#6b7280"} today={today} by={by} onOpen={() => actions.openTask(task.id)} draggable={canUpdate} />
       ))}
       {extra > 0 && (
         <Popover>
@@ -118,7 +120,7 @@ function DayCell({
           </PopoverTrigger>
           <PopoverContent className="w-64 space-y-1 p-2">
             {items.map((task) => (
-              <Chip key={task.id} task={task} today={today} by={by} onOpen={() => actions.openTask(task.id)} draggable={false} />
+              <Chip key={task.id} task={task} color={stageColors[task.stageId ?? ""] ?? "#6b7280"} today={today} by={by} onOpen={() => actions.openTask(task.id)} draggable={false} />
             ))}
           </PopoverContent>
         </Popover>
@@ -127,7 +129,8 @@ function DayCell({
   )
 }
 
-export function TaskCalendar({ projectId, projectCode, tasks, month, by, today, canCreate, canUpdate, actions }: TaskCalendarProps) {
+export function TaskCalendar({ projectId, tasks, stages, month, by, today, canCreate, canUpdate, actions }: TaskCalendarProps) {
+  const stageColors = useMemo(() => Object.fromEntries(stages.map((s) => [s.id, s.color])), [stages])
   const router = useRouter()
   const { pushParams } = useUrlParams()
   const [, startTransition] = useTransition()
@@ -224,6 +227,7 @@ export function TaskCalendar({ projectId, projectCode, tasks, month, by, today, 
                 inMonth={day.getUTCMonth() === monthIndex - 1}
                 isToday={day.getTime() === todayDate.getTime()}
                 items={byDay.get(toDateParam(day)) ?? []}
+                stageColors={stageColors}
                 today={today}
                 by={by}
                 canCreate={canCreate}

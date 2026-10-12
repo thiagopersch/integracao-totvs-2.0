@@ -10,15 +10,17 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { OptionSelect } from "@/components/projects/option-select"
 import { CUSTOM_FIELD_PARAM_PREFIX, type CustomFieldDef } from "@/lib/custom-fields"
 import { countActiveFilters, filterParamKeys, type Swimlane, type TaskFilters, type WorkspaceView } from "@/lib/project-workspace-params"
-import { PRIORITIES, PRIORITY_COLORS, PRIORITY_LABELS, TASK_STATUSES, TASK_STATUS_COLORS, TASK_STATUS_LABELS } from "@/lib/projects"
+import { PRIORITIES, PRIORITY_COLORS, PRIORITY_LABELS, type PhaseRef, type StageRef } from "@/lib/projects"
 import type { ParamUpdates } from "@/hooks/use-url-params"
 import type { TaskOptions, TeamMember } from "@/components/projects/workspace/types"
 
-const FILTERABLE_TYPES = new Set(["SELECT", "MULTISELECT", "BOOLEAN", "USER", "TEXT"])
+const FILTERABLE_TYPES = new Set(["SELECT", "MULTISELECT", "CHECKBOX_GROUP", "BOOLEAN", "CHECKBOX", "USER", "TEXT"])
 
 interface WorkspaceFiltersProps {
   view: WorkspaceView
   filters: TaskFilters
+  stages: StageRef[]
+  phases: PhaseRef[]
   swimlane: Swimlane
   team: TeamMember[]
   tags: TaskOptions["tags"]
@@ -27,7 +29,7 @@ interface WorkspaceFiltersProps {
   pushParams: (updates: ParamUpdates) => void
 }
 
-export function WorkspaceFilters({ view, filters, swimlane, team, tags, defs, usersById, pushParams }: WorkspaceFiltersProps) {
+export function WorkspaceFilters({ view, filters, stages, phases, swimlane, team, tags, defs, usersById, pushParams }: WorkspaceFiltersProps) {
   const active = countActiveFilters(filters)
   const cfDefs = defs.filter((d) => FILTERABLE_TYPES.has(d.type))
   const cfKeys = cfDefs.map((d) => `${CUSTOM_FIELD_PARAM_PREFIX}${d.id}`)
@@ -67,12 +69,22 @@ export function WorkspaceFilters({ view, filters, swimlane, team, tags, defs, us
       </div>
       <div className="w-48">
         <MultiSelect
-          items={TASK_STATUSES.map((s) => ({ value: s, label: TASK_STATUS_LABELS[s], color: TASK_STATUS_COLORS[s] }))}
-          value={filters.status}
-          onValueChange={(v) => set({ status: v.join(",") || undefined })}
-          placeholder="Status"
+          items={stages.map((s) => ({ value: s.id, label: s.name, color: s.color }))}
+          value={filters.stage}
+          onValueChange={(v) => set({ stage: v.join(",") || undefined })}
+          placeholder="Etapas"
         />
       </div>
+      {phases.length > 0 && (
+        <div className="w-44">
+          <OptionSelect
+            options={[...phases.map((p) => ({ value: p.id, label: p.name, color: p.color })), { value: "none", label: "Sem fase" }]}
+            value={filters.phase}
+            onChange={(v) => set({ phase: v || undefined })}
+            emptyLabel="Todas as fases"
+          />
+        </div>
+      )}
       <div className="w-40">
         <OptionSelect
           options={[
@@ -128,7 +140,7 @@ export function WorkspaceFilters({ view, filters, swimlane, team, tags, defs, us
                 ) : (
                   <OptionSelect
                     options={
-                      def.type === "BOOLEAN"
+                      def.type === "BOOLEAN" || def.type === "CHECKBOX"
                         ? [{ value: "true", label: "Sim" }, { value: "false", label: "Não" }]
                         : def.type === "USER"
                           ? Object.entries(usersById).map(([id, name]) => ({ value: id, label: name }))

@@ -7,6 +7,7 @@ import { getTodayDateOnly } from "@/lib/export-period";
 import { computeHealth, computeProjectProgress, type HealthResult } from "@/lib/project-metrics";
 import {
   CLOSED_TASK_STATUSES,
+  DEFAULT_STAGES,
   PRIORITIES,
   PROJECT_STATUSES,
   parseProjectSettings,
@@ -22,7 +23,7 @@ import {
   type CustomFieldDef,
 } from "@/lib/custom-fields";
 import { customFieldService } from "@/services/custom-field.service";
-import type { UsageCheckItem } from "@/services/contract-usage.service";
+import { POSITION_STEP } from "@/lib/project-tasks";
 import type { ProjectInput, ProjectRiskInput } from "@/schemas/project.schema";
 import type { ListParams, PaginationMeta } from "@/types/common";
 
@@ -53,6 +54,16 @@ const projectInclude = {
     select: { userId: true, role: true, allocationPercent: true, user: { select: { id: true, name: true, image: true } } },
     orderBy: { createdAt: "asc" as const },
   },
+  stages: {
+    where: { deletedAt: null },
+    select: { id: true, name: true, color: true, category: true, wipLimit: true },
+    orderBy: { position: "asc" as const },
+  },
+  phases: {
+    where: { deletedAt: null },
+    select: { id: true, name: true, color: true, startDate: true, endDate: true, description: true },
+    orderBy: { position: "asc" as const },
+  },
 } satisfies Prisma.ProjectInclude;
 
 type ProjectWithRelations = Prisma.ProjectGetPayload<{ include: typeof projectInclude }>;
@@ -76,7 +87,6 @@ async function loadTaskStats(projectIds: string[], today: Date): Promise<Map<str
       by: ["projectId", "status"],
       where: { projectId: { in: projectIds }, deletedAt: null },
       _count: { _all: true },
-      _sum: { loggedMinutes: true },
     }),
     prisma.projectTask.groupBy({
       by: ["projectId"],
@@ -93,10 +103,21 @@ async function loadTaskStats(projectIds: string[], today: Date): Promise<Map<str
     const entry = stats.get(row.projectId) ?? { ...EMPTY_STATS };
     const count = row._count._all;
     entry.taskCount += count;
-    entry.loggedMinutes += row._sum.loggedMinutes ?? 0;
     if (row.status === "DONE") entry.doneCount += count;
     if (row.status === "BLOCKED") entry.blockedCount += count;
     if (!CLOSED_TASK_STATUSES.includes(row.status as TaskStatus)) entry.openCount += count;
+    stats.set(row.projectId, entry);
+  }
+  // Hours = demands linked to the project (with or without a task).
+  const demandMinutes = await prisma.demand.groupBy({
+    by: ["projectId"],
+    where: { projectId: { in: projectIds }, deletedAt: null },
+    _sum: { durationMinutes: true },
+  });
+  for (const row of demandMinutes) {
+    if (!row.projectId) continue;
+    const entry = stats.get(row.projectId) ?? { ...EMPTY_STATS };
+    entry.loggedMinutes = row._sum.durationMinutes ?? 0;
     stats.set(row.projectId, entry);
   }
   for (const row of overdue) {
@@ -153,6 +174,8 @@ function decorate(project: ProjectWithRelations, stats: ProjectTaskStats, today:
     contract: project.contract,
     manager: project.manager,
     members: project.members.map((m) => ({ userId: m.userId, role: m.role, allocationPercent: m.allocationPercent, name: m.user.name, image: m.user.image })),
+    stages: project.stages,
+    phases: project.phases,
     loggedHours,
     ...stats,
     createdAt: project.createdAt,
@@ -240,6 +263,70 @@ async function nextCode(tx: Tx, organizationId: string): Promise<string> {
 
 function isUniqueViolation(error: unknown) {
   return error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002";
+}
+
+/** Child rows a project delete takes along (soft-deleted with the same timestamp). */
+const PROJECT_OWNED_MODELS = ["ProjectMember", "ProjectTask", "ProjectRisk", "ProjectStage", "ProjectPhase"];
+
+/**
+ * Applies the edited workflow: updates/creates stages in the submitted order and removes the
+ * missing ones (blocked while tasks use them). Changing a stage's category re-syncs its tasks'
+ * status (and completion stamp), since ProjectTask.status mirrors the stage category.
+ */
+async function syncStages(tx: Tx, projectId: string, stages: ProjectInput["stages"]) {
+  const existing = await tx.projectStage.findMany({ where: { projectId, deletedAt: null } });
+  const keep = new Set(stages.map((s) => s.id).filter(Boolean));
+  for (const stage of existing.filter((s) => !keep.has(s.id))) {
+    const inUse = await tx.projectTask.count({ where: { stageId: stage.id, deletedAt: null } });
+    if (inUse > 0) throw new Error(`Não é possível remover a etapa “${stage.name}”: mova as ${inUse} tarefa(s) dela antes.`);
+    await tx.projectStage.update({ where: { id: stage.id }, data: { deletedAt: new Date() } });
+  }
+  const now = new Date();
+  for (const [i, stage] of stages.entries()) {
+    const data = { name: stage.name, color: stage.color, category: stage.category, wipLimit: stage.wipLimit, position: (i + 1) * POSITION_STEP };
+    const current = stage.id ? existing.find((s) => s.id === stage.id) : undefined;
+    if (!current) {
+      await tx.projectStage.create({ data: { ...data, projectId } });
+      continue;
+    }
+    await tx.projectStage.update({ where: { id: current.id }, data });
+    if (current.category !== stage.category) {
+      await tx.projectTask.updateMany({
+        where: { stageId: current.id, deletedAt: null },
+        data: { status: stage.category, ...(stage.category === "DONE" ? { progress: 100 } : {}) },
+      });
+      if (stage.category === "DONE") {
+        await tx.projectTask.updateMany({ where: { stageId: current.id, deletedAt: null, completedAt: null }, data: { completedAt: now } });
+      } else if (current.category === "DONE") {
+        await tx.projectTask.updateMany({ where: { stageId: current.id, deletedAt: null }, data: { completedAt: null } });
+      }
+    }
+  }
+  await projectService.recomputeProgress(tx, projectId);
+}
+
+/** Same diff for macro phases; removing a phase with tasks is blocked. */
+async function syncPhases(tx: Tx, projectId: string, phases: ProjectInput["phases"]) {
+  const existing = await tx.projectPhase.findMany({ where: { projectId, deletedAt: null } });
+  const keep = new Set(phases.map((p) => p.id).filter(Boolean));
+  for (const phase of existing.filter((p) => !keep.has(p.id))) {
+    const inUse = await tx.projectTask.count({ where: { phaseId: phase.id, deletedAt: null } });
+    if (inUse > 0) throw new Error(`Não é possível remover a fase “${phase.name}”: ela tem ${inUse} tarefa(s). Mova-as para outra fase antes.`);
+    await tx.projectPhase.update({ where: { id: phase.id }, data: { deletedAt: new Date() } });
+  }
+  for (const [i, phase] of phases.entries()) {
+    const data = {
+      name: phase.name,
+      color: phase.color,
+      description: phase.description || null,
+      startDate: toDateOrNull(phase.startDate),
+      endDate: toDateOrNull(phase.endDate),
+      position: (i + 1) * POSITION_STEP,
+    };
+    const current = phase.id ? existing.find((p) => p.id === phase.id) : undefined;
+    if (current) await tx.projectPhase.update({ where: { id: current.id }, data });
+    else await tx.projectPhase.create({ data: { ...data, projectId } });
+  }
 }
 
 export const projectService = {
@@ -401,6 +488,25 @@ export const projectService = {
               settings: input.settings as Prisma.InputJsonValue,
               customFields: customFields as Prisma.InputJsonValue,
               members: { create: links.memberIds.map((userId) => ({ userId })) },
+              stages: {
+                create: (input.stages.length ? input.stages : DEFAULT_STAGES).map((st, i) => ({
+                  name: st.name,
+                  color: st.color,
+                  category: st.category,
+                  wipLimit: st.wipLimit,
+                  position: (i + 1) * POSITION_STEP,
+                })),
+              },
+              phases: {
+                create: input.phases.map((ph, i) => ({
+                  name: ph.name,
+                  color: ph.color,
+                  description: ph.description || null,
+                  startDate: toDateOrNull(ph.startDate),
+                  endDate: toDateOrNull(ph.endDate),
+                  position: (i + 1) * POSITION_STEP,
+                })),
+              },
             },
           });
         });
@@ -415,9 +521,15 @@ export const projectService = {
     throw new Error("Não foi possível gerar o código do projeto. Tente novamente.");
   },
 
-  async update(id: string, input: ProjectInput, ctx: ProjectCtx): Promise<{ project: Project; old: Project; usageItems: UsageCheckItem[] }> {
+  async update(id: string, input: ProjectInput, ctx: ProjectCtx): Promise<{ project: Project; old: Project }> {
     const old = await this.assertAccessible(id, ctx);
     const links = await this.assertLinks(input, ctx);
+    if (old.clientId !== links.clientId) {
+      const demands = await prisma.demand.count({ where: { projectId: id, deletedAt: null } });
+      if (demands > 0) {
+        throw new Error(`Não é possível trocar o cliente: o projeto já tem ${demands} demanda(s) lançada(s) para o cliente atual.`);
+      }
+    }
     const customFields = await customFieldService.validateValues(ctx.organizationId, "PROJECT", input.customFields, old.customFields);
     const dates = applyLifecycleDates(
       old.status,
@@ -432,6 +544,8 @@ export const projectService = {
         if (links.memberIds.length) {
           await tx.projectMember.createMany({ data: links.memberIds.map((userId) => ({ projectId: id, userId })), skipDuplicates: true });
         }
+        await syncStages(tx, id, input.stages);
+        await syncPhases(tx, id, input.phases);
         return tx.project.update({
           where: { id },
           data: {
@@ -462,27 +576,11 @@ export const projectService = {
         });
       });
 
-      const usageItems =
-        old.clientId !== project.clientId || old.contractId !== project.contractId
-          ? await this.usageItemsForProject(id, [old, project])
-          : [];
-      return { project, old, usageItems };
+      return { project, old };
     } catch (error) {
       if (isUniqueViolation(error)) throw new Error(`Código "${input.code}" já utilizado por outro projeto`);
       throw error;
     }
-  },
-
-  /** One check per (client, month) with logged hours — after a project's client/contract changes. */
-  async usageItemsForProject(projectId: string, versions: Pick<Project, "clientId" | "contractId">[]): Promise<UsageCheckItem[]> {
-    const clientIds = [...new Set(versions.filter((v) => v.clientId && v.contractId).map((v) => v.clientId!))];
-    if (!clientIds.length) return [];
-    const months = await prisma.projectTimeEntry.findMany({
-      where: { projectId, deletedAt: null },
-      select: { date: true },
-      distinct: ["date"],
-    });
-    return clientIds.flatMap((clientId) => months.map((m) => ({ clientId, date: m.date, trigger: "time_entry" as const })));
   },
 
   async setLifecycleStatus(id: string, status: ProjectStatus, ctx: ProjectCtx) {
@@ -498,7 +596,7 @@ export const projectService = {
    */
   async softDelete(id: string, ctx: ProjectCtx) {
     const project = await this.assertAccessible(id, ctx);
-    const reasons = await findBlockingReferences("Project", id, { ignoreModels: ["ProjectMember", "ProjectTask", "ProjectRisk"] });
+    const reasons = await findBlockingReferences("Project", id, { ignoreModels: PROJECT_OWNED_MODELS });
     if (reasons.length > 0) {
       throw new Error(`Não é possível excluir: registro em uso em ${formatBlockingReferences(reasons)}.`);
     }
@@ -506,6 +604,8 @@ export const projectService = {
     await prisma.$transaction([
       prisma.projectTask.updateMany({ where: { projectId: id, deletedAt: null }, data: { deletedAt: now } }),
       prisma.projectRisk.updateMany({ where: { projectId: id, deletedAt: null }, data: { deletedAt: now } }),
+      prisma.projectStage.updateMany({ where: { projectId: id, deletedAt: null }, data: { deletedAt: now } }),
+      prisma.projectPhase.updateMany({ where: { projectId: id, deletedAt: null }, data: { deletedAt: now } }),
       prisma.project.update({ where: { id }, data: { deletedAt: now } }),
     ]);
     return project;
@@ -519,6 +619,8 @@ export const projectService = {
     await prisma.$transaction([
       prisma.projectTask.updateMany({ where: { projectId: id, deletedAt: project.deletedAt }, data: { deletedAt: null } }),
       prisma.projectRisk.updateMany({ where: { projectId: id, deletedAt: project.deletedAt }, data: { deletedAt: null } }),
+      prisma.projectStage.updateMany({ where: { projectId: id, deletedAt: project.deletedAt }, data: { deletedAt: null } }),
+      prisma.projectPhase.updateMany({ where: { projectId: id, deletedAt: project.deletedAt }, data: { deletedAt: null } }),
       prisma.project.update({ where: { id }, data: { deletedAt: null } }),
     ]);
     return project;
@@ -528,7 +630,7 @@ export const projectService = {
     const blocked: { id: string; reasons: Awaited<ReturnType<typeof findBlockingReferences>> }[] = [];
     const deletedIds: string[] = [];
     for (const id of ids) {
-      const reasons = await findBlockingReferences("Project", id, { ignoreModels: ["ProjectMember", "ProjectTask", "ProjectRisk"] });
+      const reasons = await findBlockingReferences("Project", id, { ignoreModels: PROJECT_OWNED_MODELS });
       if (reasons.length > 0) {
         blocked.push({ id, reasons });
         continue;

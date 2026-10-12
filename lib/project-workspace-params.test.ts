@@ -8,7 +8,8 @@ describe("parseWorkspaceParams", () => {
     expect(p.filters).toEqual({
       q: undefined,
       assignee: undefined,
-      status: [],
+      stage: [],
+      phase: undefined,
       priority: [],
       tag: undefined,
       due: undefined,
@@ -26,7 +27,8 @@ describe("parseWorkspaceParams", () => {
       task: "t1",
       q: " login ",
       assignee: "me",
-      status: "TODO,NOPE,DONE",
+      stage: "st-1,bad id!,st-2",
+      phase: "ph-1",
       priority: "HIGH",
       due: "overdue",
       cancelled: "1",
@@ -44,7 +46,8 @@ describe("parseWorkspaceParams", () => {
     expect(p.view).toBe("gantt");
     expect(p.task).toBe("t1");
     expect(p.filters.q).toBe("login");
-    expect(p.filters.status).toEqual(["TODO", "DONE"]);
+    expect(p.filters.stage).toEqual(["st-1", "st-2"]);
+    expect(p.filters.phase).toBe("ph-1");
     expect(p.filters.priority).toEqual(["HIGH"]);
     expect(p.filters.due).toBe("overdue");
     expect(p.filters.showCancelled).toBe(true);
@@ -53,12 +56,21 @@ describe("parseWorkspaceParams", () => {
     expect(p.gantt).toEqual({ zoom: "month", from: "2026-01-01" });
     expect(p.calendar).toEqual({ month: undefined, by: "start" });
     expect(p.kanban.swimlane).toBe("assignee");
-    expect(countActiveFilters(p.filters)).toBe(7);
+    expect(countActiveFilters(p.filters)).toBe(8);
   });
 
   it("falls back on unknown view and rejects unsafe sort fields", () => {
     const p = parseWorkspaceParams({ view: "hack", sort: "a;drop:asc" });
     expect(p.view).toBe("kanban");
     expect(p.list.sort).toBeUndefined();
+  });
+});
+
+describe("enabled views", () => {
+  it("falls back to the project's default view when the URL view is disabled", () => {
+    const defaults = { enabledViews: ["list", "gantt"] as const, defaultView: "gantt" as const };
+    expect(parseWorkspaceParams({}, { ...defaults, enabledViews: [...defaults.enabledViews] }).view).toBe("gantt");
+    expect(parseWorkspaceParams({ view: "kanban" }, { ...defaults, enabledViews: [...defaults.enabledViews] }).view).toBe("gantt");
+    expect(parseWorkspaceParams({ view: "list" }, { ...defaults, enabledViews: [...defaults.enabledViews] }).view).toBe("list");
   });
 });

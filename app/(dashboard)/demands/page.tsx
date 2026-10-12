@@ -1,6 +1,6 @@
 import { Suspense } from "react"
 import { cookies } from "next/headers"
-import { getDemandPeriodOptions, getDemandFilterOptions } from "@/actions/demands"
+import { getDemandPeriodOptions, getDemandFilterOptions, getDemandFormContext } from "@/actions/demands"
 import { listDemands } from "@/queries/demands"
 import { listAllAnalysts } from "@/actions/analysts"
 import { listAllClients } from "@/actions/admin/clients"
@@ -11,11 +11,13 @@ import { listAllTags } from "@/actions/tags"
 import { DemandTable } from "@/components/shared/demand-table"
 import { TableSkeleton } from "@/components/shared/table-skeleton"
 import { getRequestContext } from "@/lib/tenant"
+import { hasPermission } from "@/lib/permissions"
 import { getDemandAnalystScope } from "@/lib/demand-scope"
 import { PERIOD_COOKIE_NAME, resolvePeriod } from "@/lib/period"
 
 const FILTER_PARAMS = [
   "clientId",
+  "projectId",
   "analystId",
   "requesterId",
   "departmentId",
@@ -69,6 +71,9 @@ async function DemandsContent({ searchParams }: { searchParams: Promise<Record<s
     listAllTags(),
     getDemandPeriodOptions(),
   ])
+  const formContext = hasPermission(ctx.permissions, "demands", "create")
+    ? await getDemandFormContext()
+    : { projects: [], myAnalystId: null }
 
   return (
     <DemandTable
@@ -85,6 +90,7 @@ async function DemandsContent({ searchParams }: { searchParams: Promise<Record<s
       period={period}
       years={periodOptions.years}
       monthsByYear={periodOptions.monthsByYear}
+      formContext={formContext}
     />
   )
 }

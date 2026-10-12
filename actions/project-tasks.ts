@@ -84,14 +84,14 @@ export async function moveProjectTask(projectId: string, taskId: string, input: 
   const parsed = moveTaskSchema.safeParse(input);
   if (!parsed.success) return { success: false, error: "Movimento inválido" };
   try {
-    const { task, old, warning } = await projectTaskService.move(taskId, projectId, parsed.data, { organizationId, userId, allowedClientIds });
-    if (old.status !== task.status) {
+    const { task, old, stage, warning } = await projectTaskService.move(taskId, projectId, parsed.data, { organizationId, userId, allowedClientIds });
+    if (old.stageId !== task.stageId) {
       await auditService.log({
         action: "MOVE",
         entity: ENTITY,
         entityId: taskId,
         oldData: { title: old.title, status: old.status },
-        newData: { title: task.title, status: task.status },
+        newData: { title: task.title, status: task.status, stage: stage.name },
         notify: false,
       });
     }
@@ -265,5 +265,15 @@ export async function deleteTaskComment(projectId: string, commentId: string) {
     return { success: true };
   } catch (error) {
     return fail(error);
+  }
+}
+
+/** Tasks of a project for the demand form ("Tarefa" picker). */
+export async function listProjectTasksForDemand(projectId: string) {
+  const { organizationId, userId, allowedClientIds } = await requirePermission("demands", "create");
+  try {
+    return await projectTaskService.listForDemand(projectId, { organizationId, userId, allowedClientIds });
+  } catch {
+    return [];
   }
 }

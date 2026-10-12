@@ -8,7 +8,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Button } from "@/components/ui/button"
 import { NAV_ICONS } from "@/lib/nav-icons"
-import { navGroups, type NavGroup } from "@/lib/nav-items"
+import { findNavItemByPathname, navGroups, type NavGroup } from "@/lib/nav-items"
 import { hasPermission } from "@/lib/permissions"
 import { usePermissions } from "@/hooks/use-permissions"
 import { useSidebarStore } from "@/store/sidebar.store"
@@ -56,8 +56,11 @@ export function DashboardSidebar() {
     setOpenGroup((prev) => (prev === label ? null : label))
   }
 
+  // Only the most specific match is active — /projetos/gestao/campos highlights "Propriedades",
+  // not also its parent route "Gestão de Projetos".
+  const activeHref = findNavItemByPathname(pathname)?.href
   function itemActive(href: string) {
-    return isItemActive(pathname, href)
+    return activeHref ? activeHref === href : isItemActive(pathname, href)
   }
 
   function groupActive(group: NavGroup) {

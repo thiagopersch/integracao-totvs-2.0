@@ -14,7 +14,7 @@ export function CustomFieldValueView({ def, value, usersById }: CustomFieldValue
   if (isEmptyCustomFieldValue(value)) return <span className="text-muted-foreground">-</span>
   const options = def.options ?? []
 
-  if (def.type === "SELECT" || def.type === "MULTISELECT") {
+  if (def.type === "SELECT" || def.type === "MULTISELECT" || def.type === "CHECKBOX_GROUP") {
     const ids = Array.isArray(value) ? value : [String(value)]
     return (
       <div className="flex flex-wrap gap-1">

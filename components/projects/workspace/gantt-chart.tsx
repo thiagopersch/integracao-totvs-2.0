@@ -22,7 +22,8 @@ import {
   toDateParam,
   utcDay,
 } from "@/lib/gantt"
-import { TASK_STATUS_COLORS, TASK_STATUS_LABELS, taskKey } from "@/lib/projects"
+import { taskKey, type PhaseRef, type StageRef } from "@/lib/projects"
+import type { TreeNode } from "@/lib/project-tasks"
 import { formatDateOnly } from "@/utils/format"
 import { cn } from "@/lib/utils"
 import type { GanttZoom } from "@/lib/project-workspace-params"
@@ -44,6 +45,8 @@ interface GanttChartProps {
   projectId: string
   projectCode: string
   tasks: ProjectTaskDTO[]
+  stages: StageRef[]
+  phases: PhaseRef[]
   zoom: GanttZoom
   from?: string
   today: string
@@ -52,7 +55,11 @@ interface GanttChartProps {
   actions: WorkspaceActions
 }
 
-export function GanttChart({ projectId, projectCode, tasks, zoom, from, today, plannedEnd, canUpdate, actions }: GanttChartProps) {
+type GanttRow =
+  | { kind: "phase"; key: string; phase: PhaseRef | null; tasks: ProjectTaskDTO[] }
+  | ({ kind: "task"; key: string } & TreeNode<ProjectTaskDTO>)
+
+export function GanttChart({ projectId, projectCode, tasks, stages, phases, zoom, from, today, plannedEnd, canUpdate, actions }: GanttChartProps) {
   const router = useRouter()
   const { pushParams } = useUrlParams()
   const [, startTransition] = useTransition()
@@ -64,31 +71,57 @@ export function GanttChart({ projectId, projectCode, tasks, zoom, from, today, p
   const px = GANTT_PX_PER_DAY[zoom]
   const todayDate = utcDay(today)
 
-  const tree = useMemo(() => buildTaskTree(tasks), [tasks])
-  const visible = useMemo(() => {
-    const hiddenParents = new Set<string>()
-    const result: typeof tree = []
-    const parentOf = new Map(tasks.map((t) => [t.id, t.parentId]))
-    for (const node of tree) {
-      let parent = parentOf.get(node.task.id) ?? null
-      let hidden = false
-      while (parent) {
-        if (collapsed.has(parent) || hiddenParents.has(parent)) {
-          hidden = true
-          break
+  const stageById = useMemo(() => new Map(stages.map((st) => [st.id, st])), [stages])
+
+  /**
+   * Rows: with phases, a header row per phase (plus "Sem fase") followed by its WBS tree; without,
+   * just the tree. Collapsed phases/parents hide their descendants.
+   */
+  const rows = useMemo<GanttRow[]>(() => {
+    const visibleTree = (group: ProjectTaskDTO[]) => {
+      const parentOf = new Map(group.map((t) => [t.id, t.parentId]))
+      const hiddenParents = new Set<string>()
+      const result: GanttRow[] = []
+      for (const node of buildTaskTree(group)) {
+        let parent = parentOf.get(node.task.id) ?? null
+        let hidden = false
+        while (parent) {
+          if (collapsed.has(parent) || hiddenParents.has(parent)) {
+            hidden = true
+            break
+          }
+          parent = parentOf.get(parent) ?? null
         }
-        parent = parentOf.get(parent) ?? null
+        if (hidden) hiddenParents.add(node.task.id)
+        else result.push({ kind: "task", key: node.task.id, ...node })
       }
-      if (hidden) hiddenParents.add(node.task.id)
-      else result.push(node)
+      return result
     }
-    return result
-  }, [tree, collapsed, tasks])
+    if (phases.length === 0) return visibleTree(tasks)
+    const known = new Set(phases.map((p) => p.id))
+    const groups: { phase: PhaseRef | null; tasks: ProjectTaskDTO[] }[] = [
+      ...phases.map((phase) => ({ phase, tasks: tasks.filter((t) => t.phaseId === phase.id) })),
+      { phase: null, tasks: tasks.filter((t) => !t.phaseId || !known.has(t.phaseId)) },
+    ]
+    return groups.flatMap(({ phase, tasks: group }) => {
+      if (!phase && group.length === 0) return []
+      const key = `phase:${phase?.id ?? "none"}`
+      const header: GanttRow = { kind: "phase", key, phase, tasks: group }
+      return collapsed.has(key) ? [header] : [header, ...visibleTree(group)]
+    })
+  }, [tasks, phases, collapsed])
+  const tree = useMemo(() => buildTaskTree(tasks), [tasks])
 
   const range = useMemo(
-    () => computeRange([...tasks.flatMap((t) => [t.startDate, t.dueDate]), plannedEnd ?? null] as (Date | string | null)[], todayDate, zoom, from),
+    () =>
+      computeRange(
+        [...tasks.flatMap((t) => [t.startDate, t.dueDate]), ...phases.flatMap((p) => [p.startDate, p.endDate]), plannedEnd ?? null] as (Date | string | null)[],
+        todayDate,
+        zoom,
+        from
+      ),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [tasks, zoom, from, today, plannedEnd]
+    [tasks, phases, zoom, from, today, plannedEnd]
   )
   const width = range.days * px
   const header = useMemo(() => headerCells(range.start, range.days, zoom, px, todayDate), [range, zoom, px, todayDate])
@@ -109,11 +142,23 @@ export function GanttChart({ projectId, projectCode, tasks, zoom, from, today, p
     return map
   }, [tree, tasks, range.start, px])
 
-  const rowIndex = useMemo(() => new Map(visible.map((n, i) => [n.task.id, i])), [visible])
+  const rowIndex = useMemo(() => new Map(rows.map((r, i) => [r.key, i])), [rows])
+
+  /** Phase bar: the phase's own dates, else the span of its tasks. */
+  const phaseBar = (row: Extract<GanttRow, { kind: "phase" }>) => {
+    const dates = row.phase?.startDate || row.phase?.endDate
+      ? [row.phase.startDate, row.phase.endDate]
+      : row.tasks.flatMap((t) => [t.startDate, t.dueDate])
+    const times = dates.filter((d): d is Date | string => !!d).map((d) => utcDay(d).getTime())
+    if (!times.length) return null
+    return barGeometry({ startDate: new Date(Math.min(...times)), dueDate: new Date(Math.max(...times)) }, range.start, px)
+  }
 
   const arrows = useMemo(() => {
     const paths: { key: string; d: string }[] = []
-    for (const { task } of visible) {
+    for (const row of rows) {
+      if (row.kind !== "task") continue
+      const { task } = row
       for (const dep of task.predecessors) {
         const fromRow = rowIndex.get(dep.predecessorId)
         const toRow = rowIndex.get(task.id)
@@ -124,7 +169,7 @@ export function GanttChart({ projectId, projectCode, tasks, zoom, from, today, p
       }
     }
     return paths
-  }, [visible, rowIndex, bars])
+  }, [rows, rowIndex, bars])
 
   function scrollToToday() {
     const el = scrollRef.current
@@ -223,7 +268,7 @@ export function GanttChart({ projectId, projectCode, tasks, zoom, from, today, p
       </div>
 
       <div ref={scrollRef} className="relative max-h-[70vh] overflow-auto rounded-md border" onPointerMove={onPointerMove}>
-        <div className="relative" style={{ width: LEFT_W + width, minHeight: HEADER_H + visible.length * ROW_H }}>
+        <div className="relative" style={{ width: LEFT_W + width, minHeight: HEADER_H + rows.length * ROW_H }}>
           {/* Header */}
           <div className="sticky top-0 z-30 flex border-b bg-background" style={{ height: HEADER_H }}>
             <div className="sticky left-0 z-10 flex shrink-0 items-end border-r bg-background px-3 pb-1.5 text-xs font-medium text-muted-foreground" style={{ width: LEFT_W }}>
@@ -267,15 +312,59 @@ export function GanttChart({ projectId, projectCode, tasks, zoom, from, today, p
               )}
             </div>
 
-            {visible.map(({ task, depth, hasChildren }) => {
+            {rows.map((row) => {
+              if (row.kind === "phase") {
+                const geometry = phaseBar(row)
+                const color = row.phase?.color ?? "#94a3b8"
+                const done = row.tasks.filter((t) => t.status === "DONE").length
+                const live = row.tasks.filter((t) => t.status !== "CANCELLED").length
+                return (
+                  <div key={row.key} className="flex border-b bg-muted/40" style={{ height: ROW_H }}>
+                    <div className="sticky left-0 z-20 flex shrink-0 items-center gap-1.5 border-r bg-muted px-2 text-sm font-semibold" style={{ width: LEFT_W }}>
+                      <button
+                        type="button"
+                        className="rounded p-0.5 hover:bg-background"
+                        onClick={() =>
+                          setCollapsed((prev) => {
+                            const next = new Set(prev)
+                            if (next.has(row.key)) next.delete(row.key)
+                            else next.add(row.key)
+                            return next
+                          })
+                        }
+                        aria-label={collapsed.has(row.key) ? "Expandir fase" : "Recolher fase"}
+                      >
+                        {collapsed.has(row.key) ? <ChevronRight className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+                      </button>
+                      <span className="h-2.5 w-2.5 shrink-0 rounded-sm" style={{ backgroundColor: color }} />
+                      <span className="truncate">{row.phase?.name ?? "Sem fase"}</span>
+                      <span className="ml-auto text-xs font-normal text-muted-foreground">{done}/{live}</span>
+                    </div>
+                    <div className="relative" style={{ width }}>
+                      {geometry && (
+                        <WithTooltip
+                          label={`${row.phase?.name ?? "Sem fase"}: ${formatDateOnly(geometry.start)} → ${formatDateOnly(geometry.end)} · ${live ? Math.round((done / live) * 100) : 0}% das tarefas concluídas`}
+                        >
+                          <div
+                            className="absolute top-1/2 z-10 h-3 -translate-y-1/2 rounded-sm"
+                            style={{ left: geometry.x, width: geometry.width, backgroundColor: `${color}66`, border: `1px solid ${color}` }}
+                          />
+                        </WithTooltip>
+                      )}
+                    </div>
+                  </div>
+                )
+              }
+              const { task, depth, hasChildren } = row
               const bar = bars.get(task.id)
               const shown = bar ? previewBar(task, bar) : null
-              const color = TASK_STATUS_COLORS[task.status]
+              const stage = task.stageId ? stageById.get(task.stageId) : undefined
+              const color = stage?.color ?? "#94a3b8"
               return (
                 <div key={task.id} className="group flex border-b hover:bg-muted/30" style={{ height: ROW_H }}>
                   <div
                     className="sticky left-0 z-20 flex shrink-0 items-center gap-1 border-r bg-background px-2 text-sm group-hover:bg-muted"
-                    style={{ width: LEFT_W, paddingLeft: 8 + depth * 16 }}
+                    style={{ width: LEFT_W, paddingLeft: 8 + (depth + (phases.length ? 1 : 0)) * 16 }}
                   >
                     {hasChildren ? (
                       <button
@@ -328,7 +417,7 @@ export function GanttChart({ projectId, projectCode, tasks, zoom, from, today, p
                           <span>
                             {task.title}
                             <br />
-                            {task.startDate ? formatDateOnly(task.startDate) : "?"} → {task.dueDate ? formatDateOnly(task.dueDate) : "?"} · {TASK_STATUS_LABELS[task.status]} · {task.progress}%
+                            {task.startDate ? formatDateOnly(task.startDate) : "?"} → {task.dueDate ? formatDateOnly(task.dueDate) : "?"} · {stage?.name ?? "-"} · {task.progress}%
                           </span>
                         }
                       >
@@ -355,7 +444,7 @@ export function GanttChart({ projectId, projectCode, tasks, zoom, from, today, p
             })}
 
             {/* Dependency arrows */}
-            <svg className="pointer-events-none absolute top-0 z-0" style={{ left: LEFT_W, width, height: visible.length * ROW_H }}>
+            <svg className="pointer-events-none absolute top-0 z-0" style={{ left: LEFT_W, width, height: rows.length * ROW_H }}>
               <defs>
                 <marker id="gantt-arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
                   <path d="M 0 0 L 8 4 L 0 8 z" className="fill-muted-foreground" />
@@ -366,7 +455,7 @@ export function GanttChart({ projectId, projectCode, tasks, zoom, from, today, p
               ))}
             </svg>
 
-            {visible.length === 0 && <p className="p-6 text-sm text-muted-foreground">Nenhuma tarefa para exibir no cronograma.</p>}
+            {rows.length === 0 && <p className="p-6 text-sm text-muted-foreground">Nenhuma tarefa para exibir no cronograma.</p>}
           </div>
         </div>
       </div>

@@ -4,6 +4,7 @@ import { useState } from "react"
 import { toast } from "sonner"
 import {
   CalendarClock,
+  Layers,
   Clock,
   Diamond,
   Link2,
@@ -26,8 +27,8 @@ import { ConfirmDialog } from "@/components/shared/confirm-dialog"
 import { ColorBadge } from "@/components/shared/color-badge"
 import { WithTooltip } from "@/components/shared/with-tooltip"
 import { PendingRegion } from "@/components/shared/pending-region"
-import { OptionSelect, toOptions } from "@/components/projects/option-select"
-import { PriorityBadge, ProgressCell, TaskStatusBadge } from "@/components/projects/project-badges"
+import { OptionSelect } from "@/components/projects/option-select"
+import { PhaseBadge, PriorityBadge, ProgressCell, StageBadge } from "@/components/projects/project-badges"
 import { CustomFieldValueView } from "@/components/projects/custom-fields/custom-field-value"
 import {
   addChecklistItem,
@@ -41,11 +42,10 @@ import {
   removeTaskDependency,
   updateChecklistItem,
 } from "@/actions/project-tasks"
-import { deleteTimeEntry } from "@/actions/project-time-entries"
-import { TASK_STATUS_COLORS, TASK_STATUS_LABELS, formatHours, taskKey, type TaskStatus } from "@/lib/projects"
+import { deleteDemand } from "@/actions/demands"
+import { formatHours, taskKey, type PhaseRef, type StageRef } from "@/lib/projects"
 import { isEmptyCustomFieldValue, type CustomFieldDef } from "@/lib/custom-fields"
 import { formatDateOnly, formatRelativeTime } from "@/utils/format"
-import type { EditableTimeEntry } from "@/components/projects/workspace/time-entry-dialog"
 import type { TaskDetail, TaskOptions } from "@/components/projects/workspace/types"
 
 interface TaskSheetProps {
@@ -59,11 +59,15 @@ interface TaskSheetProps {
   defs: CustomFieldDef[]
   usersById: Record<string, string>
   currentUserId: string
-  can: { update: boolean; delete: boolean; logTime: boolean; manageHours: boolean; moderate: boolean }
+  stages: StageRef[]
+  phases: PhaseRef[]
+  /** logTime = demands:create, editDemand/deleteDemand = demands:update/delete. */
+  can: { update: boolean; delete: boolean; logTime: boolean; editDemand: boolean; deleteDemand: boolean; moderate: boolean }
   onClose: () => void
   onOpenTask: (taskId: string) => void
   onEdit: () => void
-  onLogTime: (entry?: EditableTimeEntry) => void
+  /** New demand for this task (no id) or edit an existing one. */
+  onLogTime: (demandId?: string) => void
   refresh: () => void
 }
 
@@ -94,6 +98,8 @@ export function TaskSheet({
   onEdit,
   onLogTime,
   refresh,
+  stages,
+  phases,
 }: TaskSheetProps) {
   const [tab, setTab] = useState("detalhes")
   const [busy, setBusy] = useState(false)
@@ -117,7 +123,7 @@ export function TaskSheet({
     return false
   }
 
-  const loggedMinutes = task?.timeEntries.reduce((s, e) => s + e.minutes, 0) ?? 0
+  const loggedMinutes = task?.demands.reduce((sum, d) => sum + d.durationMinutes, 0) ?? 0
   const checklistDone = task?.checklistItems.filter((i) => i.done).length ?? 0
   const predecessorIds = new Set(task?.predecessors.map((p) => p.predecessorId))
   const predecessorOptions = options.tasks
@@ -159,17 +165,17 @@ export function TaskSheet({
               <SheetDescription className="sr-only">Detalhes da tarefa</SheetDescription>
               <div className="flex flex-wrap items-center gap-2 pt-1">
                 {can.update ? (
-                  <div className="w-44">
+                  <div className="w-48">
                     <OptionSelect
-                      options={toOptions(TASK_STATUS_LABELS, TASK_STATUS_COLORS)}
-                      value={task.status}
-                      onChange={(status) =>
-                        status && status !== task.status && run(() => moveProjectTask(projectId, task.id, { status: status as TaskStatus }), "Status atualizado")
+                      options={stages.map((st) => ({ value: st.id, label: st.name, color: st.color }))}
+                      value={task.stageId}
+                      onChange={(stageId) =>
+                        stageId && stageId !== task.stageId && run(() => moveProjectTask(projectId, task.id, { stageId }), "Etapa atualizada")
                       }
                     />
                   </div>
                 ) : (
-                  <TaskStatusBadge status={task.status} />
+                  <StageBadge stage={stages.find((st) => st.id === task.stageId)} />
                 )}
                 <PriorityBadge priority={task.priority} />
                 <div className="ml-auto flex gap-1">
@@ -203,12 +209,15 @@ export function TaskSheet({
                   Checklist ({checklistDone}/{task.checklistItems.length})
                 </TabsTrigger>
                 <TabsTrigger value="comentarios">Comentários ({task.comments.length})</TabsTrigger>
-                <TabsTrigger value="horas">Horas</TabsTrigger>
+                <TabsTrigger value="demandas">Demandas ({task.demands.length})</TabsTrigger>
               </ScrollableTabsList>
 
               <div className="min-h-0 flex-1 overflow-y-auto p-4">
                 <TabsContent value="detalhes" className="space-y-4">
                   <div className="space-y-2.5">
+                    <DetailRow icon={Layers} label="Fase">
+                      <PhaseBadge phase={phases.find((ph) => ph.id === task.phaseId)} />
+                    </DetailRow>
                     <DetailRow icon={UserRound} label="Responsável">
                       {task.assignee?.name ?? <span className="text-muted-foreground">Sem responsável</span>}
                     </DetailRow>
@@ -268,7 +277,7 @@ export function TaskSheet({
                           <span className="font-mono text-xs text-muted-foreground">{taskKey(projectCode, child.number)}</span>
                           <span className="flex-1 truncate">{child.title}</span>
                           <span className="text-xs text-muted-foreground">{child.assignee?.name}</span>
-                          <TaskStatusBadge status={child.status} />
+                          <StageBadge stage={child.stage} />
                         </button>
                       </li>
                     ))}
@@ -301,7 +310,7 @@ export function TaskSheet({
                             <span className="font-mono text-xs text-muted-foreground">{taskKey(projectCode, dep.predecessor.number)}</span>
                             {dep.predecessor.title}
                           </button>
-                          <TaskStatusBadge status={dep.predecessor.status} />
+                          <StageBadge stage={dep.predecessor.stage} />
                           {can.update && (
                             <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => run(() => removeTaskDependency(projectId, dep.id), "Dependência removida")}>
                               <Trash2 className="h-3.5 w-3.5" />
@@ -335,7 +344,7 @@ export function TaskSheet({
                             <span className="font-mono text-xs text-muted-foreground">{taskKey(projectCode, dep.successor.number)}</span>
                             {dep.successor.title}
                           </button>
-                          <TaskStatusBadge status={dep.successor.status} />
+                          <StageBadge stage={dep.successor.stage} />
                         </li>
                       ))}
                     </ul>
@@ -422,7 +431,7 @@ export function TaskSheet({
                   )}
                 </TabsContent>
 
-                <TabsContent value="horas" className="space-y-3">
+                <TabsContent value="demandas" className="space-y-3">
                   <div className="flex items-center justify-between text-sm">
                     <span>
                       Total apontado: <strong>{formatHours(loggedMinutes, "minutes")}</strong>
@@ -430,36 +439,42 @@ export function TaskSheet({
                     </span>
                     {can.logTime && (
                       <Button size="sm" variant="outline" onClick={() => onLogTime()}>
-                        <Plus className="mr-1.5 h-4 w-4" /> Apontar
+                        <Plus className="mr-1.5 h-4 w-4" /> Apontar horas
                       </Button>
                     )}
                   </div>
-                  {task.timeEntries.length === 0 && <p className="text-sm text-muted-foreground">Nenhuma hora apontada.</p>}
+                  <p className="text-xs text-muted-foreground">As horas da tarefa são as demandas vinculadas a ela — também aparecem em Demandas e consomem o contrato do cliente.</p>
+                  {task.demands.length === 0 && <p className="text-sm text-muted-foreground">Nenhuma demanda vinculada.</p>}
                   <ul className="divide-y rounded-md border">
-                    {task.timeEntries.map((entry) => {
-                      const mine = entry.user.id === currentUserId
-                      const editable = can.logTime && (mine || can.manageHours)
+                    {task.demands.map((demand) => {
+                      const mine = demand.analyst.userId === currentUserId
                       return (
-                        <li key={entry.id} className="group flex items-start gap-3 px-3 py-2 text-sm">
-                          <span className="w-20 shrink-0 tabular-nums text-muted-foreground">{formatDateOnly(entry.date)}</span>
+                        <li key={demand.id} className="group flex items-start gap-3 px-3 py-2 text-sm">
+                          <span className="w-20 shrink-0 tabular-nums text-muted-foreground">{formatDateOnly(demand.date)}</span>
                           <div className="min-w-0 flex-1">
-                            <p className="font-medium">{entry.user.name}</p>
-                            {entry.note && <p className="whitespace-pre-wrap text-xs text-muted-foreground">{entry.note}</p>}
+                            <p className="truncate font-medium">{demand.name}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {demand.analyst.name}
+                              {mine && " (você)"}
+                            </p>
                           </div>
-                          <span className="tabular-nums">{formatHours(entry.minutes, "minutes")}</span>
-                          {editable && (
+                          <span className="tabular-nums">{formatHours(demand.durationMinutes, "minutes")}</span>
+                          {(can.editDemand || can.deleteDemand) && (
                             <div className="flex opacity-0 group-hover:opacity-100">
-                              <Button
-                                size="icon"
-                                variant="ghost"
-                                className="h-7 w-7"
-                                onClick={() => onLogTime({ id: entry.id, taskId: task.id, userId: entry.user.id, date: entry.date, minutes: entry.minutes, note: entry.note })}
-                              >
-                                <Pencil className="h-3.5 w-3.5" />
-                              </Button>
-                              <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => run(() => deleteTimeEntry(projectId, entry.id), "Apontamento excluído")}>
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </Button>
+                              {can.editDemand && (
+                                <WithTooltip label="Editar demanda">
+                                  <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => onLogTime(demand.id)}>
+                                    <Pencil className="h-3.5 w-3.5" />
+                                  </Button>
+                                </WithTooltip>
+                              )}
+                              {can.deleteDemand && (
+                                <WithTooltip label="Excluir demanda">
+                                  <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => run(() => deleteDemand(demand.id), "Demanda excluída")}>
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                  </Button>
+                                </WithTooltip>
+                              )}
                             </div>
                           )}
                         </li>
@@ -477,7 +492,7 @@ export function TaskSheet({
           open={confirmDelete}
           onOpenChange={setConfirmDelete}
           title="Excluir tarefa"
-          description="Excluir esta tarefa? Tarefas com subtarefas ou horas apontadas não podem ser excluídas."
+          description="Excluir esta tarefa? Tarefas com subtarefas ou demandas vinculadas não podem ser excluídas."
           confirmLabel="Excluir"
           variant="destructive"
           onConfirm={async () => {

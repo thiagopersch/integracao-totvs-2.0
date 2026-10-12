@@ -64,15 +64,13 @@ describe("usageTone", () => {
 })
 
 describe("sumMinutesByClient", () => {
-  it("adds project time entries to the client's demand minutes", () => {
+  it("counts project demands once, only breaking out their share", () => {
     const result = sumMinutesByClient(
       [{ clientId: "c1", minutes: 120 }, { clientId: "c2", minutes: 30 }],
-      [{ projectId: "p1", minutes: 60 }, { projectId: "p2", minutes: 15 }, { projectId: "p3", minutes: 45 }, { projectId: "orphan", minutes: 999 }],
-      new Map([["p1", "c1"], ["p2", "c1"], ["p3", "c3"]]),
+      [{ clientId: "c1", minutes: 45 }],
     )
-    expect(result.get("c1")).toEqual({ demandMinutes: 120, projectMinutes: 75 })
-    expect(result.get("c2")).toEqual({ demandMinutes: 30, projectMinutes: 0 })
-    expect(result.get("c3")).toEqual({ demandMinutes: 0, projectMinutes: 45 })
-    expect(result.size).toBe(3)
+    expect(result.get("c1")).toEqual({ totalMinutes: 120, projectMinutes: 45 })
+    expect(result.get("c2")).toEqual({ totalMinutes: 30, projectMinutes: 0 })
+    expect(result.size).toBe(2)
   })
 })

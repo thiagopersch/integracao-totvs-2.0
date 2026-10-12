@@ -42,8 +42,7 @@ export const PERMISSIONS: PermissionDef[] = [
   ...crud("mapeador_temas", "Temas do Mapeador", "mapeador"),
   ...crud("projects", "Projetos", "projects"),
   ...crud("project_tasks", "Tarefas de Projetos", "projects"),
-  ...crud("project_time_entries", "Apontamentos de Horas", "projects"),
-  ...crud("project_custom_fields", "Campos Personalizados de Projetos", "projects"),
+  ...crud("project_custom_fields", "Propriedades de Projetos", "projects"),
   ...crud("message_templates", "Templates de Mensagem", "integrations"),
   { resource: "soap", action: "execute", name: "Executar SOAP", description: "Executar chamadas SOAP", module: "soap" },
   { resource: "soap", action: "history", name: "Visualizar Histórico", description: "Visualizar histórico SOAP", module: "soap" },
@@ -133,7 +132,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<"ADMIN" | "MANAGER" | "USER", stri
         ? p.action === "read"
         : ["soap", "integrations", "tbc_reports", "ps_docs", "ps_ficha_test", "ps_field_search", "dashboard", "notifications", "reports", "deletion_logs", "activity_logs"].includes(p.resource)
           ? true
-          : ["analysts", "contracts", "requesters", "departments", "demand_types", "tags", "demands", "mapeador_projetos", "mapeador_temas", "message_templates", "projects", "project_tasks", "project_time_entries", "project_custom_fields"].includes(p.resource)
+          : ["analysts", "contracts", "requesters", "departments", "demand_types", "tags", "demands", "mapeador_projetos", "mapeador_temas", "message_templates", "projects", "project_tasks", "project_custom_fields"].includes(p.resource)
             ? p.action !== "delete"
             : false
   ).map(toKey),
@@ -143,6 +142,6 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<"ADMIN" | "MANAGER" | "USER", stri
     (p.resource === "dashboard" && p.action === "view") ||
     (p.resource === "notifications" && p.action === "read") ||
     (p.resource === "demands" && p.action !== "delete") ||
-    (["project_tasks", "project_time_entries"].includes(p.resource) && p.action !== "delete")
+    (p.resource === "project_tasks" && p.action !== "delete")
   ).map(toKey),
 };

@@ -3,7 +3,6 @@
 import { updateTag } from "next/cache";
 import { projectService } from "@/services/project.service";
 import { auditService } from "@/services/audit.service";
-import { contractUsageService } from "@/services/contract-usage.service";
 import { projectLifecycleSchema, projectRiskSchema, projectSchema } from "@/schemas/project.schema";
 import { requirePermission } from "@/lib/rbac";
 import { formatBlockingReferences } from "@/lib/entity-relations";
@@ -41,7 +40,7 @@ export async function updateProject(id: string, input: unknown) {
     return { success: false, error: "Dados inválidos", errors: parsed.error.flatten().fieldErrors };
   }
   try {
-    const { project, old, usageItems } = await projectService.update(id, parsed.data, { organizationId, userId, allowedClientIds });
+    const { project, old } = await projectService.update(id, parsed.data, { organizationId, userId, allowedClientIds });
     await auditService.log({
       action: "UPDATE",
       entity: ENTITY,
@@ -49,11 +48,6 @@ export async function updateProject(id: string, input: unknown) {
       oldData: { name: old.name, status: old.status, clientId: old.clientId, contractId: old.contractId, plannedEndDate: old.plannedEndDate },
       newData: { name: project.name, status: project.status, clientId: project.clientId, contractId: project.contractId, plannedEndDate: project.plannedEndDate },
     });
-    if (usageItems.length) {
-      contractUsageService.scheduleCheck(organizationId, usageItems);
-      updateTag("contracts");
-      updateTag("dashboard");
-    }
     invalidate(id);
     return { success: true };
   } catch (error) {

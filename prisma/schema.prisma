@@ -982,6 +982,9 @@ model Demand {
   requesterId     String?      @map("requester_id")
   departmentId    String?      @map("department_id")
   demandTypeId    String?      @map("demand_type_id")
+  /// Gestão de Projetos: hours logged for a project (and optionally one of its tasks).
+  projectId       String?      @map("project_id")
+  projectTaskId   String?      @map("project_task_id")
   createdAt       DateTime     @default(now()) @map("created_at")
   updatedAt       DateTime     @updatedAt @map("updated_at")
   deletedAt       DateTime?    @map("deleted_at")
@@ -992,6 +995,8 @@ model Demand {
   requester    Requester?   @relation(fields: [requesterId], references: [id])
   department   Department?  @relation(fields: [departmentId], references: [id])
   demandType   DemandType?  @relation(fields: [demandTypeId], references: [id])
+  project      Project?     @relation(fields: [projectId], references: [id])
+  projectTask  ProjectTask? @relation(fields: [projectTaskId], references: [id])
   attachments  Attachment[]
   comments     Comment[]
   demandTags   DemandTag[]
@@ -999,6 +1004,8 @@ model Demand {
   @@index([organizationId, deletedAt, date])
   @@index([clientId])
   @@index([analystId])
+  @@index([projectId])
+  @@index([projectTaskId])
   @@map("demands")
 }
 
@@ -1249,6 +1256,10 @@ enum CustomFieldType {
   BOOLEAN
   USER
   URL
+  CHECKBOX
+  CHECKBOX_GROUP
+  DATETIME
+  TIME
 }
 
 enum ProjectDueAlertKind {
@@ -1304,6 +1315,9 @@ model Project {
   tasks        ProjectTask[]
   timeEntries  ProjectTimeEntry[]
   risks        ProjectRisk[]
+  stages       ProjectStage[]
+  phases       ProjectPhase[]
+  demands      Demand[]
 
   @@unique([organizationId, code])
   @@index([organizationId, deletedAt, status])
@@ -1338,6 +1352,8 @@ model ProjectTask {
   organizationId  String            @map("organization_id")
   projectId       String            @map("project_id")
   parentId        String?           @map("parent_id")
+  stageId         String?           @map("stage_id")
+  phaseId         String?           @map("phase_id")
   number          Int
   title           String
   description     String?           @db.Text
@@ -1362,6 +1378,9 @@ model ProjectTask {
   organization   Organization               @relation(fields: [organizationId], references: [id])
   project        Project                    @relation(fields: [projectId], references: [id])
   parent         ProjectTask?               @relation("ProjectTaskTree", fields: [parentId], references: [id])
+  stage          ProjectStage?              @relation(fields: [stageId], references: [id])
+  phase          ProjectPhase?              @relation(fields: [phaseId], references: [id])
+  demands        Demand[]
   children       ProjectTask[]              @relation("ProjectTaskTree")
   assignee       User?                      @relation("ProjectTaskAssignee", fields: [assigneeId], references: [id])
   predecessors   ProjectTaskDependency[]    @relation("DependencySuccessor")
@@ -1375,6 +1394,8 @@ model ProjectTask {
   @@unique([projectId, number])
   @@index([projectId, deletedAt, status, boardPosition])
   @@index([parentId])
+  @@index([stageId])
+  @@index([phaseId])
   @@index([assigneeId, status])
   @@index([organizationId, dueDate])
   @@map("project_tasks")
@@ -1506,6 +1527,8 @@ model CustomFieldDefinition {
   options        Json?
   position       Int               @default(0)
   showInList     Boolean           @default(false) @map("show_in_list")
+  /// Validation rules per type (lib/custom-fields.ts CustomFieldConfig): minLength/maxLength, min/max, dates, times, selections.
+  config         Json?
   status         Boolean           @default(true)
   createdAt      DateTime          @default(now()) @map("created_at")
   updatedAt      DateTime          @updatedAt @map("updated_at")
@@ -1536,4 +1559,49 @@ model ProjectTaskDueAlert {
 
   @@unique([taskId, userId, kind, dueDate])
   @@map("project_task_due_alerts")
+}
+
+/**
+ * Workflow stage (kanban column) of a Project, defined per project. `category` says how the stage
+ * counts for metrics — ProjectTask.status mirrors the category of the task's stage, so progress,
+ * health, alerts and burndown keep working on the fixed status set.
+ */
+model ProjectStage {
+  id        String            @id @default(uuid())
+  projectId String            @map("project_id")
+  name      String
+  color     String            @default("#6366f1")
+  position  Float             @default(0)
+  category  ProjectTaskStatus @default(TODO)
+  wipLimit  Int?              @map("wip_limit")
+  createdAt DateTime          @default(now()) @map("created_at")
+  updatedAt DateTime          @updatedAt @map("updated_at")
+  deletedAt DateTime?         @map("deleted_at")
+
+  project Project       @relation(fields: [projectId], references: [id])
+  tasks   ProjectTask[]
+
+  @@index([projectId, deletedAt, position])
+  @@map("project_stages")
+}
+
+/// Macro phase of a Project (e.g. Iniciação, Planejamento, Execução, Encerramento), with dates.
+model ProjectPhase {
+  id          String    @id @default(uuid())
+  projectId   String    @map("project_id")
+  name        String
+  color       String    @default("#0ea5e9")
+  position    Float     @default(0)
+  description String?   @db.Text
+  startDate   DateTime? @map("start_date")
+  endDate     DateTime? @map("end_date")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  deletedAt   DateTime? @map("deleted_at")
+
+  project Project       @relation(fields: [projectId], references: [id])
+  tasks   ProjectTask[]
+
+  @@index([projectId, deletedAt, position])
+  @@map("project_phases")
 }

@@ -19,8 +19,9 @@ export async function getDemandAnalystScope(ctx: RequestContext): Promise<string
   return (await findLinkedAnalystId(ctx.userId)) ?? NO_LINKED_ANALYST
 }
 
-/** Per-request memo: /demands resolves the scope for the list, the filter options and the periods. */
-const findLinkedAnalystId = cache(async (userId: string) => {
+/** Per-request memo: /demands resolves the scope for the list, the filter options and the periods.
+ *  Also the default analyst of a new demand (the logged-in user's own analyst). */
+export const findLinkedAnalystId = cache(async (userId: string) => {
   const analyst = await prisma.analyst.findUnique({ where: { userId }, select: { id: true } })
   return analyst?.id ?? null
 })

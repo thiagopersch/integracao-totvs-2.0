@@ -52,7 +52,8 @@ export type DemandListFilters = Partial<
     | "status"
     | "dateFrom"
     | "dateTo"
-    | "minDuration",
+    | "minDuration"
+    | "projectId",
     string | boolean | undefined
   >
 >;
@@ -166,6 +167,10 @@ async function buildListWhere(
     and.push({ date: { gte: dateFrom, lt: new Date(dateTo.getTime() + DAY_MS) } });
   }
 
+  const projectIds = splitList(filters.projectId);
+  if (projectIds.includes("none")) and.push({ projectId: null });
+  else if (projectIds.length) and.push({ projectId: { in: projectIds } });
+
   const minDuration = Number(filters.minDuration);
   if (minDuration > 0) and.push({ durationMinutes: { gte: minDuration } });
 
@@ -184,7 +189,36 @@ export const demandIncludeRelations = {
   department: { select: { id: true, name: true } },
   demandType: { select: { id: true, name: true, color: true } },
   demandTags: { include: { tag: true } },
+  project: { select: { id: true, code: true, name: true, color: true } },
+  projectTask: { select: { id: true, number: true, title: true } },
 } as const;
+
+/** Sort fields that live on a relation (DataTable column ids) → Prisma orderBy. */
+function demandOrderBy(sort: { field: string; direction: "asc" | "desc" }): Prisma.DemandOrderByWithRelationInput {
+  if (sort.field === "projectName") return { project: { name: sort.direction } };
+  return safeOrderBy(sort);
+}
+
+/**
+ * A demand linked to a project must be of the project's client (hours consume that client's
+ * contract) and, when a task is given, the task must belong to the project.
+ */
+async function assertProjectLink(organizationId: string, allowedClientIds: string[], clientId: string, projectId?: string | null, projectTaskId?: string | null) {
+  if (!projectId) {
+    if (projectTaskId) throw new Error("Selecione o projeto da tarefa");
+    return;
+  }
+  const project = await prisma.project.findFirst({
+    where: { id: projectId, organizationId, deletedAt: null, clientId: { in: allowedClientIds } },
+    select: { clientId: true, name: true },
+  });
+  if (!project) throw new Error("Projeto não encontrado ou fora do seu escopo de acesso");
+  if (project.clientId !== clientId) throw new Error(`O cliente da demanda precisa ser o cliente do projeto ${project.name}`);
+  if (projectTaskId) {
+    const task = await prisma.projectTask.findFirst({ where: { id: projectTaskId, projectId, deletedAt: null }, select: { id: true } });
+    if (!task) throw new Error("Tarefa não encontrada neste projeto");
+  }
+}
 
 export const demandService = {
   async list(
@@ -198,7 +232,7 @@ export const demandService = {
     const pageSize = params.pageSize || 10;
     const where = await buildListWhere(params, organizationId, allowedClientIds, analystScope, period);
     const orderBy = params.sort
-      ? [safeOrderBy(params.sort), { createdAt: "asc" as const }]
+      ? [demandOrderBy(params.sort), { createdAt: "asc" as const }]
       : [{ date: "desc" as const }, { createdAt: "asc" as const }];
 
     const [data, total, totalsRaw] = await Promise.all([
@@ -230,6 +264,7 @@ export const demandService = {
    */
   async getFilterOptions(organizationId: string, allowedClientIds: string[], analystScope?: string, period?: DateRange) {
     const empty = {
+      projects: [] as { id: string; code: string; name: string; color: string }[],
       clients: [] as Client[],
       analysts: [] as { id: string; name: string; color: string }[],
       requesters: [] as { id: string; name: string }[],
@@ -249,6 +284,14 @@ export const demandService = {
       return rows.map((r) => (r as unknown as Record<string, string | null>)[field]).filter((v): v is string => !!v);
     };
 
+    const projectRows = await prisma.demand.groupBy({ by: ["projectId"], where: { ...where, projectId: { not: null } } });
+    const projects = projectRows.length
+      ? await prisma.project.findMany({
+          where: { id: { in: projectRows.map((r) => r.projectId!) } },
+          select: { id: true, code: true, name: true, color: true },
+          orderBy: { name: "asc" },
+        })
+      : [];
     const [clientIds, analystIds, requesterIds, departmentIds, demandTypeIds, tagRows, priorityRows, statusRows, maxDuration] =
       await Promise.all([
         distinctIds("clientId"),
@@ -286,6 +329,7 @@ export const demandService = {
     const presentStatuses = new Set(statusRows.map((s) => s.status));
 
     return {
+      projects,
       clients,
       analysts,
       requesters,
@@ -339,10 +383,13 @@ export const demandService = {
 
   async create(input: CreateDemandInput, organizationId: string, allowedClientIds: string[]) {
     assertClientAllowed(input.clientId, allowedClientIds);
-    const { tagIds, date, startTime, endTime, ...rest } = input;
+    const { tagIds, date, startTime, endTime, projectId, projectTaskId, ...rest } = input;
+    await assertProjectLink(organizationId, allowedClientIds, input.clientId, projectId, projectTaskId);
     return prisma.demand.create({
       data: {
         ...rest,
+        projectId: projectId || null,
+        projectTaskId: projectTaskId || null,
         date: new Date(date),
         startTime: combineDateAndTime(date, startTime),
         endTime: combineDateAndTime(date, endTime),
@@ -359,7 +406,10 @@ export const demandService = {
     const existing = await prisma.demand.findFirst({ where: { id, organizationId, clientId: { in: allowedClientIds } } });
     if (!existing) throw new Error("Demanda não encontrada ou fora do seu escopo de acesso");
 
-    const { tagIds, date, startTime, endTime, ...rest } = input;
+    const { tagIds, date, startTime, endTime, projectId, projectTaskId, ...rest } = input;
+    const nextProjectId = projectId === undefined ? existing.projectId : projectId || null;
+    const nextTaskId = projectTaskId === undefined ? (projectId === "" ? null : existing.projectTaskId) : projectTaskId || null;
+    await assertProjectLink(organizationId, allowedClientIds, input.clientId ?? existing.clientId, nextProjectId, nextTaskId);
     if (tagIds) {
       await prisma.demandTag.deleteMany({ where: { demandId: id } });
     }
@@ -369,6 +419,8 @@ export const demandService = {
       where: { id, organizationId },
       data: {
         ...rest,
+        projectId: nextProjectId,
+        projectTaskId: nextTaskId,
         ...(date ? { date: new Date(date) } : {}),
         ...(startTime && effectiveDate ? { startTime: combineDateAndTime(effectiveDate, startTime) } : {}),
         ...(endTime && effectiveDate ? { endTime: combineDateAndTime(effectiveDate, endTime) } : {}),
@@ -403,12 +455,35 @@ export const demandService = {
         requesterId: existing.requesterId,
         departmentId: existing.departmentId,
         demandTypeId: existing.demandTypeId,
+        projectId: existing.projectId,
+        projectTaskId: existing.projectTaskId,
         demandTags: existing.demandTags.length
           ? { create: existing.demandTags.map(({ tag }) => ({ tagId: tag.id })) }
           : undefined,
       },
       include: demandIncludeRelations,
     });
+  },
+
+  /** Projects a demand can be linked to: in scope, with a client, not finished. */
+  async listLinkableProjects(organizationId: string, allowedClientIds: string[]) {
+    return prisma.project.findMany({
+      where: { organizationId, deletedAt: null, clientId: { in: allowedClientIds }, status: { in: ["PLANNING", "IN_PROGRESS", "ON_HOLD"] } },
+      select: { id: true, code: true, name: true, color: true, clientId: true },
+      orderBy: { name: "asc" },
+    });
+  },
+
+  /** Project/task links of the given demands — read before a delete/restore to re-sync task hours. */
+  async projectLinks(ids: string[], organizationId: string) {
+    const rows = await prisma.demand.findMany({
+      where: { id: { in: ids }, organizationId, projectId: { not: null } },
+      select: { projectId: true, projectTaskId: true },
+    });
+    return {
+      projectIds: [...new Set(rows.map((r) => r.projectId!))],
+      taskIds: [...new Set(rows.map((r) => r.projectTaskId).filter((id): id is string => !!id))],
+    };
   },
 
   async softDelete(id: string, organizationId: string, allowedClientIds: string[]) {

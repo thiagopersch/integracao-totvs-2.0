@@ -25,6 +25,22 @@ export function TaskStatusBadge({ status }: { status: TaskStatus }) {
   return <ColorBadge label={TASK_STATUS_LABELS[status]} color={TASK_STATUS_COLORS[status]} />
 }
 
+/** Workflow stage (kanban column) of a task, in the project's own name and color. */
+export function StageBadge({ stage }: { stage: { name: string; color: string } | null | undefined }) {
+  if (!stage) return <span className="text-muted-foreground">-</span>
+  return <ColorBadge label={stage.name} color={stage.color} />
+}
+
+export function PhaseBadge({ phase }: { phase: { name: string; color: string } | null | undefined }) {
+  if (!phase) return <span className="text-muted-foreground">-</span>
+  return (
+    <span className="inline-flex items-center gap-1.5 text-xs">
+      <span className="h-2 w-2 rounded-sm" style={{ backgroundColor: phase.color }} />
+      {phase.name}
+    </span>
+  )
+}
+
 export function PriorityBadge({ priority }: { priority: Priority }) {
   return <ColorBadge label={PRIORITY_LABELS[priority]} color={PRIORITY_COLORS[priority]} />
 }

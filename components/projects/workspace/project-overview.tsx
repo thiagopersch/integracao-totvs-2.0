@@ -16,11 +16,20 @@ import { ColorBadge } from "@/components/shared/color-badge"
 import { WithTooltip } from "@/components/shared/with-tooltip"
 import { ContractUsageBar } from "@/components/shared/contract-usage-bar"
 import { OptionSelect, toOptions } from "@/components/projects/option-select"
-import { TaskStatusBadge } from "@/components/projects/project-badges"
+import { ProgressCell, StageBadge } from "@/components/projects/project-badges"
 import { UserAvatar } from "@/components/projects/workspace/task-card-bits"
 import { CustomFieldValueView } from "@/components/projects/custom-fields/custom-field-value"
 import { deleteProjectRisk, saveProjectRisk } from "@/actions/projects"
-import { RISK_STATUS_COLORS, RISK_STATUS_LABELS, formatHours, riskSeverity, taskKey, type RiskStatus } from "@/lib/projects"
+import {
+  RISK_SCALE_COLORS,
+  RISK_SCALE_LABELS,
+  RISK_STATUS_COLORS,
+  RISK_STATUS_LABELS,
+  formatHours,
+  riskSeverity,
+  taskKey,
+  type RiskStatus,
+} from "@/lib/projects"
 import { isEmptyCustomFieldValue, type CustomFieldDef } from "@/lib/custom-fields"
 import { formatDateOnly, toDateInputValue } from "@/utils/format"
 import { cn } from "@/lib/utils"
@@ -39,7 +48,6 @@ type RiskForm = {
 
 const EMPTY_RISK: RiskForm = { title: "", description: "", probability: 3, impact: 3, status: "OPEN", ownerId: "", mitigationPlan: "", dueDate: "" }
 const SCALE = [1, 2, 3, 4, 5]
-const SCALE_LABELS = ["Muito baixo", "Baixo", "Médio", "Alto", "Muito alto"]
 
 function CharterBlock({ label, value }: { label: string; value: string | null }) {
   if (!value) return null
@@ -109,7 +117,7 @@ function RiskFormBody({
 
   const set = <K extends keyof RiskForm>(key: K, value: RiskForm[K]) => setForm((f) => ({ ...f, [key]: value }))
   const severity = riskSeverity(form.probability, form.impact)
-  const scaleOptions = SCALE.map((n) => ({ value: String(n), label: `${n} — ${SCALE_LABELS[n - 1]}` }))
+  const scaleOptions = SCALE.map((n) => ({ value: String(n), label: `${n} — ${RISK_SCALE_LABELS[n]}`, color: RISK_SCALE_COLORS[n] }))
 
   async function save() {
     setSaving(true)
@@ -360,6 +368,32 @@ export function ProjectOverview({ project, tasks, dashboard, risks, defs, usersB
           </CardContent>
         </Card>
 
+        {project.phases.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm">Fases</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {project.phases.map((phase) => {
+                const phaseTasks = tasks.filter((t) => t.phaseId === phase.id && t.status !== "CANCELLED")
+                const done = phaseTasks.filter((t) => t.status === "DONE").length
+                return (
+                  <div key={phase.id} className="space-y-1">
+                    <div className="flex items-center gap-2 text-sm">
+                      <span className="h-2.5 w-2.5 shrink-0 rounded-sm" style={{ backgroundColor: phase.color }} />
+                      <span className="flex-1 truncate font-medium">{phase.name}</span>
+                      <span className="text-xs text-muted-foreground">
+                        {phase.startDate ? formatDateOnly(phase.startDate) : "?"} → {phase.endDate ? formatDateOnly(phase.endDate) : "?"}
+                      </span>
+                    </div>
+                    <ProgressCell value={phaseTasks.length ? (done / phaseTasks.length) * 100 : 0} color={phase.color} />
+                  </div>
+                )
+              })}
+            </CardContent>
+          </Card>
+        )}
+
         <Card>
           <CardHeader>
             <CardTitle className="text-sm">Marcos</CardTitle>
@@ -373,7 +407,7 @@ export function ProjectOverview({ project, tasks, dashboard, risks, defs, usersB
                   <span className="font-mono text-xs text-muted-foreground">{taskKey(project.code, m.number)}</span> {m.title}
                 </span>
                 <span className="text-xs text-muted-foreground">{m.dueDate ? formatDateOnly(m.dueDate) : "-"}</span>
-                <TaskStatusBadge status={m.status} />
+                <StageBadge stage={project.stages.find((st) => st.id === m.stageId)} />
               </button>
             ))}
           </CardContent>

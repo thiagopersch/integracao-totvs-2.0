@@ -37,7 +37,7 @@ export function ContractUsageBar({ usedHours, contractedHours, percent, level, d
   )
   if (!projectHours) return bar
   return (
-    <WithTooltip label={`Demandas ${formatHours(demandHours ?? 0)} · Projetos ${formatHours(projectHours)}`}>
+    <WithTooltip label={`Avulsas ${formatHours(demandHours ?? 0)} · Projetos ${formatHours(projectHours)}`}>
       {bar}
     </WithTooltip>
   )

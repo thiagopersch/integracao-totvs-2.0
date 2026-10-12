@@ -9,23 +9,25 @@ import { createSelectColumn } from "@/components/shared/select-column"
 import { ColorBadge } from "@/components/shared/color-badge"
 import { Button } from "@/components/ui/button"
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu"
-import { PriorityBadge, ProgressCell, TaskStatusBadge } from "@/components/projects/project-badges"
+import { PhaseBadge, PriorityBadge, ProgressCell, StageBadge } from "@/components/projects/project-badges"
 import { DueDateLabel } from "@/components/projects/workspace/task-card-bits"
 import { CustomFieldValueView } from "@/components/projects/custom-fields/custom-field-value"
 import { bulkDeleteProjectTasks } from "@/actions/project-tasks"
 import { useUrlParams } from "@/hooks/use-url-params"
 import { buildTaskTree } from "@/lib/project-tasks"
 import { CUSTOM_FIELD_PARAM_PREFIX, customFieldSortKey, type CustomFieldDef } from "@/lib/custom-fields"
-import { PRIORITIES, TASK_STATUSES, formatHours, taskKey } from "@/lib/projects"
+import { PRIORITIES, formatHours, taskKey, type PhaseRef, type StageRef } from "@/lib/projects"
 import { formatDateOnly } from "@/utils/format"
 import type { WorkspaceParams } from "@/lib/project-workspace-params"
 import type { ProjectTaskDTO, WorkspaceActions } from "@/components/projects/workspace/types"
 
 type Row = ProjectTaskDTO & { depth: number }
 
-const BASE_SORTABLE = ["number", "title", "status", "priority", "assigneeName", "startDate", "dueDate", "progress", "loggedMinutes"]
+const BASE_SORTABLE = ["number", "title", "stage", "phase", "priority", "assigneeName", "startDate", "dueDate", "progress", "loggedMinutes"]
 
-function sortValue(task: ProjectTaskDTO, field: string, defsById: Map<string, CustomFieldDef>, usersById: Record<string, string>): string | number | null {
+type SortContext = { defsById: Map<string, CustomFieldDef>; usersById: Record<string, string>; stageIndex: Map<string, number>; phaseIndex: Map<string, number> }
+
+function sortValue(task: ProjectTaskDTO, field: string, { defsById, usersById, stageIndex, phaseIndex }: SortContext): string | number | null {
   if (field.startsWith(CUSTOM_FIELD_PARAM_PREFIX)) {
     const def = defsById.get(field.slice(CUSTOM_FIELD_PARAM_PREFIX.length))
     if (!def) return null
@@ -37,8 +39,10 @@ function sortValue(task: ProjectTaskDTO, field: string, defsById: Map<string, Cu
       return task.number
     case "title":
       return task.title.toLocaleLowerCase("pt-BR")
-    case "status":
-      return TASK_STATUSES.indexOf(task.status)
+    case "stage":
+      return task.stageId ? (stageIndex.get(task.stageId) ?? null) : null
+    case "phase":
+      return task.phaseId ? (phaseIndex.get(task.phaseId) ?? null) : null
     case "priority":
       return PRIORITIES.indexOf(task.priority)
     case "assigneeName":
@@ -61,24 +65,36 @@ interface TaskListViewProps {
   tasks: ProjectTaskDTO[]
   params: WorkspaceParams["list"]
   defs: CustomFieldDef[]
+  stages: StageRef[]
+  phases: PhaseRef[]
   usersById: Record<string, string>
   today: string
   can: { create: boolean; update: boolean; delete: boolean; logTime: boolean }
   actions: WorkspaceActions
 }
 
-export function TaskListView({ projectId, projectCode, tasks, params, defs, usersById, today, can, actions }: TaskListViewProps) {
+export function TaskListView({ projectId, projectCode, tasks, params, defs, stages, phases, usersById, today, can, actions }: TaskListViewProps) {
   const { pushParams } = useUrlParams()
   const listDefs = useMemo(() => defs.filter((d) => d.showInList), [defs])
-  const defsById = useMemo(() => new Map(defs.map((d) => [d.id, d])), [defs])
+  const sortContext = useMemo<SortContext>(
+    () => ({
+      defsById: new Map(defs.map((d) => [d.id, d])),
+      usersById,
+      stageIndex: new Map(stages.map((s, i) => [s.id, i])),
+      phaseIndex: new Map(phases.map((p, i) => [p.id, i])),
+    }),
+    [defs, usersById, stages, phases]
+  )
+  const stageById = useMemo(() => new Map(stages.map((s) => [s.id, s])), [stages])
+  const phaseById = useMemo(() => new Map(phases.map((p) => [p.id, p])), [phases])
 
   const rows: Row[] = useMemo(() => {
     if (!params.sort) return buildTaskTree(tasks).map(({ task, depth }) => ({ ...task, depth }))
     const { field, direction } = params.sort
     return [...tasks]
       .sort((a, b) => {
-        const va = sortValue(a, field, defsById, usersById)
-        const vb = sortValue(b, field, defsById, usersById)
+        const va = sortValue(a, field, sortContext)
+        const vb = sortValue(b, field, sortContext)
         if (va === null && vb === null) return 0
         if (va === null) return 1
         if (vb === null) return -1
@@ -86,7 +102,7 @@ export function TaskListView({ projectId, projectCode, tasks, params, defs, user
         return direction === "asc" ? cmp : -cmp
       })
       .map((task) => ({ ...task, depth: 0 }))
-  }, [tasks, params.sort, defsById, usersById])
+  }, [tasks, params.sort, sortContext])
 
   const pageCount = Math.max(1, Math.ceil(rows.length / params.pageSize))
   const page = Math.min(params.page, pageCount)
@@ -114,7 +130,8 @@ export function TaskListView({ projectId, projectCode, tasks, params, defs, user
           </div>
         ),
       },
-      { id: "status", header: "Status", cell: ({ row }) => <TaskStatusBadge status={row.original.status} /> },
+      { id: "stage", header: "Etapa", cell: ({ row }) => <StageBadge stage={row.original.stageId ? stageById.get(row.original.stageId) : null} /> },
+      { id: "phase", header: "Fase", cell: ({ row }) => <PhaseBadge phase={row.original.phaseId ? phaseById.get(row.original.phaseId) : null} /> },
       { id: "priority", header: "Prioridade", cell: ({ row }) => <PriorityBadge priority={row.original.priority} /> },
       {
         id: "assigneeName",
@@ -174,7 +191,7 @@ export function TaskListView({ projectId, projectCode, tasks, params, defs, user
     ]
     return cols
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [listDefs, usersById, projectCode, today, can.create, can.logTime])
+  }, [listDefs, usersById, projectCode, today, can.create, can.logTime, stageById, phaseById])
 
   return (
     <DataTable

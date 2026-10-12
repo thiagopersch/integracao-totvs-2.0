@@ -1,4 +1,4 @@
-import { PRIORITIES, TASK_STATUSES, type Priority, type TaskStatus } from "@/lib/projects";
+import { PRIORITIES, WORKSPACE_VIEWS, type Priority, type WorkspaceView } from "@/lib/projects";
 import { CUSTOM_FIELD_PARAM_PREFIX } from "@/lib/custom-fields";
 
 /**
@@ -6,17 +6,7 @@ import { CUSTOM_FIELD_PARAM_PREFIX } from "@/lib/custom-fields";
  * filters are shared by every view, and each view has its own params. Pure + client-safe.
  */
 
-export const WORKSPACE_VIEWS = ["overview", "kanban", "list", "gantt", "calendar", "dashboard"] as const;
-export type WorkspaceView = (typeof WORKSPACE_VIEWS)[number];
-
-export const WORKSPACE_VIEW_LABELS: Record<WorkspaceView, string> = {
-  overview: "Visão geral",
-  kanban: "Kanban",
-  list: "Lista",
-  gantt: "Cronograma",
-  calendar: "Calendário",
-  dashboard: "Indicadores",
-};
+export { WORKSPACE_VIEWS, WORKSPACE_VIEW_LABELS, type WorkspaceView } from "@/lib/projects";
 
 export type DueFilter = "overdue" | "week" | "none";
 export type Swimlane = "none" | "assignee" | "priority";
@@ -26,11 +16,14 @@ export type TaskFilters = {
   q?: string;
   /** user id, "me" or "none" */
   assignee?: string;
-  status: TaskStatus[];
+  /** ProjectStage ids */
+  stage: string[];
+  /** ProjectPhase id or "none" */
+  phase?: string;
   priority: Priority[];
   tag?: string;
   due?: DueFilter;
-  /** Cancelled tasks are hidden unless asked for (or filtered by status). */
+  /** Cancelled tasks are hidden unless asked for (or filtered by stage). */
   showCancelled: boolean;
   /** `cf_<defId>` → value */
   customFields: Record<string, string>;
@@ -63,7 +56,20 @@ function pick<T extends string>(value: string | undefined, allowed: readonly T[]
   return value && (allowed as readonly string[]).includes(value) ? (value as T) : fallback;
 }
 
-export function parseWorkspaceParams(params: RawParams): WorkspaceParams {
+const ID_PATTERN = /^[A-Za-z0-9-]{1,64}$/;
+
+function ids(value: string | undefined): string[] {
+  return value ? value.split(",").filter((v) => ID_PATTERN.test(v)) : [];
+}
+
+/** `defaults` come from the project settings: the view used when the URL has none (or a disabled one). */
+export function parseWorkspaceParams(
+  params: RawParams,
+  defaults: { enabledViews?: readonly WorkspaceView[]; defaultView?: WorkspaceView } = {},
+): WorkspaceParams {
+  const enabled = defaults.enabledViews?.length ? defaults.enabledViews : WORKSPACE_VIEWS;
+  const fallbackView =
+    defaults.defaultView && enabled.includes(defaults.defaultView) ? defaults.defaultView : enabled.includes("kanban") ? "kanban" : enabled[0];
   const customFields: Record<string, string> = {};
   for (const [key, value] of Object.entries(params)) {
     if (!key.startsWith(CUSTOM_FIELD_PARAM_PREFIX)) continue;
@@ -76,12 +82,13 @@ export function parseWorkspaceParams(params: RawParams): WorkspaceParams {
   const from = one(params, "from");
 
   return {
-    view: pick(one(params, "view"), WORKSPACE_VIEWS, "kanban"),
+    view: pick(one(params, "view"), enabled, fallbackView),
     task: one(params, "task"),
     filters: {
       q: one(params, "q"),
       assignee: one(params, "assignee"),
-      status: csv(one(params, "status"), TASK_STATUSES),
+      stage: ids(one(params, "stage")),
+      phase: ((p) => (p && ID_PATTERN.test(p) ? p : undefined))(one(params, "phase")),
       priority: csv(one(params, "priority"), PRIORITIES),
       tag: one(params, "tag"),
       due: pick<DueFilter | "">(one(params, "due"), ["overdue", "week", "none"], "") || undefined,
@@ -110,7 +117,8 @@ export function countActiveFilters(filters: TaskFilters): number {
   return (
     (filters.q ? 1 : 0) +
     (filters.assignee ? 1 : 0) +
-    (filters.status.length ? 1 : 0) +
+    (filters.stage.length ? 1 : 0) +
+    (filters.phase ? 1 : 0) +
     (filters.priority.length ? 1 : 0) +
     (filters.tag ? 1 : 0) +
     (filters.due ? 1 : 0) +
@@ -121,5 +129,5 @@ export function countActiveFilters(filters: TaskFilters): number {
 
 /** URL param keys owned by the task filters (cleared by "Limpar filtros"). */
 export function filterParamKeys(customFieldKeys: string[]): string[] {
-  return ["q", "assignee", "status", "priority", "tag", "due", "cancelled", ...customFieldKeys];
+  return ["q", "assignee", "stage", "phase", "priority", "tag", "due", "cancelled", ...customFieldKeys];
 }

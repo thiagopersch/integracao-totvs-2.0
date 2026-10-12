@@ -7,8 +7,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { MultiTypeChart } from "@/components/shared/charts/multi-type-chart"
 import { ContractUsageBar } from "@/components/shared/contract-usage-bar"
-import { ProgressCell, TaskStatusBadge } from "@/components/projects/project-badges"
-import { TASK_STATUSES, TASK_STATUS_COLORS, TASK_STATUS_LABELS, formatHours, taskKey } from "@/lib/projects"
+import { ProgressCell, StageBadge } from "@/components/projects/project-badges"
+import { formatHours, taskKey } from "@/lib/projects"
 import { formatDateOnly } from "@/utils/format"
 import { cn } from "@/lib/utils"
 import type { ProjectDashboardData, WorkspaceActions } from "@/components/projects/workspace/types"
@@ -62,8 +62,8 @@ export function ProjectDashboard({ data, projectCode, actions }: { data: Project
   const fmtUnit = (v: number) => (data.burn.unit === "hours" ? formatHours(v) : `${v.toLocaleString("pt-BR")} tarefa(s)`)
   const gap = kpis.expectedProgress !== null ? kpis.expectedProgress - kpis.progress : null
 
-  const statusData = TASK_STATUSES.filter((s) => data.statusCounts[s] > 0).map((s) => ({ label: TASK_STATUS_LABELS[s], total: data.statusCounts[s] }))
-  const statusColorMap = Object.fromEntries(TASK_STATUSES.map((s) => [TASK_STATUS_LABELS[s], TASK_STATUS_COLORS[s]]))
+  const stageData = data.stageCounts.filter((s) => s.count > 0).map((s) => ({ label: s.name, total: s.count }))
+  const stageColorMap = Object.fromEntries(data.stageCounts.map((s) => [s.name, s.color]))
   const workloadData = data.workload.map((w) => ({ name: w.name, open: w.open, estimate: w.openEstimateHours, logged: w.loggedHours }))
   const weekData = data.hoursByWeek.map((w) => ({ week: shortDate(w.week), hours: w.hours }))
 
@@ -130,7 +130,7 @@ export function ProjectDashboard({ data, projectCode, actions }: { data: Project
             <CardContent className="space-y-1">
               <ContractUsageBar {...data.usage} />
               <p className="text-xs text-muted-foreground">
-                Demandas {formatHours(data.usage.demandHours)} · Projetos {formatHours(data.usage.projectHours)}
+                Avulsas {formatHours(data.usage.demandHours)} · Projetos {formatHours(data.usage.projectHours)}
               </p>
             </CardContent>
           </Card>
@@ -185,15 +185,15 @@ export function ProjectDashboard({ data, projectCode, actions }: { data: Project
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-sm">Tarefas por status</CardTitle>
+            <CardTitle className="text-sm">Tarefas por etapa</CardTitle>
           </CardHeader>
           <CardContent>
             <MultiTypeChart
-              data={statusData}
+              data={stageData}
               nameKey="label"
               series={[{ key: "total", name: "Tarefas" }]}
               kind="bar-h"
-              statusColorMap={statusColorMap}
+              statusColorMap={stageColorMap}
               emptyMessage="Nenhuma tarefa"
             />
           </CardContent>
@@ -262,7 +262,7 @@ export function ProjectDashboard({ data, projectCode, actions }: { data: Project
                     {t.isMilestone && <Diamond className="h-3.5 w-3.5 fill-amber-500 text-amber-500" />}
                     <span className="flex-1 truncate">{t.title}</span>
                     <span className="hidden text-xs text-muted-foreground sm:inline">{t.assignee ?? "Sem responsável"}</span>
-                    <TaskStatusBadge status={t.status} />
+                    <StageBadge stage={data.stageCounts.find((st) => st.id === t.stageId)} />
                   </button>
                 </li>
               ))}
@@ -273,13 +273,13 @@ export function ProjectDashboard({ data, projectCode, actions }: { data: Project
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-sm">Resumo por status (tabela)</CardTitle>
+          <CardTitle className="text-sm">Resumo por etapa (tabela)</CardTitle>
         </CardHeader>
         <CardContent className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7">
-          {TASK_STATUSES.map((s) => (
-            <div key={s} className="rounded-md border p-2">
-              <TaskStatusBadge status={s} />
-              <p className="mt-1 text-lg font-semibold tabular-nums">{data.statusCounts[s]}</p>
+          {data.stageCounts.map((s) => (
+            <div key={s.id} className="rounded-md border p-2">
+              <StageBadge stage={s} />
+              <p className="mt-1 text-lg font-semibold tabular-nums">{s.count}</p>
             </div>
           ))}
           <div className="col-span-full pt-2">
