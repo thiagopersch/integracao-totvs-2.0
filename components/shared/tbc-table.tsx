@@ -36,7 +36,7 @@ import type { PaginationMeta } from "@/types/common"
 import { zodResolver } from "@hookform/resolvers/zod"
 import type { Client } from "@/generated/prisma/client"
 import type { ColumnDef } from "@tanstack/react-table"
-import { ListChecks, Loader2, Plus, ShieldCheck } from "lucide-react"
+import { KeyRound, ListChecks, Loader2, Plus, ShieldCheck } from "lucide-react"
 import { useMemo, useState } from "react"
 import { Controller, useForm, type Resolver } from "react-hook-form"
 import { toast } from "sonner"
@@ -233,6 +233,10 @@ export function TbcTable({ data, meta, clients, filterClients }: TbcTableProps) 
               <DropdownMenuItem onClick={() => router.push(`/admin/tbcs/${row.original.id}/checklist`)}>
                 <ListChecks className="h-4 w-4 mr-2" />
                 Checklist
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => router.push(`/admin/tbcs/${row.original.id}/permissoes`)}>
+                <KeyRound className="h-4 w-4 mr-2" />
+                Validar permissões
               </DropdownMenuItem>
             </>
         }
