@@ -62,7 +62,7 @@ describe("hitsToMarkdown", () => {
 describe("hitsToText", () => {
   it("indents by level and omits empty fields", () => {
     const text = hitsToText(hits, "IDFV")
-    expect(text).toContain('BUSCA DE CAMPOS PS — "IDFV" (3 ocorrência(s))')
+    expect(text).toContain('BUSCAR ELEMENTOS — "IDFV" (3 ocorrência(s))')
     expect(text).toContain("      Passo: Passo 2\n        • Concluir | [MELHORIA | SANTA CRUZ] - Cadastrar escolas\n            Uso: Ação do botão")
     expect(text).toContain("            Coluna: IDFV\n            Valor: 155")
     expect(text).not.toContain("Feedback")

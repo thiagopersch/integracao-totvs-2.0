@@ -1,26 +1,42 @@
 "use client"
 
-import { CredentialsFields } from "@/components/ps-docs/credentials-fields"
-import { EMPTY_CREDENTIALS, hasRequiredCredentials, type PsCredentials } from "@/lib/ps-docs/credential"
-import { useRef, useState } from "react"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Field, FieldLabel } from "@/components/ui/field"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Checkbox } from "@/components/ui/checkbox"
-import { Label } from "@/components/ui/label"
-import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/components/ui/accordion"
-import { MultiTypeChart } from "@/components/shared/charts/multi-type-chart"
-import { FlaskConical, Loader2, CheckCircle2, AlertCircle, Clock, AlertTriangle, MousePointerClick, Pause, Play, Square, MinusCircle } from "lucide-react"
-import { toast } from "sonner"
-import { listSelectiveProcessStages, fetchStageDocumentation } from "@/actions/integrations/ps-docs"
+import { fetchStageDocumentation, listSelectiveProcessStages } from "@/actions/integrations/ps-docs"
+import {
+  finalizeFichaAutomationRun,
+  runAutomationCheck,
+  startFichaAutomationRun,
+} from "@/actions/integrations/ps-ficha-automation"
 import { testFichaPageReachability } from "@/actions/integrations/ps-ficha-test"
-import { startFichaAutomationRun, runAutomationCheck, finalizeFichaAutomationRun } from "@/actions/integrations/ps-ficha-automation"
-import type { PlannedCheck } from "@/lib/ps-ficha-automation/test-plan"
-import type { RuleCheck } from "@/lib/ps-ficha-automation/browser-engine"
+import { CredentialsFields } from "@/components/ps-docs/credentials-fields"
+import { MultiTypeChart } from "@/components/shared/charts/multi-type-chart"
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Field, FieldLabel } from "@/components/ui/field"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { ERROR_KIND_BADGE_VARIANT, ERROR_KIND_LABELS, type ErrorKind } from "@/lib/error-kind"
+import { EMPTY_CREDENTIALS, hasRequiredCredentials, type PsCredentials } from "@/lib/ps-docs/credential"
 import { countUnresolvedFieldPlaceholders } from "@/lib/ps-docs/parse-structure"
-import { ERROR_KIND_LABELS, ERROR_KIND_BADGE_VARIANT, type ErrorKind } from "@/lib/error-kind"
+import type { RuleCheck } from "@/lib/ps-ficha-automation/browser-engine"
+import type { PlannedCheck } from "@/lib/ps-ficha-automation/test-plan"
+import {
+  AlertCircle,
+  AlertTriangle,
+  CheckCircle2,
+  Clock,
+  FlaskConical,
+  Loader2,
+  MinusCircle,
+  MousePointerClick,
+  Pause,
+  Play,
+  Square,
+} from "lucide-react"
+import { useRef, useState } from "react"
+import { toast } from "sonner"
 
 type CheckStatus = "pending" | "running" | "success" | "failed" | "skipped"
 
@@ -126,7 +142,8 @@ export default function PsFichaTestPage() {
     setAborted(false)
 
     const initial: CheckItem[] = []
-    if (pageUrl.trim()) initial.push({ id: "page", label: "Conectividade da página pública da ficha", status: "pending" })
+    if (pageUrl.trim())
+      initial.push({ id: "page", label: "Conectividade da página pública da ficha", status: "pending" })
     initial.push({ id: "discovery", label: "Autenticação e descoberta do processo seletivo", status: "pending" })
     setChecks(initial)
 
@@ -140,7 +157,11 @@ export default function PsFichaTestPage() {
           toast.error(`Falha ao acessar a página da ficha: ${pageRes.error}`)
           return
         }
-        updateCheck("page", { status: "success", durationMs: pageRes.durationMs, message: `HTTP ${pageRes.httpStatus}` })
+        updateCheck("page", {
+          status: "success",
+          durationMs: pageRes.durationMs,
+          message: `HTTP ${pageRes.httpStatus}`,
+        })
       }
 
       updateCheck("discovery", { status: "running" })
@@ -148,7 +169,11 @@ export default function PsFichaTestPage() {
       const listRes = await listSelectiveProcessStages({ credentials, idPs, crmDomain: crmDomain.trim() || undefined })
       const discoveryDuration = Date.now() - discoveryStart
       if (!listRes.success || !listRes.stages || !listRes.fieldCatalogEntries) {
-        updateCheck("discovery", { status: "failed", durationMs: discoveryDuration, error: listRes.error || "Erro ao consultar o processo seletivo" })
+        updateCheck("discovery", {
+          status: "failed",
+          durationMs: discoveryDuration,
+          error: listRes.error || "Erro ao consultar o processo seletivo",
+        })
         setAborted(true)
         toast.error(listRes.error || "Erro ao consultar o processo seletivo")
         return
@@ -160,7 +185,11 @@ export default function PsFichaTestPage() {
         warnings: listRes.catalogWarnings,
       })
 
-      const stageChecks: CheckItem[] = listRes.stages.map((s, i) => ({ id: `stage-${i}`, label: `Etapa: ${s.label}`, status: "pending" as const }))
+      const stageChecks: CheckItem[] = listRes.stages.map((s, i) => ({
+        id: `stage-${i}`,
+        label: `Etapa: ${s.label}`,
+        status: "pending" as const,
+      }))
       setChecks((prev) => [...prev, ...stageChecks])
 
       for (let i = 0; i < listRes.stages.length; i++) {
@@ -177,7 +206,11 @@ export default function PsFichaTestPage() {
         })
         const stageDuration = Date.now() - stageStart
         if (!stageRes.success || !stageRes.etapa) {
-          updateCheck(id, { status: "failed", durationMs: stageDuration, error: stageRes.error || "Falha ao consultar a etapa" })
+          updateCheck(id, {
+            status: "failed",
+            durationMs: stageDuration,
+            error: stageRes.error || "Falha ao consultar a etapa",
+          })
           setAborted(true)
           toast.error(`Falha na etapa "${stage.label}": ${stageRes.error ?? "erro desconhecido"}`)
           return
@@ -226,7 +259,9 @@ export default function PsFichaTestPage() {
         if (res.pendingConfirmation) {
           updateAutomationCheck(check.id, { status: "pending", pendingConfirmation: true })
           setAutomationRunId(runId)
-          toast.warning('Pausado antes da confirmação final — marque "Confirmar inscrição real" e clique em "Confirmar e concluir".')
+          toast.warning(
+            'Pausado antes da confirmação final — marque "Confirmar inscrição real" e clique em "Confirmar e concluir".'
+          )
           return
         }
 
@@ -251,8 +286,15 @@ export default function PsFichaTestPage() {
           // checagens deste passo ficaria testando contra a página do passo ERRADO, então pula
           // pro início do próximo passo em vez de tentar continuar aqui.
           let j = i + 1
-          while (j < planList.length && planList[j].etapaIndex === check.etapaIndex && planList[j].passoIndex === check.passoIndex) {
-            updateAutomationCheck(planList[j].id, { status: "skipped", resultReason: "A ficha já avançou de passo antes desta checagem rodar" })
+          while (
+            j < planList.length &&
+            planList[j].etapaIndex === check.etapaIndex &&
+            planList[j].passoIndex === check.passoIndex
+          ) {
+            updateAutomationCheck(planList[j].id, {
+              status: "skipped",
+              resultReason: "A ficha já avançou de passo antes desta checagem rodar",
+            })
             j++
           }
           i = j
@@ -273,7 +315,9 @@ export default function PsFichaTestPage() {
    *  preenchimento real, por explícita instrução), abre o navegador e começa a executar. */
   async function handleStartAutomation() {
     if (!hasRequiredCredentials(credentials) || !idPs.trim() || !pageUrl.trim()) {
-      toast.error("Preencha os 4 cookies da sessão, o ID do Processo Seletivo e o Link da página para rodar a automação")
+      toast.error(
+        "Preencha os 4 cookies da sessão, o ID do Processo Seletivo e o Link da página para rodar a automação"
+      )
       return
     }
 
@@ -286,13 +330,30 @@ export default function PsFichaTestPage() {
     // Mostra alguma coisa já no clique — montar o plano de testes (que envolve buscar a estrutura
     // inteira da API) pode levar vários segundos antes de haver qualquer checagem pra listar.
     setAutomationChecks([
-      { id: "starting", etapaIndex: 0, passoIndex: 0, etapaNome: "Preparando", passoNome: "Analisando a estrutura da ficha e montando o plano de testes...", label: "Preparando", kind: "preencher", status: "running" },
+      {
+        id: "starting",
+        etapaIndex: 0,
+        passoIndex: 0,
+        etapaNome: "Preparando",
+        passoNome: "Analisando a estrutura da ficha e montando o plano de testes...",
+        label: "Preparando",
+        kind: "preencher",
+        status: "running",
+      },
     ])
 
     try {
-      const startRes = await startFichaAutomationRun({ credentials, idPs, pageUrl: pageUrl.trim(), crmDomain: crmDomain.trim() || undefined })
+      const startRes = await startFichaAutomationRun({
+        credentials,
+        idPs,
+        pageUrl: pageUrl.trim(),
+        crmDomain: crmDomain.trim() || undefined,
+      })
       if (!startRes.success || !startRes.runId || !startRes.testPlan) {
-        updateAutomationCheck("starting", { status: "failed", resultReason: startRes.error || "Erro ao iniciar a automação" })
+        updateAutomationCheck("starting", {
+          status: "failed",
+          resultReason: startRes.error || "Erro ao iniciar a automação",
+        })
         setAutomationAborted(true)
         toast.error(startRes.error || "Erro ao iniciar a automação")
         return
@@ -392,7 +453,7 @@ export default function PsFichaTestPage() {
     <div className="p-4 md:p-6 space-y-4">
       <div>
         <h1 className="text-2xl font-bold flex items-center gap-2">
-          <FlaskConical className="h-5 w-5" /> Teste de Ficha PS
+          <FlaskConical className="h-5 w-5" /> Testes automatizados
         </h1>
         <p className="text-sm text-muted-foreground">
           Executa uma bateria de testes automáticos na ficha de um processo seletivo (conectividade da página pública,
@@ -414,13 +475,23 @@ export default function PsFichaTestPage() {
               </Field>
               <Field>
                 <FieldLabel htmlFor="crmDomain">Link do CRM (opcional)</FieldLabel>
-                <Input id="crmDomain" value={crmDomain} onChange={(e) => setCrmDomain(e.target.value)} placeholder="Ex: https://crmtoledo.apprubeus.com.br/" />
+                <Input
+                  id="crmDomain"
+                  value={crmDomain}
+                  onChange={(e) => setCrmDomain(e.target.value)}
+                  placeholder="Ex: https://crmtoledo.apprubeus.com.br/"
+                />
               </Field>
             </div>
 
             <Field>
               <FieldLabel htmlFor="pageUrl">Link da página (ficha pública)</FieldLabel>
-              <Input id="pageUrl" value={pageUrl} onChange={(e) => setPageUrl(e.target.value)} placeholder="Ex: https://portal.apprbs.com.br/senai-exemplo?idPs=17869&curso=2000810" />
+              <Input
+                id="pageUrl"
+                value={pageUrl}
+                onChange={(e) => setPageUrl(e.target.value)}
+                placeholder="Ex: https://portal.apprbs.com.br/senai-exemplo?idPs=17869&curso=2000810"
+              />
             </Field>
 
             <div className="flex justify-center">
@@ -448,7 +519,10 @@ export default function PsFichaTestPage() {
             {aborted && (
               <div className="mb-4 flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
                 <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
-                <span>Execução interrompida no primeiro erro crítico — os testes restantes não foram executados e ficam marcados como &quot;Pendente&quot;.</span>
+                <span>
+                  Execução interrompida no primeiro erro crítico — os testes restantes não foram executados e ficam
+                  marcados como &quot;Pendente&quot;.
+                </span>
               </div>
             )}
 
@@ -461,8 +535,12 @@ export default function PsFichaTestPage() {
                       <span className="flex flex-1 flex-wrap items-center gap-1.5">
                         <StatusIcon status={c.status} />
                         <span>{c.label}</span>
-                        {c.durationMs !== undefined && <span className="text-xs text-muted-foreground">({c.durationMs}ms)</span>}
-                        {c.status === "pending" && <span className="text-xs text-muted-foreground">— não executado</span>}
+                        {c.durationMs !== undefined && (
+                          <span className="text-xs text-muted-foreground">({c.durationMs}ms)</span>
+                        )}
+                        {c.status === "pending" && (
+                          <span className="text-xs text-muted-foreground">— não executado</span>
+                        )}
                       </span>
                     </AccordionTrigger>
                     <AccordionContent>
@@ -470,11 +548,19 @@ export default function PsFichaTestPage() {
                         {c.status === "success" && c.message && <p className="text-muted-foreground">{c.message}</p>}
                         {c.status === "failed" && c.error && (
                           <div className="flex flex-wrap items-center gap-2">
-                            {errorKind && <Badge variant={ERROR_KIND_BADGE_VARIANT[errorKind]}>{ERROR_KIND_LABELS[errorKind]}</Badge>}
+                            {errorKind && (
+                              <Badge variant={ERROR_KIND_BADGE_VARIANT[errorKind]}>
+                                {ERROR_KIND_LABELS[errorKind]}
+                              </Badge>
+                            )}
                             <span className="text-destructive">{c.error}</span>
                           </div>
                         )}
-                        {c.status === "pending" && <p className="text-muted-foreground">Não executado — a execução parou em um teste anterior.</p>}
+                        {c.status === "pending" && (
+                          <p className="text-muted-foreground">
+                            Não executado — a execução parou em um teste anterior.
+                          </p>
+                        )}
                         {c.warnings && c.warnings.length > 0 && (
                           <div className="space-y-1">
                             <p className="text-xs font-medium text-muted-foreground">Avisos:</p>
@@ -503,12 +589,12 @@ export default function PsFichaTestPage() {
         </CardHeader>
         <CardContent className="space-y-4">
           <p className="text-sm text-muted-foreground">
-            Analisa toda a estrutura da ficha (campos, validações, obrigatoriedade, lógica condicional) e monta o
-            plano de testes completo ANTES de preencher qualquer coisa — você vê tudo que vai ser testado assim que
-            o plano fica pronto. Abre uma janela de navegador de verdade, visível, e preenche/testa uma checagem por
-            vez, em tempo real: valor válido por campo, formatos propositalmente inválidos (CPF/e-mail/telefone/
-            data/CEP) esperando bloqueio, campos obrigatórios vazios esperando bloqueio, e campos condicionais (ex:
-            um checkbox que revela outros campos) — nunca ignorados, sempre revelados e testados também. Requer o{" "}
+            Analisa toda a estrutura da ficha (campos, validações, obrigatoriedade, lógica condicional) e monta o plano
+            de testes completo ANTES de preencher qualquer coisa — você vê tudo que vai ser testado assim que o plano
+            fica pronto. Abre uma janela de navegador de verdade, visível, e preenche/testa uma checagem por vez, em
+            tempo real: valor válido por campo, formatos propositalmente inválidos (CPF/e-mail/telefone/ data/CEP)
+            esperando bloqueio, campos obrigatórios vazios esperando bloqueio, e campos condicionais (ex: um checkbox
+            que revela outros campos) — nunca ignorados, sempre revelados e testados também. Requer o{" "}
             <strong>Link da página</strong> preenchido acima.
           </p>
 
@@ -516,12 +602,16 @@ export default function PsFichaTestPage() {
             <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0 text-amber-600" />
             <div className="space-y-2">
               <p>
-                O último passo da última etapa pode gravar uma inscrição real no TOTVS. Sem marcar a confirmação
-                abaixo, a automação preenche e testa tudo e <strong>para exatamente antes</strong> desse clique
-                final, esperando sua confirmação explícita.
+                O último passo da última etapa pode gravar uma inscrição real no TOTVS. Sem marcar a confirmação abaixo,
+                a automação preenche e testa tudo e <strong>para exatamente antes</strong> desse clique final, esperando
+                sua confirmação explícita.
               </p>
               <div className="flex items-center gap-2">
-                <Checkbox id="confirmFinalSubmit" checked={confirmFinalSubmit} onCheckedChange={(v) => setConfirmFinalSubmit(v === true)} />
+                <Checkbox
+                  id="confirmFinalSubmit"
+                  checked={confirmFinalSubmit}
+                  onCheckedChange={(v) => setConfirmFinalSubmit(v === true)}
+                />
                 <Label htmlFor="confirmFinalSubmit">Confirmar inscrição real (envio final)</Label>
               </div>
             </div>
@@ -550,7 +640,11 @@ export default function PsFichaTestPage() {
               </Button>
             )}
             {automationRunId && (
-              <Button onClick={handleConfirmFinalSubmit} disabled={automationRunning || !confirmFinalSubmit} variant="secondary">
+              <Button
+                onClick={handleConfirmFinalSubmit}
+                disabled={automationRunning || !confirmFinalSubmit}
+                variant="secondary"
+              >
                 {automationRunning && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
                 Confirmar e concluir
               </Button>
@@ -571,14 +665,20 @@ export default function PsFichaTestPage() {
               {automationPaused && (
                 <div className="flex items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/5 p-3 text-sm">
                   <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0 text-amber-600" />
-                  <span>Automação pausada — o navegador continua aberto com o que já foi preenchido. Clique em &quot;Retomar&quot; para continuar de onde parou.</span>
+                  <span>
+                    Automação pausada — o navegador continua aberto com o que já foi preenchido. Clique em
+                    &quot;Retomar&quot; para continuar de onde parou.
+                  </span>
                 </div>
               )}
 
               {automationAborted && (
                 <div className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
                   <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
-                  <span>Execução interrompida — as checagens restantes não foram executadas e ficam marcadas como &quot;Pendente&quot;.</span>
+                  <span>
+                    Execução interrompida — as checagens restantes não foram executadas e ficam marcadas como
+                    &quot;Pendente&quot;.
+                  </span>
                 </div>
               )}
 
@@ -601,7 +701,13 @@ export default function PsFichaTestPage() {
               {statusChartData.length > 0 && (
                 <div>
                   <p className="text-xs font-medium text-muted-foreground mb-1">Status das checagens</p>
-                  <MultiTypeChart data={statusChartData} nameKey="name" series={[{ key: "value", name: "Checagens" }]} kind="donut" height={200} />
+                  <MultiTypeChart
+                    data={statusChartData}
+                    nameKey="name"
+                    series={[{ key: "value", name: "Checagens" }]}
+                    kind="donut"
+                    height={200}
+                  />
                 </div>
               )}
 
@@ -614,7 +720,13 @@ export default function PsFichaTestPage() {
                     <AccordionItem key={group.key} value={group.key}>
                       <AccordionTrigger className="gap-1.5">
                         <span className="flex flex-1 flex-wrap items-center gap-1.5">
-                          {groupRunning ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : groupFailed > 0 ? <AlertCircle className="h-3.5 w-3.5 text-destructive" /> : <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />}
+                          {groupRunning ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : groupFailed > 0 ? (
+                            <AlertCircle className="h-3.5 w-3.5 text-destructive" />
+                          ) : (
+                            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                          )}
                           <span>
                             {group.etapaNome} · {group.passoNome}
                           </span>
@@ -631,21 +743,34 @@ export default function PsFichaTestPage() {
                               <div className="min-w-0">
                                 <span>
                                   <span className="font-medium">{CHECK_KIND_LABELS[c.kind]}</span>
-                                  {c.label !== CHECK_KIND_LABELS[c.kind] && <span className="text-muted-foreground"> — {c.label}</span>}
+                                  {c.label !== CHECK_KIND_LABELS[c.kind] && (
+                                    <span className="text-muted-foreground"> — {c.label}</span>
+                                  )}
                                   {c.invalidInput && <span className="text-muted-foreground"> ({c.invalidInput})</span>}
-                                  {c.pendingConfirmation && <Badge variant="outline" className="ml-2">aguardando confirmação</Badge>}
+                                  {c.pendingConfirmation && (
+                                    <Badge variant="outline" className="ml-2">
+                                      aguardando confirmação
+                                    </Badge>
+                                  )}
                                 </span>
-                                {c.status === "success" && c.resultValue !== undefined && <p className="text-xs text-muted-foreground">Valor: {c.resultValue}</p>}
-                                {(c.status === "failed" || c.status === "skipped") && c.resultReason && <p className="text-xs text-muted-foreground">{c.resultReason}</p>}
+                                {c.status === "success" && c.resultValue !== undefined && (
+                                  <p className="text-xs text-muted-foreground">Valor: {c.resultValue}</p>
+                                )}
+                                {(c.status === "failed" || c.status === "skipped") && c.resultReason && (
+                                  <p className="text-xs text-muted-foreground">{c.resultReason}</p>
+                                )}
                                 {c.ruleCheck && (
                                   <p className="text-xs text-muted-foreground">
-                                    {c.ruleCheck.passed ? "Bloqueado corretamente" : `NÃO bloqueado (${c.ruleCheck.detail ?? "aceitou o valor"})`}
+                                    {c.ruleCheck.passed
+                                      ? "Bloqueado corretamente"
+                                      : `NÃO bloqueado (${c.ruleCheck.detail ?? "aceitou o valor"})`}
                                   </p>
                                 )}
                                 {c.revealOutcome && (
                                   <p className="text-xs text-muted-foreground">
                                     {c.revealOutcome.revealed.length} campo(s) revelado(s)
-                                    {c.revealOutcome.stillHidden.length > 0 && `, ${c.revealOutcome.stillHidden.length} ainda oculto(s)`}
+                                    {c.revealOutcome.stillHidden.length > 0 &&
+                                      `, ${c.revealOutcome.stillHidden.length} ainda oculto(s)`}
                                   </p>
                                 )}
                               </div>

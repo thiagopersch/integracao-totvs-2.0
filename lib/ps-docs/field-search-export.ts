@@ -67,7 +67,7 @@ function codeSpan(text: string): string {
 /** Shaped for pasting into Discord: headings stop at `###` (Discord renders no deeper), so the
  *  third grouping level onwards becomes a bold line; no blank lines between lines. */
 export function hitsToMarkdown(hits: FieldSearchHit[], termo: string): string {
-  const out: string[] = [`# Busca de campos PS — "${escapeMarkdown(termo)}"`, hits.length === 1 ? "1 elemento encontrado" : `${hits.length} elementos encontrados`];
+  const out: string[] = [`# Buscar elementos — "${escapeMarkdown(termo)}"`, hits.length === 1 ? "1 elemento encontrado" : `${hits.length} elementos encontrados`];
   walkGrouped(
     hits,
     (level, depth) => {
@@ -83,7 +83,7 @@ export function hitsToMarkdown(hits: FieldSearchHit[], termo: string): string {
 }
 
 export function hitsToText(hits: FieldSearchHit[], termo: string): string {
-  const out: string[] = [`BUSCA DE CAMPOS PS — "${termo}" (${hits.length} ocorrência(s))`];
+  const out: string[] = [`BUSCAR ELEMENTOS — "${termo}" (${hits.length} ocorrência(s))`];
   walkGrouped(
     hits,
     (level, depth) => {

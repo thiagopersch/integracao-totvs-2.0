@@ -40,6 +40,17 @@ export const psDocsPortalSchema = z.object({
   idPs: z.string(),
 });
 
-export const psDocsSchema = z.discriminatedUnion("docMode", [psDocsProcessoSchema, psDocsPortalSchema]);
+/** "Buscar elementos" only: the whole environment (every portal, active process, page and pop-up
+ *  the session can see) — just the cookies, no CRM link or local id. */
+export const psDocsAmbienteSchema = z.object({
+  docMode: z.literal("ambiente"),
+  ...credentials,
+  idPs: z.string(),
+  idPortal: z.string(),
+  crmDomain: z.string(),
+  localId: z.string(),
+});
+
+export const psDocsSchema = z.discriminatedUnion("docMode", [psDocsProcessoSchema, psDocsPortalSchema, psDocsAmbienteSchema]);
 
 export type PsDocsFormInput = z.infer<typeof psDocsSchema>;

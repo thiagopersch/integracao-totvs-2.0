@@ -31,7 +31,7 @@ import { ComponentDetailPanel } from "@/components/ps-docs/component-detail-pane
 import { SearchCode, Loader2, RefreshCw, Info, ChevronDown, ChevronRight, Copy, FileSpreadsheet, FileText, FileCode2, MoreHorizontal } from "lucide-react"
 import { toast } from "sonner"
 import { fetchPortalOverview, listPortalSelectiveProcesses } from "@/actions/integrations/ps-portal-docs"
-import { fetchComponentDetail, fetchPsContainers, listPsContainerCatalog } from "@/actions/integrations/ps-field-search"
+import { fetchComponentDetail, fetchPsContainers, listPsContainerCatalog, listPsPortals } from "@/actions/integrations/ps-field-search"
 import type { ActionCatalogEntries } from "@/actions/integrations/ps-docs"
 import { loadProcessDoc } from "@/lib/ps-docs/load-process-doc"
 import type { ComponentDetail } from "@/lib/ps-docs/component-detail"
@@ -53,11 +53,15 @@ import type { PsCredentials } from "@/lib/ps-docs/credential"
 import { psDocsSchema, type PsDocsFormInput } from "@/schemas/ps-docs.schema"
 import type { EncaminhamentoSpec, PaginaSpec, PopupSpec, PortalOverviewSpec } from "@/lib/ps-docs/types"
 
-type DocMode = "processo" | "portal"
+type DocMode = "processo" | "portal" | "ambiente"
 
 /** Pages/pop-ups per `fetchPsContainers` call — keeps each Server Action short and lets the
  *  progress bar move. */
 const CONTAINER_BATCH = 20
+
+/** Portals read at the same time in "ambiente inteiro" mode — each one already fans out into
+ *  its processes, so this stays low to not flood the Rubeus API. */
+const PORTAL_CONCURRENCY = 3
 
 type StandaloneContainer = { kind: "popup"; spec: PopupSpec } | { kind: "page"; spec: PaginaSpec }
 
@@ -67,7 +71,7 @@ interface LoadedScope {
   key: string
   portal: string
   sources: ProcessSearchSource[]
-  overview?: PortalOverviewSpec
+  overviews: { portal: string; spec: PortalOverviewSpec }[]
   standalone: StandaloneContainer[]
   warnings: string[]
   /** Kept to load a component's detail on demand when a result row is expanded. */
@@ -79,12 +83,13 @@ interface LoadedScope {
 type DetailState = { status: "loading" } | { status: "done"; detail: ComponentDetail } | { status: "error"; error: string }
 
 function scopeKey(d: PsDocsFormInput): string {
-  return [d.docMode, d.clientId, d.branch, d.session, d.docMode === "processo" ? d.idPs : `${d.idPortal}:${d.localId}`].join("|")
+  const target = d.docMode === "processo" ? d.idPs : d.docMode === "portal" ? `${d.idPortal}:${d.localId}` : "*"
+  return [d.docMode, d.clientId, d.branch, d.session, target].join("|")
 }
 
-function runQuery(scope: Pick<LoadedScope, "portal" | "sources" | "overview" | "standalone">, q: SearchQuery): FieldSearchHit[] {
+function runQuery(scope: Pick<LoadedScope, "portal" | "sources" | "overviews" | "standalone">, q: SearchQuery): FieldSearchHit[] {
   return [
-    ...(scope.overview ? searchPortalOverview(scope.overview, scope.portal, q) : []),
+    ...scope.overviews.flatMap((o) => searchPortalOverview(o.spec, o.portal, q)),
     ...scope.sources.flatMap((s) => searchProcessDoc(s, q)),
     ...scope.standalone.flatMap((c) => searchStandaloneContainer(c, scope.portal, q)),
   ]
@@ -94,6 +99,15 @@ function chunk<T>(items: T[], size: number): T[][] {
   const out: T[][] = []
   for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size))
   return out
+}
+
+async function mapWithConcurrency<T>(items: T[], limit: number, fn: (item: T) => Promise<void>): Promise<void> {
+  let next = 0
+  await Promise.all(
+    Array.from({ length: Math.min(limit, items.length) }, async () => {
+      while (next < items.length) await fn(items[next++])
+    })
+  )
 }
 
 const OCULTO_VARIANT: Record<OcultoStatus, "destructive" | "secondary" | "success" | "outline"> = {
@@ -146,7 +160,7 @@ export default function PsFieldSearchPage() {
     const sources: ProcessSearchSource[] = []
     const fieldCatalog = new Map<number, string>()
     let actionCatalogEntries: ActionCatalogEntries | undefined
-    let overview: PortalOverviewSpec | undefined
+    const overviews: LoadedScope["overviews"] = []
     let portal = "—"
 
     const absorbCatalogs = (fieldEntries: [number, string][], actionEntries?: ActionCatalogEntries) => {
@@ -154,7 +168,73 @@ export default function PsFieldSearchPage() {
       actionCatalogEntries ??= actionEntries
     }
     // Partial results show up while the remaining processes are still loading.
-    const showPartial = () => setHits(runQuery({ portal, sources, overview, standalone: [] }, q))
+    const showPartial = () => setHits(runQuery({ portal, sources, overviews, standalone: [] }, q))
+
+    // Per-process etapa progress, summed across every process (and portal) being read.
+    const progress = new Map<string, { done: number; total: number }>()
+    let processCount = 0
+    let portalCount = 0
+    const publish = () => {
+      let done = 0
+      let total = 0
+      for (const p of progress.values()) {
+        done += p.done
+        total += p.total
+      }
+      const where = portalCount > 1 ? `${processCount} processo(s) de ${portalCount} portal(is)` : `${processCount} processo(s)`
+      setPhase({ label: `etapa(s) lida(s) em ${where}`, done, total })
+    }
+
+    /** Reads one whole portal: its overview plus every active process. Returns false when its
+     *  process list can't be read. */
+    const loadPortal = async (idPortal: string, knownName?: string): Promise<{ ok: true } | { ok: false; error: string }> => {
+      const [overviewRes, listRes] = await Promise.all([
+        fetchPortalOverview({ credentials, idPortal, localId: data.localId || undefined }),
+        listPortalSelectiveProcesses({ credentials, idPortal }),
+      ])
+      const overview = overviewRes.success ? overviewRes.overview : undefined
+      const nome = overview?.geral.nome || knownName
+      const portalLabel = nome ? `${idPortal} | ${nome}` : `Portal ${idPortal}`
+      if (overview) {
+        overviews.push({ portal: portalLabel, spec: overview })
+        allWarnings.push(...overview.warnings.map((w) => (data.docMode === "ambiente" ? `${portalLabel}: ${w}` : w)))
+      } else {
+        allWarnings.push(`${data.docMode === "ambiente" ? `${portalLabel} — dados` : "Dados"} gerais do portal: ${overviewRes.error ?? "falha ao consultar"}`)
+      }
+      if (!listRes.success || !listRes.processes) return { ok: false, error: listRes.error || "Erro ao listar os processos seletivos do portal" }
+      processCount += listRes.processes.length
+      publish()
+      showPartial()
+
+      await Promise.all(
+        listRes.processes.map(async (ref) => {
+          const key = `${idPortal}:${ref.id}`
+          const res = await loadProcessDoc({
+            credentials,
+            idPs: ref.id,
+            crmDomain: data.crmDomain || undefined,
+            fallbackTitle: ref.name,
+            onProgress: (done, total) => {
+              progress.set(key, { done, total })
+              publish()
+            },
+          })
+          if (!res.success) {
+            allWarnings.push(`${data.docMode === "ambiente" ? `${portalLabel} › ` : ""}Processo ${ref.identifier} | ${ref.name}: ${res.error}`)
+            return
+          }
+          sources.push({ portal: portalLabel, processo: `${ref.identifier} | ${ref.name}`, doc: res.doc })
+          absorbCatalogs(res.fieldCatalogEntries, res.actionCatalogEntries)
+          allWarnings.push(...res.warnings.map((w) => `${ref.name}: ${w}`))
+          showPartial()
+        })
+      )
+      return { ok: true }
+    }
+
+    // Portal/ambiente modes also sweep every page/pop-up of the environment's catalog, and the
+    // same catalog is how "ambiente" discovers the portals.
+    let catalogRes: Awaited<ReturnType<typeof listPsContainerCatalog>> | undefined
 
     if (data.docMode === "processo") {
       setPhase({ label: "etapa(s) lida(s)", done: 0, total: 0 })
@@ -166,57 +246,35 @@ export default function PsFieldSearchPage() {
       sources.push({ portal, processo: `${res.doc.idPs} | ${res.doc.tituloPortal}`, doc: res.doc })
       absorbCatalogs(res.fieldCatalogEntries, res.actionCatalogEntries)
       allWarnings.push(...res.warnings)
-    } else {
-      const [overviewRes, listRes] = await Promise.all([
-        fetchPortalOverview({ credentials, idPortal: data.idPortal, localId: data.localId }),
-        listPortalSelectiveProcesses({ credentials, idPortal: data.idPortal }),
-      ])
-      if (overviewRes.success && overviewRes.overview) {
-        overview = overviewRes.overview
-        allWarnings.push(...overview.warnings)
-      } else {
-        allWarnings.push(`Dados gerais do portal: ${overviewRes.error ?? "falha ao consultar"}`)
-      }
-      portal = overview?.geral.nome ? `${data.idPortal} | ${overview.geral.nome}` : `Portal ${data.idPortal}`
-      if (!listRes.success || !listRes.processes) {
-        toast.error(listRes.error || "Erro ao listar os processos seletivos do portal")
+    } else if (data.docMode === "portal") {
+      portalCount = 1
+      publish()
+      const res = await loadPortal(data.idPortal)
+      portal = overviews[0]?.portal ?? `Portal ${data.idPortal}`
+      if (!res.ok) {
+        toast.error(res.error)
         return null
       }
-      showPartial()
-
-      const progress = new Map<string, { done: number; total: number }>()
-      const publish = () => {
-        let done = 0
-        let total = 0
-        for (const p of progress.values()) {
-          done += p.done
-          total += p.total
-        }
-        setPhase({ label: `etapa(s) lida(s) em ${listRes.processes!.length} processo(s)`, done, total })
+    } else {
+      setPhase({ label: "lista de portais lida", done: 0, total: 1 })
+      const [portalsRes, catalog] = await Promise.all([listPsPortals({ credentials }), listPsContainerCatalog({ credentials })])
+      catalogRes = catalog
+      if (!portalsRes.success) {
+        toast.error(portalsRes.error ?? "Erro ao listar os portais do ambiente")
+        return null
       }
-      publish()
-      await Promise.all(
-        listRes.processes.map(async (ref) => {
-          const res = await loadProcessDoc({
-            credentials,
-            idPs: ref.id,
-            crmDomain: data.crmDomain,
-            fallbackTitle: ref.name,
-            onProgress: (done, total) => {
-              progress.set(ref.id, { done, total })
-              publish()
-            },
-          })
-          if (!res.success) {
-            allWarnings.push(`Processo ${ref.identifier} | ${ref.name}: ${res.error}`)
-            return
-          }
-          sources.push({ portal, processo: `${ref.identifier} | ${ref.name}`, doc: res.doc })
-          absorbCatalogs(res.fieldCatalogEntries, res.actionCatalogEntries)
-          allWarnings.push(...res.warnings.map((w) => `${ref.name}: ${w}`))
-          showPartial()
+      if (portalsRes.warning) allWarnings.push(portalsRes.warning)
+      const portals = portalsRes.portals ?? []
+      portalCount = portals.length
+      if (portals.length === 0) {
+        allWarnings.push("Nenhum portal ativo encontrado — a busca cobriu só as páginas e pop-ups do ambiente.")
+      } else {
+        publish()
+        await mapWithConcurrency(portals, PORTAL_CONCURRENCY, async ([id, name]) => {
+          const res = await loadPortal(String(id), name || undefined)
+          if (!res.ok) allWarnings.push(`Portal ${id}${name ? ` | ${name}` : ""}: ${res.error}`)
         })
-      )
+      }
     }
 
     // Pages reached from an etapa are attached in place (so their hits keep the etapa/passo
@@ -231,8 +289,8 @@ export default function PsFieldSearchPage() {
     const referencedPageIds = [...new Set(pageEncs.map((enc) => enc.paginaId!))]
     let extraPopupIds: number[] = []
     let extraPageIds: number[] = []
-    if (data.docMode === "portal") {
-      const catalogRes = await listPsContainerCatalog({ credentials })
+    if (data.docMode !== "processo") {
+      catalogRes ??= await listPsContainerCatalog({ credentials })
       if (catalogRes.success) {
         extraPopupIds = (catalogRes.popups ?? []).map(([id]) => id).filter((id) => !referencedPopupIds.has(id))
         extraPageIds = (catalogRes.pages ?? []).map(([id]) => id).filter((id) => !referencedPageIds.includes(id))
@@ -276,7 +334,7 @@ export default function PsFieldSearchPage() {
       key: scopeKey(data),
       portal,
       sources,
-      overview,
+      overviews,
       standalone,
       warnings: allWarnings,
       credentials,
@@ -393,7 +451,7 @@ export default function PsFieldSearchPage() {
     if (!searched) return
     try {
       const XLSX = await import("xlsx")
-      const rows = hitsToSheetRows(filteredHits, { includePortal: searched.mode === "portal" })
+      const rows = hitsToSheetRows(filteredHits, { includePortal: searched.mode !== "processo" })
       const sheet = XLSX.utils.json_to_sheet(rows)
       const headers = Object.keys(rows[0] ?? {})
       sheet["!cols"] = headers.map((h) => ({ wch: Math.min(60, Math.max(h.length, ...rows.map((r) => String(r[h] ?? "").length)) + 2) }))
@@ -403,14 +461,14 @@ export default function PsFieldSearchPage() {
       const data = XLSX.write(workbook, { type: "array", bookType: "xlsx" }) as ArrayBuffer
       downloadBlob(
         new Blob([data], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }),
-        `busca-campos-ps-${slugify(searched.termo) || "resultado"}.xlsx`
+        `buscar-elementos-${slugify(searched.termo) || "resultado"}.xlsx`
       )
     } catch (e) {
       toast.error(`Falha ao exportar: ${(e as Error).message}`)
     }
   }
 
-  const showPortalColumn = searched?.mode === "portal"
+  const showPortalColumn = !!searched && searched.mode !== "processo"
   const columns = useMemo<ColumnDef<FieldSearchHit>[]>(
     () => [
       ...(showPortalColumn ? [{ accessorKey: "portal", header: "Portal", cell: ({ row }) => dash(row.original.portal) } as ColumnDef<FieldSearchHit>] : []),
@@ -425,13 +483,7 @@ export default function PsFieldSearchPage() {
         header: "Campo / componente",
         cell: ({ row }) => (
           <div className="min-w-40">
-            <div className="flex items-center gap-1 font-medium">
-              {row.original.componentId &&
-                (row.original.id === expandedId ? (
-                  <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-label="Recolher detalhes" />
-                ) : (
-                  <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-label="Ver detalhes" />
-                ))}
+            <div className="font-medium">
               <span>
                 {row.original.componente}
                 {row.original.nomeComponente && componenteLabel(row.original) !== row.original.componente && (
@@ -471,8 +523,30 @@ export default function PsFieldSearchPage() {
           )
         },
       },
+      {
+        id: "detalhes",
+        header: () => <span className="sr-only">Detalhes</span>,
+        cell: ({ row }) => {
+          if (!row.original.componentId) return null
+          const open = row.original.id === expandedId
+          const label = open ? "Recolher configuração do componente" : "Ver configuração do componente"
+          return (
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <Button type="button" variant="ghost" size="icon-sm" aria-label={label} aria-expanded={open} onClick={() => toggleDetail(row.original)}>
+                    {open ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                  </Button>
+                }
+              />
+              <TooltipContent>{label}</TooltipContent>
+            </Tooltip>
+          )
+        },
+      },
     ],
-    [showPortalColumn, expandedId]
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- toggleDetail only reads state that `expandedId`/`details` changes already re-render
+    [showPortalColumn, expandedId, details, loadedScope]
   )
 
   const filterPanel = (
@@ -526,11 +600,12 @@ export default function PsFieldSearchPage() {
     <div className="p-4 md:p-6 space-y-4">
       <div>
         <h1 className="text-2xl font-bold flex items-center gap-2">
-          <SearchCode className="h-5 w-5" /> Busca de campos PS
+          <SearchCode className="h-5 w-5" /> Buscar elementos
         </h1>
         <p className="text-sm text-muted-foreground">
           Localiza todos os lugares em que um campo ou componente aparece — etapas, passos, agrupamentos, feedbacks, páginas, pop-ups e
-          configurações do portal — inclusive quando oculto, e onde ele é referenciado em lógicas, ações e consultas.
+          configurações do portal — inclusive quando oculto, e onde ele é referenciado em lógicas, ações e consultas. Busque num processo,
+          num portal ou no ambiente inteiro (todos os portais e fichas).
         </p>
       </div>
 
@@ -544,7 +619,7 @@ export default function PsFieldSearchPage() {
           collapseLabel="Recolher parâmetros"
           summary={
             <>
-              {docMode === "portal" ? `Portal ${idPortalValue || "—"}` : `Processo ${idPsValue || "—"}`}
+              {docMode === "ambiente" ? "Ambiente inteiro" : docMode === "portal" ? `Portal ${idPortalValue || "—"}` : `Processo ${idPsValue || "—"}`}
               {termo.trim() && ` · "${termo.trim()}"`}
               {exact && " · nome exato"}
             </>
@@ -553,8 +628,8 @@ export default function PsFieldSearchPage() {
         <CardContent id="ps-field-search-form" hidden={!formOpen}>
           <form onSubmit={handleSubmit((d) => onSubmit(d))} className="space-y-4" noValidate>
             <Field>
-              <FieldLabel>Buscar em um processo seletivo específico ou no portal inteiro?</FieldLabel>
-              <RadioGroup value={docMode} onValueChange={(v) => setValue("docMode", v as DocMode, { shouldValidate: true })} className="flex-row gap-6 pt-1">
+              <FieldLabel>Onde buscar?</FieldLabel>
+              <RadioGroup value={docMode} onValueChange={(v) => setValue("docMode", v as DocMode, { shouldValidate: true })} className="flex-row flex-wrap gap-x-6 gap-y-2 pt-1">
                 <div className="flex items-center gap-2">
                   <RadioGroupItem value="processo" id="mode-processo" />
                   <Label htmlFor="mode-processo" className="font-normal cursor-pointer">
@@ -567,12 +642,18 @@ export default function PsFieldSearchPage() {
                     Portal inteiro
                   </Label>
                 </div>
+                <div className="flex items-center gap-2">
+                  <RadioGroupItem value="ambiente" id="mode-ambiente" />
+                  <Label htmlFor="mode-ambiente" className="font-normal cursor-pointer">
+                    Ambiente inteiro (todas as fichas)
+                  </Label>
+                </div>
               </RadioGroup>
             </Field>
 
             <CredentialsFormFields control={control} errors={errors} />
 
-            {docMode === "processo" ? (
+            {docMode === "ambiente" ? null : docMode === "processo" ? (
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <Field>
                   <FieldLabel htmlFor="idPs">ID do Processo Seletivo no I&M</FieldLabel>
@@ -618,9 +699,9 @@ export default function PsFieldSearchPage() {
                   />
                   <TooltipContent className="max-w-sm">
                     Busca por parte do nome/rótulo, sem diferenciar maiúsculas e acentos. Também encontra ações de botão pelo nome, código da consulta, coluna ou
-                    parâmetro configurado (ex.: IDFV) e valor fixo. Um número busca também pelo ID do campo. Clique numa linha para ver a configuração do
-                    componente. No modo portal, todas as
-                    páginas e pop-ups da instituição também são varridos.
+                    parâmetro configurado (ex.: IDFV) e valor fixo. Um número busca também pelo ID do campo. Use o botão ao lado da coluna Oculto para ver a configuração do
+                    componente. Nos modos portal e ambiente, todas as
+                    páginas e pop-ups da instituição também são varridos; no modo ambiente, todos os portais e processos ativos.
                   </TooltipContent>
                 </Tooltip>
               </FieldLabel>
@@ -719,7 +800,6 @@ export default function PsFieldSearchPage() {
               filterPanel={filterPanel}
               sortableColumns={["portal", "processo", "etapa", "passo", "feedback", "pagina", "popup", "componente", "tipoUso", "oculto"]}
               pageSize={25}
-              onRowClick={toggleDetail}
               expandable={{ isExpanded: (h) => h.id === expandedId, renderExpanded: renderDetail }}
               emptyMessage={loading ? "Lendo a estrutura..." : "Nenhuma ocorrência encontrada."}
             />

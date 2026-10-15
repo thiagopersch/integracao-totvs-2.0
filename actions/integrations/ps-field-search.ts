@@ -3,7 +3,7 @@
 import axios from "axios";
 import { requirePermission } from "@/lib/rbac";
 import { hasRequiredCredentials, type PsCredentials } from "@/lib/ps-docs/credential";
-import { authHeaders, sessionErrorMessage, unwrapData, logApiCall, logAndNotifyFailure, type Raw } from "@/lib/ps-docs/api-helpers";
+import { authHeaders, sessionErrorMessage, unwrapData, asArray, logApiCall, logAndNotifyFailure, type Raw } from "@/lib/ps-docs/api-helpers";
 import { buildIdTitleCatalog, harvestFieldLabels, parsePage, parsePopup, EMPTY_CATALOGS, type ActionCatalogs } from "@/lib/ps-docs/parse-structure";
 import { parseComponentDetail, type ComponentDetail } from "@/lib/ps-docs/component-detail";
 import type { ActionCatalogEntries } from "@/actions/integrations/ps-docs";
@@ -11,12 +11,13 @@ import type { ItemSpec, PaginaSpec, PopupSpec } from "@/lib/ps-docs/types";
 import type { Prisma } from "@/generated/prisma/client";
 
 /**
- * "Busca de campos PS" — the pages/pop-ups part of the sweep. Etapas/passos/feedbacks and the
+ * "Buscar elementos" — the pages/pop-ups part of the sweep. Etapas/passos/feedbacks and the
  * portal overview come from the same actions the "Documentação PS" screen uses
  * (`ps-docs.ts`/`ps-portal-docs.ts`); this file only adds what that pipeline doesn't fetch:
  *  - `GET /api/pages/{id}`  -> a page's own content (same `content[]` shape as a pop-up)
  *  - `GET /api/popups/{id}` -> pop-ups not reached from any etapa (portal mode sweeps the catalog)
  *  - `GET /api/pages` / `GET /api/popups` -> the `{id, name}` catalogs for that sweep
+ *  - `GET /api/portal` -> every portal of the environment ("ambiente inteiro" mode keeps the active ones)
  *  - `GET /api/custom-component/{id}` -> one component's full config (button_actions with their
  *    actions/fields/parameters, totvs_query, forwardData), loaded when a result row is expanded
  */
@@ -74,6 +75,61 @@ export async function listPsContainerCatalog(input: { credentials: PsCredentials
       success: true,
       popups: popupsRes.status < 400 ? [...buildIdTitleCatalog(popupsRes.data).entries()] : [],
       pages: pagesRes.status < 400 ? [...buildIdTitleCatalog(pagesRes.data).entries()] : [],
+    };
+  } catch (error) {
+    await logAndNotifyFailure({ organizationId, userId, url, method: "GET", idPs: "-", error });
+    return { success: false, error: sessionErrorMessage(error) ?? (error as Error).message };
+  }
+}
+
+export interface ListPortalsResult {
+  success: boolean;
+  error?: string;
+  /** Active portals only, as `[id, name]`. */
+  portals?: [number, string][];
+  warning?: string;
+}
+
+/** Status flag of a `GET /api/portal` entry — `status === 1` like the processes of
+ *  `selective-process-local`; the other keys are accepted defensively (shape not confirmed).
+ *  `undefined` when the entry carries none of them. */
+function portalActive(entry: Raw): boolean | undefined {
+  if (entry.status !== undefined && entry.status !== null) return Number(entry.status) === 1 || entry.status === true || entry.status === "active";
+  for (const key of ["active", "is_active", "ativo"]) {
+    const value = entry[key];
+    if (value !== undefined && value !== null) return value === true || Number(value) === 1;
+  }
+  return undefined;
+}
+
+/** `GET /api/portal` — every portal of the environment; "ambiente inteiro" mode reads the active
+ *  ones through the same portal endpoints as the "portal inteiro" mode. */
+export async function listPsPortals(input: { credentials: PsCredentials }): Promise<ListPortalsResult> {
+  const { organizationId, userId } = await requirePermission("ps_field_search", "execute");
+  if (!hasRequiredCredentials(input.credentials)) return { success: false, error: "Informe os cookies da sessão" };
+
+  const url = `${API_ROOT}/portal`;
+  try {
+    const res = await axios.get(url, { headers: authHeaders(input.credentials), validateStatus: () => true, timeout: 30_000 });
+    if (res.status >= 400) throw Object.assign(new Error(`HTTP ${res.status} ao listar os portais`), { response: { status: res.status } });
+
+    const all = asArray(unwrapData(res.data));
+    const flags = all.map(portalActive);
+    const hasStatus = flags.some((f) => f !== undefined);
+    const portals: [number, string][] = [];
+    all.forEach((entry, i) => {
+      const id = Number(entry.id);
+      if (!Number.isInteger(id) || id <= 0 || (hasStatus && flags[i] !== true)) return;
+      const name = [entry.name, entry.title, entry.nome].find((v): v is string => typeof v === "string" && !!v.trim());
+      portals.push([id, name?.trim() ?? ""]);
+    });
+
+    await logApiCall({ organizationId, userId, integration: "PS_DOCS", url, httpMethod: "GET", httpStatus: res.status, requestSummary: {}, responseSummary: { total: all.length, ativos: portals.length } });
+
+    return {
+      success: true,
+      portals,
+      warning: hasStatus || all.length === 0 ? undefined : "A lista de portais não informa quais estão ativos — todos os portais foram lidos.",
     };
   } catch (error) {
     await logAndNotifyFailure({ organizationId, userId, url, method: "GET", idPs: "-", error });
