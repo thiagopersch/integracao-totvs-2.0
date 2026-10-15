@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { useForm, useWatch, type Resolver } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import type { ColumnDef } from "@tanstack/react-table"
@@ -30,16 +30,14 @@ import { CredentialsFormFields } from "@/components/ps-docs/credentials-form-fie
 import { ComponentDetailPanel } from "@/components/ps-docs/component-detail-panel"
 import { SearchCode, Loader2, RefreshCw, Info, ChevronDown, ChevronRight, Copy, FileSpreadsheet, FileText, FileCode2, MoreHorizontal } from "lucide-react"
 import { toast } from "sonner"
-import { fetchPortalOverview, listPortalSelectiveProcesses } from "@/actions/integrations/ps-portal-docs"
-import { fetchComponentDetail, fetchPsContainers, listPsContainerCatalog, listPsPortals } from "@/actions/integrations/ps-field-search"
+import { fetchComponentDetail } from "@/actions/integrations/ps-field-search"
 import type { ActionCatalogEntries } from "@/actions/integrations/ps-docs"
-import { loadProcessDoc } from "@/lib/ps-docs/load-process-doc"
+import { readNdjson, type StandaloneContainer, type SweepEvent } from "@/lib/ps-docs/field-search-stream"
 import type { ComponentDetail } from "@/lib/ps-docs/component-detail"
 import { componenteLabel, hitsToMarkdown, hitsToSheetRows, hitsToText } from "@/lib/ps-docs/field-search-export"
 import { downloadBlob, slugify } from "@/lib/ps-docs/download-utils"
 import {
   buildQuery,
-  collectContainerReferences,
   searchPortalOverview,
   searchProcessDoc,
   searchStandaloneContainer,
@@ -51,19 +49,9 @@ import {
 } from "@/lib/ps-docs/field-search"
 import type { PsCredentials } from "@/lib/ps-docs/credential"
 import { psDocsSchema, type PsDocsFormInput } from "@/schemas/ps-docs.schema"
-import type { EncaminhamentoSpec, PaginaSpec, PopupSpec, PortalOverviewSpec } from "@/lib/ps-docs/types"
+import type { PortalOverviewSpec } from "@/lib/ps-docs/types"
 
 type DocMode = "processo" | "portal" | "ambiente"
-
-/** Pages/pop-ups per `fetchPsContainers` call — keeps each Server Action short and lets the
- *  progress bar move. */
-const CONTAINER_BATCH = 20
-
-/** Portals read at the same time in "ambiente inteiro" mode — each one already fans out into
- *  its processes, so this stays low to not flood the Rubeus API. */
-const PORTAL_CONCURRENCY = 3
-
-type StandaloneContainer = { kind: "popup"; spec: PopupSpec } | { kind: "page"; spec: PaginaSpec }
 
 /** Everything read for one scope (mode + id + session) — a new term on the same scope only re-runs
  *  the local search instead of calling the Rubeus API again. */
@@ -93,21 +81,6 @@ function runQuery(scope: Pick<LoadedScope, "portal" | "sources" | "overviews" | 
     ...scope.sources.flatMap((s) => searchProcessDoc(s, q)),
     ...scope.standalone.flatMap((c) => searchStandaloneContainer(c, scope.portal, q)),
   ]
-}
-
-function chunk<T>(items: T[], size: number): T[][] {
-  const out: T[][] = []
-  for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size))
-  return out
-}
-
-async function mapWithConcurrency<T>(items: T[], limit: number, fn: (item: T) => Promise<void>): Promise<void> {
-  let next = 0
-  await Promise.all(
-    Array.from({ length: Math.min(limit, items.length) }, async () => {
-      while (next < items.length) await fn(items[next++])
-    })
-  )
 }
 
 const OCULTO_VARIANT: Record<OcultoStatus, "destructive" | "secondary" | "success" | "outline"> = {
@@ -154,193 +127,82 @@ export default function PsFieldSearchPage() {
 
   const toCredentials = (d: PsDocsFormInput): PsCredentials => ({ session: d.session, xsrf: d.xsrf, clientId: d.clientId, branch: d.branch })
 
-  async function loadScope(data: PsDocsFormInput, q: SearchQuery): Promise<LoadedScope | null> {
-    const credentials = toCredentials(data)
-    const allWarnings: string[] = []
-    const sources: ProcessSearchSource[] = []
-    const fieldCatalog = new Map<number, string>()
-    let actionCatalogEntries: ActionCatalogEntries | undefined
-    const overviews: LoadedScope["overviews"] = []
-    let portal = "—"
+  // The sweep in flight — a new search or leaving the page cancels it (and its Rubeus requests).
+  const sweepRef = useRef<AbortController | null>(null)
+  useEffect(() => () => sweepRef.current?.abort(), [])
 
-    const absorbCatalogs = (fieldEntries: [number, string][], actionEntries?: ActionCatalogEntries) => {
-      for (const [id, label] of fieldEntries) if (!fieldCatalog.has(id)) fieldCatalog.set(id, label)
-      actionCatalogEntries ??= actionEntries
-    }
-    // Partial results show up while the remaining processes are still loading.
-    const showPartial = () => setHits(runQuery({ portal, sources, overviews, standalone: [] }, q))
-
-    // Per-process etapa progress, summed across every process (and portal) being read.
-    const progress = new Map<string, { done: number; total: number }>()
-    let processCount = 0
-    let portalCount = 0
-    const publish = () => {
-      let done = 0
-      let total = 0
-      for (const p of progress.values()) {
-        done += p.done
-        total += p.total
-      }
-      const where = portalCount > 1 ? `${processCount} processo(s) de ${portalCount} portal(is)` : `${processCount} processo(s)`
-      setPhase({ label: `etapa(s) lida(s) em ${where}`, done, total })
-    }
-
-    /** Reads one whole portal: its overview plus every active process. Returns false when its
-     *  process list can't be read. */
-    const loadPortal = async (idPortal: string, knownName?: string): Promise<{ ok: true } | { ok: false; error: string }> => {
-      const [overviewRes, listRes] = await Promise.all([
-        fetchPortalOverview({ credentials, idPortal, localId: data.localId || undefined }),
-        listPortalSelectiveProcesses({ credentials, idPortal }),
-      ])
-      const overview = overviewRes.success ? overviewRes.overview : undefined
-      const nome = overview?.geral.nome || knownName
-      const portalLabel = nome ? `${idPortal} | ${nome}` : `Portal ${idPortal}`
-      if (overview) {
-        overviews.push({ portal: portalLabel, spec: overview })
-        allWarnings.push(...overview.warnings.map((w) => (data.docMode === "ambiente" ? `${portalLabel}: ${w}` : w)))
-      } else {
-        allWarnings.push(`${data.docMode === "ambiente" ? `${portalLabel} — dados` : "Dados"} gerais do portal: ${overviewRes.error ?? "falha ao consultar"}`)
-      }
-      if (!listRes.success || !listRes.processes) return { ok: false, error: listRes.error || "Erro ao listar os processos seletivos do portal" }
-      processCount += listRes.processes.length
-      publish()
-      showPartial()
-
-      await Promise.all(
-        listRes.processes.map(async (ref) => {
-          const key = `${idPortal}:${ref.id}`
-          const res = await loadProcessDoc({
-            credentials,
-            idPs: ref.id,
-            crmDomain: data.crmDomain || undefined,
-            fallbackTitle: ref.name,
-            onProgress: (done, total) => {
-              progress.set(key, { done, total })
-              publish()
-            },
-          })
-          if (!res.success) {
-            allWarnings.push(`${data.docMode === "ambiente" ? `${portalLabel} › ` : ""}Processo ${ref.identifier} | ${ref.name}: ${res.error}`)
-            return
-          }
-          sources.push({ portal: portalLabel, processo: `${ref.identifier} | ${ref.name}`, doc: res.doc })
-          absorbCatalogs(res.fieldCatalogEntries, res.actionCatalogEntries)
-          allWarnings.push(...res.warnings.map((w) => `${ref.name}: ${w}`))
-          showPartial()
-        })
-      )
-      return { ok: true }
-    }
-
-    // Portal/ambiente modes also sweep every page/pop-up of the environment's catalog, and the
-    // same catalog is how "ambiente" discovers the portals.
-    let catalogRes: Awaited<ReturnType<typeof listPsContainerCatalog>> | undefined
-
-    if (data.docMode === "processo") {
-      setPhase({ label: "etapa(s) lida(s)", done: 0, total: 0 })
-      const res = await loadProcessDoc({ credentials, idPs: data.idPs, crmDomain: data.crmDomain, onProgress: (done, total) => setPhase({ label: "etapa(s) lida(s)", done, total }) })
-      if (!res.success) {
-        toast.error(res.error)
-        return null
-      }
-      sources.push({ portal, processo: `${res.doc.idPs} | ${res.doc.tituloPortal}`, doc: res.doc })
-      absorbCatalogs(res.fieldCatalogEntries, res.actionCatalogEntries)
-      allWarnings.push(...res.warnings)
-    } else if (data.docMode === "portal") {
-      portalCount = 1
-      publish()
-      const res = await loadPortal(data.idPortal)
-      portal = overviews[0]?.portal ?? `Portal ${data.idPortal}`
-      if (!res.ok) {
-        toast.error(res.error)
-        return null
-      }
-    } else {
-      setPhase({ label: "lista de portais lida", done: 0, total: 1 })
-      const [portalsRes, catalog] = await Promise.all([listPsPortals({ credentials }), listPsContainerCatalog({ credentials })])
-      catalogRes = catalog
-      if (!portalsRes.success) {
-        toast.error(portalsRes.error ?? "Erro ao listar os portais do ambiente")
-        return null
-      }
-      if (portalsRes.warning) allWarnings.push(portalsRes.warning)
-      const portals = portalsRes.portals ?? []
-      portalCount = portals.length
-      if (portals.length === 0) {
-        allWarnings.push("Nenhum portal ativo encontrado — a busca cobriu só as páginas e pop-ups do ambiente.")
-      } else {
-        publish()
-        await mapWithConcurrency(portals, PORTAL_CONCURRENCY, async ([id, name]) => {
-          const res = await loadPortal(String(id), name || undefined)
-          if (!res.ok) allWarnings.push(`Portal ${id}${name ? ` | ${name}` : ""}: ${res.error}`)
-        })
-      }
-    }
-
-    // Pages reached from an etapa are attached in place (so their hits keep the etapa/passo
-    // context); in portal mode, every other page/pop-up of the catalog is searched standalone.
-    const pageEncs: EncaminhamentoSpec[] = []
-    const referencedPopupIds = new Set<number>()
-    for (const s of sources) {
-      const refs = collectContainerReferences(s.doc)
-      pageEncs.push(...refs.pages)
-      for (const id of refs.popupIds) referencedPopupIds.add(id)
-    }
-    const referencedPageIds = [...new Set(pageEncs.map((enc) => enc.paginaId!))]
-    let extraPopupIds: number[] = []
-    let extraPageIds: number[] = []
-    if (data.docMode !== "processo") {
-      catalogRes ??= await listPsContainerCatalog({ credentials })
-      if (catalogRes.success) {
-        extraPopupIds = (catalogRes.popups ?? []).map(([id]) => id).filter((id) => !referencedPopupIds.has(id))
-        extraPageIds = (catalogRes.pages ?? []).map(([id]) => id).filter((id) => !referencedPageIds.includes(id))
-      } else {
-        allWarnings.push(`Catálogo de páginas/pop-ups: ${catalogRes.error ?? "falha ao consultar"}`)
-      }
-    }
-
-    const pageIds = [...referencedPageIds, ...extraPageIds]
-    const jobs = [...pageIds.map((id) => ({ kind: "page" as const, id })), ...extraPopupIds.map((id) => ({ kind: "popup" as const, id }))]
-    const pageById = new Map<number, PaginaSpec>()
-    const popupById = new Map<number, PopupSpec>()
-    let jobsDone = 0
-    if (jobs.length > 0) setPhase({ label: "página(s)/pop-up(s) lido(s)", done: 0, total: jobs.length })
-    for (const batch of chunk(jobs, CONTAINER_BATCH)) {
-      const res = await fetchPsContainers({
-        credentials,
-        pageIds: batch.filter((j) => j.kind === "page").map((j) => j.id),
-        popupIds: batch.filter((j) => j.kind === "popup").map((j) => j.id),
-        fieldCatalogEntries: [...fieldCatalog.entries()],
-        actionCatalogEntries,
-      })
-      if (!res.success) {
-        allWarnings.push(`Páginas/pop-ups: ${res.error ?? "falha ao consultar"}`)
-        break
-      }
-      for (const [id, spec] of res.pages ?? []) pageById.set(id, spec)
-      for (const [id, spec] of res.popups ?? []) popupById.set(id, spec)
-      allWarnings.push(...(res.warnings ?? []))
-      jobsDone += batch.length
-      setPhase({ label: "página(s)/pop-up(s) lido(s)", done: jobsDone, total: jobs.length })
-    }
-    for (const enc of pageEncs) enc.paginaDetalhe = pageById.get(enc.paginaId!)
-
-    const standalone: StandaloneContainer[] = [
-      ...extraPageIds.filter((id) => pageById.has(id)).map((id) => ({ kind: "page" as const, spec: pageById.get(id)! })),
-      ...extraPopupIds.filter((id) => popupById.has(id)).map((id) => ({ kind: "popup" as const, spec: popupById.get(id)! })),
-    ]
-
-    return {
+  /** Reads the whole scope in one streamed request (`POST /api/ps-field-search`) — the server
+   *  parallelizes the Rubeus calls and sends each process/portal/page back as soon as it's read,
+   *  so the table fills in while the rest is still loading. */
+  async function loadScope(data: PsDocsFormInput, q: SearchQuery, signal: AbortSignal): Promise<LoadedScope | null> {
+    const scope: LoadedScope = {
       key: scopeKey(data),
-      portal,
-      sources,
-      overviews,
-      standalone,
-      warnings: allWarnings,
-      credentials,
-      fieldCatalogEntries: [...fieldCatalog.entries()],
-      actionCatalogEntries,
+      portal: "—",
+      sources: [],
+      overviews: [],
+      standalone: [],
+      warnings: [],
+      credentials: toCredentials(data),
+      fieldCatalogEntries: [],
     }
+
+    // Re-running the search on every streamed piece would re-render the table hundreds of times —
+    // at most once per frame instead.
+    let frame = 0
+    const showPartial = () => {
+      if (frame) return
+      frame = requestAnimationFrame(() => {
+        frame = 0
+        if (!signal.aborted) setHits(runQuery(scope, q))
+      })
+    }
+
+    const res = await fetch("/api/ps-field-search", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data), signal })
+    if (!res.ok || !res.body) {
+      const body = (await res.json().catch(() => undefined)) as { error?: string } | undefined
+      toast.error(body?.error ?? `Falha na busca (HTTP ${res.status})`)
+      return null
+    }
+
+    let failure: string | undefined
+    let finished = false
+    await readNdjson<SweepEvent>(res.body, (event) => {
+      switch (event.type) {
+        case "progress":
+          setPhase({ label: event.label, done: event.done, total: event.total })
+          break
+        case "overview":
+          scope.overviews.push({ portal: event.portal, spec: event.spec })
+          showPartial()
+          break
+        case "source":
+          scope.sources.push(event.source)
+          showPartial()
+          break
+        case "standalone":
+          scope.standalone.push(...event.containers)
+          showPartial()
+          break
+        case "warning":
+          scope.warnings.push(...event.messages)
+          break
+        case "done":
+          scope.portal = event.portal
+          scope.fieldCatalogEntries = event.fieldCatalogEntries
+          scope.actionCatalogEntries = event.actionCatalogEntries
+          finished = true
+          break
+        case "error":
+          failure = event.error
+          break
+      }
+    })
+    cancelAnimationFrame(frame)
+    if (failure || !finished) {
+      toast.error(failure ?? "A busca foi interrompida antes de terminar")
+      return null
+    }
+    return scope
   }
 
   async function onSubmit(data: PsDocsFormInput, forceReload = false) {
@@ -360,15 +222,20 @@ export default function PsFieldSearchPage() {
       return
     }
 
+    sweepRef.current?.abort()
+    const controller = new AbortController()
+    sweepRef.current = controller
+
     setLoading(true)
     setHits([])
     setWarnings([])
     setLoadedScope(null)
     setExpandedId(null)
     setDetails({})
+    setPhase({ label: "iniciando a leitura", done: 0, total: 0 })
     try {
-      const scope = await loadScope(data, q)
-      if (!scope) return
+      const scope = await loadScope(data, q, controller.signal)
+      if (!scope || controller.signal.aborted) return
       setLoadedScope(scope)
       setWarnings(scope.warnings)
       const result = runQuery(scope, q)
@@ -377,10 +244,13 @@ export default function PsFieldSearchPage() {
       toast.success(`${result.length} ocorrência(s) encontrada(s)`)
       if (scope.warnings.length > 0) toast.warning(`${scope.warnings.length} aviso(s) durante a leitura — confira abaixo da tabela.`)
     } catch (e) {
-      toast.error((e as Error).message)
+      if (!controller.signal.aborted) toast.error((e as Error).message)
     } finally {
-      setLoading(false)
-      setPhase(null)
+      if (sweepRef.current === controller) {
+        sweepRef.current = null
+        setLoading(false)
+        setPhase(null)
+      }
     }
   }
 
@@ -626,7 +496,7 @@ export default function PsFieldSearchPage() {
           }
         />
         <CardContent id="ps-field-search-form" hidden={!formOpen}>
-          <form onSubmit={handleSubmit((d) => onSubmit(d))} className="space-y-4" noValidate>
+          <form onSubmit={(e) => handleSubmit((d) => onSubmit(d))(e)} className="space-y-4" noValidate>
             <Field>
               <FieldLabel>Onde buscar?</FieldLabel>
               <RadioGroup value={docMode} onValueChange={(v) => setValue("docMode", v as DocMode, { shouldValidate: true })} className="flex-row flex-wrap gap-x-6 gap-y-2 pt-1">
@@ -723,16 +593,16 @@ export default function PsFieldSearchPage() {
                   Buscar
                 </Button>
                 {hasLoadedScope && (
-                  <Button type="button" variant="outline" disabled={!canSubmit} onClick={handleSubmit((d) => onSubmit(d, true))}>
+                  <Button type="button" variant="outline" disabled={!canSubmit} onClick={(e) => handleSubmit((d) => onSubmit(d, true))(e)}>
                     <RefreshCw className="h-4 w-4 mr-2" /> Recarregar estrutura
                   </Button>
                 )}
               </div>
-              {loading && phase && phase.total > 0 && (
+              {loading && phase && (
                 <div className="w-full max-w-xs space-y-1">
-                  <Progress value={(phase.done / Math.max(phase.total, 1)) * 100} />
+                  {phase.total > 0 && <Progress value={(phase.done / phase.total) * 100} />}
                   <p className="text-xs text-muted-foreground text-center">
-                    {phase.done}/{phase.total} {phase.label}
+                    {phase.total > 0 ? `${phase.done}/${phase.total} ${phase.label}` : `${phase.label[0].toUpperCase()}${phase.label.slice(1)}...`}
                   </p>
                 </div>
               )}
