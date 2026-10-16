@@ -125,6 +125,32 @@ const DEFAULTS: Record<MessageTemplateEvent, DefaultTemplate> = {
     ],
     whatsapp: "*Falha na chamada SOAP*\n{{message}}\n\nMétodo: {{method}}\nErro: {{errorMessage}}",
   },
+  DEMAND_REPORT: {
+    subject: "Relatório de demandas — {{clientName}} — {{periodLabel}}",
+    content: [
+      text(
+        "text1",
+        "<h2>Relatório de demandas</h2><p>Olá,</p><p>Segue em anexo a planilha com as demandas atendidas para <strong>{{clientName}}</strong> referentes a <strong>{{periodLabel}}</strong> ({{periodStart}} a {{periodEnd}}).</p>"
+      ),
+      {
+        id: "table1",
+        name: "table1",
+        type: "table",
+        props: {
+          hasHeader: true,
+          cells: [
+            ["Resumo do período", ""],
+            ["Demandas lançadas", "{{demandsCount}}"],
+            ["Horas executadas", "{{totalHours}}"],
+            ["Analistas", "{{analystsNames}}"],
+          ],
+        },
+      },
+      { id: "divider1", name: "divider1", type: "divider", props: { color: "#e2e8f0", thickness: 1, marginY: 16 } },
+      text("text2", '<p style="color:#6b7280;font-size:13px">Este é um envio automático. Em caso de dúvidas, responda este e-mail.</p>'),
+    ],
+    whatsapp: "*Relatório de demandas*\n{{clientName}} — {{periodLabel}}\n\nDemandas: {{demandsCount}}\nHoras: {{totalHours}}",
+  },
   GENERAL: {
     subject: "{{title}}",
     content: [text("text1", "<h2>{{title}}</h2><p>{{message}}</p>")],

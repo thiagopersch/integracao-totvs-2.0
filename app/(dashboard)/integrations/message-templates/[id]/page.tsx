@@ -6,6 +6,7 @@ import { TableSkeleton } from "@/components/shared/table-skeleton"
 import { getRequestContext } from "@/lib/tenant"
 import { hasPermission } from "@/lib/permissions"
 import type { BlockTree } from "@/lib/message-templates/block-types"
+import { parseTemplateAttachments } from "@/lib/message-templates/attachments"
 
 export default function EditMessageTemplatePage({ params }: { params: Promise<{ id: string }> }) {
   return (
@@ -30,6 +31,7 @@ async function EditMessageTemplateContent({ params }: { params: Promise<{ id: st
         event: template.event,
         subject: template.subject,
         content: (Array.isArray(template.content) ? template.content : []) as unknown as BlockTree,
+        attachments: parseTemplateAttachments(template.attachments),
         bodyText: template.bodyText,
         isActive: template.isActive,
       }}

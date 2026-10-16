@@ -6,5 +6,7 @@ export async function register() {
     startBackupScheduler();
     const { startProjectDeadlineScheduler } = await import("@/lib/project-deadline-scheduler");
     startProjectDeadlineScheduler();
+    const { startDemandReportScheduler } = await import("@/lib/demand-report-scheduler");
+    startDemandReportScheduler();
   }
 }

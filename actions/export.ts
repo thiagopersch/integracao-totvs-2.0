@@ -1,10 +1,10 @@
 "use server";
 
-import * as XLSX from "xlsx";
 import { requirePermission } from "@/lib/rbac";
 import { getDemandAnalystScope } from "@/lib/demand-scope";
 import { exportService } from "@/services/export.service";
 import { toExportRow } from "@/lib/export-mappers";
+import { demandsXlsxBase64 } from "@/lib/demands-xlsx";
 import { resolveExportPeriodRange, type ExportPeriod } from "@/lib/export-period";
 
 async function resolveExportContext(clientIds: string[], period: ExportPeriod | null) {
@@ -35,17 +35,7 @@ export async function getDemandExportData(clientIds: string[], period: ExportPer
 export async function exportDemandsXlsx(clientIds: string[], period: ExportPeriod | null) {
   try {
     const { demands } = await resolveExportContext(clientIds, period);
-    const rows = demands.map(toExportRow);
-
-    const worksheet = XLSX.utils.json_to_sheet(rows);
-    const headers = rows.length ? (Object.keys(rows[0]) as (keyof (typeof rows)[number])[]) : [];
-    worksheet["!cols"] = headers.map((h) => ({
-      wch: Math.max(String(h).length, ...rows.map((r) => String(r[h] ?? "").length)) + 2,
-    }));
-
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Demandas");
-    const base64 = XLSX.write(workbook, { type: "base64", bookType: "xlsx" }) as string;
+    const base64 = demandsXlsxBase64(demands.map(toExportRow));
 
     return { success: true as const, base64, fileName: `demandas-${new Date().toISOString().slice(0, 10)}.xlsx` };
   } catch (error) {

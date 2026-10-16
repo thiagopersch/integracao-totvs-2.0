@@ -46,6 +46,7 @@ import {
   type MessageTemplateEvent,
 } from "@/lib/message-templates/events"
 import { variableGroupsForEvent } from "@/lib/message-templates/variable-catalog"
+import { DEFAULT_DEMANDS_XLSX_FILE_NAME, type TemplateAttachment } from "@/lib/message-templates/attachments"
 import { VariableInput } from "../variable-input"
 import { BlockPalette, BlockTypeCard, type PaletteBlockType } from "./block-palette"
 import { BuilderContext, type BuilderApi } from "./builder-context"
@@ -53,6 +54,7 @@ import { Canvas } from "./canvas"
 import { InspectorPanel } from "./inspector-panel"
 import { PreviewDialog } from "./preview-dialog"
 import { WhatsAppEditor } from "./whatsapp-editor"
+import { AttachmentsEditor } from "./attachments-editor"
 import { WithTooltip } from "@/components/shared/with-tooltip"
 
 export interface TemplateBuilderValue {
@@ -61,6 +63,7 @@ export interface TemplateBuilderValue {
   event: MessageTemplateEvent
   subject: string
   content: BlockTree
+  attachments: TemplateAttachment[]
   bodyText: string
   isActive: boolean
 }
@@ -82,6 +85,7 @@ function initialValue(template: TemplateBuilderProps["template"]): TemplateBuild
     event: "CONTRACT_USAGE",
     subject: d.subject,
     content: d.content,
+    attachments: [],
     bodyText: d.whatsapp,
     isActive: true,
   }
@@ -126,7 +130,9 @@ export function TemplateBuilder({ template, canSave }: TemplateBuilderProps) {
       JSON.stringify(value.content.map((b) => b.type)) === JSON.stringify(current.content.map((b) => b.type))
     if (untouched) {
       const next = defaultTemplate(event)
-      setValue((v) => ({ ...v, event, subject: next.subject, content: next.content, bodyText: next.whatsapp }))
+      const attachments: TemplateAttachment[] =
+        event === "DEMAND_REPORT" ? [{ type: "DEMANDS_XLSX", fileName: DEFAULT_DEMANDS_XLSX_FILE_NAME }] : []
+      setValue((v) => ({ ...v, event, subject: next.subject, content: next.content, bodyText: next.whatsapp, attachments }))
       setSelectedId(null)
     } else {
       patch({ event })
@@ -375,6 +381,13 @@ export function TemplateBuilder({ template, canSave }: TemplateBuilderProps) {
             />
             {errors.subject && <p className="text-xs text-destructive">{errors.subject}</p>}
           </div>
+          <AttachmentsEditor
+            value={value.attachments}
+            onChange={(attachments) => patch({ attachments })}
+            variableGroups={variableGroups}
+            supportsDemandsXlsx={value.event === "DEMAND_REPORT"}
+            error={errors.attachments}
+          />
           <DndContext
             sensors={sensors}
             collisionDetection={collisionDetection}

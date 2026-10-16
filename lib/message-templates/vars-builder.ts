@@ -173,6 +173,28 @@ export function buildDemandVars(demand: DemandVarsInput | null): TemplateVars {
   };
 }
 
+export interface DemandReportVarsInput {
+  client: ClientVarsInput;
+  period: { label: string; startLabel: string; endLabel: string; slug: string };
+  demands: { durationMinutes: number; analyst?: { name: string } | null }[];
+}
+
+/** A client's demands in the report period (DEMAND_REPORT event). `attachmentNames` is added by the sender. */
+export function buildDemandReportVars(input: DemandReportVarsInput): TemplateVars {
+  const minutes = input.demands.reduce((sum, d) => sum + d.durationMinutes, 0);
+  const analysts = [...new Set(input.demands.map((d) => d.analyst?.name).filter(Boolean))].sort((a, b) => a!.localeCompare(b!, "pt-BR"));
+  return {
+    ...buildClientVars(input.client),
+    periodLabel: input.period.label,
+    periodStart: input.period.startLabel,
+    periodEnd: input.period.endLabel,
+    periodSlug: input.period.slug,
+    demandsCount: String(input.demands.length),
+    totalHours: formatHours(round2(minutes / 60)),
+    analystsNames: analysts.join(", "),
+  };
+}
+
 /** Failure context stored in Notification.data by lib/notification-types.ts builders. */
 export function buildFailureVars(
   data: Record<string, unknown> | null | undefined,

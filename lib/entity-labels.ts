@@ -36,6 +36,8 @@ export const ENTITY_LABELS: Record<string, string> = {
   SoapFavorite: "Favoritos SOAP",
   AuditLog: "Logs de Auditoria",
   EmailSettings: "Configurações de E-mail",
+  AiSettings: "Configurações de IA",
+  DemandReportSchedule: "Regras de Envio de Relatório",
   MapeadorProjeto: "Projetos Mapeados",
   MapeadorEtapa: "Etapas Mapeadas",
   MapeadorTema: "Temas do Mapeador",
