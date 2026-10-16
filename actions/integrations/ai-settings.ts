@@ -7,7 +7,7 @@ import { aiSettingsService } from "@/services/ai-settings.service";
 import { runAiToolCall } from "@/lib/ai";
 
 const aiSettingsSchema = z.object({
-  provider: z.enum(["ANTHROPIC", "OPENAI"]),
+  provider: z.enum(["ANTHROPIC", "OPENAI", "GEMINI"]),
   model: z.string().trim().min(1, "Informe o modelo").max(100),
   apiKey: z.string().trim().max(500).optional(),
   enabled: z.boolean(),

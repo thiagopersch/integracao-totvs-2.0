@@ -1,20 +1,23 @@
 /** Mirrors the Prisma enum (plain union so client components can import it). */
-export type AiProviderId = "ANTHROPIC" | "OPENAI";
+export type AiProviderId = "ANTHROPIC" | "OPENAI" | "GEMINI";
 
 export const AI_PROVIDER_LABELS: Record<AiProviderId, string> = {
   ANTHROPIC: "Anthropic (Claude)",
   OPENAI: "OpenAI",
+  GEMINI: "Google (Gemini)",
 };
 
 /** Suggested models per provider — the field is free text, any model the account can use works. */
 export const AI_MODEL_SUGGESTIONS: Record<AiProviderId, string[]> = {
   ANTHROPIC: ["claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-5-5"],
   OPENAI: ["gpt-5", "gpt-5-mini", "gpt-4.1"],
+  GEMINI: ["gemini-2.5-flash", "gemini-2.5-pro"],
 };
 
 export const AI_DEFAULT_MODEL: Record<AiProviderId, string> = {
   ANTHROPIC: "claude-opus-5-5",
   OPENAI: "gpt-5",
+  GEMINI: "gemini-2.5-flash",
 };
 
 export interface AiChatMessage {

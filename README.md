@@ -161,6 +161,22 @@ npx tsx scripts/encrypt-credentials.ts
 
 Veja o passo a passo completo em [docs/auditoria-2026-10.md](docs/auditoria-2026-10.md).
 
+### Automação de demandas
+
+- **Assistente IA** (botão na tela de Demandas): lança demandas a partir de texto livre, com prévia e confirmação. Provedor (Anthropic, OpenAI ou Google Gemini), modelo e chave de API em **Integrações > Assistente IA** — a chave fica criptografada com `CREDENTIALS_ENCRYPTION_KEY`.
+- **Template "Relatório de demandas do período"** (Integrações > Templates de Mensagem): pode anexar a planilha XLSX do "Exportar demandas", gerada por cliente no período.
+- **Envio de Relatórios** (Integrações > Envio de Relatórios): regras manuais ou agendadas (diária, semanal, mensal) com destinatários Para/CC e botão "Enviar agora". O agendamento roda no processo do servidor (requer processo Node contínuo, como os backups agendados).
+
+Após atualizar a branch, aplique as migrations e as permissões antes de subir o app (sem isso aparece `The table public.ai_settings does not exist`):
+
+```bash
+npm install
+npx prisma migrate deploy   # ou npm run prisma:migrate
+npm run prisma:generate
+npm run sync:permissions
+npm run dev
+```
+
 ## Scripts
 
 ```bash

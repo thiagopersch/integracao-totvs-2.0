@@ -26,7 +26,7 @@ interface AiSettingsClientProps {
   } | null
 }
 
-const PROVIDERS: AiProviderId[] = ["ANTHROPIC", "OPENAI"]
+const PROVIDERS: AiProviderId[] = ["ANTHROPIC", "OPENAI", "GEMINI"]
 
 export function AiSettingsClient({ initialSettings }: AiSettingsClientProps) {
   const router = useRouter()
