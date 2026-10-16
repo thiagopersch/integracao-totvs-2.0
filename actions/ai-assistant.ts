@@ -4,6 +4,7 @@ import { z } from "zod";
 import { requirePermission } from "@/lib/rbac";
 import { getDemandAnalystScope } from "@/lib/demand-scope";
 import { getDemandFormData } from "@/actions/demands";
+import { isMissingTableError, logMigrationPending } from "@/lib/prisma-errors";
 import { aiDemandAssistantService, type AssistantCatalogs } from "@/services/ai-demand-assistant.service";
 
 const messagesSchema = z
@@ -17,7 +18,14 @@ const toItems = (items: { id: string; name: string }[]) => items.map((i) => ({ i
 /** Whether the "Assistente IA" button should be shown on /demands. */
 export async function getAiAssistantEnabled() {
   const { organizationId } = await requirePermission("demands", "create");
-  return aiDemandAssistantService.isEnabled(organizationId);
+  try {
+    return await aiDemandAssistantService.isEnabled(organizationId);
+  } catch (error) {
+    // A database without this branch's migrations must not take the whole /demands page down.
+    if (!isMissingTableError(error)) throw error;
+    logMigrationPending("Assistente IA", error);
+    return false;
+  }
 }
 
 /**

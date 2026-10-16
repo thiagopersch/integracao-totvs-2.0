@@ -1,6 +1,8 @@
 import { Suspense } from "react"
 import { getReportSchedulesPageData } from "@/actions/demand-report-schedules"
 import { TableSkeleton } from "@/components/shared/table-skeleton"
+import { MigrationPendingNotice } from "@/components/shared/migration-pending-notice"
+import { isMissingTableError, logMigrationPending } from "@/lib/prisma-errors"
 import { getRequestContext } from "@/lib/tenant"
 import { hasPermission } from "@/lib/permissions"
 import { ReportSchedulesClient } from "./report-schedules-client"
@@ -14,7 +16,15 @@ export default function ReportSchedulesPage() {
 }
 
 async function ReportSchedulesContent() {
-  const [data, ctx] = await Promise.all([getReportSchedulesPageData(), getRequestContext()])
+  let data: Awaited<ReturnType<typeof getReportSchedulesPageData>>
+  try {
+    data = await getReportSchedulesPageData()
+  } catch (error) {
+    if (!isMissingTableError(error)) throw error
+    logMigrationPending("Envio de Relatórios", error)
+    return <MigrationPendingNotice feature="O Envio de Relatórios" />
+  }
+  const ctx = await getRequestContext()
   return (
     <ReportSchedulesClient
       schedules={data.schedules.map((s) => ({
