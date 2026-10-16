@@ -1,4 +1,4 @@
-import type { TaskStatus } from "@/lib/projects";
+import { byPriority, type Priority, type TaskStatus } from "@/lib/projects";
 
 /**
  * Pure helpers for project tasks: fractional ordering (kanban columns / WBS siblings), dependency
@@ -82,10 +82,10 @@ export function descendantIds(tasks: { id: string; parentId: string | null }[], 
 export type TreeNode<T> = { task: T; depth: number; hasChildren: boolean };
 
 /**
- * Depth-first WBS order (siblings by outlinePosition, then number). Tasks whose parent isn't in the
+ * Depth-first WBS order (siblings by priority — most urgent first — then outlinePosition, number). Tasks whose parent isn't in the
  * list (filtered out) become roots, so a filtered view never loses rows.
  */
-export function buildTaskTree<T extends { id: string; parentId: string | null; outlinePosition: number; number: number }>(
+export function buildTaskTree<T extends { id: string; parentId: string | null; priority: Priority; outlinePosition: number; number: number }>(
   tasks: T[],
 ): TreeNode<T>[] {
   const ids = new Set(tasks.map((t) => t.id));
@@ -94,7 +94,7 @@ export function buildTaskTree<T extends { id: string; parentId: string | null; o
     const key = task.parentId && ids.has(task.parentId) ? task.parentId : null;
     byParent.set(key, [...(byParent.get(key) ?? []), task]);
   }
-  const order = (a: T, b: T) => a.outlinePosition - b.outlinePosition || a.number - b.number;
+  const order = (a: T, b: T) => byPriority(a, b) || a.outlinePosition - b.outlinePosition || a.number - b.number;
   const result: TreeNode<T>[] = [];
   const visit = (parentId: string | null, depth: number) => {
     for (const task of (byParent.get(parentId) ?? []).sort(order)) {

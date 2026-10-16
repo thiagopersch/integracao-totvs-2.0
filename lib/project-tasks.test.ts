@@ -49,11 +49,11 @@ describe("wouldCreateCycle", () => {
 
 describe("task tree", () => {
   const tasks = [
-    { id: "p", parentId: null, outlinePosition: 2, number: 1, startDate: null, dueDate: null },
-    { id: "c2", parentId: "p", outlinePosition: 2, number: 3, startDate: "2026-01-05", dueDate: "2026-01-20" },
-    { id: "c1", parentId: "p", outlinePosition: 1, number: 2, startDate: "2026-01-01", dueDate: "2026-01-10" },
-    { id: "g", parentId: "c1", outlinePosition: 1, number: 5, startDate: null, dueDate: "2026-01-25" },
-    { id: "r", parentId: null, outlinePosition: 1, number: 4, startDate: null, dueDate: null },
+    { id: "p", parentId: null, priority: "MEDIUM" as const, outlinePosition: 2, number: 1, startDate: null, dueDate: null },
+    { id: "c2", priority: "MEDIUM" as const, parentId: "p", outlinePosition: 2, number: 3, startDate: "2026-01-05", dueDate: "2026-01-20" },
+    { id: "c1", priority: "MEDIUM" as const, parentId: "p", outlinePosition: 1, number: 2, startDate: "2026-01-01", dueDate: "2026-01-10" },
+    { id: "g", priority: "MEDIUM" as const, parentId: "c1", outlinePosition: 1, number: 5, startDate: null, dueDate: "2026-01-25" },
+    { id: "r", priority: "MEDIUM" as const, parentId: null, outlinePosition: 1, number: 4, startDate: null, dueDate: null },
   ];
 
   it("flattens depth-first by outline position", () => {
@@ -64,6 +64,17 @@ describe("task tree", () => {
       ["g", 2, false],
       ["c2", 1, false],
     ]);
+  });
+
+  it("orders siblings by priority (Urgente → Baixa) before outline position", () => {
+    const mixed = [
+      { id: "low", parentId: null, priority: "LOW" as const, outlinePosition: 1, number: 1 },
+      { id: "high", parentId: null, priority: "HIGH" as const, outlinePosition: 3, number: 2 },
+      { id: "urgent", parentId: null, priority: "URGENT" as const, outlinePosition: 4, number: 3 },
+      { id: "medium", parentId: null, priority: "MEDIUM" as const, outlinePosition: 2, number: 4 },
+      { id: "high2", parentId: null, priority: "HIGH" as const, outlinePosition: 2, number: 5 },
+    ];
+    expect(buildTaskTree(mixed).map((n) => n.task.id)).toEqual(["urgent", "high2", "high", "medium", "low"]);
   });
 
   it("promotes orphans (filtered parent) to roots", () => {

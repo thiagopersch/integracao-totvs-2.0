@@ -41,7 +41,7 @@ export function SoapSchemaView({ tables, showPrimaryKey }: SoapSchemaViewProps) 
       {tables.map((table) => (
         <div key={table.name} id={`schema-table-${table.name}`} className="scroll-mt-4 space-y-2">
           <h3 className="font-heading text-sm font-semibold">{table.name}</h3>
-          <div className="overflow-x-auto rounded-lg border border-input">
+          <div className="no-scrollbar overflow-x-auto rounded-lg border border-input">
             <Table>
               <TableHeader>
                 <TableRow>

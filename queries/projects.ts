@@ -3,6 +3,7 @@
 
 import { cacheTag } from "next/cache";
 import { projectService, type ProjectCtx } from "@/services/project.service";
+import { projectPortfolioService } from "@/services/project-portfolio.service";
 import type { CustomFieldDef } from "@/lib/custom-fields";
 import type { ListParams } from "@/types/common";
 
@@ -32,4 +33,11 @@ export async function listProjectRisks(projectId: string) {
   "use cache";
   cacheTag(`project-${projectId}`);
   return projectService.listRisks(projectId);
+}
+
+/** Dashboard snapshot of projects/tasks — "projects" is invalidated by every project and task mutation. */
+export async function getProjectPortfolio(ctx: ProjectCtx) {
+  "use cache";
+  cacheTag("projects");
+  return projectPortfolioService.get(ctx);
 }

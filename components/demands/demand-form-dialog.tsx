@@ -1,13 +1,13 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import dynamic from "next/dynamic"
 import { useForm, Controller, type Resolver, type FieldErrors } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { toast } from "sonner"
 import { Loader2, Maximize2, Minimize2 } from "lucide-react"
 import { ColorBadge } from "@/components/shared/color-badge"
 import { WithTooltip } from "@/components/shared/with-tooltip"
+import { MarkdownEditor } from "@/components/shared/markdown-editor"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -24,9 +24,7 @@ import { listProjectTasksForDemand } from "@/actions/project-tasks"
 import { createDemandSchema, updateDemandSchema, timeToMinutes, type CreateDemandInput } from "@/schemas/demand.schema"
 import { toDateInputValue } from "@/utils/format"
 import type { Analyst, Client, Department, DemandType, Requester, Tag } from "@/generated/prisma/client"
-import "@uiw/react-md-editor/markdown-editor.css"
 
-const MDEditor = dynamic(() => import("@uiw/react-md-editor"), { ssr: false })
 
 export const DEMAND_STATUS_LABELS: Record<string, string> = {
   PENDING: "Pendente",
@@ -333,9 +331,7 @@ function DemandFormBody({ onOpenChange, catalogs, context, demand, defaults = {}
                 control={form.control}
                 name="description"
                 render={({ field }) => (
-                  <div className="max-h-[260px] overflow-y-auto rounded-md border border-input" data-color-mode="auto">
-                    <MDEditor value={field.value} onChange={(v) => field.onChange(v || "")} height={260} preview="live" visibleDragbar={false} />
-                  </div>
+                  <MarkdownEditor id="description" label="Descrição da demanda" value={field.value ?? ""} onChange={field.onChange} height={260} preview="live" />
                 )}
               />
               <FieldError errors={[errors.description]} />

@@ -5,6 +5,10 @@ import { getDemandPeriodOptions } from "@/actions/demands"
 import { DashboardClient } from "./dashboard-client"
 import { DashboardSkeleton } from "./dashboard-skeleton"
 import { PERIOD_COOKIE_NAME, resolvePeriod } from "@/lib/period"
+import { getProjectPortfolio } from "@/queries/projects"
+import { getRequestContext } from "@/lib/tenant"
+import { hasPermission } from "@/lib/permissions"
+import { getTodayDateOnly } from "@/lib/export-period"
 
 export default function DashboardPage({ searchParams }: { searchParams: Promise<Record<string, string>> }) {
   return (
@@ -18,6 +22,9 @@ async function DashboardData({ searchParams }: { searchParams: Promise<Record<st
   const params = await searchParams
   const cookieStore = await cookies()
   const period = resolvePeriod(params, cookieStore.get(PERIOD_COOKIE_NAME)?.value)
+  const { organizationId, userId, allowedClientIds, permissions } = await getRequestContext()
+  // Projects/tasks block only for who can see the Gestão de Projetos module.
+  const canSeeProjects = hasPermission(permissions, "projects", "read")
 
   const [
     {
@@ -39,7 +46,12 @@ async function DashboardData({ searchParams }: { searchParams: Promise<Record<st
       contractsUsageMonthLabel,
     },
     periodOptions,
-  ] = await Promise.all([getDashboardStats(period), getDemandPeriodOptions()])
+    projectPortfolio,
+  ] = await Promise.all([
+    getDashboardStats(period),
+    getDemandPeriodOptions(),
+    canSeeProjects ? getProjectPortfolio({ organizationId, userId, allowedClientIds }) : null,
+  ])
 
   return (
     <DashboardClient
@@ -62,6 +74,8 @@ async function DashboardData({ searchParams }: { searchParams: Promise<Record<st
       period={period}
       years={periodOptions.years}
       monthsByYear={periodOptions.monthsByYear}
+      projectPortfolio={projectPortfolio}
+      today={getTodayDateOnly().toISOString().slice(0, 10)}
     />
   )
 }

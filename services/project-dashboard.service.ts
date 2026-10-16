@@ -9,6 +9,7 @@ import {
   isOverdue,
   toDateKey,
 } from "@/lib/project-metrics";
+import { byPriority } from "@/lib/projects";
 import { projectService, type ProjectCtx } from "@/services/project.service";
 import { contractUsageService } from "@/services/contract-usage.service";
 import { currentMonth } from "@/lib/contract-usage";
@@ -38,6 +39,7 @@ export const projectDashboardService = {
           title: true,
           parentId: true,
           status: true,
+          priority: true,
           progress: true,
           estimateHours: true,
           isMilestone: true,
@@ -101,7 +103,7 @@ export const projectDashboardService = {
 
     const upcoming = live
       .filter((t) => t.dueDate && !isClosedStatus(t.status) && t.dueDate.getTime() <= today.getTime() + 14 * DAY_MS)
-      .sort((a, b) => a.dueDate!.getTime() - b.dueDate!.getTime())
+      .sort((a, b) => byPriority(a, b) || a.dueDate!.getTime() - b.dueDate!.getTime())
       .slice(0, 10)
       .map((t) => ({
         id: t.id,
@@ -109,6 +111,7 @@ export const projectDashboardService = {
         title: t.title,
         dueDate: t.dueDate!,
         status: t.status,
+        priority: t.priority,
         stageId: t.stageId,
         isMilestone: t.isMilestone,
         overdue: isOverdue(t, today),

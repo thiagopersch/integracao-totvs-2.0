@@ -18,13 +18,15 @@ import {
 } from "@dnd-kit/core"
 import { SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
-import { Plus } from "lucide-react"
+import { CalendarDays, Plus } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { ColorBadge } from "@/components/shared/color-badge"
-import { DueDateLabel, PriorityDot, TaskMeta, UserAvatar } from "@/components/projects/workspace/task-card-bits"
+import { PhaseBadge, PriorityBadge, StageBadge } from "@/components/projects/project-badges"
+import { DueDateLabel, TaskMeta, UserAvatar } from "@/components/projects/workspace/task-card-bits"
 import { moveProjectTask, quickCreateProjectTask } from "@/actions/project-tasks"
-import { PRIORITIES, PRIORITY_LABELS, taskKey, type ProjectSettings, type StageRef } from "@/lib/projects"
+import { PRIORITIES, PRIORITY_COLORS, PRIORITY_LABELS, byPriority, taskKey, type PhaseRef, type ProjectSettings, type StageRef } from "@/lib/projects"
+import { formatDateOnly } from "@/utils/format"
 import type { Swimlane } from "@/lib/project-workspace-params"
 import { cn } from "@/lib/utils"
 import type { ProjectTaskDTO, WorkspaceActions } from "@/components/projects/workspace/types"
@@ -42,6 +44,7 @@ interface KanbanBoardProps {
   settings: ProjectSettings
   /** Visible workflow stages (kanban columns), in order. */
   stages: StageRef[]
+  phases: PhaseRef[]
   swimlane: Swimlane
   today: string
   canCreate: boolean
@@ -58,7 +61,8 @@ function laneKey(task: ProjectTaskDTO, swimlane: Swimlane) {
 function buildColumns(tasks: ProjectTaskDTO[], lanes: Lane[], stages: StageRef[], swimlane: Swimlane) {
   const columns: Record<string, string[]> = {}
   for (const lane of lanes) for (const stage of stages) columns[containerId(lane.id, stage.id)] = []
-  const sorted = [...tasks].sort((a, b) => a.boardPosition - b.boardPosition || a.number - b.number)
+  // Urgente → Alta → Média → Baixa; the manual (drag) order applies within the same priority.
+  const sorted = [...tasks].sort((a, b) => byPriority(a, b) || a.boardPosition - b.boardPosition || a.number - b.number)
   for (const task of sorted) {
     if (!task.stageId) continue
     const key = containerId(laneKey(task, swimlane), task.stageId)
@@ -67,19 +71,21 @@ function buildColumns(tasks: ProjectTaskDTO[], lanes: Lane[], stages: StageRef[]
   return columns
 }
 
-function KanbanCard({
-  task,
-  projectCode,
-  today,
-  onOpen,
-  dragging,
-}: {
+type CardProps = {
   task: ProjectTaskDTO
+  /** Column the card is in — shown right away after a drop, before the server confirms. */
+  stage?: StageRef
+  phase?: PhaseRef
   projectCode: string
   today: string
   onOpen?: () => void
   dragging?: boolean
-}) {
+}
+
+/** Soft tint + left stripe in the priority color over the opaque card, so text keeps the theme contrast. */
+function KanbanCard({ task, stage, phase, projectCode, today, onOpen, dragging }: CardProps) {
+  const color = PRIORITY_COLORS[task.priority]
+  const progress = task.status === "DONE" ? 100 : task.progress
   return (
     <div
       role="button"
@@ -87,38 +93,59 @@ function KanbanCard({
       onClick={onOpen}
       onKeyDown={(e) => e.key === "Enter" && onOpen?.()}
       className={cn(
-        "space-y-2 rounded-md border bg-card p-2.5 text-left shadow-xs transition-shadow hover:shadow-md",
-        dragging && "rotate-1 shadow-lg ring-2 ring-primary/40"
+        "neon-border cursor-pointer space-y-2 rounded-md border bg-card p-2.5 text-left shadow-xs outline-none hover:shadow-md",
+        dragging && "neon-off cursor-grabbing rotate-1 shadow-lg ring-2 ring-primary/40",
+        task.status === "CANCELLED" && "opacity-70"
       )}
+      style={{ backgroundImage: `linear-gradient(${color}1f, ${color}1f)`, borderLeft: `4px solid ${color}`, "--neon": color } as React.CSSProperties}
     >
       <div className="flex items-start gap-2">
-        <PriorityDot priority={task.priority} />
-        <p className="flex-1 text-sm font-medium leading-snug">{task.title}</p>
-        {task.assignee && <UserAvatar name={task.assignee.name} image={task.assignee.image} />}
+        <p className={cn("flex-1 text-sm font-medium leading-snug", task.status === "DONE" && "text-muted-foreground line-through")}>{task.title}</p>
+        <PriorityBadge priority={task.priority} />
       </div>
-      {task.tags.length > 0 && (
-        <div className="flex flex-wrap gap-1">
-          {task.tags.slice(0, 3).map((t) => (
-            <ColorBadge key={t.id} label={t.name} color={t.color} />
-          ))}
+      <div className="flex flex-wrap items-center gap-1">
+        {stage && <StageBadge stage={stage} />}
+        {phase && <PhaseBadge phase={phase} />}
+        {task.tags.slice(0, 3).map((t) => (
+          <ColorBadge key={t.id} label={t.name} color={t.color} />
+        ))}
+        {task.tags.length > 3 && <span className="text-[11px] text-muted-foreground">+{task.tags.length - 3}</span>}
+      </div>
+      {(task.startDate || task.dueDate) && (
+        <div className="flex flex-wrap items-center gap-1 text-xs text-muted-foreground">
+          {task.startDate && (
+            <span className="inline-flex items-center gap-1">
+              <CalendarDays className="h-3 w-3" /> {formatDateOnly(task.startDate)}
+            </span>
+          )}
+          {task.startDate && task.dueDate && <span>→</span>}
+          <DueDateLabel task={task} today={today} />
         </div>
       )}
-      {task.progress > 0 && task.status !== "DONE" && (
-        <div className="h-1 overflow-hidden rounded-full bg-muted">
-          <div className="h-full bg-primary" style={{ width: `${task.progress}%` }} />
+      {progress > 0 && (
+        <div className="h-1 overflow-hidden rounded-full bg-foreground/10">
+          <div className="h-full" style={{ width: `${progress}%`, backgroundColor: color }} />
         </div>
       )}
-      <div className="flex items-center justify-between gap-2">
-        <span className="font-mono text-[11px] text-muted-foreground">{taskKey(projectCode, task.number)}</span>
-        <DueDateLabel task={task} today={today} />
-      </div>
       <TaskMeta task={task} />
+      <div className="flex items-center justify-between gap-2 border-t border-foreground/10 pt-2">
+        <span className="font-mono text-[11px] text-muted-foreground">{taskKey(projectCode, task.number)}</span>
+        {task.assignee ? (
+          <span className="flex min-w-0 items-center gap-1.5 text-xs">
+            <span className="truncate">{task.assignee.name}</span>
+            <UserAvatar name={task.assignee.name} image={task.assignee.image} className="h-5 w-5" />
+          </span>
+        ) : (
+          <span className="text-xs text-muted-foreground">Sem responsável</span>
+        )}
+      </div>
     </div>
   )
 }
 
-function SortableCard(props: { task: ProjectTaskDTO; projectCode: string; today: string; onOpen: () => void; disabled: boolean }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: props.task.id, disabled: props.disabled })
+function SortableCard(props: Omit<CardProps, "dragging"> & { disabled: boolean }) {
+  const { disabled, ...card } = props
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: props.task.id, disabled })
   return (
     <div
       ref={setNodeRef}
@@ -127,7 +154,7 @@ function SortableCard(props: { task: ProjectTaskDTO; projectCode: string; today:
       {...attributes}
       {...listeners}
     >
-      <KanbanCard task={props.task} projectCode={props.projectCode} today={props.today} onOpen={props.onOpen} />
+      <KanbanCard {...card} />
     </div>
   )
 }
@@ -137,6 +164,7 @@ function Column({
   stage,
   ids,
   tasksById,
+  phasesById,
   limit,
   showHeader,
   projectCode,
@@ -150,6 +178,7 @@ function Column({
   stage: StageRef
   ids: string[]
   tasksById: Map<string, ProjectTaskDTO>
+  phasesById: Map<string, PhaseRef>
   limit?: number
   showHeader: boolean
   projectCode: string
@@ -166,11 +195,11 @@ function Column({
 
   return (
     <div
-      className={cn("flex w-72 shrink-0 flex-col rounded-lg bg-muted/40", exceeded && "ring-1 ring-destructive/60")}
-      style={{ borderTop: `3px solid ${stage.color}` }}
+      className={cn("flex w-72 shrink-0 flex-col rounded-lg border border-transparent transition-colors", exceeded && "ring-1 ring-destructive/60")}
+      style={{ backgroundColor: `${stage.color}${isOver ? "40" : "26"}`, borderTop: `3px solid ${stage.color}` }}
     >
       {showHeader && (
-        <div className="flex items-center gap-2 border-b px-3 py-2">
+        <div className="flex items-center gap-2 px-3 py-2" style={{ borderBottom: `1px solid ${stage.color}33` }}>
           <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: stage.color }} />
           <span className="truncate text-sm font-medium">{stage.name}</span>
           <span className={cn("ml-auto text-xs tabular-nums", exceeded ? "font-semibold text-destructive" : "text-muted-foreground")}>
@@ -179,12 +208,21 @@ function Column({
           </span>
         </div>
       )}
-      <div ref={setNodeRef} className={cn("flex min-h-24 flex-1 flex-col gap-2 p-2 transition-colors", isOver && "bg-primary/5")}>
+      <div ref={setNodeRef} className="flex min-h-24 flex-1 flex-col gap-2 p-2">
         <SortableContext items={ids} strategy={verticalListSortingStrategy}>
           {ids.map((taskId) => {
             const task = tasksById.get(taskId)
             return task ? (
-              <SortableCard key={taskId} task={task} projectCode={projectCode} today={today} onOpen={() => onOpen(taskId)} disabled={!canUpdate} />
+              <SortableCard
+                key={taskId}
+                task={task}
+                stage={stage}
+                phase={task.phaseId ? phasesById.get(task.phaseId) : undefined}
+                projectCode={projectCode}
+                today={today}
+                onOpen={() => onOpen(taskId)}
+                disabled={!canUpdate}
+              />
             ) : null
           })}
         </SortableContext>
@@ -204,11 +242,11 @@ function Column({
                 onBlur={() => !title && setAdding(false)}
                 onKeyDown={(e) => e.key === "Escape" && setAdding(false)}
                 placeholder="Título da tarefa + Enter"
-                className="h-8 bg-background"
+                className="h-8 bg-card"
               />
             </form>
           ) : (
-            <Button variant="ghost" size="sm" className="justify-start text-muted-foreground" onClick={() => setAdding(true)}>
+            <Button variant="ghost" size="sm" className="justify-start text-muted-foreground hover:bg-background/60" onClick={() => setAdding(true)}>
               <Plus className="mr-1 h-4 w-4" /> Adicionar
             </Button>
           ))}
@@ -217,10 +255,12 @@ function Column({
   )
 }
 
-export function KanbanBoard({ projectId, projectCode, tasks, settings, stages, swimlane, today, canCreate, canUpdate, actions }: KanbanBoardProps) {
+export function KanbanBoard({ projectId, projectCode, tasks, settings, stages, phases, swimlane, today, canCreate, canUpdate, actions }: KanbanBoardProps) {
   const router = useRouter()
   const [, startTransition] = useTransition()
   const tasksById = useMemo(() => new Map(tasks.map((t) => [t.id, t])), [tasks])
+  const phasesById = useMemo(() => new Map(phases.map((p) => [p.id, p])), [phases])
+  const stagesById = useMemo(() => new Map(stages.map((s) => [s.id, s])), [stages])
 
   const lanes: Lane[] = useMemo(() => {
     if (swimlane === "priority") return [...PRIORITIES].reverse().map((p) => ({ id: p, label: `Prioridade ${PRIORITY_LABELS[p]}` }))
@@ -342,6 +382,8 @@ export function KanbanBoard({ projectId, projectCode, tasks, settings, stages, s
 
   return (
     <DndContext
+      // Stable id keeps dnd-kit's aria-describedby equal on server and client (no hydration mismatch).
+      id={`kanban-${projectId}`}
       sensors={sensors}
       collisionDetection={closestCorners}
       onDragStart={onDragStart}
@@ -352,7 +394,8 @@ export function KanbanBoard({ projectId, projectCode, tasks, settings, stages, s
         setColumns(buildColumns(tasks, lanes, stages, swimlane))
       }}
     >
-      <div className="overflow-x-auto pb-2">
+      {/* Scrolls with the screen width (trackpad, shift+wheel, auto-scroll while dragging) but the bar stays hidden. */}
+      <div className="no-scrollbar overflow-x-auto">
         <div className="inline-flex min-w-full flex-col gap-4">
           {swimlane !== "none" && (
             <div className="flex gap-3">
@@ -385,6 +428,7 @@ export function KanbanBoard({ projectId, projectCode, tasks, settings, stages, s
                       stage={stage}
                       ids={columns[id] ?? []}
                       tasksById={tasksById}
+                      phasesById={phasesById}
                       limit={swimlane === "none" ? (stage.wipLimit ?? undefined) : undefined}
                       showHeader={swimlane === "none"}
                       projectCode={projectCode}
@@ -401,7 +445,18 @@ export function KanbanBoard({ projectId, projectCode, tasks, settings, stages, s
           ))}
         </div>
       </div>
-      <DragOverlay>{activeTask ? <KanbanCard task={activeTask} projectCode={projectCode} today={today} dragging /> : null}</DragOverlay>
+      <DragOverlay>
+        {activeTask ? (
+          <KanbanCard
+            task={activeTask}
+            stage={stagesById.get(stageOf(findContainer(activeTask.id) ?? "") ?? "")}
+            phase={activeTask.phaseId ? phasesById.get(activeTask.phaseId) : undefined}
+            projectCode={projectCode}
+            today={today}
+            dragging
+          />
+        ) : null}
+      </DragOverlay>
     </DndContext>
   )
 }

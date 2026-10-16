@@ -164,3 +164,88 @@
   background-color: #fff;
   color: #171717;
 }
+
+/* Hides the scrollbar but keeps the element scrollable (trackpad, shift+wheel, keyboard, drag). */
+@utility no-scrollbar {
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* @uiw/react-md-editor (components/shared/markdown-editor.tsx) in the app's palette. */
+.markdown-field .w-md-editor {
+  background-color: transparent;
+  color: var(--foreground);
+  box-shadow: none;
+  border-radius: 0;
+}
+.markdown-field .w-md-editor-toolbar {
+  background-color: var(--muted);
+  border-bottom-color: var(--border);
+}
+.markdown-field .w-md-editor-text-input::placeholder {
+  color: var(--muted-foreground);
+}
+.markdown-field .wmde-markdown {
+  background-color: transparent;
+  color: inherit;
+}
+.markdown-field .wmde-markdown ul {
+  list-style: disc;
+}
+.markdown-field .wmde-markdown ol {
+  list-style: decimal;
+}
+/* Fullscreen editor (nested dialog) and the editor's native fullscreen: solid page background. */
+.markdown-fullscreen .w-md-editor,
+.markdown-field .w-md-editor-fullscreen {
+  background-color: var(--background);
+  border-radius: 0;
+}
+
+/* Neon ring spinning around the border on hover, in the element's `--neon` color (Kanban cards:
+   the task priority). The ring is a masked conic gradient so only the border band shows. */
+@property --neon-angle {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+@keyframes neon-spin {
+  to {
+    --neon-angle: 360deg;
+  }
+}
+.neon-border {
+  position: relative;
+  transition: box-shadow 200ms ease;
+}
+.neon-border::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  padding: 2px;
+  border-radius: inherit;
+  background: conic-gradient(from var(--neon-angle), transparent 0 55%, var(--neon) 80%, transparent 100%);
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 200ms ease;
+}
+.neon-border:not(.neon-off):hover,
+.neon-border:not(.neon-off):focus-visible {
+  box-shadow: 0 0 12px -2px var(--neon), 0 0 28px -10px var(--neon);
+}
+.neon-border:not(.neon-off):hover::before,
+.neon-border:not(.neon-off):focus-visible::before {
+  opacity: 1;
+  animation: neon-spin 2.2s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .neon-border:not(.neon-off):hover::before,
+  .neon-border:not(.neon-off):focus-visible::before {
+    animation: none;
+    background: var(--neon);
+  }
+}

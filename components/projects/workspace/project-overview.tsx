@@ -25,11 +25,13 @@ import {
   RISK_SCALE_LABELS,
   RISK_STATUS_COLORS,
   RISK_STATUS_LABELS,
+  byPriority,
   formatHours,
   riskSeverity,
   taskKey,
   type RiskStatus,
 } from "@/lib/projects"
+import { MarkdownView } from "@/components/shared/markdown-editor"
 import { isEmptyCustomFieldValue, type CustomFieldDef } from "@/lib/custom-fields"
 import { formatDateOnly, toDateInputValue } from "@/utils/format"
 import { cn } from "@/lib/utils"
@@ -54,7 +56,7 @@ function CharterBlock({ label, value }: { label: string; value: string | null })
   return (
     <div>
       <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
-      <p className="mt-0.5 whitespace-pre-wrap text-sm">{value}</p>
+      <MarkdownView value={value} className="mt-0.5" />
     </div>
   )
 }
@@ -230,7 +232,9 @@ interface ProjectOverviewProps {
 export function ProjectOverview({ project, tasks, dashboard, risks, defs, usersById, team, canUpdate, actions }: ProjectOverviewProps) {
   const [riskDialog, setRiskDialog] = useState<{ open: boolean; risk: ProjectRisk | null }>({ open: false, risk: null })
   const [deleteRisk, setDeleteRisk] = useState<ProjectRisk | null>(null)
-  const milestones = tasks.filter((t) => t.isMilestone).sort((a, b) => (a.dueDate ? new Date(a.dueDate).getTime() : Infinity) - (b.dueDate ? new Date(b.dueDate).getTime() : Infinity))
+  const milestones = tasks
+    .filter((t) => t.isMilestone)
+    .sort((a, b) => byPriority(a, b) || (a.dueDate ? new Date(a.dueDate).getTime() : Infinity) - (b.dueDate ? new Date(b.dueDate).getTime() : Infinity))
   const filledDefs = defs.filter((d) => !isEmptyCustomFieldValue(project.customFields[d.id]))
   const hasCharter = [project.objective, project.scope, project.outOfScope, project.assumptions, project.successCriteria, project.description].some(Boolean)
 

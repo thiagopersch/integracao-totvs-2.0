@@ -35,6 +35,28 @@ export function buildTaskFormSchema(defs: CustomFieldDef[]) {
   return projectTaskBaseSchema.extend({ customFields: buildCustomFieldsSchema(defs) }).superRefine(taskRules);
 }
 
+const patchDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Data inválida").nullable().optional();
+
+/**
+ * Inline edit of a single property (task sheet, Notion-style). Absent = keep, null = clear. The
+ * service merges it with the stored task and runs the same validations as the full form.
+ */
+export const projectTaskPatchSchema = z
+  .object({
+    title: z.string().trim().min(1, "Título é obrigatório").max(300, "Título deve ter no máximo 300 caracteres").optional(),
+    description: z.string().max(20000, "Máximo de 20.000 caracteres").nullable().optional(),
+    priority: z.enum(PRIORITIES).optional(),
+    assigneeId: z.string().min(1).nullable().optional(),
+    phaseId: z.string().min(1).nullable().optional(),
+    startDate: patchDate,
+    dueDate: patchDate,
+    estimateHours: z.number().min(0, "Valor inválido").max(100000).nullable().optional(),
+    progress: z.number().int().min(0).max(100).optional(),
+    isMilestone: z.boolean().optional(),
+    tagIds: z.array(z.string().min(1)).optional(),
+  })
+  .strict();
+
 /** Kanban/list inline creation — only a title (and the column it was created in). */
 export const quickTaskSchema = z.object({
   title: z.string().trim().min(1, "Título é obrigatório").max(300),
@@ -76,6 +98,7 @@ export const taskCommentSchema = z.object({
 export type ProjectTaskInput = z.output<typeof projectTaskSchema>;
 export type ProjectTaskFormValues = z.input<typeof projectTaskSchema>;
 export type QuickTaskInput = z.output<typeof quickTaskSchema>;
+export type ProjectTaskPatch = z.output<typeof projectTaskPatchSchema>;
 export type MoveTaskInput = z.output<typeof moveTaskSchema>;
 export type RescheduleTaskInput = z.output<typeof rescheduleTaskSchema>;
 export type DependencyInput = z.output<typeof dependencySchema>;

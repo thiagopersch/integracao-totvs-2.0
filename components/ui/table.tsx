@@ -4,11 +4,12 @@ import * as React from "react"
 
 import { cn } from "@/lib/utils"
 
+/** The container scrolls horizontally when the table is wider than the screen; the scrollbar itself is hidden (`no-scrollbar`, app/globals.css). */
 function Table({ className, ...props }: React.ComponentProps<"table">) {
   return (
     <div
       data-slot="table-container"
-      className="relative w-full overflow-x-auto"
+      className="relative w-full overflow-x-auto no-scrollbar"
     >
       <table
         data-slot="table"

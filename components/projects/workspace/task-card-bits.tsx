@@ -1,6 +1,6 @@
 "use client"
 
-import { CalendarClock, CheckSquare, Diamond, GitBranch, MessageSquare } from "lucide-react"
+import { CalendarClock, CheckSquare, Clock, Diamond, GitBranch, Link2, MessageSquare } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { WithTooltip } from "@/components/shared/with-tooltip"
 import { PRIORITY_COLORS, PRIORITY_LABELS, CLOSED_TASK_STATUSES, formatHours } from "@/lib/projects"
@@ -57,31 +57,52 @@ export function PriorityDot({ priority }: { priority: ProjectTaskDTO["priority"]
   )
 }
 
-/** Compact counters shown on cards: subtasks, checklist, comments, hours. */
+/** Compact counters shown on cards: milestone, subtasks, dependencies, checklist, comments, hours. */
 export function TaskMeta({ task }: { task: ProjectTaskDTO }) {
+  const dependencies = task.predecessors.length
   return (
     <div className="flex flex-wrap items-center gap-2.5 text-xs text-muted-foreground">
-      {task.isMilestone && <Diamond className="h-3 w-3 fill-amber-500 text-amber-500" />}
+      {task.isMilestone && (
+        <WithTooltip label="Marco">
+          <Diamond className="h-3 w-3 fill-amber-500 text-amber-500" />
+        </WithTooltip>
+      )}
       {task.childCount > 0 && (
-        <span className="inline-flex items-center gap-0.5">
-          <GitBranch className="h-3 w-3" /> {task.childCount}
-        </span>
+        <WithTooltip label={`${task.childCount} subtarefa(s)`}>
+          <span className="inline-flex items-center gap-0.5">
+            <GitBranch className="h-3 w-3" /> {task.childCount}
+          </span>
+        </WithTooltip>
+      )}
+      {dependencies > 0 && (
+        <WithTooltip label={`Depende de ${dependencies} tarefa(s)`}>
+          <span className="inline-flex items-center gap-0.5">
+            <Link2 className="h-3 w-3" /> {dependencies}
+          </span>
+        </WithTooltip>
       )}
       {task.checklistTotal > 0 && (
-        <span className={cn("inline-flex items-center gap-0.5", task.checklistDone === task.checklistTotal && "text-emerald-600")}>
-          <CheckSquare className="h-3 w-3" /> {task.checklistDone}/{task.checklistTotal}
-        </span>
+        <WithTooltip label="Checklist">
+          <span className={cn("inline-flex items-center gap-0.5", task.checklistDone === task.checklistTotal && "text-emerald-600 dark:text-emerald-400")}>
+            <CheckSquare className="h-3 w-3" /> {task.checklistDone}/{task.checklistTotal}
+          </span>
+        </WithTooltip>
       )}
       {task.commentCount > 0 && (
-        <span className="inline-flex items-center gap-0.5">
-          <MessageSquare className="h-3 w-3" /> {task.commentCount}
-        </span>
+        <WithTooltip label={`${task.commentCount} comentário(s)`}>
+          <span className="inline-flex items-center gap-0.5">
+            <MessageSquare className="h-3 w-3" /> {task.commentCount}
+          </span>
+        </WithTooltip>
       )}
       {(task.loggedMinutes > 0 || task.estimateHours) && (
-        <span className="tabular-nums">
-          {formatHours(task.loggedMinutes, "minutes")}
-          {task.estimateHours ? `/${formatHours(task.estimateHours)}` : ""}
-        </span>
+        <WithTooltip label="Horas apontadas / estimadas">
+          <span className="inline-flex items-center gap-0.5 tabular-nums">
+            <Clock className="h-3 w-3" />
+            {formatHours(task.loggedMinutes, "minutes")}
+            {task.estimateHours ? `/${formatHours(task.estimateHours)}` : ""}
+          </span>
+        </WithTooltip>
       )}
     </div>
   )

@@ -12,6 +12,14 @@ export type ProjectHealth = (typeof PROJECT_HEALTHS)[number];
 export const PRIORITIES = ["LOW", "MEDIUM", "HIGH", "URGENT"] as const;
 export type Priority = (typeof PRIORITIES)[number];
 
+/** Display order of tasks in every workspace view: Urgente → Alta → Média → Baixa. */
+export const PRIORITY_RANK: Record<Priority, number> = { URGENT: 0, HIGH: 1, MEDIUM: 2, LOW: 3 };
+
+/** Comparator: most urgent first. Chain other criteria with `||`. */
+export function byPriority(a: { priority: Priority }, b: { priority: Priority }): number {
+  return PRIORITY_RANK[a.priority] - PRIORITY_RANK[b.priority];
+}
+
 /** Kanban column order. */
 export const TASK_STATUSES = ["BACKLOG", "TODO", "IN_PROGRESS", "IN_REVIEW", "BLOCKED", "DONE", "CANCELLED"] as const;
 export type TaskStatus = (typeof TASK_STATUSES)[number];

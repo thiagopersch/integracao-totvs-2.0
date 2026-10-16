@@ -24,6 +24,7 @@ import { Field, FieldDescription, FieldError, FieldLabel } from "@/components/ui
 import { Tabs, TabsContent, ScrollableTabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ColorBadge } from "@/components/shared/color-badge"
 import { WithTooltip } from "@/components/shared/with-tooltip"
+import { MarkdownEditor } from "@/components/shared/markdown-editor"
 import { OptionSelect, toOptions } from "@/components/projects/option-select"
 import { CustomFieldsFormSection } from "@/components/projects/custom-fields/custom-field-input"
 import { createProject, updateProject } from "@/actions/projects"
@@ -564,7 +565,13 @@ export function ProjectSettingsForm({ project, options, defs }: ProjectSettingsF
             <CardContent>
               <Field>
                 <FieldLabel htmlFor="objective">Objetivo e justificativa</FieldLabel>
-                <Textarea id="objective" rows={4} {...form.register("objective")} placeholder="Ex.: Automatizar o fechamento financeiro, reduzindo de 5 para 2 dias o ciclo mensal." />
+                <Controller
+                  control={form.control}
+                  name="objective"
+                  render={({ field }) => (
+                    <MarkdownEditor id="objective" label="Objetivo e justificativa" value={field.value ?? ""} onChange={field.onChange} height={160} invalid={!!errors.objective} placeholder="Ex.: Automatizar o fechamento financeiro, reduzindo de 5 para 2 dias o ciclo mensal." />
+                  )}
+                />
                 <FieldError errors={[errors.objective]} />
               </Field>
             </CardContent>
@@ -577,12 +584,24 @@ export function ProjectSettingsForm({ project, options, defs }: ProjectSettingsF
             <CardContent className="grid grid-cols-1 gap-4 lg:grid-cols-2">
               <Field>
                 <FieldLabel htmlFor="scope">Escopo incluído (entregas)</FieldLabel>
-                <Textarea id="scope" rows={6} {...form.register("scope")} placeholder={"- Parametrização do módulo X\n- Integração com Y\n- Treinamento da equipe"} />
+                <Controller
+                  control={form.control}
+                  name="scope"
+                  render={({ field }) => (
+                    <MarkdownEditor id="scope" label="Escopo incluído (entregas)" value={field.value ?? ""} onChange={field.onChange} height={200} invalid={!!errors.scope} placeholder={"- Parametrização do módulo X\n- Integração com Y\n- Treinamento da equipe"} />
+                  )}
+                />
                 <FieldError errors={[errors.scope]} />
               </Field>
               <Field>
                 <FieldLabel htmlFor="outOfScope">Fora do escopo</FieldLabel>
-                <Textarea id="outOfScope" rows={6} {...form.register("outOfScope")} placeholder={"- Migração de dados históricos\n- Customizações de relatórios"} />
+                <Controller
+                  control={form.control}
+                  name="outOfScope"
+                  render={({ field }) => (
+                    <MarkdownEditor id="outOfScope" label="Fora do escopo" value={field.value ?? ""} onChange={field.onChange} height={200} invalid={!!errors.outOfScope} placeholder={"- Migração de dados históricos\n- Customizações de relatórios"} />
+                  )}
+                />
                 <FieldError errors={[errors.outOfScope]} />
               </Field>
             </CardContent>
@@ -595,12 +614,24 @@ export function ProjectSettingsForm({ project, options, defs }: ProjectSettingsF
             <CardContent className="grid grid-cols-1 gap-4 lg:grid-cols-2">
               <Field>
                 <FieldLabel htmlFor="assumptions">Premissas e restrições</FieldLabel>
-                <Textarea id="assumptions" rows={5} {...form.register("assumptions")} placeholder={"Premissas: ambiente de homologação disponível\nRestrições: entrada em produção até 30/11"} />
+                <Controller
+                  control={form.control}
+                  name="assumptions"
+                  render={({ field }) => (
+                    <MarkdownEditor id="assumptions" label="Premissas e restrições" value={field.value ?? ""} onChange={field.onChange} height={180} invalid={!!errors.assumptions} placeholder={"Premissas: ambiente de homologação disponível\nRestrições: entrada em produção até 30/11"} />
+                  )}
+                />
                 <FieldError errors={[errors.assumptions]} />
               </Field>
               <Field>
                 <FieldLabel htmlFor="successCriteria">Critérios de sucesso e aceite</FieldLabel>
-                <Textarea id="successCriteria" rows={5} {...form.register("successCriteria")} placeholder={"- Fechamento executado sem retrabalho manual\n- Aceite formal do patrocinador"} />
+                <Controller
+                  control={form.control}
+                  name="successCriteria"
+                  render={({ field }) => (
+                    <MarkdownEditor id="successCriteria" label="Critérios de sucesso e aceite" value={field.value ?? ""} onChange={field.onChange} height={180} invalid={!!errors.successCriteria} placeholder={"- Fechamento executado sem retrabalho manual\n- Aceite formal do patrocinador"} />
+                  )}
+                />
                 <FieldError errors={[errors.successCriteria]} />
               </Field>
             </CardContent>

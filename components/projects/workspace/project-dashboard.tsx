@@ -9,6 +9,7 @@ import { MultiTypeChart } from "@/components/shared/charts/multi-type-chart"
 import { ContractUsageBar } from "@/components/shared/contract-usage-bar"
 import { ProgressCell, StageBadge } from "@/components/projects/project-badges"
 import { formatHours, taskKey } from "@/lib/projects"
+import { PriorityDot } from "@/components/projects/workspace/task-card-bits"
 import { formatDateOnly } from "@/utils/format"
 import { cn } from "@/lib/utils"
 import type { ProjectDashboardData, WorkspaceActions } from "@/components/projects/workspace/types"
@@ -245,7 +246,7 @@ export function ProjectDashboard({ data, projectCode, actions }: { data: Project
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-sm">Próximos prazos e atrasos (14 dias)</CardTitle>
+          <CardTitle className="text-sm">Próximos prazos e atrasos (14 dias, por prioridade)</CardTitle>
         </CardHeader>
         <CardContent>
           {data.upcoming.length === 0 ? (
@@ -259,6 +260,7 @@ export function ProjectDashboard({ data, projectCode, actions }: { data: Project
                       {formatDateOnly(t.dueDate)}
                     </span>
                     <span className="font-mono text-xs text-muted-foreground">{taskKey(projectCode, t.number)}</span>
+                    <PriorityDot priority={t.priority} />
                     {t.isMilestone && <Diamond className="h-3.5 w-3.5 fill-amber-500 text-amber-500" />}
                     <span className="flex-1 truncate">{t.title}</span>
                     <span className="hidden text-xs text-muted-foreground sm:inline">{t.assignee ?? "Sem responsável"}</span>

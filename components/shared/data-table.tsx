@@ -292,7 +292,7 @@ export function DataTable<TData, TValue>({
                   // the sticky header, which then sticks to that (never-scrolling) box instead of to this
                   // one. Forcing it back to `overflow-visible` here restores this div as the single real
                   // scroll container.
-                  "rounded-md border max-h-[70vh] overflow-auto [&_[data-slot=table-container]]:overflow-visible"
+                  "no-scrollbar rounded-md border max-h-[70vh] overflow-auto [&_[data-slot=table-container]]:overflow-visible"
                 : "rounded-md border"
             }
           >

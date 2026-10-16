@@ -1,17 +1,14 @@
 "use client"
 
 import { useState } from "react"
-import dynamic from "next/dynamic"
 import Link from "next/link"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Skeleton } from "@/components/ui/skeleton"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Tabs, TabsContent, ScrollableTabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Building2, Server, Users, Radio, AlertTriangle, Clock, Activity, BarChart3, FileClock } from "lucide-react"
 import { formatDate, formatDuration, formatNumber } from "@/utils/format"
-import type { MultiTypeChartProps } from "@/components/shared/charts/multi-type-chart"
-import { ChartTypeSelect } from "@/components/shared/charts/chart-type-select"
+import { ChartCard } from "@/components/shared/charts/chart-card"
 import type { ChartKind, ChartSeries } from "@/components/shared/charts/chart-types"
 import { PeriodSelect } from "@/components/shared/period-select"
 import { usePeriodFilter } from "@/hooks/use-period-filter"
@@ -27,88 +24,12 @@ import {
 } from "@/lib/contract-usage"
 import { cn } from "@/lib/utils"
 import { PendingRegion } from "@/components/shared/pending-region"
-
-// recharts is only needed once a chart tab is opened — the default "Visão Geral" tab has none.
-const MultiTypeChart = dynamic<MultiTypeChartProps>(
-  () => import("@/components/shared/charts/multi-type-chart").then((m) => m.MultiTypeChart),
-  { ssr: false, loading: () => <Skeleton className="h-[260px] w-full" /> }
-)
+import { ProjectDashboardTab, ProjectKpiCards } from "@/components/projects/dashboard/project-dashboard-tab"
+import type { ProjectPortfolio } from "@/services/project-portfolio.service"
 
 type NamedValue = {
   name: string
   value: number
-}
-
-interface ChartCardProps {
-  title: string
-  data: Record<string, string | number>[]
-  nameKey: string
-  series: ChartSeries[]
-  kind: ChartKind
-  onKindChange: (kind: ChartKind) => void
-  allowedKinds?: ChartKind[]
-  colorByIndex?: boolean
-  statusColorMap?: Record<string, string>
-  colorKey?: string
-  measure?: string
-  onMeasureChange?: (key: string) => void
-  emptyMessage?: string
-  height?: number
-  valueFormatter?: (value: number) => string
-  /** Data depends on the selected period and a new one is loading. */
-  pending?: boolean
-}
-
-function ChartCard({
-  title,
-  data,
-  nameKey,
-  series,
-  kind,
-  onKindChange,
-  allowedKinds,
-  colorByIndex,
-  statusColorMap,
-  colorKey,
-  measure,
-  onMeasureChange,
-  emptyMessage,
-  height,
-  valueFormatter,
-  pending = false,
-}: ChartCardProps) {
-  return (
-    <PendingRegion pending={pending}>
-      <Card className="h-full">
-        <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2">
-          <CardTitle className="min-w-0 text-sm">{title}</CardTitle>
-          <ChartTypeSelect
-            value={kind}
-            onChange={onKindChange}
-            allowedKinds={allowedKinds}
-            series={series}
-            measure={measure}
-            onMeasureChange={onMeasureChange}
-          />
-        </CardHeader>
-        <CardContent>
-          <MultiTypeChart
-            data={data}
-            nameKey={nameKey}
-            series={series}
-            kind={kind}
-            colorByIndex={colorByIndex}
-            statusColorMap={statusColorMap}
-            colorKey={colorKey}
-            pieSeriesKey={measure}
-            emptyMessage={emptyMessage}
-            height={height ?? 260}
-            valueFormatter={valueFormatter}
-          />
-        </CardContent>
-      </Card>
-    </PendingRegion>
-  )
 }
 
 interface DashboardClientProps {
@@ -157,6 +78,9 @@ interface DashboardClientProps {
   period: Period | null
   years: number[]
   monthsByYear: Record<number, number[]>
+  /** Null when the user can't see Gestão de Projetos. */
+  projectPortfolio: ProjectPortfolio | null
+  today: string
 }
 
 const VALUE_SERIES: ChartSeries[] = [{ key: "value", name: "Quantidade" }]
@@ -185,6 +109,8 @@ export function DashboardClient({
   period: initialPeriod,
   years,
   monthsByYear,
+  projectPortfolio,
+  today,
 }: DashboardClientProps) {
   const { period, setPeriod, isPending } = usePeriodFilter(initialPeriod)
 
@@ -221,12 +147,13 @@ export function DashboardClient({
       </div>
 
       <Tabs defaultValue="overview">
-        <TabsList>
+        <ScrollableTabsList>
           <TabsTrigger value="overview">Visão Geral</TabsTrigger>
           <TabsTrigger value="integrations">Integrações</TabsTrigger>
           <TabsTrigger value="clients">Clientes/TBCs/Filtros para backup</TabsTrigger>
           <TabsTrigger value="demands">Demandas</TabsTrigger>
-        </TabsList>
+          {projectPortfolio && <TabsTrigger value="projects">Projetos</TabsTrigger>}
+        </ScrollableTabsList>
 
         <TabsContent value="overview" className="pt-4">
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -332,6 +259,12 @@ export function DashboardClient({
               </Card>
             </PendingRegion>
           </div>
+
+          {projectPortfolio && (
+            <div className="mt-4">
+              <ProjectKpiCards data={projectPortfolio} />
+            </div>
+          )}
 
           <PendingRegion pending={isPending} className="mt-4">
             <Card>
@@ -582,6 +515,12 @@ export function DashboardClient({
             />
           </div>
         </TabsContent>
+
+        {projectPortfolio && (
+          <TabsContent value="projects" className="pt-4">
+            <ProjectDashboardTab data={projectPortfolio} today={today} />
+          </TabsContent>
+        )}
       </Tabs>
     </div>
   )

@@ -11,7 +11,7 @@ import { OptionSelect } from "@/components/projects/option-select"
 import { rescheduleProjectTask } from "@/actions/project-tasks"
 import { useUrlParams } from "@/hooks/use-url-params"
 import { addDays, diffDays, toDateParam, utcDay } from "@/lib/gantt"
-import { CLOSED_TASK_STATUSES, type StageRef } from "@/lib/projects"
+import { CLOSED_TASK_STATUSES, byPriority, type StageRef } from "@/lib/projects"
 import { cn } from "@/lib/utils"
 import type { ProjectTaskDTO, WorkspaceActions } from "@/components/projects/workspace/types"
 
@@ -151,6 +151,7 @@ export function TaskCalendar({ projectId, tasks, stages, month, by, today, canCr
       const key = toDateParam(utcDay(value))
       map.set(key, [...(map.get(key) ?? []), task])
     }
+    for (const items of map.values()) items.sort((a, b) => byPriority(a, b) || a.number - b.number)
     return map
   }, [tasks, by, optimistic])
   const undated = tasks.filter((t) => !(by === "due" ? t.dueDate : t.startDate)).length
@@ -212,7 +213,7 @@ export function TaskCalendar({ projectId, tasks, stages, month, by, today, canCr
           />
         </div>
       </div>
-      <DndContext sensors={sensors} onDragEnd={onDragEnd}>
+      <DndContext id={`calendar-${projectId}`} sensors={sensors} onDragEnd={onDragEnd}>
         <div className="overflow-x-auto rounded-md border">
           <div className="grid min-w-[720px] grid-cols-7 border-l">
             {WEEKDAYS.map((d) => (

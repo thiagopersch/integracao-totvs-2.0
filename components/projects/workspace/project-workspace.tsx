@@ -270,6 +270,7 @@ export function ProjectWorkspace({
             tasks={tasks}
             settings={project.settings}
             stages={kanbanStages(project.stages, params.filters.stage, params.filters.showCancelled)}
+            phases={project.phases}
             swimlane={params.kanban.swimlane}
             today={today}
             canCreate={can.createTask}
@@ -345,6 +346,7 @@ export function ProjectWorkspace({
         projectCode={project.code}
         stages={project.stages}
         phases={project.phases}
+        team={team}
         options={taskOptions}
         defs={taskDefs}
         usersById={usersById}
@@ -377,7 +379,8 @@ export function ProjectWorkspace({
         users={pickerOptions.users}
         options={taskOptions}
         defs={taskDefs}
-        onSaved={(taskId) => (taskForm.edit || !taskId ? nav.refresh() : sheetNav.pushParams({ task: taskId }))}
+        // Creating only saves and refreshes the board — the sheet opens only by clicking a card.
+        onSaved={() => nav.refresh()}
       />
 
       {demandForm && (

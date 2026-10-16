@@ -24,6 +24,7 @@ import type {
   DependencyInput,
   MoveTaskInput,
   ProjectTaskInput,
+  ProjectTaskPatch,
   QuickTaskInput,
   RescheduleTaskInput,
 } from "@/schemas/project-task.schema";
@@ -188,7 +189,8 @@ export const projectTaskService = {
     const tasks = await prisma.projectTask.findMany({
       where: buildTaskWhere(projectId, filters, ctx.userId, defs),
       select: taskListSelect,
-      orderBy: [{ boardPosition: "asc" }, { number: "asc" }],
+      // Priority enum is declared LOW..URGENT, so desc = Urgente → Baixa (the order every view shows).
+      orderBy: [{ priority: "desc" }, { boardPosition: "asc" }, { number: "asc" }],
       take: 5000,
     });
     return tasks.map(toTaskDTO);
@@ -218,8 +220,8 @@ export const projectTaskService = {
         parent: { select: { id: true, number: true, title: true } },
         children: {
           where: { deletedAt: null },
-          select: { id: true, number: true, title: true, status: true, stage: { select: { name: true, color: true } }, assignee: { select: { name: true } }, dueDate: true },
-          orderBy: [{ outlinePosition: "asc" }, { number: "asc" }],
+          select: { id: true, number: true, title: true, status: true, priority: true, stage: { select: { name: true, color: true } }, assignee: { select: { name: true } }, dueDate: true },
+          orderBy: [{ priority: "desc" }, { outlinePosition: "asc" }, { number: "asc" }],
         },
         predecessors: {
           select: { id: true, predecessorId: true, lagDays: true, predecessor: { select: { id: true, number: true, title: true, status: true, stage: { select: { name: true, color: true } }, dueDate: true } } },
@@ -452,6 +454,35 @@ export const projectTaskService = {
     });
     if (task.assigneeId !== old.assigneeId) await this.notifyAssignee(task, project, ctx);
     return { task, old, project, warning: await this.predecessorWarning(task.id, old.status, task.status) };
+  },
+
+  /** Inline single-property edit: merges the patch with the stored task and reuses `update` (same rules). */
+  async patch(taskId: string, projectId: string, patch: ProjectTaskPatch, ctx: ProjectCtx) {
+    const old = await prisma.projectTask.findFirst({
+      where: { id: taskId, projectId, deletedAt: null },
+      include: { tags: { select: { tagId: true } } },
+    });
+    if (!old) throw new Error("Tarefa não encontrada");
+    const day = (date: Date | null) => (date ? date.toISOString().slice(0, 10) : "");
+    const merge = <T>(next: T | null | undefined, current: T | null) => (next === undefined ? current : next);
+    const input: ProjectTaskInput = {
+      title: patch.title ?? old.title,
+      description: merge(patch.description, old.description) ?? "",
+      stageId: old.stageId ?? "",
+      phaseId: merge(patch.phaseId, old.phaseId) ?? undefined,
+      priority: patch.priority ?? old.priority,
+      assigneeId: merge(patch.assigneeId, old.assigneeId) ?? undefined,
+      parentId: old.parentId ?? undefined,
+      startDate: patch.startDate === undefined ? day(old.startDate) : (patch.startDate ?? ""),
+      dueDate: patch.dueDate === undefined ? day(old.dueDate) : (patch.dueDate ?? ""),
+      estimateHours: merge(patch.estimateHours, old.estimateHours),
+      progress: patch.progress ?? old.progress,
+      isMilestone: patch.isMilestone ?? old.isMilestone,
+      tagIds: patch.tagIds ?? old.tags.map((t) => t.tagId),
+      customFields: parseCustomFieldValues(old.customFields),
+    };
+    if (input.startDate && input.dueDate && input.dueDate < input.startDate) throw new Error("Prazo deve ser igual ou posterior ao início");
+    return this.update(taskId, projectId, input, ctx);
   },
 
   /** Moving into "Em andamento" while an FS predecessor is still open is allowed, but flagged. */

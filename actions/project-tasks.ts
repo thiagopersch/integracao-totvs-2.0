@@ -7,6 +7,7 @@ import {
   checklistItemSchema,
   dependencySchema,
   moveTaskSchema,
+  projectTaskPatchSchema,
   projectTaskSchema,
   quickTaskSchema,
   rescheduleTaskSchema,
@@ -70,6 +71,28 @@ export async function updateProjectTask(projectId: string, taskId: string, input
       entityId: taskId,
       oldData: { title: old.title, status: old.status, assigneeId: old.assigneeId, dueDate: old.dueDate },
       newData: { title: task.title, status: task.status, assigneeId: task.assigneeId, dueDate: task.dueDate },
+      notify: false,
+    });
+    invalidate(projectId, taskId);
+    return { success: true, warning };
+  } catch (error) {
+    return fail(error);
+  }
+}
+
+/** Inline edit of one or more properties from the task sheet (Notion-style). */
+export async function patchProjectTask(projectId: string, taskId: string, input: unknown) {
+  const { organizationId, userId, allowedClientIds } = await requirePermission("project_tasks", "update");
+  const parsed = projectTaskPatchSchema.safeParse(input);
+  if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? "Dados inválidos" };
+  try {
+    const { task, old, warning } = await projectTaskService.patch(taskId, projectId, parsed.data, { organizationId, userId, allowedClientIds });
+    await auditService.log({
+      action: "UPDATE",
+      entity: ENTITY,
+      entityId: taskId,
+      oldData: { title: old.title, status: old.status, priority: old.priority, assigneeId: old.assigneeId, dueDate: old.dueDate },
+      newData: { title: task.title, status: task.status, priority: task.priority, assigneeId: task.assigneeId, dueDate: task.dueDate },
       notify: false,
     });
     invalidate(projectId, taskId);

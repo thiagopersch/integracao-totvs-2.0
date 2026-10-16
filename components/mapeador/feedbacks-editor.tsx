@@ -73,7 +73,7 @@ export function FeedbacksEditor({ etapaId, etapaNome, projetoId, feedbacks, onCh
       </div>
 
       {feedbacks.length > 0 && (
-        <div className="overflow-x-auto rounded-md border">
+        <div className="no-scrollbar overflow-x-auto rounded-md border">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b bg-muted/50 text-left text-xs uppercase text-muted-foreground">
