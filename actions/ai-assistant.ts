@@ -2,6 +2,8 @@
 
 import { z } from "zod";
 import { requirePermission } from "@/lib/rbac";
+import { getRequestContext } from "@/lib/tenant";
+import { hasPermission } from "@/lib/permissions";
 import { getDemandAnalystScope } from "@/lib/demand-scope";
 import { getDemandFormData } from "@/actions/demands";
 import { isMissingTableError, logMigrationPending } from "@/lib/prisma-errors";
@@ -24,6 +26,19 @@ export async function getAiAssistantEnabled() {
     // A database without this branch's migrations must not take the whole /demands page down.
     if (!isMissingTableError(error)) throw error;
     logMigrationPending("Assistente IA", error);
+    return false;
+  }
+}
+
+/** Whether the floating assistant bubble (every dashboard page) should be shown — never throws:
+ *  users without demands:create simply don't get it. */
+export async function getAiAssistantBubbleEnabled() {
+  try {
+    const ctx = await getRequestContext();
+    if (!hasPermission(ctx.permissions, "demands", "create")) return false;
+    return await aiDemandAssistantService.isEnabled(ctx.organizationId);
+  } catch (error) {
+    if (isMissingTableError(error)) logMigrationPending("Assistente IA", error);
     return false;
   }
 }

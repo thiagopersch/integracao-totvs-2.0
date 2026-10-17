@@ -3,6 +3,7 @@
 import { randomUUID } from "crypto";
 import path from "path";
 import { updateTag } from "next/cache";
+import { auth } from "@/auth";
 import { messageTemplateService } from "@/services/message-template.service";
 import { messageRenderService, renderEmailFromContent } from "@/services/message-render.service";
 import { auditService } from "@/services/audit.service";
@@ -146,7 +147,8 @@ export async function sendTestMessageTemplate(id: string) {
   // Example values, but the real system address/dates/organization so links and headers are testable.
   const base = await messageRenderService.baseVars(organizationId);
   const real = ["appUrl", "currentDate", "currentDateTime", "currentMonth", "organizationName", "organizationDocument"] as const;
-  const exampleVars = { ...exampleVariables(), ...Object.fromEntries(real.map((k) => [k, base[k]])), recipientEmail: email };
+  const recipientName = (await auth())?.user?.name || exampleVariables().recipientName;
+  const exampleVars = { ...exampleVariables(), ...Object.fromEntries(real.map((k) => [k, base[k]])), recipientName, recipientEmail: email };
   // Generated attachments (demands XLSX) use real data: the client with the latest demand this month.
   const { attachments, vars } = await demandReportService.buildTestAttachments(organizationId, allowedClientIds, template, exampleVars);
   const rendered = renderEmailFromContent(template.subject, (template.content ?? []) as unknown as BlockTree, vars);

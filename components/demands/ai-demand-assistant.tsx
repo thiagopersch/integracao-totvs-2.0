@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { Textarea } from "@/components/ui/textarea"
 import { cn } from "@/lib/utils"
-import { createDemand } from "@/actions/demands"
+import { createDemand, getDemandFormData } from "@/actions/demands"
 import { proposeDemandsWithAi } from "@/actions/ai-assistant"
 import {
   proposalToFormData,
@@ -27,15 +27,20 @@ interface CatalogEntry {
   status?: boolean | null
 }
 
+interface AssistantCatalogs {
+  clients: CatalogEntry[]
+  analysts: CatalogEntry[]
+  requesters: CatalogEntry[]
+  departments: CatalogEntry[]
+  demandTypes: CatalogEntry[]
+}
+
 interface AiDemandAssistantProps {
-  catalogs: {
-    clients: CatalogEntry[]
-    analysts: CatalogEntry[]
-    requesters: CatalogEntry[]
-    departments: CatalogEntry[]
-    demandTypes: CatalogEntry[]
-  }
+  /** When omitted (floating bubble outside /demands), loaded on first open. */
+  catalogs?: AssistantCatalogs
   onCreated: () => void
+  /** "button": toolbar button on /demands; "floating": chat bubble fixed at the bottom-right corner. */
+  trigger?: "button" | "floating"
 }
 
 type ProposalState = DemandProposal & { key: string; created?: boolean; saving?: boolean; reported?: boolean }
@@ -62,8 +67,13 @@ const EXAMPLE =
 let keySeq = 0
 const nextKey = () => `p${++keySeq}`
 
-export function AiDemandAssistant({ catalogs, onCreated }: AiDemandAssistantProps) {
+const EMPTY_CATALOGS: AssistantCatalogs = { clients: [], analysts: [], requesters: [], departments: [], demandTypes: [] }
+
+export function AiDemandAssistant({ catalogs: catalogsProp, onCreated, trigger = "button" }: AiDemandAssistantProps) {
   const [open, setOpen] = useState(false)
+  const [loadedCatalogs, setLoadedCatalogs] = useState<AssistantCatalogs | null>(null)
+  const [loadingCatalogs, setLoadingCatalogs] = useState(false)
+  const catalogs = catalogsProp ?? loadedCatalogs ?? EMPTY_CATALOGS
   const [input, setInput] = useState("")
   const [chat, setChat] = useState<ChatEntry[]>([])
   const [proposals, setProposals] = useState<ProposalState[]>([])
@@ -71,6 +81,20 @@ export function AiDemandAssistant({ catalogs, onCreated }: AiDemandAssistantProp
   const [thinking, setThinking] = useState(false)
   const [confirmingAll, setConfirmingAll] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
+
+  async function openAssistant() {
+    setOpen(true)
+    if (catalogsProp || loadedCatalogs || loadingCatalogs) return
+    setLoadingCatalogs(true)
+    try {
+      const { catalogs: data } = await getDemandFormData()
+      setLoadedCatalogs(data)
+    } catch {
+      toast.error("Não foi possível carregar os cadastros para o assistente")
+    } finally {
+      setLoadingCatalogs(false)
+    }
+  }
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" })
@@ -176,9 +200,21 @@ export function AiDemandAssistant({ catalogs, onCreated }: AiDemandAssistantProp
 
   return (
     <>
-      <Button variant="outline" onClick={() => setOpen(true)}>
-        <Sparkles className="mr-2 h-4 w-4" /> Assistente IA
-      </Button>
+      {trigger === "floating" ? (
+        <Button
+          size="icon"
+          aria-label="Assistente IA"
+          title="Assistente IA — criar demandas conversando"
+          onClick={openAssistant}
+          className="fixed right-4 bottom-4 z-40 size-12 rounded-full shadow-lg md:right-6 md:bottom-6"
+        >
+          <Sparkles className="size-5" />
+        </Button>
+      ) : (
+        <Button variant="outline" onClick={openAssistant}>
+          <Sparkles className="mr-2 h-4 w-4" /> Assistente IA
+        </Button>
+      )}
       <Sheet open={open} onOpenChange={setOpen}>
         <SheetContent side="right" className="w-full gap-0 p-0 data-[side=right]:sm:max-w-2xl">
           <SheetHeader className="border-b">
@@ -192,6 +228,11 @@ export function AiDemandAssistant({ catalogs, onCreated }: AiDemandAssistantProp
           </SheetHeader>
 
           <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4">
+            {loadingCatalogs && (
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <Loader2 className="h-3.5 w-3.5 animate-spin" /> Carregando cadastros...
+              </div>
+            )}
             {chat.length === 0 && <p className="text-xs text-muted-foreground">{EXAMPLE}</p>}
             {chat.map((m, i) => (
               <div
@@ -339,7 +380,7 @@ export function AiDemandAssistant({ catalogs, onCreated }: AiDemandAssistantProp
               <Button variant="ghost" size="sm" onClick={reset} disabled={thinking || (!chat.length && !proposals.length)}>
                 <RotateCcw className="mr-1 h-3.5 w-3.5" /> Nova conversa
               </Button>
-              <Button size="sm" onClick={send} disabled={thinking || !input.trim()}>
+              <Button size="sm" onClick={send} disabled={thinking || loadingCatalogs || !input.trim()}>
                 {thinking ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Send className="mr-1 h-3.5 w-3.5" />}
                 Enviar
               </Button>

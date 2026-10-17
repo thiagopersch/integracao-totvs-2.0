@@ -4,7 +4,7 @@ import { sendEmail, type EmailAttachment } from "@/lib/mailer";
 import { toExportRow, type DemandForExport } from "@/lib/export-mappers";
 import { demandsXlsxBuffer, XLSX_CONTENT_TYPE } from "@/lib/demands-xlsx";
 import { parseTemplateAttachments, resolveAttachmentFileName } from "@/lib/message-templates/attachments";
-import { buildDemandReportVars, type TemplateVars } from "@/lib/message-templates/vars-builder";
+import { buildDemandReportVars, buildGeneralVars, type TemplateVars } from "@/lib/message-templates/vars-builder";
 import type { BlockTree } from "@/lib/message-templates/block-types";
 import { isReportPeriodKind, resolveReportPeriod, type ResolvedReportPeriod } from "@/lib/report-period";
 import { computeNextReportRunAt } from "@/lib/report-schedule";
@@ -57,10 +57,13 @@ async function renderClientReport(
   template: MessageTemplate,
   client: Client,
   period: ResolvedReportPeriod,
-  demands: DemandForExport[]
+  demands: DemandForExport[],
+  to: string[]
 ) {
   const vars: TemplateVars = {
     ...(await messageRenderService.baseVars(organizationId)),
+    // Same recipient rule as the contract usage email: the client's responsible, else the client.
+    ...buildGeneralVars({ recipientName: client.responsible || client.name, recipientEmail: to.join(", ") }),
     ...buildDemandReportVars({ client, period, demands }),
   };
   const attachments = buildAttachments(template, demands, vars);
@@ -217,8 +220,9 @@ export const demandReportService = {
         continue;
       }
       const demands = await getClientDemands(schedule.organizationId, client.id, period);
-      const { rendered, attachments } = await renderClientReport(schedule.organizationId, template, client, period, demands);
-      const status = await sendEmail(schedule.organizationId, [...new Set(to)], rendered.subject, rendered.text, userId, {
+      const recipients = [...new Set(to)];
+      const { rendered, attachments } = await renderClientReport(schedule.organizationId, template, client, period, demands, recipients);
+      const status = await sendEmail(schedule.organizationId, recipients, rendered.subject, rendered.text, userId, {
         html: rendered.html,
         cc: schedule.ccEmails,
         attachments,
