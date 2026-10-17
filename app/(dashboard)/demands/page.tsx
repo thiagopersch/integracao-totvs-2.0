@@ -1,6 +1,7 @@
 import { Suspense } from "react"
 import { cookies } from "next/headers"
 import { getDemandPeriodOptions, getDemandFilterOptions, getDemandFormContext } from "@/actions/demands"
+import { getAiAssistantEnabled } from "@/actions/ai-assistant"
 import { listDemands } from "@/queries/demands"
 import { listAllAnalysts } from "@/actions/analysts"
 import { listAllClients } from "@/actions/admin/clients"
@@ -71,9 +72,10 @@ async function DemandsContent({ searchParams }: { searchParams: Promise<Record<s
     listAllTags(),
     getDemandPeriodOptions(),
   ])
-  const formContext = hasPermission(ctx.permissions, "demands", "create")
-    ? await getDemandFormContext()
-    : { projects: [], myAnalystId: null }
+  const canCreate = hasPermission(ctx.permissions, "demands", "create")
+  const [formContext, aiAssistantEnabled] = canCreate
+    ? await Promise.all([getDemandFormContext(), getAiAssistantEnabled()])
+    : [{ projects: [], myAnalystId: null }, false]
 
   return (
     <DemandTable
@@ -87,6 +89,7 @@ async function DemandsContent({ searchParams }: { searchParams: Promise<Record<s
       demandTypes={demandTypes}
       tags={tags}
       totalsByClient={totalsByClient}
+      aiAssistantEnabled={aiAssistantEnabled}
       period={period}
       years={periodOptions.years}
       monthsByYear={periodOptions.monthsByYear}

@@ -37,6 +37,7 @@ import type { PaginationMeta } from "@/types/common"
 import type { Period } from "@/lib/period"
 import Link from "next/link"
 import { DemandFormDialog, type DemandFormContext } from "@/components/demands/demand-form-dialog"
+import { AiDemandAssistant } from "@/components/demands/ai-demand-assistant"
 
 type DemandRow = {
   id: string
@@ -75,6 +76,8 @@ interface DemandTableProps {
   monthsByYear: Record<number, number[]>
   /** Projects to link + the user's own analyst (default "Analista"). */
   formContext: DemandFormContext
+  /** AI provider configured and enabled (Integrações > Assistente IA). */
+  aiAssistantEnabled?: boolean
 }
 
 const STATUS_LABELS: Record<string, string> = {
@@ -138,6 +141,7 @@ export function DemandTable({
   years,
   monthsByYear,
   formContext,
+  aiAssistantEnabled = false,
 }: DemandTableProps) {
   const {
     router,
@@ -465,6 +469,9 @@ export function DemandTable({
         toolbarActions={
           <>
             {canCreate && newDialog}
+            {canCreate && aiAssistantEnabled && (
+              <AiDemandAssistant catalogs={{ analysts, clients, requesters, departments, demandTypes }} onCreated={refresh} />
+            )}
             <DemandExportDialog clients={filterOptions.clients} years={years} monthsByYear={monthsByYear} />
             {canCreate && (
               <DemandImportDialog

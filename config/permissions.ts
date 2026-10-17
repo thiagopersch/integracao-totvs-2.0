@@ -44,6 +44,14 @@ export const PERMISSIONS: PermissionDef[] = [
   ...crud("project_tasks", "Tarefas de Projetos", "projects"),
   ...crud("project_custom_fields", "Propriedades de Projetos", "projects"),
   ...crud("message_templates", "Templates de Mensagem", "integrations"),
+  ...crud("report_schedules", "Regras de Envio de Relatório", "integrations"),
+  {
+    resource: "report_schedules",
+    action: "execute",
+    name: "Disparar Envio de Relatório",
+    description: "Enviar agora o relatório de demandas (e-mail com planilha XLSX) de uma regra de envio",
+    module: "integrations",
+  },
   { resource: "soap", action: "execute", name: "Executar SOAP", description: "Executar chamadas SOAP", module: "soap" },
   { resource: "soap", action: "history", name: "Visualizar Histórico", description: "Visualizar histórico SOAP", module: "soap" },
   {
@@ -132,7 +140,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<"ADMIN" | "MANAGER" | "USER", stri
         ? p.action === "read"
         : ["soap", "integrations", "tbc_reports", "ps_docs", "ps_ficha_test", "ps_field_search", "dashboard", "notifications", "reports", "deletion_logs", "activity_logs"].includes(p.resource)
           ? true
-          : ["analysts", "contracts", "requesters", "departments", "demand_types", "tags", "demands", "mapeador_projetos", "mapeador_temas", "message_templates", "projects", "project_tasks", "project_custom_fields"].includes(p.resource)
+          : ["analysts", "contracts", "requesters", "departments", "demand_types", "tags", "demands", "mapeador_projetos", "mapeador_temas", "message_templates", "report_schedules", "projects", "project_tasks", "project_custom_fields"].includes(p.resource)
             ? p.action !== "delete"
             : false
   ).map(toKey),

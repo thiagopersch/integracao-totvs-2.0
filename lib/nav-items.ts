@@ -157,6 +157,8 @@ export const navGroups: NavGroup[] = [
     items: [
       { href: "/integrations/email", label: "E-mail (SMTP)", icon: "Mail", resource: "integrations", action: "execute" },
       { href: "/integrations/message-templates", label: "Templates de Mensagem", icon: "MessageSquareText", resource: "message_templates", action: "read" },
+      { href: "/integrations/report-schedules", label: "Envio de Relatórios", icon: "CalendarClock", resource: "report_schedules", action: "read" },
+      { href: "/integrations/ai", label: "Assistente IA", icon: "Sparkles", resource: "integrations", action: "execute" },
     ],
   },
 

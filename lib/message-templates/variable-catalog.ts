@@ -42,7 +42,7 @@ export const VARIABLE_CATALOG: VariableGroup[] = [
   {
     id: "client",
     label: "Cliente",
-    events: ["CONTRACT_USAGE", "BACKUP_FAILED", "SOAP_FAILED"],
+    events: ["CONTRACT_USAGE", "BACKUP_FAILED", "SOAP_FAILED", "DEMAND_REPORT"],
     fields: [
       { key: "clientName", label: "Nome", example: "ITE - Toledo" },
       { key: "clientLegalName", label: "Razão social", example: "ITE Toledo Ltda." },
@@ -76,6 +76,21 @@ export const VARIABLE_CATALOG: VariableGroup[] = [
       { key: "contractStatus", label: "Status do contrato", example: "Ativo" },
       { key: "contractNotes", label: "Observações do contrato", example: "Atendimento remoto" },
       { key: "isExceeded", label: "Excedeu as horas (sim / vazio)", example: "" },
+    ],
+  },
+  {
+    id: "report",
+    label: "Relatório de demandas",
+    events: ["DEMAND_REPORT"],
+    fields: [
+      { key: "periodLabel", label: "Período de referência", example: "outubro/2026" },
+      { key: "periodStart", label: "Início do período", example: "01/10/2026" },
+      { key: "periodEnd", label: "Fim do período", example: "31/10/2026" },
+      { key: "periodSlug", label: "Período (para nome de arquivo)", example: "2026-10" },
+      { key: "demandsCount", label: "Quantidade de demandas no período", example: "12" },
+      { key: "totalHours", label: "Total de horas no período", example: "34,5h" },
+      { key: "analystsNames", label: "Analistas que atenderam", example: "João Silva, Maria Souza" },
+      { key: "attachmentNames", label: "Nome(s) do(s) anexo(s)", example: "demandas-ITE - Toledo-2026-10.xlsx" },
     ],
   },
   {

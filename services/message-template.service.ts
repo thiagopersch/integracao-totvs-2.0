@@ -20,6 +20,7 @@ function toData(input: MessageTemplateInput) {
     isActive: input.isActive,
     subject: isEmail ? input.subject : "",
     content: isEmail ? (input.content as Prisma.InputJsonValue) : ([] as Prisma.InputJsonValue),
+    attachments: (isEmail ? input.attachments : []) as unknown as Prisma.InputJsonValue,
     bodyHtml: isEmail ? renderBlockTree(input.content as BlockTree) : "",
     bodyText: isEmail ? "" : input.bodyText,
   };
@@ -60,6 +61,15 @@ export const messageTemplateService = {
     return prisma.messageTemplate.findFirst({ where: { id, organizationId, deletedAt: null } });
   },
 
+  /** Active EMAIL templates of an event — the choices offered by the demands report schedules. */
+  async listActiveEmail(organizationId: string, event: MessageTemplateEvent) {
+    return prisma.messageTemplate.findMany({
+      where: { organizationId, event, channel: "EMAIL", isActive: true, deletedAt: null },
+      orderBy: { name: "asc" },
+      select: { id: true, name: true },
+    });
+  },
+
   /** Newest active template for an (event, channel) pair — the one used when sending. */
   async findActive(organizationId: string, event: MessageTemplateEvent, channel: MessageChannel) {
     return prisma.messageTemplate.findFirst({
@@ -95,6 +105,7 @@ export const messageTemplateService = {
         channel: existing.channel,
         subject: existing.subject,
         content: (existing.content ?? []) as Prisma.InputJsonValue,
+        attachments: (existing.attachments ?? []) as Prisma.InputJsonValue,
         bodyHtml: existing.bodyHtml,
         bodyText: existing.bodyText,
         // A copy starts inactive so it never silently replaces the template in use.

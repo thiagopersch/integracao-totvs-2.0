@@ -40,6 +40,8 @@ import {
   SearchCode,
   SquareKanban,
   SlidersHorizontal,
+  CalendarClock,
+  Sparkles,
   type LucideIcon,
 } from "lucide-react";
 
@@ -85,4 +87,6 @@ export const NAV_ICONS: Record<string, LucideIcon> = {
   SearchCode,
   SquareKanban,
   SlidersHorizontal,
+  CalendarClock,
+  Sparkles,
 };

@@ -11,6 +11,7 @@ import { requirePermission } from "@/lib/rbac";
 import { formatBlockingReferences } from "@/lib/entity-relations";
 import { storeUploadedFile } from "@/lib/upload";
 import { sendEmail } from "@/lib/mailer";
+import { demandReportService } from "@/services/demand-report.service";
 import { exampleVariables } from "@/lib/message-templates/variable-catalog";
 import type { BlockTree } from "@/lib/message-templates/block-types";
 export async function getMessageTemplate(id: string) {
@@ -134,7 +135,7 @@ export async function bulkDeleteMessageTemplates(ids: string[]) {
  * example values and prefixed with "[Teste]" — so the layout can be checked in a real inbox.
  */
 export async function sendTestMessageTemplate(id: string) {
-  const { organizationId, userId, email } = await requirePermission("message_templates", "read");
+  const { organizationId, userId, email, allowedClientIds } = await requirePermission("message_templates", "read");
   const template = await messageTemplateService.getById(id, organizationId);
   if (!template) return { success: false, error: "Template não encontrado" };
   if (template.channel !== "EMAIL") {
@@ -145,12 +146,18 @@ export async function sendTestMessageTemplate(id: string) {
   // Example values, but the real system address/dates/organization so links and headers are testable.
   const base = await messageRenderService.baseVars(organizationId);
   const real = ["appUrl", "currentDate", "currentDateTime", "currentMonth", "organizationName", "organizationDocument"] as const;
-  const vars = { ...exampleVariables(), ...Object.fromEntries(real.map((k) => [k, base[k]])), recipientEmail: email };
+  const exampleVars = { ...exampleVariables(), ...Object.fromEntries(real.map((k) => [k, base[k]])), recipientEmail: email };
+  // Generated attachments (demands XLSX) use real data: the client with the latest demand this month.
+  const { attachments, vars } = await demandReportService.buildTestAttachments(organizationId, allowedClientIds, template, exampleVars);
   const rendered = renderEmailFromContent(template.subject, (template.content ?? []) as unknown as BlockTree, vars);
   const status = await sendEmail(organizationId, email, `[Teste] ${rendered.subject}`, rendered.text, userId, {
     html: rendered.html,
+    attachments,
   });
-  if (status === "SENT") return { success: true, message: `E-mail de teste enviado para ${email}` };
+  if (status === "SENT") {
+    const suffix = attachments.length ? ` com ${attachments.length} anexo(s)` : "";
+    return { success: true, message: `E-mail de teste enviado para ${email}${suffix}` };
+  }
   if (status === "SKIPPED") {
     return { success: false, error: "Envio de e-mail desativado — configure o SMTP em Integrações > E-mail." };
   }

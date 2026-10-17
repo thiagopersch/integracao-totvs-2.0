@@ -15,4 +15,5 @@ export const ACTION_LABELS: Record<string, string> = {
   MOVE: "moveu",
   RESCHEDULE: "reagendou",
   LOG_TIME: "apontou horas em",
+  SEND_REPORT: "enviou o relatório de demandas da regra",
 };
