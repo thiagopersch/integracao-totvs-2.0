@@ -21,6 +21,7 @@ import { ProjectDashboard } from "@/components/projects/workspace/project-dashbo
 import { ProjectOverview } from "@/components/projects/workspace/project-overview"
 import { TaskSheet } from "@/components/projects/workspace/task-sheet"
 import { TaskFormDialog } from "@/components/projects/workspace/task-form-dialog"
+import { useTaskContextMenu } from "@/components/projects/workspace/task-context-menu"
 import {
   DemandFormDialog,
   type DemandFormCatalogs,
@@ -147,6 +148,14 @@ export function ProjectWorkspace({
     logTime: (taskId) => void openDemand(taskId),
     refresh: () => nav.refresh(),
   }
+  const taskMenu = useTaskContextMenu({
+    projectId: project.id,
+    stages: project.stages,
+    phases: project.phases,
+    team,
+    can: { create: can.createTask, update: can.updateTask, delete: can.deleteTask, logTime: can.createDemand && !!project.client },
+    actions,
+  })
 
   async function changeStatus(status: ProjectStatus) {
     const result = await setProjectLifecycleStatus(project.id, { status })
@@ -276,6 +285,7 @@ export function ProjectWorkspace({
             canCreate={can.createTask}
             canUpdate={can.updateTask}
             actions={actions}
+            taskMenu={taskMenu}
           />
         )}
         {params.view === "list" && tasks && (
@@ -291,6 +301,7 @@ export function ProjectWorkspace({
             today={today}
             can={{ create: can.createTask, update: can.updateTask, delete: can.deleteTask, logTime: can.createDemand && !!project.client }}
             actions={actions}
+            taskMenu={taskMenu}
           />
         )}
         {params.view === "gantt" && tasks && (
@@ -337,6 +348,7 @@ export function ProjectWorkspace({
           />
         )}
       </PendingRegion>
+      {taskMenu.dialog}
 
       <TaskSheet
         open={!!params.task}

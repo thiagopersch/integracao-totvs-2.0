@@ -2,12 +2,12 @@
 
 import { useEffect, useState } from "react"
 import { usePathname, useRouter } from "next/navigation"
-import { AiDemandAssistant } from "@/components/demands/ai-demand-assistant"
+import { AiAssistant } from "@/components/ai-assistant/ai-assistant"
 import { getAiAssistantBubbleEnabled } from "@/actions/ai-assistant"
 
 /** Floating "Assistente IA" chat bubble on every dashboard page — shown only when the AI assistant
- *  is enabled (Integrações > Assistente IA) and the user can create demands. /demands has its own
- *  toolbar button, so the bubble stays out of the way there. */
+ *  is enabled (Integrações > Assistente IA) and the user can create at least one of its entities.
+ *  /demands has its own toolbar button, so the bubble stays out of the way there. */
 export function AiAssistantBubble() {
   const pathname = usePathname()
   const router = useRouter()
@@ -24,5 +24,5 @@ export function AiAssistantBubble() {
   }, [])
 
   if (!enabled || pathname.startsWith("/demands")) return null
-  return <AiDemandAssistant trigger="floating" onCreated={() => router.refresh()} />
+  return <AiAssistant trigger="floating" onCreated={() => router.refresh()} />
 }

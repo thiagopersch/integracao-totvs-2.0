@@ -1,7 +1,7 @@
 "use client"
 
 import { logoutAction } from "@/actions/auth/login"
-import { AiAssistantBubble } from "@/components/demands/ai-assistant-bubble"
+import { AiAssistantBubble } from "@/components/ai-assistant/ai-assistant-bubble"
 import { DashboardSidebar } from "@/components/shared/dashboard-sidebar"
 import { NotificationBell } from "@/components/shared/notification-bell"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"

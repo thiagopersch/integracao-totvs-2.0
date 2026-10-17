@@ -10,6 +10,7 @@ import {
   positionBetween,
   POSITION_STEP,
   rebalance,
+  soleAssigneeId,
   statusSideEffects,
   wouldCreateCycle,
 } from "@/lib/project-tasks";
@@ -144,7 +145,7 @@ async function endOfSiblings(tx: Tx, projectId: string, parentId: string | null)
  * Resolves the workflow stage of a task: the given one (must belong to the project) or, by default,
  * the first "a fazer" stage (else the first stage). The task status mirrors the stage category.
  */
-async function resolveStage(projectId: string, stageId?: string | null) {
+export async function resolveStage(projectId: string, stageId?: string | null) {
   if (stageId) {
     const stage = await prisma.projectStage.findFirst({ where: { id: stageId, projectId, deletedAt: null } });
     if (!stage) throw new Error("Etapa não encontrada neste projeto");
@@ -177,6 +178,15 @@ export async function syncTaskLoggedMinutes(taskIds: (string | null | undefined)
   });
   const byTask = new Map(sums.map((s) => [s.projectTaskId, s._sum.durationMinutes ?? 0]));
   await prisma.$transaction(ids.map((id) => prisma.projectTask.update({ where: { id }, data: { loggedMinutes: byTask.get(id) ?? 0 } })));
+}
+
+/** WIP limit of a column a task is entering (only when the project opted in via `settings.wipEnforced`). */
+async function assertWipRoom(projectId: string, stage: { id: string; name: string; wipLimit: number | null }, projectSettings: unknown) {
+  if (!stage.wipLimit || !parseProjectSettings(projectSettings).wipEnforced) return;
+  const inColumn = await prisma.projectTask.count({ where: { projectId, stageId: stage.id, deletedAt: null } });
+  if (inColumn >= stage.wipLimit) {
+    throw new Error(`Limite WIP de "${stage.name}" atingido (${stage.wipLimit}). Conclua ou mova outra tarefa antes.`);
+  }
 }
 
 function isUniqueViolation(error: unknown) {
@@ -282,6 +292,16 @@ export const projectTaskService = {
     if (!member) throw new Error("O responsável precisa fazer parte da equipe do projeto");
   },
 
+  /** The project's only possible assignee (active manager ∪ active members), else null. */
+  async defaultAssigneeId(projectId: string, managerId: string | null) {
+    const activeUser = { deletedAt: null, status: true };
+    const [members, manager] = await Promise.all([
+      prisma.projectMember.findMany({ where: { projectId, user: activeUser }, select: { userId: true } }),
+      managerId ? prisma.user.findFirst({ where: { id: managerId, ...activeUser }, select: { id: true } }) : null,
+    ]);
+    return soleAssigneeId(manager?.id ?? null, members.map((m) => m.userId));
+  },
+
   async assertParent(projectId: string, parentId: string | null | undefined, taskId?: string) {
     if (!parentId) return null;
     if (parentId === taskId) throw new Error("Uma tarefa não pode ser subtarefa dela mesma");
@@ -329,9 +349,12 @@ export const projectTaskService = {
     const project = await projectService.assertAccessible(projectId, ctx);
     const parentId = await this.assertParent(projectId, input.parentId);
     await this.assertAssignee(projectId, project.managerId, input.assigneeId);
+    // Key absent (e.g. AI assistant) → sole team member; "" means the user chose "Sem responsável".
+    const assigneeId = input.assigneeId === undefined ? await this.defaultAssigneeId(projectId, project.managerId) : input.assigneeId || null;
     const tagIds = await this.assertTags(ctx.organizationId, input.tagIds);
     const customFields = await customFieldService.validateValues(ctx.organizationId, "TASK", input.customFields);
     const stage = await resolveStage(projectId, input.stageId);
+    await assertWipRoom(projectId, stage, project.settings);
     const phaseId = await resolvePhase(projectId, input.phaseId);
     const effects = statusSideEffects(null, stage.category, new Date());
 
@@ -349,7 +372,7 @@ export const projectTaskService = {
             phaseId,
             status: stage.category,
             priority: input.priority,
-            assigneeId: input.assigneeId || null,
+            assigneeId,
             startDate: toDateOrNull(input.startDate),
             dueDate: toDateOrNull(input.dueDate),
             estimateHours: input.estimateHours,
@@ -375,6 +398,8 @@ export const projectTaskService = {
     const project = await projectService.assertAccessible(projectId, ctx);
     const parentId = await this.assertParent(projectId, input.parentId);
     const stage = await resolveStage(projectId, input.stageId);
+    await assertWipRoom(projectId, stage, project.settings);
+    const assigneeId = await this.defaultAssigneeId(projectId, project.managerId);
     const parent = parentId ? await prisma.projectTask.findUnique({ where: { id: parentId }, select: { phaseId: true } }) : null;
     const effects = statusSideEffects(null, stage.category, new Date());
     const task = await this.withNumberRetry((tx) =>
@@ -389,6 +414,7 @@ export const projectTaskService = {
             stageId: stage.id,
             phaseId: parent?.phaseId ?? null,
             status: stage.category,
+            assigneeId,
             dueDate: toDateOrNull(input.dueDate),
             boardPosition: await endOfColumn(tx, projectId, stage.id),
             outlinePosition: await endOfSiblings(tx, projectId, parentId),
@@ -399,6 +425,7 @@ export const projectTaskService = {
         return created;
       })(),
     );
+    await this.notifyAssignee(task, project, ctx);
     return { task, project };
   },
 
@@ -502,13 +529,7 @@ export const projectTaskService = {
   async move(taskId: string, projectId: string, input: MoveTaskInput, ctx: ProjectCtx) {
     const { project, task: old } = await this.loadTask(taskId, projectId, ctx);
     const stage = await resolveStage(projectId, input.stageId);
-    const settings = parseProjectSettings(project.settings);
-    if (old.stageId !== stage.id && stage.wipLimit && settings.wipEnforced) {
-      const inColumn = await prisma.projectTask.count({ where: { projectId, stageId: stage.id, deletedAt: null } });
-      if (inColumn >= stage.wipLimit) {
-        throw new Error(`Limite WIP de "${stage.name}" atingido (${stage.wipLimit}). Conclua ou mova outra tarefa antes.`);
-      }
-    }
+    if (old.stageId !== stage.id) await assertWipRoom(projectId, stage, project.settings);
 
     const task = await prisma.$transaction(async (tx) => {
       const neighbours = await tx.projectTask.findMany({

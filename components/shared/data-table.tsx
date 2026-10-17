@@ -23,6 +23,7 @@ import { DataTablePagination, PageSizeSelect } from "./data-table-pagination"
 import { DataTableToolbar } from "./data-table-toolbar"
 import { ConfirmDialog } from "./confirm-dialog"
 import { Skeleton } from "@/components/ui/skeleton"
+import { ContextMenu, ContextMenuTrigger } from "@/components/ui/context-menu"
 import { PendingRegion } from "./pending-region"
 
 type SortState = { field: string; direction: "asc" | "desc" }
@@ -41,6 +42,22 @@ const COLUMNS_WITHOUT_TITLE = new Set(["select", "actions"])
  */
 const INTERACTIVE_SELECTOR =
   "button, a, input, label, select, textarea, [role=checkbox], [role=menuitem], [role=menu], [data-no-row-click]"
+
+/** Makes the row element the trigger of its context menu, when the table has one. */
+function withRowMenu<TData>(
+  row: TData,
+  rowElement: React.ReactElement,
+  menu?: (row: TData) => React.ReactNode,
+  key?: string
+) {
+  if (!menu) return rowElement
+  return (
+    <ContextMenu key={key}>
+      <ContextMenuTrigger render={rowElement} />
+      {menu(row)}
+    </ContextMenu>
+  )
+}
 
 /**
  * Row click (open/navigate) only for clicks on the row's own plain content: skips clicks inside
@@ -110,6 +127,8 @@ interface DataTableProps<TData, TValue> {
   filterPanel?: React.ReactNode
   emptyMessage?: string
   onRowClick?: (row: TData) => void
+  /** Right-click menu of a row: returns a `ContextMenuContent` (the row becomes its trigger). */
+  rowContextMenu?: (row: TData) => React.ReactNode
   /** Server-driven sort (backend orderBy) — separate from TanStack's client-side `sorting` state below. */
   sort?: SortState
   onSortChange?: (sort: SortState) => void
@@ -142,6 +161,7 @@ export function DataTable<TData, TValue>({
   filterPanel,
   emptyMessage = "Nenhum registro encontrado.",
   onRowClick,
+  rowContextMenu,
   sort,
   onSortChange,
   sortableColumns,
@@ -413,7 +433,8 @@ export function DataTable<TData, TValue>({
                 ) : virtualRows ? (
                   virtualRows.map((virtualRow) => {
                     const row = rows[virtualRow.index]
-                    return (
+                    return withRowMenu(
+                      row.original,
                       <TableRow
                         key={row.id}
                         data-index={virtualRow.index}
@@ -444,31 +465,37 @@ export function DataTable<TData, TValue>({
                             {flexRender(cell.column.columnDef.cell, cell.getContext())}
                           </TableCell>
                         ))}
-                      </TableRow>
+                      </TableRow>,
+                      rowContextMenu,
+                      row.id
                     )
                   })
                 ) : (
                   rows.map((row) => (
                     <Fragment key={row.id}>
-                      <TableRow
-                        data-state={row.getIsSelected() && "selected"}
-                        onClick={onRowClick ? (e) => handleRowClick(e, () => onRowClick(row.original)) : undefined}
-                        className={onRowClick ? "cursor-pointer hover:bg-muted/50" : undefined}
-                      >
-                        {row.getVisibleCells().map((cell) => (
-                          <TableCell
-                            key={cell.id}
-                            className={
-                              cell.column.id === "actions"
-                                ? "sticky right-0 z-10 border-l bg-background group-hover:bg-muted/50 group-data-[state=selected]:bg-muted"
-                                : undefined
-                            }
-                            onMouseEnter={COLUMNS_WITHOUT_TITLE.has(cell.column.id) ? undefined : showCellTitle}
-                          >
-                            {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                          </TableCell>
-                        ))}
-                      </TableRow>
+                      {withRowMenu(
+                        row.original,
+                        <TableRow
+                          data-state={row.getIsSelected() && "selected"}
+                          onClick={onRowClick ? (e) => handleRowClick(e, () => onRowClick(row.original)) : undefined}
+                          className={onRowClick ? "cursor-pointer hover:bg-muted/50" : undefined}
+                        >
+                          {row.getVisibleCells().map((cell) => (
+                            <TableCell
+                              key={cell.id}
+                              className={
+                                cell.column.id === "actions"
+                                  ? "sticky right-0 z-10 border-l bg-background group-hover:bg-muted/50 group-data-[state=selected]:bg-muted"
+                                  : undefined
+                              }
+                              onMouseEnter={COLUMNS_WITHOUT_TITLE.has(cell.column.id) ? undefined : showCellTitle}
+                            >
+                              {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                            </TableCell>
+                          ))}
+                        </TableRow>,
+                        rowContextMenu
+                      )}
                       {expandable?.isExpanded(row.original) && (
                         <TableRow>
                           <TableCell colSpan={columns.length} className="bg-muted/30 p-0">

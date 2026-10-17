@@ -118,3 +118,12 @@ export {
   ContextMenuCheckboxItem,
   ContextMenuSeparator,
 }
+
+// Context menus are Base UI menus under the hood, so the dropdown's submenu/radio parts work as-is.
+export {
+  DropdownMenuSub as ContextMenuSub,
+  DropdownMenuSubTrigger as ContextMenuSubTrigger,
+  DropdownMenuSubContent as ContextMenuSubContent,
+  DropdownMenuRadioGroup as ContextMenuRadioGroup,
+  DropdownMenuRadioItem as ContextMenuRadioItem,
+} from "@/components/ui/dropdown-menu"

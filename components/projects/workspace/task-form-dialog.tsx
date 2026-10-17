@@ -53,7 +53,7 @@ function defaultStageId(stages: StageRef[], requested?: string) {
   return (stages.find((s) => s.category === "TODO") ?? stages.find((s) => s.category === "BACKLOG") ?? stages[0])?.id ?? ""
 }
 
-function toFormValues(task: TaskDetail | null | undefined, defaults: NewTaskDefaults, stages: StageRef[]): ProjectTaskFormValues {
+function toFormValues(task: TaskDetail | null | undefined, defaults: NewTaskDefaults, stages: StageRef[], team: TeamMember[]): ProjectTaskFormValues {
   if (!task) {
     return {
       title: "",
@@ -61,7 +61,8 @@ function toFormValues(task: TaskDetail | null | undefined, defaults: NewTaskDefa
       stageId: defaultStageId(stages, defaults.stageId),
       phaseId: defaults.phaseId ?? "",
       priority: "MEDIUM",
-      assigneeId: defaults.assigneeId ?? "",
+      // A one-person team is the obvious assignee; the user can still clear it.
+      assigneeId: defaults.assigneeId ?? (team.length === 1 ? team[0].id : ""),
       parentId: defaults.parentId ?? "",
       startDate: defaults.startDate ?? "",
       dueDate: defaults.dueDate ?? "",
@@ -128,7 +129,7 @@ function TaskFormBody({ onOpenChange, projectId, projectCode, task, defaults = {
   const form = useForm<ProjectTaskFormValues, unknown, ProjectTaskInput>({
     mode: "onChange",
     resolver: zodResolver(schema) as Resolver<ProjectTaskFormValues, unknown, ProjectTaskInput>,
-    defaultValues: toFormValues(task, defaults, stages),
+    defaultValues: toFormValues(task, defaults, stages, team),
   })
   const errors = form.formState.errors
   const progress = form.watch("progress") ?? 0

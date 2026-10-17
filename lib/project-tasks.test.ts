@@ -8,6 +8,7 @@ import {
   positionBetween,
   rebalance,
   rollupSummary,
+  soleAssigneeId,
   statusSideEffects,
   wouldCreateCycle,
 } from "@/lib/project-tasks";
@@ -95,5 +96,19 @@ describe("statusSideEffects", () => {
     expect(statusSideEffects("TODO", "DONE", now)).toEqual({ completedAt: now, progress: 100 });
     expect(statusSideEffects("DONE", "IN_PROGRESS", now)).toEqual({ completedAt: null });
     expect(statusSideEffects("TODO", "IN_PROGRESS", now)).toEqual({});
+  });
+});
+
+describe("soleAssigneeId", () => {
+  it("returns the only person on the team", () => {
+    expect(soleAssigneeId("m", [])).toBe("m");
+    expect(soleAssigneeId("m", ["m"])).toBe("m");
+    expect(soleAssigneeId(null, ["u"])).toBe("u");
+  });
+
+  it("returns null when there is nobody or more than one person", () => {
+    expect(soleAssigneeId(null, [])).toBeNull();
+    expect(soleAssigneeId("m", ["u"])).toBeNull();
+    expect(soleAssigneeId(null, ["a", "b"])).toBeNull();
   });
 });

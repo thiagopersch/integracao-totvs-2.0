@@ -137,3 +137,12 @@ export function statusSideEffects(
   if (prev === "DONE" && next !== "DONE") return { completedAt: null };
   return {};
 }
+
+/**
+ * Default assignee of a new task: the project's only possible assignee (manager ∪ active members,
+ * deduplicated — the manager is normally a member too), or null when there are zero or several.
+ */
+export function soleAssigneeId(managerId: string | null, memberUserIds: string[]): string | null {
+  const people = new Set([...memberUserIds, ...(managerId ? [managerId] : [])]);
+  return people.size === 1 ? [...people][0] : null;
+}

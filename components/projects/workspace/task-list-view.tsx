@@ -20,6 +20,7 @@ import { PRIORITIES, formatHours, taskKey, type PhaseRef, type StageRef } from "
 import { formatDateOnly } from "@/utils/format"
 import type { WorkspaceParams } from "@/lib/project-workspace-params"
 import type { ProjectTaskDTO, WorkspaceActions } from "@/components/projects/workspace/types"
+import type { TaskContextMenu } from "@/components/projects/workspace/task-context-menu"
 
 type Row = ProjectTaskDTO & { depth: number }
 
@@ -71,9 +72,10 @@ interface TaskListViewProps {
   today: string
   can: { create: boolean; update: boolean; delete: boolean; logTime: boolean }
   actions: WorkspaceActions
+  taskMenu: TaskContextMenu
 }
 
-export function TaskListView({ projectId, projectCode, tasks, params, defs, stages, phases, usersById, today, can, actions }: TaskListViewProps) {
+export function TaskListView({ projectId, projectCode, tasks, params, defs, stages, phases, usersById, today, can, actions, taskMenu }: TaskListViewProps) {
   const { pushParams } = useUrlParams()
   const listDefs = useMemo(() => defs.filter((d) => d.showInList), [defs])
   const sortContext = useMemo<SortContext>(
@@ -205,6 +207,7 @@ export function TaskListView({ projectId, projectCode, tasks, params, defs, stag
       onPageSizeChange={(ps) => pushParams({ pageSize: ps, page: 1 })}
       searchable={false}
       onRowClick={(row) => actions.openTask(row.id)}
+      rowContextMenu={taskMenu.content}
       sort={params.sort}
       onSortChange={(next) => pushParams({ sort: `${next.field}:${next.direction}`, page: 1 })}
       sortableColumns={[...BASE_SORTABLE, ...listDefs.map((d) => `${CUSTOM_FIELD_PARAM_PREFIX}${d.id}`)]}

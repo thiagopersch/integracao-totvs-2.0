@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState, useTransition } from "react"
+import { Fragment, useMemo, useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import {
@@ -30,6 +30,7 @@ import { formatDateOnly } from "@/utils/format"
 import type { Swimlane } from "@/lib/project-workspace-params"
 import { cn } from "@/lib/utils"
 import type { ProjectTaskDTO, WorkspaceActions } from "@/components/projects/workspace/types"
+import type { TaskContextMenu } from "@/components/projects/workspace/task-context-menu"
 
 const SEP = "::"
 const containerId = (lane: string, stageId: string) => `${lane}${SEP}${stageId}`
@@ -50,6 +51,7 @@ interface KanbanBoardProps {
   canCreate: boolean
   canUpdate: boolean
   actions: WorkspaceActions
+  taskMenu: TaskContextMenu
 }
 
 function laneKey(task: ProjectTaskDTO, swimlane: Swimlane) {
@@ -159,6 +161,48 @@ function SortableCard(props: Omit<CardProps, "dragging"> & { disabled: boolean }
   )
 }
 
+/** Inline title input of the quick add (header "+" opens it at the top, "Adicionar" at the bottom). */
+function QuickAddForm({ onAdd, onClose }: { onAdd: (title: string) => Promise<boolean>; onClose: () => void }) {
+  const [title, setTitle] = useState("")
+  return (
+    <form
+      onSubmit={async (e) => {
+        e.preventDefault()
+        if (!title.trim()) return onClose()
+        if (await onAdd(title)) setTitle("")
+      }}
+    >
+      <Input
+        autoFocus
+        value={title}
+        onChange={(e) => setTitle(e.target.value)}
+        onBlur={() => !title && onClose()}
+        onKeyDown={(e) => e.key === "Escape" && onClose()}
+        placeholder="Título da tarefa + Enter"
+        className="h-8 bg-card"
+      />
+    </form>
+  )
+}
+
+/** Icon-only "+" next to a column's task count. */
+function HeaderAddButton({ stage, full, onClick }: { stage: StageRef; full: boolean; onClick: () => void }) {
+  const label = full ? `Limite WIP de "${stage.name}" atingido` : `Adicionar tarefa em ${stage.name}`
+  return (
+    <Button
+      variant="ghost"
+      size="icon"
+      className="-my-1 -mr-1.5 h-6 w-6 text-muted-foreground hover:bg-background/60"
+      disabled={full}
+      onClick={onClick}
+      title={label}
+      aria-label={label}
+    >
+      <Plus className="h-4 w-4" />
+    </Button>
+  )
+}
+
 function Column({
   id,
   stage,
@@ -166,6 +210,7 @@ function Column({
   tasksById,
   phasesById,
   limit,
+  wipFull,
   showHeader,
   projectCode,
   today,
@@ -173,6 +218,7 @@ function Column({
   canUpdate,
   onOpen,
   onQuickAdd,
+  taskMenu,
 }: {
   id: string
   stage: StageRef
@@ -180,6 +226,8 @@ function Column({
   tasksById: Map<string, ProjectTaskDTO>
   phasesById: Map<string, PhaseRef>
   limit?: number
+  /** Column already holds its WIP limit and the project enforces it: creating here is blocked. */
+  wipFull: boolean
   showHeader: boolean
   projectCode: string
   today: string
@@ -187,10 +235,10 @@ function Column({
   canUpdate: boolean
   onOpen: (id: string) => void
   onQuickAdd: (stageId: string, title: string) => Promise<boolean>
+  taskMenu: TaskContextMenu
 }) {
   const { setNodeRef, isOver } = useDroppable({ id })
-  const [adding, setAdding] = useState(false)
-  const [title, setTitle] = useState("")
+  const [adding, setAdding] = useState<"top" | "bottom" | null>(null)
   const exceeded = !!limit && ids.length > limit
 
   return (
@@ -206,56 +254,54 @@ function Column({
             {ids.length}
             {limit ? ` / ${limit}` : ""}
           </span>
+          {canCreate && <HeaderAddButton stage={stage} full={wipFull} onClick={() => setAdding("top")} />}
         </div>
       )}
       <div ref={setNodeRef} className="flex min-h-24 flex-1 flex-col gap-2 p-2">
+        {canCreate && adding === "top" && <QuickAddForm onAdd={(title) => onQuickAdd(stage.id, title)} onClose={() => setAdding(null)} />}
         <SortableContext items={ids} strategy={verticalListSortingStrategy}>
           {ids.map((taskId) => {
             const task = tasksById.get(taskId)
             return task ? (
-              <SortableCard
-                key={taskId}
-                task={task}
-                stage={stage}
-                phase={task.phaseId ? phasesById.get(task.phaseId) : undefined}
-                projectCode={projectCode}
-                today={today}
-                onOpen={() => onOpen(taskId)}
-                disabled={!canUpdate}
-              />
+              <Fragment key={taskId}>
+                {taskMenu.wrap(
+                  task,
+                  <SortableCard
+                    task={task}
+                    stage={stage}
+                    phase={task.phaseId ? phasesById.get(task.phaseId) : undefined}
+                    projectCode={projectCode}
+                    today={today}
+                    onOpen={() => onOpen(taskId)}
+                    disabled={!canUpdate}
+                  />
+                )}
+              </Fragment>
             ) : null
           })}
         </SortableContext>
         {canCreate &&
-          (adding ? (
-            <form
-              onSubmit={async (e) => {
-                e.preventDefault()
-                if (!title.trim()) return setAdding(false)
-                if (await onQuickAdd(stage.id, title)) setTitle("")
-              }}
-            >
-              <Input
-                autoFocus
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                onBlur={() => !title && setAdding(false)}
-                onKeyDown={(e) => e.key === "Escape" && setAdding(false)}
-                placeholder="Título da tarefa + Enter"
-                className="h-8 bg-card"
-              />
-            </form>
+          (adding === "bottom" ? (
+            <QuickAddForm onAdd={(title) => onQuickAdd(stage.id, title)} onClose={() => setAdding(null)} />
           ) : (
-            <Button variant="ghost" size="sm" className="justify-start text-muted-foreground hover:bg-background/60" onClick={() => setAdding(true)}>
-              <Plus className="mr-1 h-4 w-4" /> Adicionar
-            </Button>
+            adding !== "top" && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="justify-start text-muted-foreground hover:bg-background/60"
+                disabled={wipFull}
+                onClick={() => setAdding("bottom")}
+              >
+                <Plus className="mr-1 h-4 w-4" /> Adicionar
+              </Button>
+            )
           ))}
       </div>
     </div>
   )
 }
 
-export function KanbanBoard({ projectId, projectCode, tasks, settings, stages, phases, swimlane, today, canCreate, canUpdate, actions }: KanbanBoardProps) {
+export function KanbanBoard({ projectId, projectCode, tasks, settings, stages, phases, swimlane, today, canCreate, canUpdate, actions, taskMenu }: KanbanBoardProps) {
   const router = useRouter()
   const [, startTransition] = useTransition()
   const tasksById = useMemo(() => new Map(tasks.map((t) => [t.id, t])), [tasks])
@@ -379,6 +425,8 @@ export function KanbanBoard({ projectId, projectCode, tasks, settings, stages, p
   }
 
   const activeTask = activeId ? tasksById.get(activeId) : null
+  const countIn = (stageId: string) => tasks.filter((t) => t.stageId === stageId).length
+  const wipFull = (stage: StageRef) => !!stage.wipLimit && !!settings.wipEnforced && countIn(stage.id) >= stage.wipLimit
 
   return (
     <DndContext
@@ -400,7 +448,7 @@ export function KanbanBoard({ projectId, projectCode, tasks, settings, stages, p
           {swimlane !== "none" && (
             <div className="flex gap-3">
               {stages.map((stage) => {
-                const count = tasks.filter((t) => t.stageId === stage.id).length
+                const count = countIn(stage.id)
                 const limit = stage.wipLimit
                 return (
                   <div key={stage.id} className="flex w-72 shrink-0 items-center gap-2 px-3">
@@ -410,6 +458,8 @@ export function KanbanBoard({ projectId, projectCode, tasks, settings, stages, p
                       {count}
                       {limit ? ` / ${limit}` : ""}
                     </span>
+                    {/* Lanes split the column, so the header "+" opens the full form (stage prefilled). */}
+                    {canCreate && <HeaderAddButton stage={stage} full={wipFull(stage)} onClick={() => actions.newTask({ stageId: stage.id })} />}
                   </div>
                 )
               })}
@@ -430,6 +480,7 @@ export function KanbanBoard({ projectId, projectCode, tasks, settings, stages, p
                       tasksById={tasksById}
                       phasesById={phasesById}
                       limit={swimlane === "none" ? (stage.wipLimit ?? undefined) : undefined}
+                      wipFull={wipFull(stage)}
                       showHeader={swimlane === "none"}
                       projectCode={projectCode}
                       today={today}
@@ -437,6 +488,7 @@ export function KanbanBoard({ projectId, projectCode, tasks, settings, stages, p
                       canUpdate={canUpdate}
                       onOpen={actions.openTask}
                       onQuickAdd={(s, title) => quickAdd(s, title, lane.id)}
+                      taskMenu={taskMenu}
                     />
                   )
                 })}

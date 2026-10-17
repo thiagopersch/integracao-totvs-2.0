@@ -37,7 +37,7 @@ import type { PaginationMeta } from "@/types/common"
 import type { Period } from "@/lib/period"
 import Link from "next/link"
 import { DemandFormDialog, type DemandFormContext } from "@/components/demands/demand-form-dialog"
-import { AiDemandAssistant } from "@/components/demands/ai-demand-assistant"
+import { AiAssistant } from "@/components/ai-assistant/ai-assistant"
 
 type DemandRow = {
   id: string
@@ -470,7 +470,7 @@ export function DemandTable({
           <>
             {canCreate && newDialog}
             {canCreate && aiAssistantEnabled && (
-              <AiDemandAssistant catalogs={{ analysts, clients, requesters, departments, demandTypes }} onCreated={refresh} />
+              <AiAssistant onCreated={refresh} />
             )}
             <DemandExportDialog clients={filterOptions.clients} years={years} monthsByYear={monthsByYear} />
             {canCreate && (

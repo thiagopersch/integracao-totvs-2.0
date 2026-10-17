@@ -74,7 +74,7 @@ export function AiSettingsClient({ initialSettings }: AiSettingsClientProps) {
           <Sparkles className="h-5 w-5" /> Assistente IA
         </h1>
         <p className="text-sm text-muted-foreground">
-          Provedor de IA usado pelo botão &quot;Assistente IA&quot; da tela de Demandas para lançar demandas a partir de texto livre.
+          Provedor de IA usado pelo &quot;Assistente IA&quot; para criar cadastros (demandas, clientes, projetos, propriedades...) a partir de texto livre.
         </p>
       </div>
 
@@ -135,7 +135,7 @@ export function AiSettingsClient({ initialSettings }: AiSettingsClientProps) {
                   "Ex.: Quando não informado, use o tipo de demanda \"Suporte\" e o status \"Concluída\".\nO setor padrão do cliente X é \"Secretaria\"."
                 }
               />
-              <FieldDescription>Regras e valores padrão que a IA deve seguir ao montar as demandas.</FieldDescription>
+              <FieldDescription>Regras e valores padrão que a IA deve seguir ao montar os cadastros.</FieldDescription>
             </Field>
 
             <div className="flex items-center gap-2">
