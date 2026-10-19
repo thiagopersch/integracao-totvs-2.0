@@ -68,7 +68,8 @@ export const exportService = {
 
     const [statusRaw, analystRaw, clientRaw, contractsRaw, minutesRaw] = await Promise.all([
       prisma.demand.groupBy({ by: ["status"], where, _count: { id: true } }),
-      prisma.demand.groupBy({ by: ["analystId"], where, _count: { id: true }, orderBy: { _count: { id: "desc" } }, take: 8 }),
+      // A demand with several analysts counts once under each of them.
+      prisma.demandAnalyst.groupBy({ by: ["analystId"], where: { demand: where }, _count: { demandId: true }, orderBy: { _count: { demandId: "desc" } }, take: 8 }),
       effectiveClientIds.length > 1
         ? prisma.demand.groupBy({ by: ["clientId"], where, _count: { id: true }, orderBy: { _count: { id: "desc" } }, take: 8 })
         : Promise.resolve([]),
@@ -87,7 +88,7 @@ export const exportService = {
       ? await prisma.analyst.findMany({ where: { id: { in: analystIds } }, select: { id: true, name: true } })
       : [];
     const analystNameById = new Map(analysts.map((a) => [a.id, a.name]));
-    const demandsByAnalyst = analystRaw.map((d) => ({ name: analystNameById.get(d.analystId) || "Desconhecido", value: d._count.id }));
+    const demandsByAnalyst = analystRaw.map((d) => ({ name: analystNameById.get(d.analystId) || "Desconhecido", value: d._count.demandId }));
 
     const clientIds = clientRaw.map((d) => d.clientId);
     const clients = clientIds.length

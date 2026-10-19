@@ -17,6 +17,7 @@ export async function createDepartment(formData: FormData) {
   const data = {
     name: formData.get("name") as string,
     description: (formData.get("description") as string) || undefined,
+    color: (formData.get("color") as string) || "#f59e0b",
   };
 
   const parsed = createDepartmentSchema.safeParse(data);
@@ -39,6 +40,7 @@ export async function updateDepartment(id: string, formData: FormData) {
   const data = {
     name: formData.get("name") as string,
     description: (formData.get("description") as string) || undefined,
+    color: (formData.get("color") as string) || undefined,
   };
 
   const parsed = updateDepartmentSchema.safeParse(data);

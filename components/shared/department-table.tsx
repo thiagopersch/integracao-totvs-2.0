@@ -10,6 +10,7 @@ import { ConfirmDialog } from "@/components/shared/confirm-dialog"
 import { EntityActionsCell } from "@/components/shared/entity-actions-cell"
 import { createSelectColumn } from "@/components/shared/select-column"
 import { TruncatedText } from "@/components/shared/truncated-text"
+import { ColorBadge } from "@/components/shared/color-badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -30,6 +31,7 @@ import { toast } from "sonner"
 import { useCrudTable } from "@/hooks/use-crud-table"
 import { useHasPermission } from "@/hooks/use-permissions"
 import type { Department } from "@/generated/prisma/client"
+import { randomColor } from "@/lib/colors"
 import type { PaginationMeta } from "@/types/common"
 
 interface DepartmentTableProps {
@@ -60,13 +62,14 @@ export function DepartmentTable({ data, meta }: DepartmentTableProps) {
   const canUpdate = useHasPermission("departments", "update")
   const canDelete = useHasPermission("departments", "delete")
   const [loading, setLoading] = useState(false)
+  const [newColor, setNewColor] = useState(randomColor)
 
   const form = useForm<CreateDepartmentInput>({
     mode: "onChange",
     resolver: zodResolver(editDialog.entity ? updateDepartmentSchema : createDepartmentSchema) as Resolver<CreateDepartmentInput>,
     values: editDialog.entity
-      ? { name: editDialog.entity.name, description: editDialog.entity.description || "" }
-      : { name: "", description: "" },
+      ? { name: editDialog.entity.name, description: editDialog.entity.description || "", color: editDialog.entity.color }
+      : { name: "", description: "", color: newColor },
   })
 
   async function onSubmit(data: CreateDepartmentInput) {
@@ -99,7 +102,7 @@ export function DepartmentTable({ data, meta }: DepartmentTableProps) {
   const columns: ColumnDef<Department>[] = useMemo(() => {
     const columns: ColumnDef<Department>[] = [
     createSelectColumn<Department>(),
-    { accessorKey: "name", header: "Nome", cell: ({ row }) => <TruncatedText text={row.original.name} /> },
+    { accessorKey: "name", header: "Nome", cell: ({ row }) => <ColorBadge label={row.original.name} color={row.original.color} /> },
     {
       accessorKey: "description",
       header: "Descrição",
@@ -121,7 +124,7 @@ export function DepartmentTable({ data, meta }: DepartmentTableProps) {
   }, [canUpdate, canDelete, setEditDialog, setDeleteDialog])
 
   const newDialog = (
-    <Dialog open={editDialog.open} onOpenChange={(open) => { setEditDialog({ open, entity: open ? editDialog.entity : undefined }); if (!open) form.reset() }}>
+    <Dialog open={editDialog.open} onOpenChange={(open) => { setEditDialog({ open, entity: open ? editDialog.entity : undefined }); if (open && !editDialog.entity) setNewColor(randomColor()); if (!open) form.reset() }}>
       <DialogTrigger render={<Button><Plus className="h-4 w-4 mr-2" /> Novo Departamento</Button>} />
       <DialogContent className="h-auto max-h-[85vh] sm:max-w-lg">
         <DialogHeader>
@@ -137,6 +140,11 @@ export function DepartmentTable({ data, meta }: DepartmentTableProps) {
           <Field>
             <FieldLabel htmlFor="description">Descrição</FieldLabel>
             <Textarea id="description" {...form.register("description")} placeholder="Descrição (opcional)" />
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="color">Cor</FieldLabel>
+            <Input id="color" type="color" className="h-10 p-1" style={{ width: "30%" }} {...form.register("color")} />
+            <FieldError errors={[form.formState.errors.color]} />
           </Field>
         </DialogBody>
         <DialogFooter>

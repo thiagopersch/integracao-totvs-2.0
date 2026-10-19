@@ -33,6 +33,7 @@ import { TotalsByClientSummary } from "@/components/shared/totals-by-client-summ
 import { DemandExportDialog } from "@/components/shared/demand-export-dialog"
 import { DemandImportDialog } from "@/components/shared/demand-import-dialog"
 import type { Analyst, Client, Requester, Department, DemandType, Tag } from "@/generated/prisma/client"
+import { demandAnalysts, demandDepartments, demandRequesters, demandTypesOf } from "@/lib/demand-people"
 import type { PaginationMeta } from "@/types/common"
 import type { Period } from "@/lib/period"
 import Link from "next/link"
@@ -49,11 +50,11 @@ type DemandRow = {
   priority: string
   status: string
   notes: string | null
-  analyst: { id: string; name: string; color: string } | null
+  demandAnalysts: { analyst: { id: string; name: string; color: string; userId?: string | null } }[]
   client: { id: string; name: string; color: string } | null
-  requester: { id: string; name: string } | null
-  department: { id: string; name: string } | null
-  demandType: { id: string; name: string; color: string } | null
+  demandRequesters: { requester: { id: string; name: string; color: string } }[]
+  demandDepartments: { department: { id: string; name: string; color: string } }[]
+  demandDemandTypes: { demandType: { id: string; name: string; color: string } }[]
   demandTags: { tag: Tag }[]
   project: { id: string; code: string; name: string; color: string } | null
   projectTask: { id: string; number: number; title: string } | null
@@ -122,6 +123,38 @@ function parseDayParam(value: string | null): Date | undefined {
   return value ? parse(value, "yyyy-MM-dd", new Date()) : undefined
 }
 const VISIBLE_TAGS = 2
+
+/** First `VISIBLE_TAGS` colored badges inline, the rest behind a "+N" tooltip (tags, analysts, requesters, departments). */
+function BadgeList({ items }: { items: { id: string; name: string; color: string }[] }) {
+  if (items.length === 0) return "-"
+  const visible = items.slice(0, VISIBLE_TAGS)
+  const hidden = items.slice(VISIBLE_TAGS)
+  return (
+    <div className="flex items-center gap-1">
+      {visible.map((item) => (
+        <ColorBadge key={item.id} label={item.name} color={item.color} />
+      ))}
+      {hidden.length > 0 && (
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <Badge variant="secondary" className="cursor-default">
+                +{hidden.length}
+              </Badge>
+            }
+          />
+          <TooltipContent variant="surface">
+            <div className="flex flex-col gap-1">
+              {hidden.map((item) => (
+                <ColorBadge key={item.id} label={item.name} color={item.color} />
+              ))}
+            </div>
+          </TooltipContent>
+        </Tooltip>
+      )}
+    </div>
+  )
+}
 
 export function DemandTable({
   data,
@@ -241,16 +274,15 @@ export function DemandTable({
     {
       id: "analyst",
       header: "Analista",
-      cell: ({ row }) =>
-        row.original.analyst ? <ColorBadge label={row.original.analyst.name} color={row.original.analyst.color} /> : "-",
+      cell: ({ row }) => <BadgeList items={demandAnalysts(row.original)} />,
     },
-    { id: "requester", header: "Solicitante", cell: ({ row }) => row.original.requester?.name || "-" },
-    { id: "department", header: "Departamento", cell: ({ row }) => row.original.department?.name || "-" },
+    { id: "requester", header: "Solicitante", cell: ({ row }) => <BadgeList items={demandRequesters(row.original)} /> },
+    { id: "department", header: "Departamento", cell: ({ row }) => <BadgeList items={demandDepartments(row.original)} /> },
     {
       id: "demandType",
       header: "Tipo",
       cell: ({ row }) =>
-        row.original.demandType ? <ColorBadge label={row.original.demandType.name} color={row.original.demandType.color} /> : "-",
+        <BadgeList items={demandTypesOf(row.original)} />,
     },
     {
       accessorKey: "priority",
@@ -271,37 +303,7 @@ export function DemandTable({
     {
       id: "tags",
       header: "Tags",
-      cell: ({ row }) => {
-        const demandTags = row.original.demandTags
-        if (demandTags.length === 0) return "-"
-        const visible = demandTags.slice(0, VISIBLE_TAGS)
-        const hidden = demandTags.slice(VISIBLE_TAGS)
-        return (
-          <div className="flex items-center gap-1">
-            {visible.map(({ tag }) => (
-              <ColorBadge key={tag.id} label={tag.name} color={tag.color} />
-            ))}
-            {hidden.length > 0 && (
-              <Tooltip>
-                <TooltipTrigger
-                  render={
-                    <Badge variant="secondary" className="cursor-default">
-                      +{hidden.length}
-                    </Badge>
-                  }
-                />
-                <TooltipContent variant="surface">
-                  <div className="flex flex-col gap-1">
-                    {hidden.map(({ tag }) => (
-                      <ColorBadge key={tag.id} label={tag.name} color={tag.color} />
-                    ))}
-                  </div>
-                </TooltipContent>
-              </Tooltip>
-            )}
-          </div>
-        )
-      },
+      cell: ({ row }) => <BadgeList items={row.original.demandTags.map(({ tag }) => tag)} />,
     },
   ]
 
@@ -382,8 +384,8 @@ export function DemandTable({
       ],
     },
     { key: "analystId", label: "Analista", items: filterOptions.analysts.map((a) => ({ value: a.id, label: a.name, color: a.color })) },
-    { key: "requesterId", label: "Solicitante", items: filterOptions.requesters.map((r) => ({ value: r.id, label: r.name })) },
-    { key: "departmentId", label: "Departamento", items: filterOptions.departments.map((d) => ({ value: d.id, label: d.name })) },
+    { key: "requesterId", label: "Solicitante", items: filterOptions.requesters.map((r) => ({ value: r.id, label: r.name, color: r.color })) },
+    { key: "departmentId", label: "Departamento", items: filterOptions.departments.map((d) => ({ value: d.id, label: d.name, color: d.color })) },
     { key: "demandTypeId", label: "Tipo", items: filterOptions.demandTypes.map((t) => ({ value: t.id, label: t.name, color: t.color })) },
     {
       key: "priority",

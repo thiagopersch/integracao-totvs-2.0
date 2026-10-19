@@ -15,7 +15,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Field, FieldLabel, FieldError } from "@/components/ui/field"
 import { Badge } from "@/components/ui/badge"
-import { getBadgeTextColor } from "@/lib/colors"
+import { getBadgeTextColor, randomColor } from "@/lib/colors"
 import {
   Dialog,
   DialogBody,
@@ -40,10 +40,6 @@ interface TagTableProps {
 }
 
 const SORTABLE_COLUMNS = ["name"]
-
-function randomColor() {
-  return `#${Math.floor(Math.random() * 0xffffff).toString(16).padStart(6, "0")}`
-}
 
 export function TagTable({ data, meta }: TagTableProps) {
   const { resolvedTheme } = useTheme()

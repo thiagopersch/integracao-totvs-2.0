@@ -89,19 +89,27 @@ async function searchDemandIds(search: string, organizationId: string): Promise<
     SELECT d.id
     FROM demands d
     LEFT JOIN clients c ON c.id = d.client_id
-    LEFT JOIN analysts a ON a.id = d.analyst_id
-    LEFT JOIN requesters r ON r.id = d.requester_id
-    LEFT JOIN departments dp ON dp.id = d.department_id
-    LEFT JOIN demand_types t ON t.id = d.demand_type_id
     WHERE d.organization_id = ${organizationId} AND d.deleted_at IS NULL AND (
       ${matches(Prisma.sql`d.name`)}
       OR ${matches(Prisma.sql`d.description`)}
       OR ${matches(Prisma.sql`coalesce(d.notes, '')`)}
       OR ${matches(Prisma.sql`coalesce(c.name, '')`)}
-      OR ${matches(Prisma.sql`coalesce(a.name, '')`)}
-      OR ${matches(Prisma.sql`coalesce(r.name, '')`)}
-      OR ${matches(Prisma.sql`coalesce(dp.name, '')`)}
-      OR ${matches(Prisma.sql`coalesce(t.name, '')`)}
+      OR EXISTS (
+        SELECT 1 FROM demand_analysts da JOIN analysts a ON a.id = da.analyst_id
+        WHERE da.demand_id = d.id AND ${matches(Prisma.sql`a.name`)}
+      )
+      OR EXISTS (
+        SELECT 1 FROM demand_requesters dr JOIN requesters r ON r.id = dr.requester_id
+        WHERE dr.demand_id = d.id AND ${matches(Prisma.sql`r.name`)}
+      )
+      OR EXISTS (
+        SELECT 1 FROM demand_departments dd JOIN departments dp ON dp.id = dd.department_id
+        WHERE dd.demand_id = d.id AND ${matches(Prisma.sql`dp.name`)}
+      )
+      OR EXISTS (
+        SELECT 1 FROM demand_demand_types ddt JOIN demand_types t ON t.id = ddt.demand_type_id
+        WHERE ddt.demand_id = d.id AND ${matches(Prisma.sql`t.name`)}
+      )
       OR to_char(d.date, 'DD/MM/YYYY') LIKE ${pattern}
       OR EXISTS (
         SELECT 1 FROM demand_tags dt JOIN tags tg ON tg.id = dt.tag_id
@@ -125,7 +133,7 @@ function baseDemandWhere(
     deletedAt: null,
     organizationId,
     clientId: { in: allowedClientIds },
-    ...(analystScope ? { analystId: analystScope } : {}),
+    ...(analystScope ? { demandAnalysts: { some: { analystId: analystScope } } } : {}),
     ...(period ? { date: period } : {}),
   };
 }
@@ -145,13 +153,13 @@ async function buildListWhere(
   if (splitList(filters.clientId).length) and.push({ clientId: { in: clientIds } });
 
   const analystIds = splitList(filters.analystId);
-  if (analystIds.length) and.push({ analystId: { in: analystIds } });
+  if (analystIds.length) and.push({ demandAnalysts: { some: { analystId: { in: analystIds } } } });
   const requesterIds = splitList(filters.requesterId);
-  if (requesterIds.length) and.push({ requesterId: { in: requesterIds } });
+  if (requesterIds.length) and.push({ demandRequesters: { some: { requesterId: { in: requesterIds } } } });
   const departmentIds = splitList(filters.departmentId);
-  if (departmentIds.length) and.push({ departmentId: { in: departmentIds } });
+  if (departmentIds.length) and.push({ demandDepartments: { some: { departmentId: { in: departmentIds } } } });
   const demandTypeIds = splitList(filters.demandTypeId);
-  if (demandTypeIds.length) and.push({ demandTypeId: { in: demandTypeIds } });
+  if (demandTypeIds.length) and.push({ demandDemandTypes: { some: { demandTypeId: { in: demandTypeIds } } } });
   const tagIds = splitList(filters.tagId);
   if (tagIds.length) and.push({ demandTags: { some: { tagId: { in: tagIds } } } });
 
@@ -183,11 +191,12 @@ async function buildListWhere(
 }
 
 export const demandIncludeRelations = {
-  analyst: { select: { id: true, name: true, color: true } },
+  // orderBy on the join rows keeps the pick order stable (alphabetical) on every read.
+  demandAnalysts: { select: { analyst: { select: { id: true, name: true, color: true, userId: true } } }, orderBy: { analyst: { name: "asc" } } },
   client: { select: { id: true, name: true, color: true } },
-  requester: { select: { id: true, name: true } },
-  department: { select: { id: true, name: true } },
-  demandType: { select: { id: true, name: true, color: true } },
+  demandRequesters: { select: { requester: { select: { id: true, name: true, color: true } } }, orderBy: { requester: { name: "asc" } } },
+  demandDepartments: { select: { department: { select: { id: true, name: true, color: true } } }, orderBy: { department: { name: "asc" } } },
+  demandDemandTypes: { select: { demandType: { select: { id: true, name: true, color: true } } }, orderBy: { demandType: { name: "asc" } } },
   demandTags: { include: { tag: true } },
   project: { select: { id: true, code: true, name: true, color: true } },
   projectTask: { select: { id: true, number: true, title: true } },
@@ -218,6 +227,31 @@ async function assertProjectLink(organizationId: string, allowedClientIds: strin
     const task = await prisma.projectTask.findFirst({ where: { id: projectTaskId, projectId, deletedAt: null }, select: { id: true } });
     if (!task) throw new Error("Tarefa não encontrada neste projeto");
   }
+}
+
+type LinkIds = { analystIds?: string[]; requesterIds?: string[]; departmentIds?: string[]; demandTypeIds?: string[] };
+
+/**
+ * Nested writes for the demand's analysts/requesters/departments/types. On update (`replace`) a
+ * given list replaces the current links; an omitted list (undefined) keeps them.
+ */
+function demandLinks({ analystIds, requesterIds, departmentIds, demandTypeIds }: LinkIds, replace = false) {
+  const unique = (ids: string[]) => [...new Set(ids.filter(Boolean))];
+  const write = <K extends string>(ids: string[] | undefined, key: K) =>
+    ids === undefined
+      ? undefined
+      : { ...(replace ? { deleteMany: {} } : {}), create: unique(ids).map((id) => ({ [key]: id }) as Record<K, string>) };
+  return {
+    demandAnalysts: write(analystIds, "analystId"),
+    demandRequesters: write(requesterIds, "requesterId"),
+    demandDepartments: write(departmentIds, "departmentId"),
+    demandDemandTypes: write(demandTypeIds, "demandTypeId"),
+  };
+}
+
+/** Whether the demand has the given analyst among its analysts (analyst-scoped users). */
+export async function demandHasAnalyst(demandId: string, analystId: string) {
+  return !!(await prisma.demandAnalyst.findUnique({ where: { demandId_analystId: { demandId, analystId } }, select: { demandId: true } }));
 }
 
 export const demandService = {
@@ -267,8 +301,8 @@ export const demandService = {
       projects: [] as { id: string; code: string; name: string; color: string }[],
       clients: [] as Client[],
       analysts: [] as { id: string; name: string; color: string }[],
-      requesters: [] as { id: string; name: string }[],
-      departments: [] as { id: string; name: string }[],
+      requesters: [] as { id: string; name: string; color: string }[],
+      departments: [] as { id: string; name: string; color: string }[],
       demandTypes: [] as { id: string; name: string; color: string }[],
       tags: [] as { id: string; name: string; color: string }[],
       priorities: [] as Priority[],
@@ -279,7 +313,7 @@ export const demandService = {
 
     const where = baseDemandWhere(organizationId, allowedClientIds, analystScope, period);
     // groupBy = SQL GROUP BY (Prisma's `distinct` would load every matching demand and de-duplicate in Node).
-    const distinctIds = async (field: "clientId" | "analystId" | "requesterId" | "departmentId" | "demandTypeId") => {
+    const distinctIds = async (field: "clientId") => {
       const rows = await prisma.demand.groupBy({ by: [field], where });
       return rows.map((r) => (r as unknown as Record<string, string | null>)[field]).filter((v): v is string => !!v);
     };
@@ -295,10 +329,10 @@ export const demandService = {
     const [clientIds, analystIds, requesterIds, departmentIds, demandTypeIds, tagRows, priorityRows, statusRows, maxDuration] =
       await Promise.all([
         distinctIds("clientId"),
-        distinctIds("analystId"),
-        distinctIds("requesterId"),
-        distinctIds("departmentId"),
-        distinctIds("demandTypeId"),
+        prisma.demandAnalyst.groupBy({ by: ["analystId"], where: { demand: where } }).then((rows) => rows.map((r) => r.analystId)),
+        prisma.demandRequester.groupBy({ by: ["requesterId"], where: { demand: where } }).then((rows) => rows.map((r) => r.requesterId)),
+        prisma.demandDepartment.groupBy({ by: ["departmentId"], where: { demand: where } }).then((rows) => rows.map((r) => r.departmentId)),
+        prisma.demandDemandType.groupBy({ by: ["demandTypeId"], where: { demand: where } }).then((rows) => rows.map((r) => r.demandTypeId)),
         prisma.demandTag.groupBy({ by: ["tagId"], where: { demand: where } }),
         prisma.demand.groupBy({ by: ["priority"], where }),
         prisma.demand.groupBy({ by: ["status"], where }),
@@ -312,10 +346,10 @@ export const demandService = {
         ? prisma.analyst.findMany({ where: { id: { in: analystIds } }, select: { id: true, name: true, color: true }, ...byName })
         : [],
       requesterIds.length
-        ? prisma.requester.findMany({ where: { id: { in: requesterIds } }, select: { id: true, name: true }, ...byName })
+        ? prisma.requester.findMany({ where: { id: { in: requesterIds } }, select: { id: true, name: true, color: true }, ...byName })
         : [],
       departmentIds.length
-        ? prisma.department.findMany({ where: { id: { in: departmentIds } }, select: { id: true, name: true }, ...byName })
+        ? prisma.department.findMany({ where: { id: { in: departmentIds } }, select: { id: true, name: true, color: true }, ...byName })
         : [],
       demandTypeIds.length
         ? prisma.demandType.findMany({ where: { id: { in: demandTypeIds } }, select: { id: true, name: true, color: true }, ...byName })
@@ -346,7 +380,9 @@ export const demandService = {
   async getAvailablePeriods(organizationId: string, allowedClientIds: string[], analystScope?: string) {
     if (allowedClientIds.length === 0) return { years: [] as number[], monthsByYear: {} as Record<number, number[]> };
 
-    const analystClause = analystScope ? Prisma.sql`AND analyst_id = ${analystScope}` : Prisma.empty;
+    const analystClause = analystScope
+      ? Prisma.sql`AND EXISTS (SELECT 1 FROM demand_analysts da WHERE da.demand_id = demands.id AND da.analyst_id = ${analystScope})`
+      : Prisma.empty;
 
     const rows = await prisma.$queryRaw<{ year: number; month: number }[]>(
       Prisma.sql`
@@ -383,7 +419,7 @@ export const demandService = {
 
   async create(input: CreateDemandInput, organizationId: string, allowedClientIds: string[]) {
     assertClientAllowed(input.clientId, allowedClientIds);
-    const { tagIds, date, startTime, endTime, projectId, projectTaskId, ...rest } = input;
+    const { tagIds, analystIds, requesterIds, departmentIds, demandTypeIds, date, startTime, endTime, projectId, projectTaskId, ...rest } = input;
     await assertProjectLink(organizationId, allowedClientIds, input.clientId, projectId, projectTaskId);
     return prisma.demand.create({
       data: {
@@ -396,6 +432,7 @@ export const demandService = {
         durationMinutes: timeToMinutes(endTime) - timeToMinutes(startTime),
         organizationId,
         demandTags: tagIds?.length ? { create: tagIds.map((tagId) => ({ tagId })) } : undefined,
+        ...demandLinks({ analystIds, requesterIds, departmentIds, demandTypeIds }),
       },
       include: demandIncludeRelations,
     });
@@ -406,7 +443,7 @@ export const demandService = {
     const existing = await prisma.demand.findFirst({ where: { id, organizationId, clientId: { in: allowedClientIds } } });
     if (!existing) throw new Error("Demanda não encontrada ou fora do seu escopo de acesso");
 
-    const { tagIds, date, startTime, endTime, projectId, projectTaskId, ...rest } = input;
+    const { tagIds, analystIds, requesterIds, departmentIds, demandTypeIds, date, startTime, endTime, projectId, projectTaskId, ...rest } = input;
     const nextProjectId = projectId === undefined ? existing.projectId : projectId || null;
     const nextTaskId = projectTaskId === undefined ? (projectId === "" ? null : existing.projectTaskId) : projectTaskId || null;
     await assertProjectLink(organizationId, allowedClientIds, input.clientId ?? existing.clientId, nextProjectId, nextTaskId);
@@ -426,6 +463,7 @@ export const demandService = {
         ...(endTime && effectiveDate ? { endTime: combineDateAndTime(effectiveDate, endTime) } : {}),
         ...(startTime && endTime ? { durationMinutes: timeToMinutes(endTime) - timeToMinutes(startTime) } : {}),
         demandTags: tagIds?.length ? { create: tagIds.map((tagId) => ({ tagId })) } : undefined,
+        ...demandLinks({ analystIds, requesterIds, departmentIds, demandTypeIds }, true),
       },
       include: demandIncludeRelations,
     });
@@ -434,7 +472,7 @@ export const demandService = {
   /** Copies a demand (fields + tags, not attachments/comments) as a new PENDING demand. */
   async duplicate(id: string, organizationId: string, allowedClientIds: string[], analystScope?: string) {
     const existing = await this.getById(id, organizationId, allowedClientIds);
-    if (!existing || (analystScope && existing.analystId !== analystScope)) {
+    if (!existing || (analystScope && !existing.demandAnalysts.some(({ analyst }) => analyst.id === analystScope))) {
       throw new Error("Demanda não encontrada ou fora do seu escopo de acesso");
     }
 
@@ -450,16 +488,18 @@ export const demandService = {
         priority: existing.priority,
         status: "PENDING",
         notes: existing.notes,
-        analystId: existing.analystId,
         clientId: existing.clientId,
-        requesterId: existing.requesterId,
-        departmentId: existing.departmentId,
-        demandTypeId: existing.demandTypeId,
         projectId: existing.projectId,
         projectTaskId: existing.projectTaskId,
         demandTags: existing.demandTags.length
           ? { create: existing.demandTags.map(({ tag }) => ({ tagId: tag.id })) }
           : undefined,
+        ...demandLinks({
+          analystIds: existing.demandAnalysts.map(({ analyst }) => analyst.id),
+          requesterIds: existing.demandRequesters.map(({ requester }) => requester.id),
+          departmentIds: existing.demandDepartments.map(({ department }) => department.id),
+          demandTypeIds: existing.demandDemandTypes.map(({ demandType }) => demandType.id),
+        }),
       },
       include: demandIncludeRelations,
     });

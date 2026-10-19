@@ -17,7 +17,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
 import { Field, FieldLabel, FieldError } from "@/components/ui/field"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { getBadgeTextColor } from "@/lib/colors"
+import { getBadgeTextColor, randomColor } from "@/lib/colors"
 import {
   Dialog,
   DialogBody,
@@ -42,10 +42,6 @@ interface DemandTypeTableProps {
 }
 
 const SORTABLE_COLUMNS = ["name", "description"]
-
-function randomColor() {
-  return `#${Math.floor(Math.random() * 0xffffff).toString(16).padStart(6, "0")}`
-}
 
 export function DemandTypeTable({ data, meta }: DemandTypeTableProps) {
   const { resolvedTheme } = useTheme()

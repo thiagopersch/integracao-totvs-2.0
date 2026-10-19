@@ -14,11 +14,11 @@ export const analystRepository = new AnalystRepository();
 async function withContractsCount<T extends { id: string }>(analysts: T[]) {
   if (analysts.length === 0) return analysts.map((a) => ({ ...a, contractsCount: 0 }));
 
-  const clientIds = await prisma.demand.findMany({
-    where: { analystId: { in: analysts.map((a) => a.id) }, deletedAt: null },
-    select: { analystId: true, clientId: true },
-    distinct: ["analystId", "clientId"],
+  const links = await prisma.demandAnalyst.findMany({
+    where: { analystId: { in: analysts.map((a) => a.id) }, demand: { deletedAt: null } },
+    select: { analystId: true, demand: { select: { clientId: true } } },
   });
+  const clientIds = links.map((l) => ({ analystId: l.analystId, clientId: l.demand.clientId }));
 
   const contractCountsByClient = await prisma.clientContract.groupBy({
     by: ["clientId"],

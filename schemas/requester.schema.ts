@@ -6,6 +6,7 @@ export const createRequesterSchema = z.object({
   email: emailSchema(false),
   phone: phoneSchema(false),
   status: z.coerce.boolean().default(true),
+  color: z.string().regex(/^#[0-9a-fA-F]{6}$/, "Cor inválida").default("#0ea5e9"),
 });
 
 export const updateRequesterSchema = z.object({
@@ -13,6 +14,7 @@ export const updateRequesterSchema = z.object({
   email: emailSchema(false),
   phone: phoneSchema(false),
   status: z.coerce.boolean().optional(),
+  color: z.string().regex(/^#[0-9a-fA-F]{6}$/, "Cor inválida").optional(),
 });
 
 export type CreateRequesterInput = z.output<typeof createRequesterSchema>;

@@ -248,7 +248,7 @@ export function ClientTable({ data, meta }: ClientTableProps) {
           </Button>
         }
       />
-      <DialogContent>
+      <DialogContent className="h-auto max-h-[70vh] w-auto min-w-[min(40rem,90vw)] max-w-[70vw]">
         <DialogHeader>
           <DialogTitle>{editDialog.entity ? "Editar Cliente" : "Novo Cliente"}</DialogTitle>
         </DialogHeader>
@@ -260,10 +260,13 @@ export function ClientTable({ data, meta }: ClientTableProps) {
                 Identificação
               </TabsTrigger>
               <TabsTrigger value="totvs" className="flex-1">
-                Integração TOTVS
+                Links
               </TabsTrigger>
               <TabsTrigger value="visual" className="flex-1">
                 Identidade visual
+              </TabsTrigger>
+              <TabsTrigger value="complementares" className="flex-1">
+                Info. Complementares
               </TabsTrigger>
             </TabsList>
 
@@ -278,18 +281,17 @@ export function ClientTable({ data, meta }: ClientTableProps) {
                         type="button"
                         onClick={() => field.onChange(!field.value)}
                         aria-pressed={!!field.value}
-                        aria-label="Favoritar"
-                        className="flex items-center justify-center cursor-pointer"
+                        className="flex cursor-pointer items-center gap-2 text-sm leading-none font-medium select-none"
                       >
                         <Star
                           className={
                             field.value ? "h-5 w-5 fill-yellow-400 text-yellow-400" : "h-5 w-5 text-muted-foreground"
                           }
                         />
+                        Favorito
                       </button>
                     )}
                   />
-                  <Label>Favorito</Label>
                 </div>
                 <div className="flex items-center gap-2">
                   <Controller
@@ -375,10 +377,6 @@ export function ClientTable({ data, meta }: ClientTableProps) {
                   <FieldError errors={[form.formState.errors.phone]} />
                 </Field>
               </div>
-              <Field>
-                <FieldLabel htmlFor="notes">Observações</FieldLabel>
-                <Textarea id="notes" {...form.register("notes")} placeholder="Observações (opcional)" />
-              </Field>
             </TabsContent>
 
             <TabsContent value="totvs" className="mt-4 space-y-4">
@@ -475,6 +473,14 @@ export function ClientTable({ data, meta }: ClientTableProps) {
                 onRemove={backgroundField.remove}
                 changeLabel="Trocar imagem"
               />
+            </TabsContent>
+
+            <TabsContent value="complementares" className="mt-4 space-y-4">
+              <Field>
+                <FieldLabel htmlFor="notes">Observações</FieldLabel>
+                <Textarea id="notes" {...form.register("notes")} placeholder="Observações (opcional)" />
+                <FieldError errors={[form.formState.errors.notes]} />
+              </Field>
             </TabsContent>
           </Tabs>
         </DialogBody>

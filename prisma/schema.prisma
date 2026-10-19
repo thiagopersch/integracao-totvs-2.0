@@ -864,9 +864,9 @@ model Analyst {
   updatedAt      DateTime  @updatedAt @map("updated_at")
   deletedAt      DateTime? @map("deleted_at")
 
-  organization Organization @relation(fields: [organizationId], references: [id])
-  user         User?        @relation(fields: [userId], references: [id])
-  demands      Demand[]
+  organization   Organization    @relation(fields: [organizationId], references: [id])
+  user           User?           @relation(fields: [userId], references: [id])
+  demandAnalysts DemandAnalyst[]
 
   @@map("analysts")
 }
@@ -964,12 +964,13 @@ model Requester {
   email          String?
   phone          String?
   status         Boolean   @default(true)
+  color          String    @default("#0ea5e9")
   createdAt      DateTime  @default(now()) @map("created_at")
   updatedAt      DateTime  @updatedAt @map("updated_at")
   deletedAt      DateTime? @map("deleted_at")
 
-  organization Organization @relation(fields: [organizationId], references: [id])
-  demands      Demand[]
+  organization     Organization      @relation(fields: [organizationId], references: [id])
+  demandRequesters DemandRequester[]
 
   @@map("requesters")
 }
@@ -979,12 +980,13 @@ model Department {
   organizationId String    @map("organization_id")
   name           String
   description    String?   @db.Text
+  color          String    @default("#f59e0b")
   createdAt      DateTime  @default(now()) @map("created_at")
   updatedAt      DateTime  @updatedAt @map("updated_at")
   deletedAt      DateTime? @map("deleted_at")
 
-  organization Organization @relation(fields: [organizationId], references: [id])
-  demands      Demand[]
+  organization      Organization       @relation(fields: [organizationId], references: [id])
+  demandDepartments DemandDepartment[]
 
   @@map("departments")
 }
@@ -999,8 +1001,8 @@ model DemandType {
   updatedAt      DateTime  @updatedAt @map("updated_at")
   deletedAt      DateTime? @map("deleted_at")
 
-  organization Organization @relation(fields: [organizationId], references: [id])
-  demands      Demand[]
+  organization      Organization       @relation(fields: [organizationId], references: [id])
+  demandDemandTypes DemandDemandType[]
 
   @@map("demand_types")
 }
@@ -1017,11 +1019,7 @@ model Demand {
   priority        Priority     @default(MEDIUM)
   status          DemandStatus @default(PENDING)
   notes           String?      @db.Text
-  analystId       String       @map("analyst_id")
   clientId        String       @map("client_id")
-  requesterId     String?      @map("requester_id")
-  departmentId    String?      @map("department_id")
-  demandTypeId    String?      @map("demand_type_id")
   /// Gestão de Projetos: hours logged for a project (and optionally one of its tasks).
   projectId       String?      @map("project_id")
   projectTaskId   String?      @map("project_task_id")
@@ -1029,21 +1027,20 @@ model Demand {
   updatedAt       DateTime     @updatedAt @map("updated_at")
   deletedAt       DateTime?    @map("deleted_at")
 
-  organization Organization @relation(fields: [organizationId], references: [id])
-  analyst      Analyst      @relation(fields: [analystId], references: [id])
-  client       Client       @relation(fields: [clientId], references: [id])
-  requester    Requester?   @relation(fields: [requesterId], references: [id])
-  department   Department?  @relation(fields: [departmentId], references: [id])
-  demandType   DemandType?  @relation(fields: [demandTypeId], references: [id])
-  project      Project?     @relation(fields: [projectId], references: [id])
-  projectTask  ProjectTask? @relation(fields: [projectTaskId], references: [id])
-  attachments  Attachment[]
-  comments     Comment[]
-  demandTags   DemandTag[]
+  organization      Organization       @relation(fields: [organizationId], references: [id])
+  client            Client             @relation(fields: [clientId], references: [id])
+  project           Project?           @relation(fields: [projectId], references: [id])
+  projectTask       ProjectTask?       @relation(fields: [projectTaskId], references: [id])
+  attachments       Attachment[]
+  comments          Comment[]
+  demandTags        DemandTag[]
+  demandAnalysts    DemandAnalyst[]
+  demandRequesters  DemandRequester[]
+  demandDepartments DemandDepartment[]
+  demandDemandTypes DemandDemandType[]
 
   @@index([organizationId, deletedAt, date])
   @@index([clientId])
-  @@index([analystId])
   @@index([projectId])
   @@index([projectTaskId])
   @@map("demands")
@@ -1108,6 +1105,56 @@ model DemandTag {
   @@id([demandId, tagId])
   @@index([tagId])
   @@map("demand_tags")
+}
+
+/// Analysts of a demand (one or more). Each analyst is credited the demand's full duration.
+model DemandAnalyst {
+  demandId  String @map("demand_id")
+  analystId String @map("analyst_id")
+
+  demand  Demand  @relation(fields: [demandId], references: [id], onDelete: Cascade)
+  analyst Analyst @relation(fields: [analystId], references: [id])
+
+  @@id([demandId, analystId])
+  @@index([analystId])
+  @@map("demand_analysts")
+}
+
+model DemandRequester {
+  demandId    String @map("demand_id")
+  requesterId String @map("requester_id")
+
+  demand    Demand    @relation(fields: [demandId], references: [id], onDelete: Cascade)
+  requester Requester @relation(fields: [requesterId], references: [id])
+
+  @@id([demandId, requesterId])
+  @@index([requesterId])
+  @@map("demand_requesters")
+}
+
+model DemandDepartment {
+  demandId     String @map("demand_id")
+  departmentId String @map("department_id")
+
+  demand     Demand     @relation(fields: [demandId], references: [id], onDelete: Cascade)
+  department Department @relation(fields: [departmentId], references: [id])
+
+  @@id([demandId, departmentId])
+  @@index([departmentId])
+  @@map("demand_departments")
+}
+
+/// Types of a demand (one or more).
+model DemandDemandType {
+  demandId     String @map("demand_id")
+  demandTypeId String @map("demand_type_id")
+
+  demand     Demand     @relation(fields: [demandId], references: [id], onDelete: Cascade)
+  demandType DemandType @relation(fields: [demandTypeId], references: [id])
+
+  @@id([demandId, demandTypeId])
+  @@index([demandTypeId])
+  @@map("demand_demand_types")
 }
 
 model Notification {

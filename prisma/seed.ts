@@ -826,11 +826,11 @@ async function main() {
       durationMinutes: 60,
       priority: "MEDIUM",
       status: "PENDING",
-      analystId: analyst.id,
       clientId: demandClient.id,
-      requesterId: requester.id,
-      departmentId: department.id,
-      demandTypeId: demandType.id,
+      demandAnalysts: { create: [{ analystId: analyst.id }] },
+      demandRequesters: { create: [{ requesterId: requester.id }] },
+      demandDepartments: { create: [{ departmentId: department.id }] },
+      demandDemandTypes: { create: [{ demandTypeId: demandType.id }] },
     },
   })
   await prisma.demandTag.create({ data: { demandId: demand.id, tagId: tag.id } })

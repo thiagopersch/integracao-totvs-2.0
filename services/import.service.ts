@@ -171,20 +171,21 @@ function chunk<T>(items: T[], size: number): T[][] {
 function duplicateKey(fields: {
   date: Date;
   clientId: string;
-  analystId: string;
+  analystIds: string[];
   name: string;
   durationMinutes: number;
-  requesterId: string | null;
-  departmentId: string | null;
+  requesterIds: string[];
+  departmentIds: string[];
 }): string {
+  const ids = (list: string[]) => [...list].sort().join(",");
   return [
     fields.date.toISOString(),
     fields.clientId,
-    fields.analystId,
+    ids(fields.analystIds),
     fields.name,
     fields.durationMinutes,
-    fields.requesterId ?? "",
-    fields.departmentId ?? "",
+    ids(fields.requesterIds),
+    ids(fields.departmentIds),
   ].join("|");
 }
 
@@ -324,14 +325,24 @@ export const importService = {
         id: true,
         date: true,
         clientId: true,
-        analystId: true,
         name: true,
         durationMinutes: true,
-        requesterId: true,
-        departmentId: true,
+        demandAnalysts: { select: { analystId: true } },
+        demandRequesters: { select: { requesterId: true } },
+        demandDepartments: { select: { departmentId: true } },
       },
     });
-    const existingIdByKey = new Map(existingDemands.map((d) => [duplicateKey(d), d.id]));
+    const existingIdByKey = new Map(
+      existingDemands.map((d) => [
+        duplicateKey({
+          ...d,
+          analystIds: d.demandAnalysts.map((l) => l.analystId),
+          requesterIds: d.demandRequesters.map((l) => l.requesterId),
+          departmentIds: d.demandDepartments.map((l) => l.departmentId),
+        }),
+        d.id,
+      ])
+    );
 
     // Committed in batches, each its own transaction, so one import can't hold a single
     // interactive transaction (and a DB connection) open for as long as the whole file takes to
@@ -352,29 +363,36 @@ export const importService = {
                 durationMinutes: Math.round(row.hours * 60),
                 priority: row.priority,
                 status: row.status,
-                analystId: row.analystId,
                 clientId: row.clientId,
-                requesterId: row.requesterId || undefined,
-                departmentId: row.departmentId || undefined,
-                demandTypeId: row.demandTypeId,
+              };
+              // A spreadsheet row carries one analyst/requester/department cell each.
+              const people = {
+                analystIds: [row.analystId],
+                requesterIds: row.requesterId ? [row.requesterId] : [],
+                departmentIds: row.departmentId ? [row.departmentId] : [],
               };
 
-              const key = duplicateKey({
-                date: data.date,
-                clientId: row.clientId,
-                analystId: row.analystId,
-                name: row.name,
-                durationMinutes: data.durationMinutes,
-                requesterId: row.requesterId || null,
-                departmentId: row.departmentId || null,
-              });
+              const key = duplicateKey({ date: data.date, clientId: row.clientId, name: row.name, durationMinutes: data.durationMinutes, ...people });
               const existingId = existingIdByKey.get(key);
 
               if (existingId) {
-                await tx.demand.update({ where: { id: existingId }, data });
+                // Same key = same people, so only the type (not part of the key) is replaced.
+                await tx.demand.update({
+                  where: { id: existingId },
+                  data: { ...data, demandDemandTypes: { deleteMany: {}, create: [{ demandTypeId: row.demandTypeId }] } },
+                });
                 updatedCount++;
               } else {
-                const created = await tx.demand.create({ data, select: { id: true } });
+                const created = await tx.demand.create({
+                  data: {
+                    ...data,
+                    demandAnalysts: { create: people.analystIds.map((analystId) => ({ analystId })) },
+                    demandRequesters: { create: people.requesterIds.map((requesterId) => ({ requesterId })) },
+                    demandDepartments: { create: people.departmentIds.map((departmentId) => ({ departmentId })) },
+                    demandDemandTypes: { create: [{ demandTypeId: row.demandTypeId }] },
+                  },
+                  select: { id: true },
+                });
                 existingIdByKey.set(key, created.id);
                 createdCount++;
               }

@@ -1,5 +1,6 @@
 import { after } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { demandMinutesByAnalyst, demandMinutesByAnalystTotal } from "@/services/demand-analyst-hours.service";
 import { logger } from "@/lib/logger";
 import { sendEmail, type EmailSendStatus } from "@/lib/mailer";
 import { periodToDateRange } from "@/lib/period";
@@ -210,18 +211,14 @@ async function sendUsageEmail(
             durationMinutes: true,
             status: true,
             priority: true,
-            demandType: { select: { name: true } },
-            department: { select: { name: true } },
-            analyst: { select: { name: true, email: true } },
-            requester: { select: { name: true, email: true } },
+            demandDemandTypes: { select: { demandType: { select: { name: true } } }, orderBy: { demandType: { name: "asc" } } },
+            demandDepartments: { select: { department: { select: { name: true } } }, orderBy: { department: { name: "asc" } } },
+            demandAnalysts: { select: { analyst: { select: { name: true, email: true } } }, orderBy: { analyst: { name: "asc" } } },
+            demandRequesters: { select: { requester: { select: { name: true, email: true } } }, orderBy: { requester: { name: "asc" } } },
           },
         })
       : null,
-    prisma.demand.groupBy({
-      by: ["analystId"],
-      where: { deletedAt: null, organizationId, clientId: usage.clientId, date: periodToDateRange(month)! },
-      _sum: { durationMinutes: true },
-    }),
+    demandMinutesByAnalystTotal({ deletedAt: null, organizationId, clientId: usage.clientId, date: periodToDateRange(month)! }),
   ]);
   const analysts = await prisma.analyst.findMany({
     where: { id: { in: minutesByAnalyst.map((m) => m.analystId) } },
@@ -229,7 +226,7 @@ async function sendUsageEmail(
   });
   const rateByAnalystId = new Map(analysts.map((a) => [a.id, a.hourlyRate]));
   const analystUsage = minutesByAnalyst.map((m) => ({
-    hours: (m._sum.durationMinutes || 0) / 60,
+    hours: m.minutes / 60,
     hourlyRate: rateByAnalystId.get(m.analystId) ?? null,
   }));
 
@@ -370,11 +367,7 @@ async function getAllClientsUsageVars(organizationId: string, month: Month, clie
       where: { id: { in: usage.flatMap((u) => u.contractIds) } },
       select: { clientId: true, startDate: true, endDate: true, status: true, notes: true },
     }),
-    prisma.demand.groupBy({
-      by: ["clientId", "analystId"],
-      where: { deletedAt: null, organizationId, clientId: { in: ids }, date: periodToDateRange(month)! },
-      _sum: { durationMinutes: true },
-    }),
+    demandMinutesByAnalyst({ deletedAt: null, organizationId, clientId: { in: ids }, date: periodToDateRange(month)! }),
   ]);
   const analysts = await prisma.analyst.findMany({
     where: { id: { in: [...new Set(minutesByAnalyst.map((m) => m.analystId))] } },
@@ -400,7 +393,7 @@ async function getAllClientsUsageVars(organizationId: string, month: Month, clie
         contracts: contracts.filter((c) => c.clientId === u.clientId),
         analystUsage: minutesByAnalyst
           .filter((m) => m.clientId === u.clientId)
-          .map((m) => ({ hours: (m._sum.durationMinutes || 0) / 60, hourlyRate: rateByAnalystId.get(m.analystId) ?? null })),
+          .map((m) => ({ hours: m.minutes / 60, hourlyRate: rateByAnalystId.get(m.analystId) ?? null })),
       })
     ),
   };

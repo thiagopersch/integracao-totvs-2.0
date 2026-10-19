@@ -25,6 +25,7 @@ import {
   OPTION_FIELD_TYPES,
   type CustomFieldType,
 } from "@/lib/custom-fields";
+import { randomColor } from "@/lib/colors";
 import type { AiEntityDef, AiEntityKey } from "./types";
 
 const opt = <T extends string>(values: readonly T[], labels: Record<T, string>) => values.map((value) => ({ value, label: labels[value] }));
@@ -94,11 +95,12 @@ const demand: AiEntityDef = {
     priority: v.priority,
     status: v.status,
     notes: opt$(v.notes),
-    analystId: v.analystId,
+    // The assistant proposes one analyst/requester/department per demand; the form allows several.
+    analystIds: v.analystId ? [v.analystId] : [],
     clientId: v.clientId,
-    requesterId: v.requesterId,
-    departmentId: v.departmentId,
-    demandTypeId: v.demandTypeId,
+    requesterIds: v.requesterId ? [v.requesterId] : [],
+    departmentIds: v.departmentId ? [v.departmentId] : [],
+    demandTypeIds: v.demandTypeId ? [v.demandTypeId] : [],
     projectId: opt$(v.projectId),
     tagIds: [],
   }),
@@ -180,9 +182,10 @@ const requester: AiEntityDef = {
     { key: "name", label: "Nome", kind: "text", required: true },
     { key: "email", label: "E-mail", kind: "text" },
     { key: "phone", label: "Telefone", kind: "text" },
+    color("aleatória"),
   ],
   schema: createRequesterSchema,
-  toInput: (v) => ({ name: v.name, email: v.email ?? "", phone: v.phone ?? "", status: true }),
+  toInput: (v) => ({ name: v.name, email: v.email ?? "", phone: v.phone ?? "", status: true, color: v.color || randomColor() }),
 };
 
 const department: AiEntityDef = {
@@ -193,10 +196,11 @@ const department: AiEntityDef = {
   titleField: "name",
   fields: [
     { key: "name", label: "Nome", kind: "text", required: true },
+    color("aleatória"),
     { key: "description", label: "Descrição", kind: "textarea", wide: true },
   ],
   schema: createDepartmentSchema,
-  toInput: (v) => ({ name: v.name, description: opt$(v.description) }),
+  toInput: (v) => ({ name: v.name, description: opt$(v.description), color: v.color || randomColor() }),
 };
 
 const demandType: AiEntityDef = {

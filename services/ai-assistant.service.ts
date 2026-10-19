@@ -132,19 +132,18 @@ async function recentDefaults(organizationId: string, clientIds: string[]) {
     distinct: ["clientId"],
     select: {
       client: { select: { name: true } },
-      requesterId: true,
-      departmentId: true,
-      demandTypeId: true,
-      requester: { select: { name: true } },
-      department: { select: { name: true } },
-      demandType: { select: { name: true } },
+      demandRequesters: { select: { requester: { select: { id: true, name: true } } }, take: 1 },
+      demandDepartments: { select: { department: { select: { id: true, name: true } } }, take: 1 },
+      demandDemandTypes: { select: { demandType: { select: { id: true, name: true } } }, take: 1 },
     },
   });
   return latest
-    .map(
-      (d) =>
-        `${d.client.name}: solicitante ${d.requester?.name ?? "-"} (${d.requesterId ?? "-"}), setor ${d.department?.name ?? "-"} (${d.departmentId ?? "-"}), tipo ${d.demandType?.name ?? "-"} (${d.demandTypeId ?? "-"})`
-    )
+    .map((d) => {
+      const requester = d.demandRequesters[0]?.requester;
+      const department = d.demandDepartments[0]?.department;
+      const demandType = d.demandDemandTypes[0]?.demandType;
+      return `${d.client.name}: solicitante ${requester?.name ?? "-"} (${requester?.id ?? "-"}), setor ${department?.name ?? "-"} (${department?.id ?? "-"}), tipo ${demandType?.name ?? "-"} (${demandType?.id ?? "-"})`;
+    })
     .join("\n");
 }
 

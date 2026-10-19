@@ -19,6 +19,7 @@ export async function createRequester(formData: FormData) {
     email: (formData.get("email") as string) || "",
     phone: (formData.get("phone") as string) || "",
     status: formData.get("status") === "true",
+    color: (formData.get("color") as string) || "#0ea5e9",
   };
 
   const parsed = createRequesterSchema.safeParse(data);
@@ -43,6 +44,7 @@ export async function updateRequester(id: string, formData: FormData) {
     email: (formData.get("email") as string) || "",
     phone: (formData.get("phone") as string) || "",
     status: formData.get("status") === "true",
+    color: (formData.get("color") as string) || undefined,
   };
 
   const parsed = updateRequesterSchema.safeParse(data);

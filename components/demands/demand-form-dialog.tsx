@@ -49,11 +49,11 @@ const FIELD_LABELS: Record<string, string> = {
   date: "Data",
   startTime: "Hora de início",
   endTime: "Hora de término",
-  analystId: "Analista",
+  analystIds: "Analistas",
   clientId: "Cliente",
-  requesterId: "Solicitante",
-  departmentId: "Departamento",
-  demandTypeId: "Tipo",
+  requesterIds: "Solicitantes",
+  departmentIds: "Departamentos",
+  demandTypeIds: "Tipos",
   projectId: "Projeto",
   projectTaskId: "Tarefa",
 }
@@ -63,11 +63,11 @@ const FIELD_TAB: Record<string, string> = {
   description: "identificacao",
   projectId: "atribuicao",
   projectTaskId: "atribuicao",
-  analystId: "atribuicao",
+  analystIds: "atribuicao",
   clientId: "atribuicao",
-  requesterId: "atribuicao",
-  departmentId: "atribuicao",
-  demandTypeId: "atribuicao",
+  requesterIds: "atribuicao",
+  departmentIds: "atribuicao",
+  demandTypeIds: "atribuicao",
   date: "agendamento",
   startTime: "agendamento",
   endTime: "agendamento",
@@ -101,11 +101,11 @@ export type DemandFormEntity = {
   priority: string
   status: string
   notes: string | null
-  analyst: { id: string } | null
+  demandAnalysts: { analyst: { id: string } }[]
   client: { id: string } | null
-  requester: { id: string } | null
-  department: { id: string } | null
-  demandType: { id: string } | null
+  demandRequesters: { requester: { id: string } }[]
+  demandDepartments: { department: { id: string } }[]
+  demandDemandTypes: { demandType: { id: string } }[]
   demandTags: { tag: { id: string } }[]
   project?: { id: string } | null
   projectTask?: { id: string } | null
@@ -136,11 +136,11 @@ function initialValues(demand: DemandFormEntity | null | undefined, defaults: De
       priority: demand.priority,
       status: demand.status,
       notes: demand.notes ?? "",
-      analystId: demand.analyst?.id || "",
+      analystIds: demand.demandAnalysts.map((da) => da.analyst.id),
       clientId: demand.client?.id || "",
-      requesterId: demand.requester?.id || "",
-      departmentId: demand.department?.id || "",
-      demandTypeId: demand.demandType?.id || "",
+      requesterIds: demand.demandRequesters.map((dr) => dr.requester.id),
+      departmentIds: demand.demandDepartments.map((dd) => dd.department.id),
+      demandTypeIds: demand.demandDemandTypes.map((dt) => dt.demandType.id),
       tagIds: demand.demandTags.map((dt) => dt.tag.id),
       projectId: demand.project?.id || "",
       projectTaskId: demand.projectTask?.id || "",
@@ -155,11 +155,11 @@ function initialValues(demand: DemandFormEntity | null | undefined, defaults: De
     priority: "MEDIUM",
     status: "PENDING",
     notes: "",
-    analystId: myAnalystId ?? "",
+    analystIds: myAnalystId ? [myAnalystId] : [],
     clientId: defaults.clientId ?? "",
-    requesterId: "",
-    departmentId: "",
-    demandTypeId: "",
+    requesterIds: [],
+    departmentIds: [],
+    demandTypeIds: [],
     tagIds: [],
     projectId: defaults.projectId ?? "",
     projectTaskId: defaults.projectTaskId ?? "",
@@ -198,7 +198,7 @@ export function DemandFormDialog(props: DemandFormDialogProps) {
       }}
     >
       <DialogContent
-        className={expanded ? "h-[99vh]! max-h-[99vh]! w-[99vw]! max-w-[99vw]!" : undefined}
+        className={expanded ? "h-[99vh]! max-h-[99vh]! w-[99vw]! max-w-[99vw]!" : "h-auto max-h-[70vh] w-auto min-w-[min(40rem,90vw)] max-w-[70vw]"}
         headerActions={
           <WithTooltip label={expanded ? "Tamanho normal" : "Expandir"}>
             <Button type="button" variant="ghost" size="icon-sm" onClick={() => setExpanded((v) => !v)} aria-label={expanded ? "Tamanho normal" : "Expandir"}>
@@ -280,10 +280,9 @@ function DemandFormBody({ onOpenChange, catalogs, context, demand, defaults = {}
     setLoading(true)
     const formData = new FormData()
     Object.entries(data).forEach(([key, value]) => {
-      if (key === "tagIds") return
-      if (value !== undefined) formData.append(key, String(value))
+      if (Array.isArray(value)) value.forEach((id) => formData.append(key, id))
+      else if (value !== undefined) formData.append(key, String(value))
     })
-    for (const tagId of data.tagIds || []) formData.append("tagIds", tagId)
     const result = demand ? await updateDemand(demand.id, formData) : await createDemand(formData)
     setLoading(false)
     if (result.success) {
@@ -377,29 +376,17 @@ function DemandFormBody({ onOpenChange, catalogs, context, demand, defaults = {}
 
             <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
               <Field>
-                <FieldLabel htmlFor="analystId">Analista</FieldLabel>
-                <Select
-                  items={analysts.map((a) => ({ value: a.id, label: a.name }))}
-                  value={form.watch("analystId") || null}
-                  onValueChange={(v) => form.setValue("analystId", v || "", { shouldValidate: true })}
-                >
-                  <SelectTrigger className="w-full" aria-invalid={!!errors.analystId}>
-                    <SelectValue placeholder="Selecione um analista">
-                      {(value: string) => {
-                        const analyst = analysts.find((a) => a.id === value)
-                        return analyst ? <ColorBadge label={analyst.name} color={analyst.color} /> : "Selecione um analista"
-                      }}
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent>
-                    {analysts.map((a) => (
-                      <SelectItem key={a.id} value={a.id}>
-                        <ColorBadge label={a.name} color={a.color} />
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <FieldError errors={[errors.analystId]} />
+                <FieldLabel htmlFor="analystIds">Analistas</FieldLabel>
+                <MultiSelect
+                  items={analysts.map((a) => ({ value: a.id, label: a.name, color: a.color }))}
+                  value={form.watch("analystIds") || []}
+                  onValueChange={(v) => form.setValue("analystIds", v, { shouldValidate: true })}
+                  placeholder="Selecione os analistas"
+                  searchPlaceholder="Buscar analista..."
+                  emptyText="Nenhum analista encontrado."
+                  className={errors.analystIds ? "border-destructive" : undefined}
+                />
+                <FieldError errors={[errors.analystIds]} />
               </Field>
               <Field>
                 <FieldLabel htmlFor="clientId">Cliente</FieldLabel>
@@ -429,68 +416,46 @@ function DemandFormBody({ onOpenChange, catalogs, context, demand, defaults = {}
                 <FieldError errors={[errors.clientId]} />
               </Field>
               <Field>
-                <FieldLabel htmlFor="requesterId">Solicitante</FieldLabel>
-                <Select
-                  items={requesters.map((r) => ({ value: r.id, label: r.name }))}
-                  value={form.watch("requesterId") || null}
-                  onValueChange={(v) => form.setValue("requesterId", v || "", { shouldValidate: true })}
-                >
-                  <SelectTrigger className="w-full" aria-invalid={!!errors.requesterId}>
-                    <SelectValue placeholder="Selecione um solicitante" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {requesters.map((r) => (
-                      <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <FieldError errors={[errors.requesterId]} />
+                <FieldLabel htmlFor="requesterIds">Solicitantes</FieldLabel>
+                <MultiSelect
+                  items={requesters.map((r) => ({ value: r.id, label: r.name, color: r.color }))}
+                  value={form.watch("requesterIds") || []}
+                  onValueChange={(v) => form.setValue("requesterIds", v, { shouldValidate: true })}
+                  placeholder="Selecione os solicitantes"
+                  searchPlaceholder="Buscar solicitante..."
+                  emptyText="Nenhum solicitante encontrado."
+                  className={errors.requesterIds ? "border-destructive" : undefined}
+                />
+                <FieldError errors={[errors.requesterIds]} />
               </Field>
             </div>
 
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <Field>
-                <FieldLabel htmlFor="departmentId">Departamento</FieldLabel>
-                <Select
-                  items={departments.map((d) => ({ value: d.id, label: d.name }))}
-                  value={form.watch("departmentId") || null}
-                  onValueChange={(v) => form.setValue("departmentId", v || "", { shouldValidate: true })}
-                >
-                  <SelectTrigger className="w-full" aria-invalid={!!errors.departmentId}>
-                    <SelectValue placeholder="Selecione um departamento" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {departments.map((d) => (
-                      <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <FieldError errors={[errors.departmentId]} />
+                <FieldLabel htmlFor="departmentIds">Departamentos</FieldLabel>
+                <MultiSelect
+                  items={departments.map((d) => ({ value: d.id, label: d.name, color: d.color }))}
+                  value={form.watch("departmentIds") || []}
+                  onValueChange={(v) => form.setValue("departmentIds", v, { shouldValidate: true })}
+                  placeholder="Selecione os departamentos"
+                  searchPlaceholder="Buscar departamento..."
+                  emptyText="Nenhum departamento encontrado."
+                  className={errors.departmentIds ? "border-destructive" : undefined}
+                />
+                <FieldError errors={[errors.departmentIds]} />
               </Field>
               <Field>
-                <FieldLabel htmlFor="demandTypeId">Tipo</FieldLabel>
-                <Select
-                  items={demandTypes.map((d) => ({ value: d.id, label: d.name }))}
-                  value={form.watch("demandTypeId") || null}
-                  onValueChange={(v) => form.setValue("demandTypeId", v || "", { shouldValidate: true })}
-                >
-                  <SelectTrigger className="w-full" aria-invalid={!!errors.demandTypeId}>
-                    <SelectValue placeholder="Selecione um tipo">
-                      {(value: string) => {
-                        const demandType = demandTypes.find((d) => d.id === value)
-                        return demandType ? <ColorBadge label={demandType.name} color={demandType.color} /> : "Selecione um tipo"
-                      }}
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent>
-                    {demandTypes.map((d) => (
-                      <SelectItem key={d.id} value={d.id}>
-                        <ColorBadge label={d.name} color={d.color} />
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <FieldError errors={[errors.demandTypeId]} />
+                <FieldLabel htmlFor="demandTypeIds">Tipos</FieldLabel>
+                <MultiSelect
+                  items={demandTypes.map((d) => ({ value: d.id, label: d.name, color: d.color }))}
+                  value={form.watch("demandTypeIds") || []}
+                  onValueChange={(v) => form.setValue("demandTypeIds", v, { shouldValidate: true })}
+                  placeholder="Selecione os tipos"
+                  searchPlaceholder="Buscar tipo..."
+                  emptyText="Nenhum tipo encontrado."
+                  className={errors.demandTypeIds ? "border-destructive" : undefined}
+                />
+                <FieldError errors={[errors.demandTypeIds]} />
               </Field>
             </div>
           </TabsContent>

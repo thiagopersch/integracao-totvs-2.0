@@ -1,7 +1,7 @@
 "use server"
 
 import { updateTag, cacheTag } from "next/cache";
-import { demandService } from "@/services/demand.service";
+import { demandService, demandHasAnalyst } from "@/services/demand.service";
 import { contractUsageService } from "@/services/contract-usage.service";
 import { auditService } from "@/services/audit.service";
 import { createDemandSchema, updateDemandSchema } from "@/schemas/demand.schema";
@@ -81,11 +81,12 @@ function parseDemandForm(formData: FormData) {
     priority: formData.get("priority") as string,
     status: formData.get("status") as string,
     notes: (formData.get("notes") as string) || undefined,
-    analystId: formData.get("analystId") as string,
+    // Absent list = keep (update); the form always sends the three lists.
+    analystIds: formData.has("analystIds") ? (formData.getAll("analystIds") as string[]) : undefined,
     clientId: formData.get("clientId") as string,
-    requesterId: (formData.get("requesterId") as string) || undefined,
-    departmentId: (formData.get("departmentId") as string) || undefined,
-    demandTypeId: (formData.get("demandTypeId") as string) || undefined,
+    requesterIds: formData.has("requesterIds") ? (formData.getAll("requesterIds") as string[]) : undefined,
+    departmentIds: formData.has("departmentIds") ? (formData.getAll("departmentIds") as string[]) : undefined,
+    demandTypeIds: formData.has("demandTypeIds") ? (formData.getAll("demandTypeIds") as string[]) : undefined,
     tagIds: formData.getAll("tagIds") as string[],
     // Absent field = keep (update); "" = no project/task.
     projectId: formData.has("projectId") ? (formData.get("projectId") as string) : undefined,
@@ -101,7 +102,7 @@ export async function createDemand(formData: FormData) {
   }
 
   const scope = await getDemandAnalystScope(ctx);
-  if (scope && parsed.data.analystId !== scope) {
+  if (scope && !parsed.data.analystIds.includes(scope)) {
     return { success: false, error: "Você só pode criar demandas para si mesmo" };
   }
 
@@ -123,6 +124,11 @@ export async function updateDemand(id: string, formData: FormData) {
   const parsed = updateDemandSchema.safeParse(parseDemandForm(formData));
   if (!parsed.success) {
     return { success: false, error: "Dados inválidos", errors: parsed.error.flatten().fieldErrors };
+  }
+
+  const scope = await getDemandAnalystScope(ctx);
+  if (scope && (!(await demandHasAnalyst(id, scope)) || (parsed.data.analystIds && !parsed.data.analystIds.includes(scope)))) {
+    return { success: false, error: "Você só pode editar demandas em que é analista" };
   }
 
   try {
@@ -238,6 +244,6 @@ export async function getDemandForEdit(id: string) {
   const ctx = await requirePermission("demands", "update");
   const scope = await getDemandAnalystScope(ctx);
   const demand = await demandService.getById(id, ctx.organizationId, ctx.allowedClientIds);
-  if (!demand || (scope && demand.analystId !== scope)) return null;
+  if (!demand || (scope && !demand.demandAnalysts.some(({ analyst }) => analyst.id === scope))) return null;
   return demand;
 }

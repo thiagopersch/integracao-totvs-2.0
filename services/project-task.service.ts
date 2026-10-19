@@ -255,7 +255,7 @@ export const projectTaskService = {
             endTime: true,
             durationMinutes: true,
             status: true,
-            analyst: { select: { id: true, name: true, userId: true } },
+            demandAnalysts: { select: { analyst: { select: { id: true, name: true, userId: true } } }, orderBy: { analyst: { name: "asc" } } },
           },
           orderBy: [{ date: "desc" }, { startTime: "desc" }],
           take: 200,

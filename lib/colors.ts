@@ -38,3 +38,8 @@ export function shadeColor(hexColor: string, percent: number): string {
   const toHex = (channel: number) => channel.toString(16).padStart(2, "0")
   return `#${toHex(adjust(r))}${toHex(adjust(g))}${toHex(adjust(b))}`
 }
+
+/** Random `#rrggbb` — the initial color of a new cadastro (tag, analista, setor, ...). */
+export function randomColor(): string {
+  return `#${Math.floor(Math.random() * 0xffffff).toString(16).padStart(6, "0")}`
+}

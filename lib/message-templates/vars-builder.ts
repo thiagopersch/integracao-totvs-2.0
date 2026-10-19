@@ -1,5 +1,6 @@
 import { ERROR_KIND_LABELS, type ErrorKind } from "@/lib/error-kind";
 import { formatHours, formatMonthLabel, USAGE_LEVEL_LABELS, type UsageLevel } from "@/lib/contract-usage";
+import { demandAnalysts, demandDepartments, demandRequesters, demandTypesOf, joinEmails, joinNames } from "@/lib/demand-people";
 
 /** Template variables resolved at send time — keys must match lib/message-templates/variable-catalog.ts. */
 export type TemplateVars = Record<string, string>;
@@ -152,10 +153,10 @@ export interface DemandVarsInput {
   durationMinutes: number;
   status: string;
   priority: string;
-  demandType?: { name: string } | null;
-  department?: { name: string } | null;
-  analyst?: { name: string; email: string | null } | null;
-  requester?: { name: string; email: string | null } | null;
+  demandDemandTypes?: { demandType: { name: string } }[];
+  demandDepartments?: { department: { name: string } }[];
+  demandAnalysts?: { analyst: { name: string; email: string | null } }[];
+  demandRequesters?: { requester: { name: string; email: string | null } }[];
 }
 
 /** The demand that triggered a consumption email (empty for manual resends/imports). */
@@ -170,25 +171,26 @@ export function buildDemandVars(demand: DemandVarsInput | null): TemplateVars {
     demandHours: formatHours(round2(demand.durationMinutes / 60)),
     demandStatus: DEMAND_STATUS_LABELS[demand.status] ?? demand.status,
     demandPriority: DEMAND_PRIORITY_LABELS[demand.priority] ?? demand.priority,
-    demandType: demand.demandType?.name ?? "",
-    demandDepartment: demand.department?.name ?? "",
-    demandAnalystName: demand.analyst?.name ?? "",
-    demandAnalystEmail: demand.analyst?.email ?? "",
-    demandRequesterName: demand.requester?.name ?? "",
-    demandRequesterEmail: demand.requester?.email ?? "",
+    demandType: joinNames(demandTypesOf(demand)),
+    // Several analysts/requesters/departments → comma-separated, in name order.
+    demandDepartment: joinNames(demandDepartments(demand)),
+    demandAnalystName: joinNames(demandAnalysts(demand)),
+    demandAnalystEmail: joinEmails(demandAnalysts(demand)),
+    demandRequesterName: joinNames(demandRequesters(demand)),
+    demandRequesterEmail: joinEmails(demandRequesters(demand)),
   };
 }
 
 export interface DemandReportVarsInput {
   client: ClientVarsInput;
   period: { label: string; startLabel: string; endLabel: string; slug: string };
-  demands: { durationMinutes: number; analyst?: { name: string } | null }[];
+  demands: { durationMinutes: number; demandAnalysts?: { analyst: { name: string } }[] }[];
 }
 
 /** A client's demands in the report period (DEMAND_REPORT event). `attachmentNames` is added by the sender. */
 export function buildDemandReportVars(input: DemandReportVarsInput): TemplateVars {
   const minutes = input.demands.reduce((sum, d) => sum + d.durationMinutes, 0);
-  const analysts = [...new Set(input.demands.map((d) => d.analyst?.name).filter(Boolean))].sort((a, b) => a!.localeCompare(b!, "pt-BR"));
+  const analysts = [...new Set(input.demands.flatMap((d) => demandAnalysts(d).map((a) => a.name)))].sort((a, b) => a.localeCompare(b, "pt-BR"));
   return {
     ...buildClientVars(input.client),
     periodLabel: input.period.label,

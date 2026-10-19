@@ -10,7 +10,7 @@ import { PageHeader } from "@/components/shared/page-header"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
 import { EntityActionsCell } from "@/components/shared/entity-actions-cell"
 import { createSelectColumn } from "@/components/shared/select-column"
-import { TruncatedText } from "@/components/shared/truncated-text"
+import { ColorBadge } from "@/components/shared/color-badge"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -35,6 +35,7 @@ import { toast } from "sonner"
 import { useCrudTable } from "@/hooks/use-crud-table"
 import { useHasPermission } from "@/hooks/use-permissions"
 import type { Requester } from "@/generated/prisma/client"
+import { randomColor } from "@/lib/colors"
 import type { PaginationMeta } from "@/types/common"
 
 interface RequesterTableProps {
@@ -68,14 +69,15 @@ export function RequesterTable({ data, meta }: RequesterTableProps) {
   const canUpdate = useHasPermission("requesters", "update")
   const canDelete = useHasPermission("requesters", "delete")
   const [loading, setLoading] = useState(false)
+  const [newColor, setNewColor] = useState(randomColor)
   const [statusFilter, setStatusFilter] = useState(searchParams.get("status") || "")
 
   const form = useForm<CreateRequesterInput>({
     mode: "onChange",
     resolver: zodResolver(editDialog.entity ? updateRequesterSchema : createRequesterSchema) as Resolver<CreateRequesterInput>,
     values: editDialog.entity
-      ? { name: editDialog.entity.name, email: editDialog.entity.email || "", phone: formatPhone(editDialog.entity.phone), status: editDialog.entity.status }
-      : { name: "", email: "", phone: "", status: true },
+      ? { name: editDialog.entity.name, email: editDialog.entity.email || "", phone: formatPhone(editDialog.entity.phone), status: editDialog.entity.status, color: editDialog.entity.color }
+      : { name: "", email: "", phone: "", status: true, color: newColor },
   })
 
   async function onSubmit(data: CreateRequesterInput) {
@@ -116,7 +118,7 @@ export function RequesterTable({ data, meta }: RequesterTableProps) {
         return <Badge variant={status ? "success" : "destructive"}>{status ? "Ativo" : "Inativo"}</Badge>
       },
     },
-    { accessorKey: "name", header: "Nome", cell: ({ row }) => <TruncatedText text={row.original.name} /> },
+    { accessorKey: "name", header: "Nome", cell: ({ row }) => <ColorBadge label={row.original.name} color={row.original.color} /> },
     { accessorKey: "email", header: "E-mail", cell: ({ row }) => row.getValue("email") || "-" },
     { accessorKey: "phone", header: "Telefone", cell: ({ row }) => row.getValue("phone") || "-" },
   ]
@@ -137,7 +139,7 @@ export function RequesterTable({ data, meta }: RequesterTableProps) {
   }, [canUpdate, canDelete, setEditDialog, setDeleteDialog, handleToggleStatus])
 
   const newDialog = (
-    <Dialog open={editDialog.open} onOpenChange={(open) => { setEditDialog({ open, entity: open ? editDialog.entity : undefined }); if (!open) form.reset() }}>
+    <Dialog open={editDialog.open} onOpenChange={(open) => { setEditDialog({ open, entity: open ? editDialog.entity : undefined }); if (open && !editDialog.entity) setNewColor(randomColor()); if (!open) form.reset() }}>
       <DialogTrigger render={<Button><Plus className="h-4 w-4 mr-2" /> Novo Solicitante</Button>} />
       <DialogContent className="h-auto max-h-[85vh] sm:max-w-lg">
         <DialogHeader>
@@ -186,6 +188,11 @@ export function RequesterTable({ data, meta }: RequesterTableProps) {
               <FieldError errors={[form.formState.errors.phone]} />
             </Field>
           </div>
+          <Field>
+            <FieldLabel htmlFor="color">Cor</FieldLabel>
+            <Input id="color" type="color" className="h-10 p-1" style={{ width: "30%" }} {...form.register("color")} />
+            <FieldError errors={[form.formState.errors.color]} />
+          </Field>
         </DialogBody>
         <DialogFooter>
           <Button type="button" variant="outline" onClick={handleCancel} disabled={loading}>Cancelar</Button>

@@ -242,10 +242,10 @@ describe("extra variables", () => {
       durationMinutes: 150,
       status: "COMPLETED",
       priority: "HIGH",
-      demandType: { name: "Suporte" },
-      department: null,
-      analyst: { name: "João", email: "j@x.com" },
-      requester: null,
+      demandDemandTypes: [{ demandType: { name: "Suporte" } }],
+      demandDepartments: [],
+      demandAnalysts: [{ analyst: { name: "João", email: "j@x.com" } }, { analyst: { name: "Maria", email: null } }],
+      demandRequesters: [],
     })
     expect(vars).toMatchObject({
       demandDate: "02/10/2026",
@@ -256,7 +256,8 @@ describe("extra variables", () => {
       demandPriority: "Alta",
       demandType: "Suporte",
       demandDepartment: "",
-      demandAnalystName: "João",
+      demandAnalystName: "João, Maria",
+      demandAnalystEmail: "j@x.com",
       demandRequesterName: "",
     })
     expect(buildDemandVars(null)).toEqual({})

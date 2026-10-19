@@ -23,9 +23,9 @@ describe("template attachments", () => {
       client: { name: "ITE - Toledo" },
       period: { label: "outubro/2026", startLabel: "01/10/2026", endLabel: "31/10/2026", slug: "2026-10" },
       demands: [
-        { durationMinutes: 90, analyst: { name: "Maria" } },
-        { durationMinutes: 60, analyst: { name: "João" } },
-        { durationMinutes: 30, analyst: { name: "Maria" } },
+        { durationMinutes: 90, demandAnalysts: [{ analyst: { name: "Maria" } }] },
+        { durationMinutes: 60, demandAnalysts: [{ analyst: { name: "João" } }] },
+        { durationMinutes: 30, demandAnalysts: [{ analyst: { name: "Maria" } }] },
       ],
     })
     expect(vars).toMatchObject({

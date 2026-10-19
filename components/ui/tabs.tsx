@@ -168,7 +168,12 @@ function TabsContent({ className, ...props }: TabsPrimitive.Panel.Props) {
   return (
     <TabsPrimitive.Panel
       data-slot="tabs-content"
-      className={cn("flex-1 text-sm outline-none [&[inert]]:hidden", className)}
+      className={cn(
+        "flex-1 text-sm outline-none [&[inert]]:hidden",
+        // Inside dialogs, the newly selected tab's fields fade/slide in.
+        "in-data-[slot=dialog-content]:animate-in in-data-[slot=dialog-content]:fade-in-0 in-data-[slot=dialog-content]:slide-in-from-bottom-1 in-data-[slot=dialog-content]:duration-200 motion-reduce:animate-none",
+        className
+      )}
       {...props}
     />
   )

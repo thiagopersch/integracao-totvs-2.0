@@ -682,15 +682,14 @@ export function TaskSheet({
                     {task.demands.length === 0 && <p className="px-2 text-sm text-muted-foreground">Nenhuma demanda vinculada.</p>}
                     <ul className="space-y-0.5">
                       {task.demands.map((demand) => {
-                        const mine = demand.analyst.userId === currentUserId
+                        const analysts = demand.demandAnalysts.map(({ analyst }) => analyst)
                         return (
                           <li key={demand.id} className="group flex items-start gap-3 rounded-md px-2 py-1.5 text-sm hover:bg-muted/50">
                             <span className="w-20 shrink-0 tabular-nums text-muted-foreground">{formatDateOnly(demand.date)}</span>
                             <div className="min-w-0 flex-1">
                               <p className="truncate font-medium">{demand.name}</p>
                               <p className="text-xs text-muted-foreground">
-                                {demand.analyst.name}
-                                {mine && " (você)"}
+                                {analysts.map((analyst) => (analyst.userId === currentUserId ? `${analyst.name} (você)` : analyst.name)).join(", ")}
                               </p>
                             </div>
                             <span className="tabular-nums">{formatHours(demand.durationMinutes, "minutes")}</span>

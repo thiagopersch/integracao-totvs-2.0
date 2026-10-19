@@ -49,7 +49,9 @@ export function validateRecord(entity: AiEntityKey, values: Record<string, strin
   const parsed = def.schema.safeParse(def.toInput(resolved));
   if (!parsed.success) {
     for (const issue of parsed.error.issues) {
-      const key = String(issue.path[0] ?? "_form");
+      const path = String(issue.path[0] ?? "_form");
+      // A card's single ref feeds a list in the schema (analystId → analystIds).
+      const key = def.fields.some((f) => f.key === path) ? path : path.replace(/Ids$/, "Id");
       // Fields the card doesn't show (stages, settings...) are reported on the card itself.
       errors[def.fields.some((f) => f.key === key) ? key : "_form"] ??= issue.message;
     }

@@ -1,6 +1,7 @@
 import type { Prisma } from "@/generated/prisma/client";
 import type { demandIncludeRelations } from "@/services/demand.service";
 import { formatDateOnly } from "@/utils/format";
+import { demandAnalysts, demandDepartments, demandRequesters, joinNames } from "@/lib/demand-people";
 
 export type DemandForExport = Prisma.DemandGetPayload<{ include: typeof demandIncludeRelations }>;
 
@@ -34,12 +35,12 @@ export function decodeExcelEscapedText(value: string): string {
 export function toExportRow(d: DemandForExport): ExportRow {
   return {
     Data: formatDateOnly(d.date),
-    "Nome do analista": d.analyst?.name ?? "",
+    "Nome do analista": joinNames(demandAnalysts(d)),
     "Horas executadas": Math.round((d.durationMinutes / 60) * 100) / 100,
     "Nome da demanda": d.name,
     "Descrição da demanda": decodeExcelEscapedText(d.description),
-    Solicitante: d.requester?.name ?? "",
-    Setor: d.department?.name ?? "",
+    Solicitante: joinNames(demandRequesters(d)),
+    Setor: joinNames(demandDepartments(d)),
     Cliente: d.client?.name ?? "",
   };
 }

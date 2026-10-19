@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { demandMinutesByAnalystTotal } from "@/services/demand-analyst-hours.service";
 import { getTodayDateOnly } from "@/lib/export-period";
 import {
   buildBurnSeries,
@@ -52,11 +53,8 @@ export const projectDashboardService = {
         },
       }),
       // Hours are the project's demands (Demandas) — cost uses each demand's analyst rate.
-      prisma.demand.groupBy({
-        by: ["analystId"],
-        where: { projectId, deletedAt: null },
-        _sum: { durationMinutes: true },
-      }),
+      // A demand with several analysts costs each analyst's rate × its full duration.
+      demandMinutesByAnalystTotal({ projectId, deletedAt: null }),
       prisma.demand.findMany({
         where: { projectId, deletedAt: null, date: { gte: new Date(weekStart(today).getTime() - 11 * 7 * DAY_MS) } },
         select: { date: true, durationMinutes: true },
@@ -75,7 +73,7 @@ export const projectDashboardService = {
     let cost = 0;
     let costCoveredHours = 0;
     for (const row of minutesByUser) {
-      const hours = (row._sum.durationMinutes ?? 0) / 60;
+      const hours = row.minutes / 60;
       const rate = rateByAnalystId.get(row.analystId);
       if (rate) {
         cost += hours * rate;

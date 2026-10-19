@@ -40,6 +40,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { DatePicker } from "@/components/ui/date-picker"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Plus, Loader2, TriangleAlert, Send, Clock } from "lucide-react"
 import {
   deleteContract,
@@ -111,6 +112,19 @@ const STATUS_COLORS: Record<string, string> = {
 
 const SORTABLE_COLUMNS = ["contractedHours", "usagePercent", "startDate", "endDate", "status"]
 
+type ContractTab = "identificacao" | "vigencia" | "notificacoes" | "complementares"
+
+/** Tab that holds each field — a failed submit opens the tab of the first invalid field. */
+const CONTRACT_FIELD_TAB: Record<string, ContractTab> = {
+  clientId: "identificacao",
+  contractedHours: "identificacao",
+  status: "identificacao",
+  startDate: "vigencia",
+  endDate: "vigencia",
+  notifyClient: "notificacoes",
+  notes: "complementares",
+}
+
 export function ContractTable({
   data,
   meta,
@@ -142,6 +156,7 @@ export function ContractTable({
   const canUpdate = useHasPermission("contracts", "update")
   const canDelete = useHasPermission("contracts", "delete")
   const [loading, setLoading] = useState(false)
+  const [tab, setTab] = useState<ContractTab>("identificacao")
   const [statusFilter, setStatusFilter] = useState(searchParams.get("status") || "")
   const [resendTarget, setResendTarget] = useState<ContractRow | null>(null)
   const [resending, setResending] = useState(false)
@@ -208,6 +223,7 @@ export function ContractTable({
 
   function handleCancel() {
     form.reset()
+    setTab("identificacao")
     setEditDialog({ open: false })
   }
 
@@ -300,135 +316,166 @@ export function ContractTable({
   }, [canUpdate, canDelete, setEditDialog, setDeleteDialog, setResendTarget, setExtraHoursTarget, usageMonthLabel])
 
   const newDialog = (
-    <Dialog open={editDialog.open} onOpenChange={(open) => { setEditDialog({ open, entity: open ? editDialog.entity : undefined }); if (!open) form.reset() }}>
+    <Dialog
+      open={editDialog.open}
+      onOpenChange={(open) => {
+        setEditDialog({ open, entity: open ? editDialog.entity : undefined })
+        if (!open) {
+          form.reset()
+          setTab("identificacao")
+        }
+      }}
+    >
       <DialogTrigger render={<Button><Plus className="h-4 w-4 mr-2" /> Novo Contrato</Button>} />
-      <DialogContent>
+      <DialogContent className="h-auto max-h-[70vh] w-auto min-w-[min(40rem,90vw)] max-w-[70vw]">
         <DialogHeader>
           <DialogTitle>{editDialog.entity ? "Editar Contrato" : "Novo Contrato"}</DialogTitle>
         </DialogHeader>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="flex min-h-0 flex-1 flex-col overflow-hidden">
+        <form
+          onSubmit={form.handleSubmit(onSubmit, (errors) => {
+            const first = Object.keys(errors)[0]
+            if (first) setTab(CONTRACT_FIELD_TAB[first] ?? "identificacao")
+          })}
+          className="flex min-h-0 flex-1 flex-col overflow-hidden"
+        >
         <DialogBody>
-          <Field>
-            <FieldLabel htmlFor="clientId">Cliente</FieldLabel>
-            <Select
-              items={clients.map((c) => ({ value: c.id, label: c.name }))}
-              value={form.watch("clientId") || null}
-              onValueChange={(v) => form.setValue("clientId", v || "", { shouldValidate: true })}
-            >
-              <SelectTrigger className="w-full" aria-invalid={!!form.formState.errors.clientId}>
-                <SelectValue placeholder="Selecione um cliente">
-                  {(value: string) => {
-                    const client = clients.find((c) => c.id === value)
-                    return client ? <ColorBadge label={client.name} color={client.color} solid /> : "Selecione um cliente"
-                  }}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                {clients.map((c) => (
-                  <SelectItem key={c.id} value={c.id}>
-                    <ColorBadge label={c.name} color={c.color} solid />
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <FieldError errors={[form.formState.errors.clientId]} />
-          </Field>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <Field>
-              <FieldLabel htmlFor="contractedHours">Horas Contratadas</FieldLabel>
-              <Controller
-                control={form.control}
-                name="contractedHours"
-                render={({ field }) => (
-                  <Input
-                    id="contractedHours"
-                    inputMode="decimal"
-                    value={formatDecimal(String(Math.round((field.value || 0) * 100)))}
-                    onChange={(e) => {
-                      const digits = e.target.value.replace(/\D/g, "")
-                      field.onChange(digits ? Number(digits) / 100 : 0)
-                    }}
-                    placeholder="0,00"
-                    aria-invalid={!!form.formState.errors.contractedHours}
+          <Tabs value={tab} onValueChange={(v) => setTab(v as ContractTab)}>
+            <TabsList className="w-full">
+              <TabsTrigger value="identificacao" className="flex-1">Identificação</TabsTrigger>
+              <TabsTrigger value="vigencia" className="flex-1">Vigência</TabsTrigger>
+              <TabsTrigger value="notificacoes" className="flex-1">Notificações</TabsTrigger>
+              <TabsTrigger value="complementares" className="flex-1">Info. Complementares</TabsTrigger>
+            </TabsList>
+            <TabsContent value="identificacao" className="mt-4 space-y-4">
+              <Field>
+                <FieldLabel htmlFor="clientId">Cliente</FieldLabel>
+                <Select
+                  items={clients.map((c) => ({ value: c.id, label: c.name }))}
+                  value={form.watch("clientId") || null}
+                  onValueChange={(v) => form.setValue("clientId", v || "", { shouldValidate: true })}
+                >
+                  <SelectTrigger className="w-full" aria-invalid={!!form.formState.errors.clientId}>
+                    <SelectValue placeholder="Selecione um cliente">
+                      {(value: string) => {
+                        const client = clients.find((c) => c.id === value)
+                        return client ? <ColorBadge label={client.name} color={client.color} solid /> : "Selecione um cliente"
+                      }}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {clients.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        <ColorBadge label={c.name} color={c.color} solid />
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <FieldError errors={[form.formState.errors.clientId]} />
+              </Field>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <Field>
+                  <FieldLabel htmlFor="contractedHours">Horas Contratadas</FieldLabel>
+                  <Controller
+                    control={form.control}
+                    name="contractedHours"
+                    render={({ field }) => (
+                      <Input
+                        id="contractedHours"
+                        inputMode="decimal"
+                        value={formatDecimal(String(Math.round((field.value || 0) * 100)))}
+                        onChange={(e) => {
+                          const digits = e.target.value.replace(/\D/g, "")
+                          field.onChange(digits ? Number(digits) / 100 : 0)
+                        }}
+                        placeholder="0,00"
+                        aria-invalid={!!form.formState.errors.contractedHours}
+                      />
+                    )}
                   />
-                )}
-              />
-              <FieldError errors={[form.formState.errors.contractedHours]} />
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="status">Status</FieldLabel>
-              <Select
-                items={Object.entries(STATUS_LABELS).map(([value, label]) => ({ value, label }))}
-                value={form.watch("status") || "ACTIVE"}
-                onValueChange={(v) => form.setValue("status", v as CreateContractInput["status"] || "ACTIVE")}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue>
-                    {(value: string) =>
-                      value ? <ColorBadge label={STATUS_LABELS[value]} color={STATUS_COLORS[value]} /> : "Selecione"
-                    }
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  {Object.entries(STATUS_LABELS).map(([value, label]) => (
-                    <SelectItem key={value} value={value}>
-                      <ColorBadge label={label} color={STATUS_COLORS[value]} />
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </Field>
-          </div>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <Field>
-              <FieldLabel htmlFor="startDate">Início</FieldLabel>
-              <DatePicker
-                id="startDate"
-                value={form.watch("startDate") || ""}
-                onValueChange={(v) => form.setValue("startDate", v, { shouldValidate: true })}
-                aria-invalid={!!form.formState.errors.startDate}
-              />
-              <FieldError errors={[form.formState.errors.startDate]} />
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="endDate">Término (opcional)</FieldLabel>
-              <DatePicker
-                id="endDate"
-                value={form.watch("endDate") || ""}
-                onValueChange={(v) => {
-                  form.setValue("endDate", v)
-                  // Sem data de término não há como estar expirado: volta para ativo.
-                  if (!v && form.getValues("status") === "EXPIRED") form.setValue("status", "ACTIVE")
-                }}
-                aria-invalid={!!form.formState.errors.endDate}
-              />
-              <FieldError errors={[form.formState.errors.endDate]} />
-            </Field>
-          </div>
-          <Field orientation="horizontal">
-            <Switch
-              id="notifyClient"
-              checked={!!form.watch("notifyClient")}
-              onCheckedChange={(checked) => form.setValue("notifyClient", checked)}
-            />
-            <div className="flex flex-col gap-1">
-              <FieldLabel htmlFor="notifyClient">Notificar cliente por e-mail</FieldLabel>
-              <FieldDescription>
-                Envia ao cliente os alertas de consumo (80%, 85%, 90%, 95% e 100% das horas do mês), com o e-mail de alertas em cópia.
-              </FieldDescription>
-              {form.watch("notifyClient") && selectedClient && !selectedClient.email && (
-                <p className="flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400">
-                  <TriangleAlert className="h-3.5 w-3.5" />
-                  Este cliente não tem e-mail cadastrado — o alerta irá apenas para o e-mail de alertas.
-                </p>
-              )}
-            </div>
-          </Field>
-          <Field>
-            <FieldLabel htmlFor="notes">Observações</FieldLabel>
-            <Textarea id="notes" {...form.register("notes")} placeholder="Observações (opcional)" aria-invalid={!!form.formState.errors.notes} />
-            <FieldError errors={[form.formState.errors.notes]} />
-          </Field>
+                  <FieldError errors={[form.formState.errors.contractedHours]} />
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor="status">Status</FieldLabel>
+                  <Select
+                    items={Object.entries(STATUS_LABELS).map(([value, label]) => ({ value, label }))}
+                    value={form.watch("status") || "ACTIVE"}
+                    onValueChange={(v) => form.setValue("status", v as CreateContractInput["status"] || "ACTIVE")}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue>
+                        {(value: string) =>
+                          value ? <ColorBadge label={STATUS_LABELS[value]} color={STATUS_COLORS[value]} /> : "Selecione"
+                        }
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Object.entries(STATUS_LABELS).map(([value, label]) => (
+                        <SelectItem key={value} value={value}>
+                          <ColorBadge label={label} color={STATUS_COLORS[value]} />
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </Field>
+              </div>
+            </TabsContent>
+            <TabsContent value="vigencia" className="mt-4 space-y-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <Field>
+                  <FieldLabel htmlFor="startDate">Início</FieldLabel>
+                  <DatePicker
+                    id="startDate"
+                    value={form.watch("startDate") || ""}
+                    onValueChange={(v) => form.setValue("startDate", v, { shouldValidate: true })}
+                    aria-invalid={!!form.formState.errors.startDate}
+                  />
+                  <FieldError errors={[form.formState.errors.startDate]} />
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor="endDate">Término (opcional)</FieldLabel>
+                  <DatePicker
+                    id="endDate"
+                    value={form.watch("endDate") || ""}
+                    onValueChange={(v) => {
+                      form.setValue("endDate", v)
+                      // Sem data de término não há como estar expirado: volta para ativo.
+                      if (!v && form.getValues("status") === "EXPIRED") form.setValue("status", "ACTIVE")
+                    }}
+                    aria-invalid={!!form.formState.errors.endDate}
+                  />
+                  <FieldError errors={[form.formState.errors.endDate]} />
+                </Field>
+              </div>
+            </TabsContent>
+            <TabsContent value="notificacoes" className="mt-4 space-y-4">
+              <Field orientation="horizontal">
+                <Switch
+                  id="notifyClient"
+                  checked={!!form.watch("notifyClient")}
+                  onCheckedChange={(checked) => form.setValue("notifyClient", checked)}
+                />
+                <div className="flex flex-col gap-1">
+                  <FieldLabel htmlFor="notifyClient">Notificar cliente por e-mail</FieldLabel>
+                  <FieldDescription>
+                    Envia ao cliente os alertas de consumo (80%, 85%, 90%, 95% e 100% das horas do mês), com o e-mail de alertas em cópia.
+                  </FieldDescription>
+                  {form.watch("notifyClient") && selectedClient && !selectedClient.email && (
+                    <p className="flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400">
+                      <TriangleAlert className="h-3.5 w-3.5" />
+                      Este cliente não tem e-mail cadastrado — o alerta irá apenas para o e-mail de alertas.
+                    </p>
+                  )}
+                </div>
+              </Field>
+            </TabsContent>
+            <TabsContent value="complementares" className="mt-4 space-y-4">
+              <Field>
+                <FieldLabel htmlFor="notes">Observações</FieldLabel>
+                <Textarea id="notes" {...form.register("notes")} placeholder="Observações (opcional)" aria-invalid={!!form.formState.errors.notes} />
+                <FieldError errors={[form.formState.errors.notes]} />
+              </Field>
+            </TabsContent>
+          </Tabs>
         </DialogBody>
         <DialogFooter>
           <Button type="button" variant="outline" onClick={handleCancel} disabled={loading}>Cancelar</Button>

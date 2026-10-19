@@ -23,10 +23,14 @@ export interface CreateResult {
 /** Action results shaped `{ success, data?: { id }, error?, errors?: fieldErrors }`. */
 type ActionResult = { success: boolean; data?: unknown; error?: string; errors?: unknown }
 
-/** The FormData-based actions read the same keys as their forms; all values are already strings. */
+/** The FormData-based actions read the same keys as their forms; arrays become repeated keys (like the forms' multi-selects). */
 function toFormData(input: Record<string, unknown>): FormData {
   const fd = new FormData()
   for (const [key, value] of Object.entries(input)) {
+    if (Array.isArray(value)) {
+      for (const item of value) fd.append(key, String(item))
+      continue
+    }
     if (value === undefined || value === null || typeof value === "object") continue
     fd.append(key, String(value))
   }
