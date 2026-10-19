@@ -876,11 +876,30 @@ model ClientContract {
   createdAt       DateTime       @default(now()) @map("created_at")
   updatedAt       DateTime       @updatedAt @map("updated_at")
 
-  client   Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  projects Project[]
+  client     Client               @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  projects   Project[]
+  extraHours ContractExtraHours[]
 
   @@index([clientId, status])
   @@map("client_contracts")
+}
+
+/// Additional hours bought for one specific month — added to that month's allowance without
+/// changing ClientContract.contractedHours. Several entries per month are allowed (history).
+model ContractExtraHours {
+  id          String   @id @default(uuid())
+  contractId  String   @map("contract_id")
+  /// "2026-10" — same format as periodKey() in lib/contract-usage.ts.
+  period      String
+  hours       Float
+  notes       String?  @db.Text
+  createdById String?  @map("created_by_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  contract ClientContract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+
+  @@index([contractId, period])
+  @@map("contract_extra_hours")
 }
 
 /// One row per (client, month, threshold) already alerted — guarantees each usage threshold

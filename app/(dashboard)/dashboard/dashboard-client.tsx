@@ -71,6 +71,8 @@ interface DashboardClientProps {
     clientColor: string
     usedHours: number
     contractedHours: number
+    baseHours: number
+    extraHours: number
     percent: number
     level: UsageLevel
   }>
@@ -303,6 +305,8 @@ export function DashboardClient({
                         <ContractUsageBar
                           usedHours={c.usedHours}
                           contractedHours={c.contractedHours}
+                          baseHours={c.baseHours}
+                          extraHours={c.extraHours}
                           percent={c.percent}
                           level={c.level}
                         />

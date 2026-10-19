@@ -1,9 +1,9 @@
 import { prisma } from "@/lib/prisma";
 import { contractUsageService, type ClientMonthlyUsage } from "@/services/contract-usage.service";
-import { currentMonth } from "@/lib/contract-usage";
+import { currentMonth, periodKey } from "@/lib/contract-usage";
 import { findBlockingReferences, formatBlockingReferences, type BlockingReference } from "@/lib/entity-relations";
 import { assertClientAllowed } from "@/lib/client-access";
-import type { CreateContractInput, UpdateContractInput } from "@/schemas/contract.schema";
+import type { AddExtraHoursInput, CreateContractInput, UpdateContractInput } from "@/schemas/contract.schema";
 import type { ListParams } from "@/types/common";
 import type { BulkDeleteResult } from "@/repositories/base.repository";
 import { safeOrderBy } from "@/lib/sort";
@@ -15,16 +15,32 @@ const includeRelations = {
 /** Field the contracts table sorts the "Consumo (mês)" column by — computed, so sorted in memory. */
 const USAGE_SORT_FIELD = "usagePercent";
 
-type ContractUsage = Pick<ClientMonthlyUsage, "usedHours" | "demandHours" | "projectHours" | "contractedHours" | "percent" | "level">;
+type ContractUsage = Pick<
+  ClientMonthlyUsage,
+  "usedHours" | "demandHours" | "projectHours" | "contractedHours" | "baseHours" | "extraHours" | "percent" | "level"
+>;
 
 type Month = { year: number; month: number };
+
+/** Extra hours rows are part of the contract (deleted with it), so they never block its deletion. */
+const DELETE_IGNORED_MODELS = ["ContractExtraHours"];
 
 /** Attaches `month`'s consumption to every contract in force that month (consumption is per client,
  *  so contracts of the same client share it — and demands launched before the contract existed still
  *  count, since usage is the client's demand time in the month); other contracts get `usage: null`. */
 async function withMonthlyUsage<T extends { id: string; clientId: string }>(organizationId: string, contracts: T[], month: Month) {
   const clientIds = [...new Set(contracts.map((c) => c.clientId))];
-  const usages = clientIds.length ? await contractUsageService.getMonthlyUsage(organizationId, month, clientIds) : [];
+  const [usages, extras] = clientIds.length
+    ? await Promise.all([
+        contractUsageService.getMonthlyUsage(organizationId, month, clientIds),
+        prisma.contractExtraHours.groupBy({
+          by: ["contractId"],
+          where: { contractId: { in: contracts.map((c) => c.id) }, period: periodKey(month) },
+          _sum: { hours: true },
+        }),
+      ])
+    : [[], []];
+  const extraByContractId = new Map(extras.map((e) => [e.contractId, e._sum.hours ?? 0]));
   const usageByContractId = new Map<string, ContractUsage>();
   for (const u of usages) {
     for (const contractId of u.contractIds) {
@@ -33,12 +49,15 @@ async function withMonthlyUsage<T extends { id: string; clientId: string }>(orga
         demandHours: u.demandHours,
         projectHours: u.projectHours,
         contractedHours: u.contractedHours,
+        baseHours: u.baseHours,
+        extraHours: u.extraHours,
         percent: u.percent,
         level: u.level,
       });
     }
   }
-  return contracts.map((c) => ({ ...c, usage: usageByContractId.get(c.id) ?? null }));
+  // `monthExtraHours`: this contract's own extras in the month (usage.extraHours is per client).
+  return contracts.map((c) => ({ ...c, monthExtraHours: extraByContractId.get(c.id) ?? 0, usage: usageByContractId.get(c.id) ?? null }));
 }
 
 export const contractService = {
@@ -150,7 +169,7 @@ export const contractService = {
       where: { id, clientId: { in: allowedClientIds }, client: { organizationId } },
     });
     if (!existing) throw new Error("Contrato não encontrado");
-    const reasons = await findBlockingReferences("ClientContract", id);
+    const reasons = await findBlockingReferences("ClientContract", id, { ignoreModels: DELETE_IGNORED_MODELS });
     if (reasons.length > 0) {
       throw new Error(`Não é possível excluir: registro em uso em ${formatBlockingReferences(reasons)}.`);
     }
@@ -166,7 +185,7 @@ export const contractService = {
     const blocked: { id: string; reasons: BlockingReference[] }[] = [];
     const deletableIds: string[] = [];
     for (const contract of owned) {
-      const reasons = await findBlockingReferences("ClientContract", contract.id);
+      const reasons = await findBlockingReferences("ClientContract", contract.id, { ignoreModels: DELETE_IGNORED_MODELS });
       if (reasons.length > 0) blocked.push({ id: contract.id, reasons });
       else deletableIds.push(contract.id);
     }
@@ -175,5 +194,36 @@ export const contractService = {
       await prisma.clientContract.deleteMany({ where: { id: { in: deletableIds } } });
     }
     return { deletedCount: deletableIds.length, deletedIds: deletableIds, blocked };
+  },
+
+  /** Extra hours launched for the contract in `period` ("2026-10"), newest first. */
+  async listExtraHours(contractId: string, period: string, organizationId: string, allowedClientIds: string[]) {
+    return prisma.contractExtraHours.findMany({
+      where: { contractId, period, contract: { clientId: { in: allowedClientIds }, client: { organizationId } } },
+      orderBy: { createdAt: "desc" },
+      select: { id: true, period: true, hours: true, notes: true, createdAt: true },
+    });
+  },
+
+  async addExtraHours(input: AddExtraHoursInput, userId: string, organizationId: string, allowedClientIds: string[]) {
+    const contract = await prisma.clientContract.findFirst({
+      where: { id: input.contractId, clientId: { in: allowedClientIds }, client: { organizationId } },
+      select: { id: true, clientId: true, client: { select: { name: true } } },
+    });
+    if (!contract) throw new Error("Contrato não encontrado");
+    const entry = await prisma.contractExtraHours.create({
+      data: { contractId: contract.id, period: input.period, hours: input.hours, notes: input.notes || null, createdById: userId },
+    });
+    return { entry, contract };
+  },
+
+  async deleteExtraHours(id: string, organizationId: string, allowedClientIds: string[]) {
+    const entry = await prisma.contractExtraHours.findFirst({
+      where: { id, contract: { clientId: { in: allowedClientIds }, client: { organizationId } } },
+      include: { contract: { select: { clientId: true, client: { select: { name: true } } } } },
+    });
+    if (!entry) throw new Error("Lançamento de horas extras não encontrado");
+    await prisma.contractExtraHours.delete({ where: { id } });
+    return entry;
   },
 };

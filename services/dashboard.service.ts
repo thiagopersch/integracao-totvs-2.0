@@ -199,12 +199,14 @@ export const dashboardService = {
     // Every contract in force for the clients linked to the user, highest consumption first.
     const contractsUsage = monthlyUsage
       .sort((a, b) => b.percent - a.percent)
-      .map(({ clientId, clientName, clientColor, usedHours, contractedHours, percent, level }) => ({
+      .map(({ clientId, clientName, clientColor, usedHours, contractedHours, baseHours, extraHours, percent, level }) => ({
         clientId,
         clientName,
         clientColor,
         usedHours,
         contractedHours,
+        baseHours,
+        extraHours,
         percent,
         level,
       }));
@@ -257,7 +259,16 @@ export const dashboardService = {
     const tagIds = demandsByTagRaw.map((d) => d.tagId);
     const analystIds = demandsByAnalystRaw.map((d) => d.analystId);
     const clientIdsForDemands = demandsByClientRaw.map((d) => d.clientId);
+    // Allowance + the extra hours launched for the selected period's months (current month without one).
+    const extraHoursByClientId = await contractUsageService.getExtraHoursByClient(
+      organizationId,
+      allowedClientIds,
+      period ?? periodToDateRange(attentionMonth)
+    );
     const contractedHoursByClientId = new Map(contractsByClient.map((c) => [c.clientId, c._sum.contractedHours || 0]));
+    for (const [clientId, extra] of extraHoursByClientId) {
+      contractedHoursByClientId.set(clientId, (contractedHoursByClientId.get(clientId) || 0) + extra);
+    }
     const spentMinutesByClientId = new Map(demandMinutesByClient.map((d) => [d.clientId, d._sum.durationMinutes || 0]));
     const rankingClientIds = Array.from(new Set([...contractedHoursByClientId.keys(), ...spentMinutesByClientId.keys()]));
 

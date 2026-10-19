@@ -18,5 +18,13 @@ export const updateContractSchema = createContractSchema.partial({
   startDate: true,
 });
 
+export const addExtraHoursSchema = z.object({
+  contractId: z.string().min(1, "Contrato é obrigatório"),
+  period: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, "Mês inválido"),
+  hours: z.coerce.number().min(0.01, "Horas devem ser maiores que zero").max(10000, "Horas demais"),
+  notes: z.string().max(2000, "Observações devem ter no máximo 2000 caracteres").optional(),
+});
+
 export type CreateContractInput = z.output<typeof createContractSchema>;
 export type UpdateContractInput = z.output<typeof updateContractSchema>;
+export type AddExtraHoursInput = z.output<typeof addExtraHoursSchema>;

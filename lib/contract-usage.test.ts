@@ -5,6 +5,7 @@ import {
   monthForPeriod,
   pendingThresholds,
   periodKey,
+  periodKeysInRange,
   sumMinutesByClient,
   usageLevel,
   usagePercent,
@@ -72,5 +73,23 @@ describe("sumMinutesByClient", () => {
     expect(result.get("c1")).toEqual({ totalMinutes: 120, projectMinutes: 45 })
     expect(result.get("c2")).toEqual({ totalMinutes: 30, projectMinutes: 0 })
     expect(result.size).toBe(2)
+  })
+})
+
+describe("periodKeysInRange", () => {
+  it("lists the month of a month range", () => {
+    expect(periodKeysInRange({ gte: new Date(Date.UTC(2026, 9, 1)), lt: new Date(Date.UTC(2026, 10, 1)) })).toEqual(["2026-10"])
+  })
+
+  it("lists every month of a year range, crossing into the next year correctly", () => {
+    const keys = periodKeysInRange({ gte: new Date(Date.UTC(2026, 0, 1)), lt: new Date(Date.UTC(2027, 0, 1)) })
+    expect(keys).toHaveLength(12)
+    expect(keys[0]).toBe("2026-01")
+    expect(keys[11]).toBe("2026-12")
+    expect(periodKeysInRange({ gte: new Date(Date.UTC(2026, 10, 1)), lt: new Date(Date.UTC(2027, 1, 1)) })).toEqual([
+      "2026-11",
+      "2026-12",
+      "2027-01",
+    ])
   })
 })

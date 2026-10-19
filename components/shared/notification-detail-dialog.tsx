@@ -45,6 +45,8 @@ type NotificationData = {
   percent?: number
   usedHours?: number
   contractedHours?: number
+  baseHours?: number
+  extraHours?: number
   periodLabel?: string
 } | null
 
@@ -169,6 +171,8 @@ export function NotificationDetailDialog({ open, onOpenChange, notification }: N
                 <ContractUsageBar
                   usedHours={data.usedHours}
                   contractedHours={data.contractedHours}
+                  baseHours={data.baseHours}
+                  extraHours={data.extraHours}
                   percent={data.percent}
                   level={usageLevel(data.percent)}
                 />

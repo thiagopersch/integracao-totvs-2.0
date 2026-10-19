@@ -32,6 +32,7 @@ const DEFAULTS: Record<MessageTemplateEvent, DefaultTemplate> = {
           cells: [
             ["Resumo do mês", "Horas"],
             ["Horas contratadas", "{{contractedHours}}"],
+            ["Horas do contrato + extras do mês", "{{baseHours}} + {{extraHours}}"],
             ["Horas utilizadas", "{{usedHours}}"],
             ["Saldo restante", "{{remainingHours}}"],
             ["Horas excedentes", "{{exceededHours}}"],

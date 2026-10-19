@@ -16,6 +16,7 @@ import { createSelectColumn } from "@/components/shared/select-column"
 import { DateCell } from "@/components/shared/date-cell"
 import { ColorBadge } from "@/components/shared/color-badge"
 import { ContractUsageBar } from "@/components/shared/contract-usage-bar"
+import { ContractExtraHoursDialog } from "@/components/shared/contract-extra-hours-dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -39,7 +40,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { DatePicker } from "@/components/ui/date-picker"
-import { Plus, Loader2, TriangleAlert, Send } from "lucide-react"
+import { Plus, Loader2, TriangleAlert, Send, Clock } from "lucide-react"
 import {
   deleteContract,
   createContract,
@@ -67,8 +68,19 @@ type ContractRow = {
   notifyClient: boolean
   notes: string | null
   client: { id: string; name: string; color: string; email: string | null }
+  /** This contract's extra hours launched for the month being viewed (added to that month only). */
+  monthExtraHours: number
   /** Consumption (per client) of the month being viewed — null when the contract isn't in force that month. */
-  usage: { usedHours: number; demandHours?: number; projectHours?: number; contractedHours: number; percent: number; level: UsageLevel } | null
+  usage: {
+    usedHours: number
+    demandHours?: number
+    projectHours?: number
+    contractedHours: number
+    baseHours?: number
+    extraHours?: number
+    percent: number
+    level: UsageLevel
+  } | null
 }
 
 interface ContractTableProps {
@@ -133,6 +145,7 @@ export function ContractTable({
   const [statusFilter, setStatusFilter] = useState(searchParams.get("status") || "")
   const [resendTarget, setResendTarget] = useState<ContractRow | null>(null)
   const [resending, setResending] = useState(false)
+  const [extraHoursTarget, setExtraHoursTarget] = useState<ContractRow | null>(null)
   const { period, setPeriod, isPending: isPeriodPending } = usePeriodFilter(initialPeriod)
 
   async function handleResend() {
@@ -219,7 +232,19 @@ export function ContractTable({
     {
       accessorKey: "contractedHours",
       header: "Horas Contratadas",
-      cell: ({ row }) => (row.getValue("contractedHours") as number).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+      cell: ({ row }) => {
+        const base = (row.getValue("contractedHours") as number).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+        const extra = row.original.monthExtraHours
+        if (!extra) return base
+        return (
+          <span className="tabular-nums">
+            {base}{" "}
+            <span className="text-xs font-medium text-emerald-600 dark:text-emerald-400">
+              + {extra.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} extra
+            </span>
+          </span>
+        )
+      },
     },
     {
       id: "usagePercent",
@@ -257,9 +282,14 @@ export function ContractTable({
         onDelete={canDelete ? () => setDeleteDialog({ open: true, id: row.original.id }) : undefined}
         extraItems={
           canUpdate ? (
-            <DropdownMenuItem onClick={() => setResendTarget(row.original)}>
-              <Send className="mr-2 h-4 w-4" /> Reenviar notificação de consumo
-            </DropdownMenuItem>
+            <>
+              <DropdownMenuItem onClick={() => setExtraHoursTarget(row.original)}>
+                <Clock className="mr-2 h-4 w-4" /> Horas extras do mês
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setResendTarget(row.original)}>
+                <Send className="mr-2 h-4 w-4" /> Reenviar notificação de consumo
+              </DropdownMenuItem>
+            </>
           ) : undefined
         }
       />
@@ -267,7 +297,7 @@ export function ContractTable({
   }
     if (canUpdate || canDelete) columns.push(actionsColumn)
     return columns
-  }, [canUpdate, canDelete, setEditDialog, setDeleteDialog, setResendTarget, usageMonthLabel])
+  }, [canUpdate, canDelete, setEditDialog, setDeleteDialog, setResendTarget, setExtraHoursTarget, usageMonthLabel])
 
   const newDialog = (
     <Dialog open={editDialog.open} onOpenChange={(open) => { setEditDialog({ open, entity: open ? editDialog.entity : undefined }); if (!open) form.reset() }}>
@@ -495,6 +525,14 @@ export function ContractTable({
         confirmLabel="Excluir"
         variant="destructive"
         onConfirm={() => deleteDialog.id && handleDelete(deleteDialog.id)}
+      />
+
+      <ContractExtraHoursDialog
+        contract={extraHoursTarget ? (data.find((c) => c.id === extraHoursTarget.id) ?? extraHoursTarget) : null}
+        month={usageMonth}
+        monthLabel={usageMonthLabel}
+        onOpenChange={(open) => !open && setExtraHoursTarget(null)}
+        onChanged={refresh}
       />
 
       <ConfirmDialog

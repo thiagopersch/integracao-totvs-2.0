@@ -3,9 +3,9 @@
 import { updateTag } from "next/cache";
 import { contractService } from "@/services/contract.service";
 import { contractUsageService } from "@/services/contract-usage.service";
-import { currentMonth } from "@/lib/contract-usage";
+import { currentMonth, formatHours, formatMonthLabel } from "@/lib/contract-usage";
 import { auditService } from "@/services/audit.service";
-import { createContractSchema, updateContractSchema } from "@/schemas/contract.schema";
+import { addExtraHoursSchema, createContractSchema, updateContractSchema } from "@/schemas/contract.schema";
 import { requirePermission } from "@/lib/rbac";
 import { formatBlockingReferences } from "@/lib/entity-relations";
 function parseContractForm(formData: FormData) {
@@ -135,6 +135,78 @@ export async function resendContractUsageNotification(contractId: string, month?
       default:
         return { success: false, error: "Nada a enviar." };
     }
+  } catch (error) {
+    return { success: false, error: (error as Error).message };
+  }
+}
+
+/** "2026-10" → first UTC day of that month (the usage check buckets by month). */
+function periodStart(period: string) {
+  const [year, month] = period.split("-").map(Number);
+  return { date: new Date(Date.UTC(year, month - 1, 1)), label: formatMonthLabel({ year, month }) };
+}
+
+const PERIOD_RE = /^\d{4}-(0[1-9]|1[0-2])$/;
+
+/** Extra hours launched for a contract in `period` ("2026-10"). */
+export async function listContractExtraHours(contractId: string, period: string) {
+  const { organizationId, allowedClientIds } = await requirePermission("contracts", "read");
+  if (!PERIOD_RE.test(period)) return { success: false as const, error: "Mês inválido" };
+  const data = await contractService.listExtraHours(contractId, period, organizationId, allowedClientIds);
+  return { success: true as const, data };
+}
+
+/**
+ * "Horas extras do mês": adds hours to the contract's allowance for one month only — the contract's
+ * own `contractedHours` (and every other month) stays untouched.
+ */
+export async function addContractExtraHours(formData: FormData) {
+  const { organizationId, userId, allowedClientIds } = await requirePermission("contracts", "update");
+  const parsed = addExtraHoursSchema.safeParse({
+    contractId: formData.get("contractId") as string,
+    period: formData.get("period") as string,
+    hours: formData.get("hours") ? Number(formData.get("hours")) : undefined,
+    notes: (formData.get("notes") as string) || undefined,
+  });
+  if (!parsed.success) {
+    return { success: false, error: "Dados inválidos", errors: parsed.error.flatten().fieldErrors };
+  }
+
+  try {
+    const { entry, contract } = await contractService.addExtraHours(parsed.data, userId, organizationId, allowedClientIds);
+    const { date, label } = periodStart(entry.period);
+    await auditService.log({
+      action: "UPDATE",
+      entity: "ClientContract",
+      entityId: contract.id,
+      newData: { name: `Horas extras +${formatHours(entry.hours)} — ${label} — ${contract.client.name}`, hours: entry.hours, period: entry.period },
+    });
+    // The month's allowance grew: consumption % drops; a later demand re-evaluates thresholds.
+    contractUsageService.scheduleCheck(organizationId, [{ clientId: contract.clientId, date, trigger: "contract" }]);
+    updateTag("contracts");
+    updateTag("dashboard");
+    return { success: true, data: entry };
+  } catch (error) {
+    return { success: false, error: (error as Error).message };
+  }
+}
+
+export async function deleteContractExtraHours(id: string) {
+  const { organizationId, allowedClientIds } = await requirePermission("contracts", "update");
+  try {
+    const entry = await contractService.deleteExtraHours(id, organizationId, allowedClientIds);
+    const { date, label } = periodStart(entry.period);
+    await auditService.log({
+      action: "UPDATE",
+      entity: "ClientContract",
+      entityId: entry.contractId,
+      oldData: { hours: entry.hours, period: entry.period },
+      newData: { name: `Horas extras removidas (${formatHours(entry.hours)}) — ${label} — ${entry.contract.client.name}` },
+    });
+    contractUsageService.scheduleCheck(organizationId, [{ clientId: entry.contract.clientId, date, trigger: "contract" }]);
+    updateTag("contracts");
+    updateTag("dashboard");
+    return { success: true };
   } catch (error) {
     return { success: false, error: (error as Error).message };
   }

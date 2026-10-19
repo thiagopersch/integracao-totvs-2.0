@@ -10,6 +10,7 @@ import {
   monthOf,
   pendingThresholds,
   periodKey,
+  periodKeysInRange,
   usageLevel,
   usagePercent,
   type UsageLevel,
@@ -26,7 +27,12 @@ export type ClientMonthlyUsage = {
   clientName: string;
   clientColor: string;
   clientEmail: string | null;
+  /** Hours available in the month: `baseHours` + `extraHours`. */
   contractedHours: number;
+  /** Monthly allowance of the contracts (ClientContract.contractedHours). */
+  baseHours: number;
+  /** Extra hours bought for this month only (ContractExtraHours). */
+  extraHours: number;
   /** All demand hours of the client in the month (= demandHours + projectHours). */
   usedHours: number;
   /** Demands not linked to a project ("avulsas"). */
@@ -49,6 +55,7 @@ const round2 = (n: number) => Math.round(n * 100) / 100;
  * retroactive demands of a since-EXPIRED contract still count). Demands have no contract FK, so
  * usage is the client's demand time inside the month, same scoping the dashboard ranking uses.
  * Project hours are demands too (linked via Demand.projectId), so they're counted once.
+ * Extra hours launched for the month (ContractExtraHours) add to the allowance of that month only.
  */
 async function getMonthlyUsage(organizationId: string, month: Month, clientIds?: string[]): Promise<ClientMonthlyUsage[]> {
   const range = periodToDateRange(month)!;
@@ -66,6 +73,7 @@ async function getMonthlyUsage(organizationId: string, month: Month, clientIds?:
       contractedHours: true,
       notifyClient: true,
       client: { select: { name: true, color: true, email: true } },
+      extraHours: { where: { period: periodKey(month) }, select: { hours: true } },
     },
   });
   if (contracts.length === 0) return [];
@@ -99,6 +107,8 @@ async function getMonthlyUsage(organizationId: string, month: Month, clientIds?:
       clientColor: contract.client.color,
       clientEmail: contract.client.email?.trim() || null,
       contractedHours: 0,
+      baseHours: 0,
+      extraHours: 0,
       usedHours: round2((minutes?.totalMinutes ?? 0) / 60),
       demandHours: round2(((minutes?.totalMinutes ?? 0) - (minutes?.projectMinutes ?? 0)) / 60),
       projectHours: round2((minutes?.projectMinutes ?? 0) / 60),
@@ -108,7 +118,10 @@ async function getMonthlyUsage(organizationId: string, month: Month, clientIds?:
       contractIds: [],
       demandsCount: demandsCountByClientId.get(contract.clientId) ?? 0,
     };
-    entry.contractedHours = round2(entry.contractedHours + contract.contractedHours);
+    const extra = contract.extraHours.reduce((sum, e) => sum + e.hours, 0);
+    entry.baseHours = round2(entry.baseHours + contract.contractedHours);
+    entry.extraHours = round2(entry.extraHours + extra);
+    entry.contractedHours = round2(entry.baseHours + entry.extraHours);
     entry.notifyClient ||= contract.notifyClient;
     entry.contractIds.push(contract.id);
     byClient.set(contract.clientId, entry);
@@ -118,6 +131,30 @@ async function getMonthlyUsage(organizationId: string, month: Month, clientIds?:
     const percent = usagePercent(u.usedHours, u.contractedHours);
     return { ...u, percent, level: usageLevel(percent) };
   });
+}
+
+/**
+ * Extra hours (ContractExtraHours) per client launched for the months of `range` — or of the current
+ * month without one, matching the monthly allowance figure they're added to. Contracts CANCELLED or
+ * SUSPENDED don't count, same rule as getMonthlyUsage.
+ */
+async function getExtraHoursByClient(
+  organizationId: string,
+  clientIds: string[],
+  range?: { gte: Date; lt: Date }
+): Promise<Map<string, number>> {
+  if (clientIds.length === 0) return new Map();
+  const periods = range ? periodKeysInRange(range) : [periodKey(monthOf(new Date()))];
+  const rows = await prisma.contractExtraHours.findMany({
+    where: {
+      period: { in: periods },
+      contract: { clientId: { in: clientIds }, status: { notIn: ["CANCELLED", "SUSPENDED"] }, client: { organizationId } },
+    },
+    select: { hours: true, contract: { select: { clientId: true } } },
+  });
+  const result = new Map<string, number>();
+  for (const row of rows) result.set(row.contract.clientId, round2((result.get(row.contract.clientId) ?? 0) + row.hours));
+  return result;
 }
 
 export type UsageCheckTrigger = "demand" | "contract" | "manual";
@@ -202,6 +239,8 @@ async function sendUsageEmail(
       client,
       usedHours: usage.usedHours,
       contractedHours: usage.contractedHours,
+      baseHours: usage.baseHours,
+      extraHours: usage.extraHours,
       percent: usage.percent,
       level: usage.level,
       periodLabel: formatMonthLabel(month),
@@ -268,6 +307,8 @@ async function checkAndNotify(
         percent: usage.percent,
         usedHours: usage.usedHours,
         contractedHours: usage.contractedHours,
+        baseHours: usage.baseHours,
+        extraHours: usage.extraHours,
         period,
         periodLabel: formatMonthLabel(month),
       })
@@ -310,6 +351,7 @@ async function checkMany(organizationId: string, items: UsageCheckItem[]): Promi
 
 export const contractUsageService = {
   getMonthlyUsage,
+  getExtraHoursByClient,
   checkAndNotify,
   checkMany,
 

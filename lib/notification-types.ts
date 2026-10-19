@@ -154,7 +154,10 @@ export function buildContractUsageThresholdNotification(params: {
   threshold: number;
   percent: number;
   usedHours: number;
+  /** Month's total: allowance (`baseHours`) + extra hours launched for the month (`extraHours`). */
   contractedHours: number;
+  baseHours?: number;
+  extraHours?: number;
   period: string;
   periodLabel: string;
 }): BuiltNotification {
@@ -168,7 +171,11 @@ export function buildContractUsageThresholdNotification(params: {
       : `Contrato em atenção — ${params.clientName} (${percentLabel})`,
     body: `O consumo de horas do contrato de ${params.clientName} em ${params.periodLabel} ${
       exceeded ? "excedeu o contratado e chegou a" : "atingiu"
-    } ${percentLabel}: ${hoursLabel(params.usedHours)} de ${hoursLabel(params.contractedHours)}.`,
+    } ${percentLabel}: ${hoursLabel(params.usedHours)} de ${hoursLabel(params.contractedHours)}${
+      params.extraHours
+        ? ` (${hoursLabel(params.baseHours ?? params.contractedHours - params.extraHours)} contratadas + ${hoursLabel(params.extraHours)} extras)`
+        : ""
+    }.`,
     data: {
       href: "/contracts",
       source: "contract",
@@ -179,6 +186,7 @@ export function buildContractUsageThresholdNotification(params: {
       percent: params.percent,
       usedHours: params.usedHours,
       contractedHours: params.contractedHours,
+      ...(params.extraHours ? { baseHours: params.baseHours, extraHours: params.extraHours } : {}),
       period: params.period,
       periodLabel: params.periodLabel,
     },

@@ -60,7 +60,9 @@ export const VARIABLE_CATALOG: VariableGroup[] = [
     events: ["CONTRACT_USAGE"],
     fields: [
       { key: "periodLabel", label: "Mês de referência", example: "outubro/2026" },
-      { key: "contractedHours", label: "Horas contratadas no mês", example: "40h" },
+      { key: "contractedHours", label: "Horas contratadas no mês (contrato + extras)", example: "50h" },
+      { key: "baseHours", label: "Horas do contrato (sem extras)", example: "30h" },
+      { key: "extraHours", label: "Horas extras lançadas no mês", example: "20h" },
       { key: "usedHours", label: "Horas utilizadas no mês", example: "34h" },
       { key: "remainingHours", label: "Saldo de horas", example: "6h" },
       { key: "exceededHours", label: "Horas excedentes", example: "0h" },

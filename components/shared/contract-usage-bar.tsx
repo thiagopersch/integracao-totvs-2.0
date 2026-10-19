@@ -10,12 +10,25 @@ interface ContractUsageBarProps {
   /** Breakdown shown in a tooltip when the client also has project hours (Gestão de Projetos). */
   demandHours?: number
   projectHours?: number
+  /** Monthly allowance / extra hours of the month — shown in the tooltip when there are extras. */
+  baseHours?: number
+  extraHours?: number
   className?: string
 }
 
 /** Monthly contract consumption: "42,5h / 50h · 85%" over a bar tinted by usage level
  *  (green → yellow at 80% → orange at 90% → red at 100%). */
-export function ContractUsageBar({ usedHours, contractedHours, percent, level, demandHours, projectHours, className }: ContractUsageBarProps) {
+export function ContractUsageBar({
+  usedHours,
+  contractedHours,
+  percent,
+  level,
+  demandHours,
+  projectHours,
+  baseHours,
+  extraHours,
+  className,
+}: ContractUsageBarProps) {
   const color = USAGE_LEVEL_COLORS[level]
   const bar = (
     <div className={cn("flex min-w-36 flex-col gap-1", className)}>
@@ -35,10 +48,10 @@ export function ContractUsageBar({ usedHours, contractedHours, percent, level, d
       </div>
     </div>
   )
-  if (!projectHours) return bar
-  return (
-    <WithTooltip label={`Avulsas ${formatHours(demandHours ?? 0)} · Projetos ${formatHours(projectHours)}`}>
-      {bar}
-    </WithTooltip>
-  )
+  const details = [
+    extraHours ? `Franquia ${formatHours(baseHours ?? contractedHours - extraHours)} + extras ${formatHours(extraHours)}` : null,
+    projectHours ? `Avulsas ${formatHours(demandHours ?? 0)} · Projetos ${formatHours(projectHours)}` : null,
+  ].filter(Boolean)
+  if (details.length === 0) return bar
+  return <WithTooltip label={details.join(" — ")}>{bar}</WithTooltip>
 }

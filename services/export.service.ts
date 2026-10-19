@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { assertClientAllowed } from "@/lib/client-access";
 import { demandIncludeRelations } from "@/services/demand.service";
+import { contractUsageService } from "@/services/contract-usage.service";
 
 const DEMAND_STATUS_LABELS: Record<string, string> = {
   PENDING: "Pendente",
@@ -96,6 +97,11 @@ export const exportService = {
     const demandsByClient = clientRaw.map((d) => ({ name: clientNameById.get(d.clientId) || "Desconhecido", value: d._count.id }));
 
     const contractedByClientId = new Map(contractsRaw.map((c) => [c.clientId, c._sum.contractedHours || 0]));
+    // Extra hours launched for the exported period's months (current month without one).
+    const extraByClientId = await contractUsageService.getExtraHoursByClient(organizationId, effectiveClientIds, period);
+    for (const [clientId, extra] of extraByClientId) {
+      contractedByClientId.set(clientId, (contractedByClientId.get(clientId) || 0) + extra);
+    }
     const spentByClientId = new Map(minutesRaw.map((d) => [d.clientId, d._sum.durationMinutes || 0]));
     const rankingClientIds = Array.from(new Set([...contractedByClientId.keys(), ...spentByClientId.keys()]));
     const rankingClients = rankingClientIds.length

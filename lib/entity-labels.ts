@@ -21,6 +21,7 @@ export const ENTITY_LABELS: Record<string, string> = {
   Role: "Papéis",
   Analyst: "Analistas",
   ClientContract: "Contratos",
+  ContractExtraHours: "Horas extras de contrato",
   Requester: "Solicitantes",
   Department: "Departamentos",
   DemandType: "Tipos de Demanda",

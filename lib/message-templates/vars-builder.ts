@@ -90,7 +90,11 @@ export function buildClientVars(client: ClientVarsInput): TemplateVars {
 export interface ContractUsageVarsInput {
   client: ClientVarsInput;
   usedHours: number;
+  /** Month's total (allowance + extra hours). */
   contractedHours: number;
+  /** Contracts' monthly allowance / extra hours launched for the month — default to total / 0. */
+  baseHours?: number;
+  extraHours?: number;
   percent: number;
   level: UsageLevel;
   periodLabel: string;
@@ -119,6 +123,8 @@ export function buildContractUsageVars(input: ContractUsageVarsInput): TemplateV
     ...buildClientVars(input.client),
     periodLabel: input.periodLabel,
     contractedHours: formatHours(input.contractedHours),
+    baseHours: formatHours(input.baseHours ?? input.contractedHours - (input.extraHours ?? 0)),
+    extraHours: formatHours(input.extraHours ?? 0),
     usedHours: formatHours(input.usedHours),
     remainingHours: formatHours(Math.max(balance, 0)),
     exceededHours: formatHours(Math.max(-balance, 0)),

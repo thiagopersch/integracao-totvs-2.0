@@ -68,6 +68,23 @@ export function periodKey(period: { year: number; month: number }): string {
   return `${period.year}-${String(period.month).padStart(2, "0")}`;
 }
 
+/** Every "YYYY-MM" key of the months touched by `[gte, lt)` (UTC) — e.g. a year → 12 keys. Used to
+ *  pick the extra hours (ContractExtraHours.period) of a selected period. */
+export function periodKeysInRange(range: { gte: Date; lt: Date }): string[] {
+  const keys: string[] = [];
+  let year = range.gte.getUTCFullYear();
+  let month = range.gte.getUTCMonth() + 1;
+  while (Date.UTC(year, month - 1, 1) < range.lt.getTime()) {
+    keys.push(periodKey({ year, month }));
+    month += 1;
+    if (month > 12) {
+      month = 1;
+      year += 1;
+    }
+  }
+  return keys;
+}
+
 /** Month a `Demand.date` belongs to — demand dates are stored as UTC midnights (see lib/period.ts). */
 export function monthOf(date: Date): { year: number; month: number } {
   return { year: date.getUTCFullYear(), month: date.getUTCMonth() + 1 };
