@@ -63,11 +63,15 @@ export function useTaskContextMenu({ projectId, stages, phases, team, can, actio
   const [deleting, setDeleting] = useState(false)
 
   async function run(action: () => Promise<{ success: boolean; error?: string; warning?: string }>, done: string) {
-    const result = await action()
-    if (!result.success) return void toast.error(result.error || "Não foi possível alterar a tarefa")
-    if (result.warning) toast.warning(result.warning)
-    else toast.success(done)
-    actions.refresh()
+    try {
+      const result = await action()
+      if (!result.success) return void toast.error(result.error || "Não foi possível alterar a tarefa")
+      if (result.warning) toast.warning(result.warning)
+      else toast.success(done)
+      actions.refresh()
+    } catch {
+      toast.error("Não foi possível alterar a tarefa")
+    }
   }
 
   const patch = (task: TaskMenuTarget, data: Parameters<typeof patchProjectTask>[2], done: string) =>
@@ -218,10 +222,17 @@ export function useTaskContextMenu({ projectId, stages, phases, team, can, actio
     )
   }
 
-  /** Puts the menu on a card (the trigger is a plain block wrapper). */
-  function wrap(task: TaskMenuTarget, children: React.ReactNode) {
+  /**
+   * Puts the menu on a card (the trigger is a plain block wrapper). `blockOpen` vetoes opening — the
+   * kanban uses it while a card is being dragged, so the touch long-press doesn't pop the menu.
+   */
+  function wrap(task: TaskMenuTarget, children: React.ReactNode, opts?: { blockOpen?: () => boolean }) {
     return (
-      <ContextMenu>
+      <ContextMenu
+        onOpenChange={(open, details) => {
+          if (open && opts?.blockOpen?.()) details.cancel()
+        }}
+      >
         <ContextMenuTrigger>{children}</ContextMenuTrigger>
         {content(task)}
       </ContextMenu>
@@ -241,14 +252,30 @@ export function useTaskContextMenu({ projectId, stages, phases, team, can, actio
       onConfirm={async () => {
         if (!toDelete) return
         setDeleting(true)
-        await run(() => deleteProjectTask(projectId, toDelete.id), "Tarefa excluída")
-        setDeleting(false)
-        setToDelete(null)
+        try {
+          await run(() => deleteProjectTask(projectId, toDelete.id), "Tarefa excluída")
+        } finally {
+          setDeleting(false)
+          setToDelete(null)
+        }
       }}
     />
   )
 
   return { content, wrap, dialog }
+}
+
+/**
+ * Opens the context menu of the card that contains `button` (touch screens have no right click):
+ * a synthetic `contextmenu` at the button reuses the same menu and its positioning.
+ */
+export function openTaskMenuFrom(button: HTMLElement) {
+  const trigger = button.closest('[data-slot="context-menu-trigger"]')
+  if (!trigger) return
+  const rect = button.getBoundingClientRect()
+  trigger.dispatchEvent(
+    new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: rect.left + rect.width / 2, clientY: rect.bottom })
+  )
 }
 
 export type TaskContextMenu = ReturnType<typeof useTaskContextMenu>

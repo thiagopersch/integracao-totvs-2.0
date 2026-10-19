@@ -8,7 +8,7 @@ import type { ListParams } from "@/types/common";
 import type { BulkDeleteResult } from "@/repositories/base.repository";
 import { safeOrderBy } from "@/lib/sort";
 
-const SORTABLE_FIELDS = new Set(["name", "channel", "event", "isActive", "updatedAt", "createdAt"]);
+const SORTABLE_FIELDS = new Set(["name", "channel", "event", "scope", "isActive", "updatedAt", "createdAt"]);
 
 /** Only the fields of the template's own channel are kept (an email template has no bodyText, etc.). */
 function toData(input: MessageTemplateInput) {
@@ -17,6 +17,7 @@ function toData(input: MessageTemplateInput) {
     name: input.name,
     channel: input.channel,
     event: input.event,
+    scope: isEmail ? input.scope : ("PER_CLIENT" as const),
     isActive: input.isActive,
     subject: isEmail ? input.subject : "",
     content: isEmail ? (input.content as Prisma.InputJsonValue) : ([] as Prisma.InputJsonValue),
@@ -50,7 +51,7 @@ export const messageTemplateService = {
         orderBy,
         skip: (page - 1) * pageSize,
         take: pageSize,
-        select: { id: true, name: true, channel: true, event: true, subject: true, isActive: true, updatedAt: true },
+        select: { id: true, name: true, channel: true, event: true, scope: true, subject: true, isActive: true, updatedAt: true },
       }),
       prisma.messageTemplate.count({ where }),
     ]);
@@ -61,19 +62,31 @@ export const messageTemplateService = {
     return prisma.messageTemplate.findFirst({ where: { id, organizationId, deletedAt: null } });
   },
 
-  /** Active EMAIL templates of an event — the choices offered by the demands report schedules. */
-  async listActiveEmail(organizationId: string, event: MessageTemplateEvent) {
+  /**
+   * Active EMAIL templates offered by the report schedules: every DEMAND_REPORT template plus the
+   * ALL_CLIENTS CONTRACT_USAGE ones (per-client consumption emails are sent automatically).
+   */
+  async listReportScheduleTemplates(organizationId: string) {
     return prisma.messageTemplate.findMany({
-      where: { organizationId, event, channel: "EMAIL", isActive: true, deletedAt: null },
+      where: {
+        organizationId,
+        channel: "EMAIL",
+        isActive: true,
+        deletedAt: null,
+        OR: [{ event: "DEMAND_REPORT" }, { event: "CONTRACT_USAGE", scope: "ALL_CLIENTS" }],
+      },
       orderBy: { name: "asc" },
-      select: { id: true, name: true },
+      select: { id: true, name: true, event: true, scope: true },
     });
   },
 
-  /** Newest active template for an (event, channel) pair — the one used when sending. */
+  /**
+   * Newest active PER_CLIENT template for an (event, channel) pair — the one used by the automatic
+   * sends. ALL_CLIENTS templates are only sent by the report schedules that reference them.
+   */
   async findActive(organizationId: string, event: MessageTemplateEvent, channel: MessageChannel) {
     return prisma.messageTemplate.findFirst({
-      where: { organizationId, event, channel, isActive: true, deletedAt: null },
+      where: { organizationId, event, channel, scope: "PER_CLIENT", isActive: true, deletedAt: null },
       orderBy: { updatedAt: "desc" },
     });
   },
@@ -103,6 +116,7 @@ export const messageTemplateService = {
         name: `${existing.name} (cópia)`.slice(0, 120),
         event: existing.event,
         channel: existing.channel,
+        scope: existing.scope,
         subject: existing.subject,
         content: (existing.content ?? []) as Prisma.InputJsonValue,
         attachments: (existing.attachments ?? []) as Prisma.InputJsonValue,

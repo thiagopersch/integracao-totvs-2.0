@@ -201,6 +201,47 @@ export function buildDemandReportVars(input: DemandReportVarsInput): TemplateVar
   };
 }
 
+export interface AllClientsDemandReportVarsInput {
+  period: { label: string; startLabel: string; endLabel: string; slug: string };
+  clients: { durationMinutes: number }[][];
+}
+
+/** Totals of an ALL_CLIENTS demands report — each client's own vars come from buildDemandReportVars. */
+export function buildAllClientsDemandReportVars(input: AllClientsDemandReportVarsInput): TemplateVars {
+  const demands = input.clients.flat();
+  const minutes = demands.reduce((sum, d) => sum + d.durationMinutes, 0);
+  return {
+    periodLabel: input.period.label,
+    periodStart: input.period.startLabel,
+    periodEnd: input.period.endLabel,
+    periodSlug: input.period.slug,
+    clientsCount: String(input.clients.length),
+    grandDemandsCount: String(demands.length),
+    grandTotalHours: formatHours(round2(minutes / 60)),
+  };
+}
+
+export interface AllClientsUsageVarsInput {
+  period: { label: string; slug: string };
+  usage: { contractedHours: number; usedHours: number; demandsCount: number }[];
+}
+
+/** Totals of an ALL_CLIENTS consumption email — each client's own vars come from buildContractUsageVars. */
+export function buildAllClientsUsageVars(input: AllClientsUsageVarsInput): TemplateVars {
+  const contracted = round2(input.usage.reduce((sum, u) => sum + u.contractedHours, 0));
+  const used = round2(input.usage.reduce((sum, u) => sum + u.usedHours, 0));
+  return {
+    periodLabel: input.period.label,
+    periodSlug: input.period.slug,
+    clientsCount: String(input.usage.length),
+    grandDemandsCount: String(input.usage.reduce((sum, u) => sum + u.demandsCount, 0)),
+    grandTotalHours: formatHours(used),
+    grandContractedHours: formatHours(contracted),
+    grandUsedHours: formatHours(used),
+    grandRemainingHours: formatHours(Math.max(round2(contracted - used), 0)),
+  };
+}
+
 /** Failure context stored in Notification.data by lib/notification-types.ts builders. */
 export function buildFailureVars(
   data: Record<string, unknown> | null | undefined,

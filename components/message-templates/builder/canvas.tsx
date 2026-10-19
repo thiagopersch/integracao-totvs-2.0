@@ -335,6 +335,9 @@ function TopLevelBlock({ block, index, siblings }: { block: Block; index: number
       ) : (
         <LeafView block={block} />
       )}
+      {block.type === "container" && block.props.repeatPerClient && (
+        <p className="mt-1 text-[10px] text-sky-600">↻ Repetido para cada cliente</p>
+      )}
       {block.props && "visibleIf" in block.props && block.props.visibleIf && (
         <p className="mt-1 text-[10px] text-amber-600">Visível só quando {`{{${block.props.visibleIf}}}`} estiver preenchido</p>
       )}

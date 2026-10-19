@@ -441,15 +441,24 @@ export const projectTaskService = {
     }
   },
 
-  async update(taskId: string, projectId: string, input: ProjectTaskInput, ctx: ProjectCtx) {
+  /**
+   * Full edit. Only what changed is re-validated (a parent/assignee the task already had is kept even
+   * if it would no longer be accepted, e.g. the assignee left the team). `fromPatch` = inline edit:
+   * required custom fields aren't enforced and a task without a stage keeps having none.
+   */
+  async update(taskId: string, projectId: string, input: ProjectTaskInput, ctx: ProjectCtx, opts: { fromPatch?: boolean } = {}) {
     const { project, task: old } = await this.loadTask(taskId, projectId, ctx);
-    const parentId = await this.assertParent(projectId, input.parentId, taskId);
-    await this.assertAssignee(projectId, project.managerId, input.assigneeId);
+    const nextParentId = input.parentId || null;
+    const parentId = nextParentId === old.parentId ? old.parentId : await this.assertParent(projectId, nextParentId, taskId);
+    if ((input.assigneeId || null) !== old.assigneeId) await this.assertAssignee(projectId, project.managerId, input.assigneeId);
     const tagIds = await this.assertTags(ctx.organizationId, input.tagIds);
-    const customFields = await customFieldService.validateValues(ctx.organizationId, "TASK", input.customFields, old.customFields);
-    const stage = await resolveStage(projectId, input.stageId);
+    const customFields = await customFieldService.validateValues(ctx.organizationId, "TASK", input.customFields, old.customFields, {
+      partial: opts.fromPatch,
+    });
+    const stage = old.stageId || !opts.fromPatch ? await resolveStage(projectId, input.stageId) : null;
+    if (stage && old.stageId !== stage.id) await assertWipRoom(projectId, stage, project.settings);
     const phaseId = await resolvePhase(projectId, input.phaseId);
-    const effects = statusSideEffects(old.status, stage.category, new Date());
+    const stageData = stage ? { stageId: stage.id, status: stage.category, ...statusSideEffects(old.status, stage.category, new Date()) } : {};
 
     const task = await prisma.$transaction(async (tx) => {
       await tx.projectTaskTag.deleteMany({ where: { taskId, tagId: { notIn: tagIds } } });
@@ -460,9 +469,7 @@ export const projectTaskService = {
           parentId,
           title: input.title,
           description: input.description || null,
-          stageId: stage.id,
           phaseId,
-          status: stage.category,
           priority: input.priority,
           assigneeId: input.assigneeId || null,
           startDate: toDateOrNull(input.startDate),
@@ -471,9 +478,9 @@ export const projectTaskService = {
           progress: input.progress,
           isMilestone: input.isMilestone,
           customFields: customFields as Prisma.InputJsonValue,
-          ...(old.stageId !== stage.id ? { boardPosition: await endOfColumn(tx, projectId, stage.id, taskId) } : {}),
+          ...(stage && old.stageId !== stage.id ? { boardPosition: await endOfColumn(tx, projectId, stage.id, taskId) } : {}),
           ...(old.parentId !== parentId ? { outlinePosition: await endOfSiblings(tx, projectId, parentId) } : {}),
-          ...effects,
+          ...stageData,
         },
       });
       await projectService.recomputeProgress(tx, projectId);
@@ -509,7 +516,7 @@ export const projectTaskService = {
       customFields: parseCustomFieldValues(old.customFields),
     };
     if (input.startDate && input.dueDate && input.dueDate < input.startDate) throw new Error("Prazo deve ser igual ou posterior ao início");
-    return this.update(taskId, projectId, input, ctx);
+    return this.update(taskId, projectId, input, ctx, { fromPatch: true });
   },
 
   /** Moving into "Em andamento" while an FS predecessor is still open is allowed, but flagged. */

@@ -349,8 +349,66 @@ async function checkMany(organizationId: string, items: UsageCheckItem[]): Promi
   }
 }
 
+/**
+ * ALL_CLIENTS consumption email (report schedules): each client's consumption of the month with the
+ * same per-client variables as the automatic email (sorted by client name). Clients without a
+ * contract in force in the month are left out, like on the contracts dashboard.
+ */
+async function getAllClientsUsageVars(organizationId: string, month: Month, clientIds?: string[]) {
+  const usage = (await getMonthlyUsage(organizationId, month, clientIds)).sort((a, b) =>
+    a.clientName.localeCompare(b.clientName, "pt-BR")
+  );
+  if (usage.length === 0) return { usage, clients: [] as ReturnType<typeof buildContractUsageVars>[] };
+
+  const ids = usage.map((u) => u.clientId);
+  const [clients, contracts, minutesByAnalyst] = await Promise.all([
+    prisma.client.findMany({
+      where: { id: { in: ids } },
+      select: { id: true, name: true, legalName: true, document: true, email: true, phone: true, responsible: true, site: true, linkCrm: true },
+    }),
+    prisma.clientContract.findMany({
+      where: { id: { in: usage.flatMap((u) => u.contractIds) } },
+      select: { clientId: true, startDate: true, endDate: true, status: true, notes: true },
+    }),
+    prisma.demand.groupBy({
+      by: ["clientId", "analystId"],
+      where: { deletedAt: null, organizationId, clientId: { in: ids }, date: periodToDateRange(month)! },
+      _sum: { durationMinutes: true },
+    }),
+  ]);
+  const analysts = await prisma.analyst.findMany({
+    where: { id: { in: [...new Set(minutesByAnalyst.map((m) => m.analystId))] } },
+    select: { id: true, hourlyRate: true },
+  });
+  const rateByAnalystId = new Map(analysts.map((a) => [a.id, a.hourlyRate]));
+  const clientById = new Map(clients.map((c) => [c.id, c]));
+  const periodLabel = formatMonthLabel(month);
+
+  return {
+    usage,
+    clients: usage.map((u) =>
+      buildContractUsageVars({
+        client: clientById.get(u.clientId) ?? { name: u.clientName },
+        usedHours: u.usedHours,
+        contractedHours: u.contractedHours,
+        baseHours: u.baseHours,
+        extraHours: u.extraHours,
+        percent: u.percent,
+        level: u.level,
+        periodLabel,
+        demandsCount: u.demandsCount,
+        contracts: contracts.filter((c) => c.clientId === u.clientId),
+        analystUsage: minutesByAnalyst
+          .filter((m) => m.clientId === u.clientId)
+          .map((m) => ({ hours: (m._sum.durationMinutes || 0) / 60, hourlyRate: rateByAnalystId.get(m.analystId) ?? null })),
+      })
+    ),
+  };
+}
+
 export const contractUsageService = {
   getMonthlyUsage,
+  getAllClientsUsageVars,
   getExtraHoursByClient,
   checkAndNotify,
   checkMany,

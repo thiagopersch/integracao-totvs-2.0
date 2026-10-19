@@ -290,7 +290,7 @@ export function ProjectOverview({ project, tasks, dashboard, risks, defs, usersB
                       <span className="flex-1 text-sm font-medium">{risk.title}</span>
                       <ColorBadge label={RISK_STATUS_LABELS[risk.status]} color={RISK_STATUS_COLORS[risk.status]} />
                       {canUpdate && (
-                        <div className="flex opacity-0 group-hover:opacity-100">
+                        <div className="flex opacity-0 group-hover:opacity-100 pointer-coarse:opacity-100">
                           <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setRiskDialog({ open: true, risk })}>
                             <Pencil className="h-3.5 w-3.5" />
                           </Button>

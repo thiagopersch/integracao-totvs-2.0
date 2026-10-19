@@ -1,12 +1,14 @@
 import { z } from "zod";
 import { blockTreeSchema } from "@/lib/message-templates/block-schema";
-import { templateAttachmentsSchema } from "@/lib/message-templates/attachments";
+import { allowedAttachmentTypes, TEMPLATE_ATTACHMENT_LABELS, templateAttachmentsSchema } from "@/lib/message-templates/attachments";
+import { supportsAllClients } from "@/lib/message-templates/events";
 
 export const messageTemplateSchema = z
   .object({
     name: z.string().trim().min(1, "Nome é obrigatório").max(120, "Nome deve ter no máximo 120 caracteres"),
     channel: z.enum(["EMAIL", "WHATSAPP"]),
     event: z.enum(["CONTRACT_USAGE", "BACKUP_FAILED", "SOAP_FAILED", "GENERAL", "DEMAND_REPORT"]),
+    scope: z.enum(["PER_CLIENT", "ALL_CLIENTS"]).default("PER_CLIENT"),
     subject: z.string().max(300, "Assunto deve ter no máximo 300 caracteres").default(""),
     content: blockTreeSchema.default([]),
     attachments: templateAttachmentsSchema,
@@ -14,13 +16,22 @@ export const messageTemplateSchema = z
     isActive: z.boolean().default(true),
   })
   .superRefine((data, ctx) => {
+    if (data.scope === "ALL_CLIENTS" && (data.channel !== "EMAIL" || !supportsAllClients(data.event))) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["scope"],
+        message: "\"Todos os clientes\" só está disponível para e-mails de relatório de demandas e de consumo de horas",
+      });
+    }
     if (data.channel === "EMAIL") {
       if (!data.subject.trim()) ctx.addIssue({ code: "custom", path: ["subject"], message: "Assunto é obrigatório" });
-      if (data.attachments.some((a) => a.type === "DEMANDS_XLSX") && data.event !== "DEMAND_REPORT") {
+      const allowed = allowedAttachmentTypes(data.event, data.scope);
+      const invalid = data.attachments.find((a) => !allowed.includes(a.type));
+      if (invalid) {
         ctx.addIssue({
           code: "custom",
           path: ["attachments"],
-          message: "A planilha de demandas só pode ser anexada a templates do evento \"Relatório de demandas do período\"",
+          message: `O anexo "${TEMPLATE_ATTACHMENT_LABELS[invalid.type]}" não está disponível para este evento/escopo`,
         });
       }
       if (data.content.length === 0) {

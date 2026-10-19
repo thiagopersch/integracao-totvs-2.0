@@ -65,6 +65,8 @@ export interface ContainerBlock extends BaseBlock {
     borderColor?: string;
     borderRadius?: number;
     visibleIf?: string;
+    /** ALL_CLIENTS templates: rendered once per client, with that client's variables. */
+    repeatPerClient?: boolean;
     /** Absent means "block" (children stacked). */
     display?: "block" | "flex";
     flexDirection?: FlexDirection;

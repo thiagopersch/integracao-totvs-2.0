@@ -82,6 +82,7 @@ const containerBlock = z.object({
     borderColor: z.string().optional(),
     borderRadius: z.number().min(0).optional(),
     visibleIf,
+    repeatPerClient: z.boolean().optional(),
     display: z.enum(["block", "flex"]).optional(),
     flexDirection: z.enum(["row", "column", "row-reverse", "column-reverse"]).optional(),
     justifyContent: z.enum(["flex-start", "flex-end", "center", "space-between"]).optional(),

@@ -37,6 +37,27 @@ export function applyConditionals(html: string, vars: Record<string, unknown>): 
   });
 }
 
+const REPEAT_RE = /<!--repeat-->([\s\S]*?)<!--endrepeat-->/g;
+
+/**
+ * Fills a rendered body: resolves conditionals and `{{variables}}`. Segments wrapped in
+ * `<!--repeat-->…<!--endrepeat-->` (containers with `repeatPerClient`) are rendered once per entry
+ * of `clients`, each with `{ ...vars, ...client }` — or once with `vars` when `clients` is absent
+ * (per-client emails). Each segment is interpolated on its own so values are never re-expanded.
+ */
+export function fillTemplateHtml(html: string, vars: Record<string, unknown>, clients?: Record<string, unknown>[]): string {
+  const fill = (segment: string, scope: Record<string, unknown>) => interpolate(applyConditionals(segment, scope), scope);
+  let out = "";
+  let last = 0;
+  for (const match of html.matchAll(REPEAT_RE)) {
+    out += fill(html.slice(last, match.index), vars);
+    const inner = match[1];
+    out += clients ? clients.map((client) => fill(inner, { ...vars, ...client })).join("") : fill(inner, vars);
+    last = match.index + match[0].length;
+  }
+  return out + fill(html.slice(last), vars);
+}
+
 /** Plain-text version of an HTML body (email `text` part). Keeps paragraph/line breaks. */
 export function htmlToText(html: string): string {
   return html

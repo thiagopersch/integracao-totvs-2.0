@@ -29,21 +29,25 @@ async function ProjectWorkspaceContent({ params, searchParams }: PageProps) {
   const { organizationId, userId, allowedClientIds } = await getRequestContext()
   const ctx = { organizationId, userId, allowedClientIds }
 
+  // Everything that doesn't depend on the project settings loads together with the project.
+  const sharedData = Promise.all([
+    listActiveCustomFieldDefinitions(organizationId, "TASK"),
+    listActiveCustomFieldDefinitions(organizationId, "PROJECT"),
+    getProjectPickerOptions(organizationId, allowedClientIds),
+    // Throws for a project out of scope — that case renders notFound() below instead.
+    getProjectTaskOptions(id, ctx).catch(() => null),
+  ])
+  sharedData.catch(() => {}) // not awaited when the project 404s
   const project = await getProjectById(id, organizationId, allowedClientIds)
   if (!project) notFound()
+  const [taskDefs, projectDefs, pickerOptions, taskOptions] = await sharedData
+  if (!taskOptions) notFound()
 
   const workspace = parseWorkspaceParams(rawParams, project.settings)
   const view = workspace.view
   // Only the active view's data is fetched; the overview reuses the dashboard numbers + tasks.
   const needsTasks = view !== "dashboard"
   const needsDashboard = view === "dashboard" || view === "overview"
-
-  const [taskDefs, projectDefs, pickerOptions, taskOptions] = await Promise.all([
-    listActiveCustomFieldDefinitions(organizationId, "TASK"),
-    listActiveCustomFieldDefinitions(organizationId, "PROJECT"),
-    getProjectPickerOptions(organizationId, allowedClientIds),
-    getProjectTaskOptions(id, ctx),
-  ])
 
   const [tasks, dashboard, risks, taskDetail] = await Promise.all([
     needsTasks

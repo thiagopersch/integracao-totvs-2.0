@@ -1,6 +1,6 @@
 import { cloneWithNewIds } from "./block-tree-utils";
 import type { BlockTree } from "./block-types";
-import type { MessageTemplateEvent } from "./events";
+import type { MessageTemplateEvent, MessageTemplateScope } from "./events";
 
 /**
  * Built-in templates per event: the fallback used when an organization has no active template for
@@ -159,8 +159,88 @@ const DEFAULTS: Record<MessageTemplateEvent, DefaultTemplate> = {
   },
 };
 
-/** A fresh copy (new block ids) of the built-in template for an event. */
-export function defaultTemplate(event: MessageTemplateEvent): DefaultTemplate {
-  const d = DEFAULTS[event];
+const repeatContainer = (id: string, children: BlockTree) => ({
+  id,
+  name: id,
+  type: "container" as const,
+  props: {
+    marginY: 8,
+    marginX: 0,
+    paddingY: 4,
+    paddingX: 0,
+    backgroundColor: "transparent",
+    repeatPerClient: true,
+  },
+  children: children as never,
+});
+
+/** ALL_CLIENTS versions: one email, a container repeated per client (one table under the other). */
+const ALL_CLIENTS_DEFAULTS: Partial<Record<MessageTemplateEvent, DefaultTemplate>> = {
+  DEMAND_REPORT: {
+    subject: "Relatório de demandas — todos os clientes — {{periodLabel}}",
+    content: [
+      text(
+        "text1",
+        "<h2>Relatório de demandas</h2><p>Olá,</p><p>Segue o resumo das demandas atendidas referentes a <strong>{{periodLabel}}</strong> ({{periodStart}} a {{periodEnd}}): <strong>{{clientsCount}}</strong> cliente(s), <strong>{{grandDemandsCount}}</strong> demanda(s) e <strong>{{grandTotalHours}}</strong> no total. A planilha em anexo traz uma aba de resumo e uma aba por cliente.</p>"
+      ),
+      repeatContainer("container1", [
+        text("text2", "<h3>{{clientName}}</h3>"),
+        {
+          id: "table1",
+          name: "table1",
+          type: "table",
+          props: {
+            hasHeader: true,
+            cells: [
+              ["Resumo do período", ""],
+              ["Demandas lançadas", "{{demandsCount}}"],
+              ["Horas executadas", "{{totalHours}}"],
+              ["Analistas", "{{analystsNames}}"],
+            ],
+          },
+        },
+      ]),
+      { id: "divider1", name: "divider1", type: "divider", props: { color: "#e2e8f0", thickness: 1, marginY: 16 } },
+      text("text3", '<p style="color:#6b7280;font-size:13px">Este é um envio automático. Em caso de dúvidas, responda este e-mail.</p>'),
+    ],
+    whatsapp: "",
+  },
+  CONTRACT_USAGE: {
+    subject: "Consumo de horas dos contratos — {{periodLabel}}",
+    content: [
+      text(
+        "text1",
+        "<h2>Consumo de horas dos contratos</h2><p>Olá,</p><p>Segue o consumo de horas de <strong>{{clientsCount}}</strong> cliente(s) referente a <strong>{{periodLabel}}</strong>: <strong>{{grandUsedHours}}</strong> utilizadas de <strong>{{grandContractedHours}}</strong> contratadas. A planilha em anexo traz os mesmos números.</p>"
+      ),
+      repeatContainer("container1", [
+        text("text2", "<h3>{{clientName}}</h3>"),
+        {
+          id: "table1",
+          name: "table1",
+          type: "table",
+          props: {
+            hasHeader: true,
+            cells: [
+              ["Resumo do mês", "Horas"],
+              ["Horas contratadas", "{{contractedHours}}"],
+              ["Horas do contrato + extras do mês", "{{baseHours}} + {{extraHours}}"],
+              ["Horas utilizadas", "{{usedHours}}"],
+              ["Saldo restante", "{{remainingHours}}"],
+              ["Horas excedentes", "{{exceededHours}}"],
+              ["Consumo", "{{usagePercent}} ({{usageLevel}})"],
+            ],
+          },
+        },
+      ]),
+      { id: "divider1", name: "divider1", type: "divider", props: { color: "#e2e8f0", thickness: 1, marginY: 16 } },
+      text("text3", '<p style="color:#6b7280;font-size:13px">Este é um envio automático. Em caso de dúvidas, responda este e-mail.</p>'),
+    ],
+    whatsapp: "",
+  },
+};
+
+/** A fresh copy (new block ids) of the built-in template for an event (and scope). */
+export function defaultTemplate(event: MessageTemplateEvent, scope: MessageTemplateScope = "PER_CLIENT"): DefaultTemplate {
+  const d = (scope === "ALL_CLIENTS" && ALL_CLIENTS_DEFAULTS[event]) || DEFAULTS[event];
   return { subject: d.subject, whatsapp: d.whatsapp, content: cloneWithNewIds(d.content) };
 }

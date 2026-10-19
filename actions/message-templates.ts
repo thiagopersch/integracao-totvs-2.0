@@ -13,7 +13,7 @@ import { formatBlockingReferences } from "@/lib/entity-relations";
 import { storeUploadedFile } from "@/lib/upload";
 import { sendEmail } from "@/lib/mailer";
 import { demandReportService } from "@/services/demand-report.service";
-import { exampleVariables } from "@/lib/message-templates/variable-catalog";
+import { exampleClients, exampleVariables } from "@/lib/message-templates/variable-catalog";
 import type { BlockTree } from "@/lib/message-templates/block-types";
 export async function getMessageTemplate(id: string) {
   const { organizationId } = await requirePermission("message_templates", "read");
@@ -151,7 +151,9 @@ export async function sendTestMessageTemplate(id: string) {
   const exampleVars = { ...exampleVariables(), ...Object.fromEntries(real.map((k) => [k, base[k]])), recipientName, recipientEmail: email };
   // Generated attachments (demands XLSX) use real data: the client with the latest demand this month.
   const { attachments, vars } = await demandReportService.buildTestAttachments(organizationId, allowedClientIds, template, exampleVars);
-  const rendered = renderEmailFromContent(template.subject, (template.content ?? []) as unknown as BlockTree, vars);
+  // ALL_CLIENTS: the repeated containers are filled with the catalog's sample clients.
+  const clients = template.scope === "ALL_CLIENTS" ? exampleClients() : undefined;
+  const rendered = renderEmailFromContent(template.subject, (template.content ?? []) as unknown as BlockTree, vars, clients);
   const status = await sendEmail(organizationId, email, `[Teste] ${rendered.subject}`, rendered.text, userId, {
     html: rendered.html,
     attachments,

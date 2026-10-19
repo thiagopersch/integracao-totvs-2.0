@@ -263,7 +263,8 @@ function renderContainer(block: ContainerBlock, options: RenderOptions): string 
   const border = borderColor && borderColor !== "transparent" ? `border:1px solid ${attr(borderColor)};` : "";
   // `margin` is unreliable on table cells in email clients, so the outer cell's padding simulates it.
   const html = `<tr><td style="padding:${marginY}px ${marginX}px;"><table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0" style="border-collapse:separate;"><tr><td style="padding:${paddingY}px ${paddingX}px;background-color:${attr(backgroundColor)};border-radius:${borderRadius}px;${border}">${inner}</td></tr></table></td></tr>`;
-  return withCondition(html, visibleIf);
+  const conditional = withCondition(html, visibleIf);
+  return block.props.repeatPerClient ? `<!--repeat-->${conditional}<!--endrepeat-->` : conditional;
 }
 
 function renderTopLevel(block: Block, options: RenderOptions): string {

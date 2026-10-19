@@ -31,8 +31,10 @@ import {
   MESSAGE_CHANNEL_COLORS,
   MESSAGE_CHANNEL_LABELS,
   MESSAGE_EVENT_LABELS,
+  MESSAGE_SCOPE_LABELS,
   type MessageChannel,
   type MessageTemplateEvent,
+  type MessageTemplateScope,
 } from "@/lib/message-templates/events"
 import type { PaginationMeta } from "@/types/common"
 
@@ -41,6 +43,7 @@ type MessageTemplateRow = {
   name: string
   channel: MessageChannel
   event: MessageTemplateEvent
+  scope: MessageTemplateScope
   subject: string
   isActive: boolean
   updatedAt: Date | string
@@ -138,7 +141,12 @@ export function MessageTemplateTable({ data, meta }: { data: MessageTemplateRow[
       {
         accessorKey: "event",
         header: "Evento",
-        cell: ({ row }) => MESSAGE_EVENT_LABELS[row.original.event],
+        cell: ({ row }) => (
+          <span className="inline-flex flex-wrap items-center gap-1.5">
+            {MESSAGE_EVENT_LABELS[row.original.event]}
+            {row.original.scope === "ALL_CLIENTS" && <ColorBadge label={MESSAGE_SCOPE_LABELS.ALL_CLIENTS} color="#0ea5e9" />}
+          </span>
+        ),
       },
       {
         id: "subject",

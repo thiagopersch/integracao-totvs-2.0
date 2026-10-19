@@ -2,9 +2,17 @@ import { prisma } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { sendEmail, type EmailAttachment } from "@/lib/mailer";
 import { toExportRow, type DemandForExport } from "@/lib/export-mappers";
-import { demandsXlsxBuffer, XLSX_CONTENT_TYPE } from "@/lib/demands-xlsx";
+import { demandsByClientXlsxBuffer, demandsXlsxBuffer, XLSX_CONTENT_TYPE } from "@/lib/demands-xlsx";
+import { contractUsageXlsxBuffer } from "@/lib/contract-usage-xlsx";
+import { formatMonthLabel } from "@/lib/contract-usage";
 import { parseTemplateAttachments, resolveAttachmentFileName } from "@/lib/message-templates/attachments";
-import { buildDemandReportVars, buildGeneralVars, type TemplateVars } from "@/lib/message-templates/vars-builder";
+import {
+  buildAllClientsDemandReportVars,
+  buildAllClientsUsageVars,
+  buildDemandReportVars,
+  buildGeneralVars,
+  type TemplateVars,
+} from "@/lib/message-templates/vars-builder";
 import type { BlockTree } from "@/lib/message-templates/block-types";
 import { isReportPeriodKind, resolveReportPeriod, type ResolvedReportPeriod } from "@/lib/report-period";
 import { computeNextReportRunAt } from "@/lib/report-schedule";
@@ -12,6 +20,7 @@ import { messageRenderService, renderEmailFromContent } from "@/services/message
 import { messageTemplateService } from "@/services/message-template.service";
 import { auditService } from "@/services/audit.service";
 import { demandIncludeRelations } from "@/services/demand.service";
+import { contractUsageService, type ClientMonthlyUsage } from "@/services/contract-usage.service";
 import type { DemandReportScheduleInput } from "@/schemas/demand-report-schedule.schema";
 import type { BackupSchedule, Client, MessageTemplate } from "@/generated/prisma/client";
 
@@ -34,6 +43,91 @@ async function getClientDemands(organizationId: string, clientId: string, period
     orderBy: { date: "asc" },
     include: demandIncludeRelations,
   });
+}
+
+/**
+ * What a schedule sends, from its template: one email per client (DEMAND_REPORT, PER_CLIENT) or a
+ * single email with every client — demands (DEMAND_REPORT) or hours consumption (CONTRACT_USAGE).
+ */
+export type ReportMode = "DEMANDS_PER_CLIENT" | "DEMANDS_ALL_CLIENTS" | "USAGE_ALL_CLIENTS";
+
+export function reportMode(template: Pick<MessageTemplate, "event" | "scope">): ReportMode | null {
+  if (template.event === "DEMAND_REPORT") return template.scope === "ALL_CLIENTS" ? "DEMANDS_ALL_CLIENTS" : "DEMANDS_PER_CLIENT";
+  if (template.event === "CONTRACT_USAGE" && template.scope === "ALL_CLIENTS") return "USAGE_ALL_CLIENTS";
+  return null;
+}
+
+/** Consumption is monthly: the reference month is the month the period starts in. */
+const usageMonth = (period: ResolvedReportPeriod) => ({ year: period.gte.getUTCFullYear(), month: period.gte.getUTCMonth() + 1 });
+
+/** Demands of several clients in the period, grouped by client (same order as getClientDemands). */
+async function getDemandsByClient(organizationId: string, clientIds: string[], period: { gte: Date; lt: Date }) {
+  const demands = await prisma.demand.findMany({
+    where: { organizationId, clientId: { in: clientIds }, deletedAt: null, date: { gte: period.gte, lt: period.lt } },
+    orderBy: { date: "asc" },
+    include: demandIncludeRelations,
+  });
+  const byClient = new Map<string, typeof demands>();
+  for (const demand of demands) byClient.set(demand.clientId, [...(byClient.get(demand.clientId) ?? []), demand]);
+  return byClient;
+}
+
+/** Subject/body/attachments of the ALL_CLIENTS demands report (one table per client). */
+function renderAllClientsDemandReport(
+  template: MessageTemplate,
+  baseVars: TemplateVars,
+  period: ResolvedReportPeriod,
+  groups: { client: Client; demands: DemandForExport[] }[]
+) {
+  const vars: TemplateVars = {
+    ...baseVars,
+    ...buildAllClientsDemandReportVars({ period, clients: groups.map((g) => g.demands) }),
+  };
+  const attachments: EmailAttachment[] = [];
+  for (const config of parseTemplateAttachments(template.attachments)) {
+    if (config.type !== "DEMANDS_XLSX") continue;
+    attachments.push({
+      filename: resolveAttachmentFileName(config.fileName, vars),
+      content: demandsByClientXlsxBuffer(
+        groups.map((g) => ({
+          clientName: g.client.name,
+          rows: g.demands.map(toExportRow),
+          minutes: g.demands.reduce((sum, d) => sum + d.durationMinutes, 0),
+        }))
+      ),
+      contentType: XLSX_CONTENT_TYPE,
+    });
+  }
+  vars.attachmentNames = attachments.map((a) => a.filename).join(", ");
+  const clients = groups.map((g) => ({ ...vars, ...buildDemandReportVars({ client: g.client, period, demands: g.demands }) }));
+  const rendered = renderEmailFromContent(template.subject, (template.content ?? []) as unknown as BlockTree, vars, clients);
+  return { rendered, attachments };
+}
+
+/** Subject/body/attachments of the ALL_CLIENTS hours consumption email (one table per client). */
+function renderAllClientsUsage(
+  template: MessageTemplate,
+  baseVars: TemplateVars,
+  period: ResolvedReportPeriod,
+  usage: ClientMonthlyUsage[],
+  clientsVars: TemplateVars[]
+) {
+  const month = usageMonth(period);
+  const monthPeriod = { label: formatMonthLabel(month), slug: `${month.year}-${String(month.month).padStart(2, "0")}` };
+  const vars: TemplateVars = { ...baseVars, ...buildAllClientsUsageVars({ period: monthPeriod, usage }) };
+  const attachments: EmailAttachment[] = [];
+  for (const config of parseTemplateAttachments(template.attachments)) {
+    if (config.type !== "CONTRACT_USAGE_XLSX") continue;
+    attachments.push({
+      filename: resolveAttachmentFileName(config.fileName, vars),
+      content: contractUsageXlsxBuffer(usage, monthPeriod.label),
+      contentType: XLSX_CONTENT_TYPE,
+    });
+  }
+  vars.attachmentNames = attachments.map((a) => a.filename).join(", ");
+  const clients = clientsVars.map((c) => ({ ...vars, ...c }));
+  const rendered = renderEmailFromContent(template.subject, (template.content ?? []) as unknown as BlockTree, vars, clients);
+  return { rendered, attachments };
 }
 
 /** Generates the files a template asks for (MessageTemplate.attachments) for one client. */
@@ -92,10 +186,19 @@ function toData(input: DemandReportScheduleInput) {
   };
 }
 
-async function assertTemplate(templateId: string, organizationId: string) {
-  const template = await messageTemplateService.getById(templateId, organizationId);
-  if (!template || template.channel !== "EMAIL" || template.event !== "DEMAND_REPORT") {
-    throw new Error("Selecione um template de e-mail do evento \"Relatório de demandas do período\"");
+async function assertTemplate(input: DemandReportScheduleInput, organizationId: string) {
+  const template = await messageTemplateService.getById(input.templateId, organizationId);
+  const mode = template && template.channel === "EMAIL" ? reportMode(template) : null;
+  if (!mode) {
+    throw new Error(
+      "Selecione um template de e-mail do relatório de demandas ou de consumo de horas com escopo \"Todos os clientes\""
+    );
+  }
+  if (mode !== "DEMANDS_PER_CLIENT" && input.toEmails.length === 0) {
+    throw new Error("Informe ao menos um destinatário em \"Para\": o e-mail com todos os clientes não vai ao e-mail de cada cliente");
+  }
+  if (mode === "USAGE_ALL_CLIENTS" && input.period !== "currentMonth" && input.period !== "previousMonth") {
+    throw new Error("O consumo de horas é mensal: escolha \"Mês atual\" ou \"Mês anterior\" como período");
   }
 }
 
@@ -104,7 +207,7 @@ export const demandReportService = {
     return prisma.demandReportSchedule.findMany({
       where: { organizationId, deletedAt: null },
       orderBy: { name: "asc" },
-      include: { template: { select: { id: true, name: true, isActive: true, deletedAt: true } } },
+      include: { template: { select: { id: true, name: true, event: true, scope: true, isActive: true, deletedAt: true } } },
     });
   },
 
@@ -113,13 +216,13 @@ export const demandReportService = {
   },
 
   async create(input: DemandReportScheduleInput, organizationId: string) {
-    await assertTemplate(input.templateId, organizationId);
+    await assertTemplate(input, organizationId);
     return prisma.demandReportSchedule.create({ data: { ...toData(input), organizationId } });
   },
 
   async update(id: string, input: DemandReportScheduleInput, organizationId: string) {
     if (!(await this.getById(id, organizationId))) throw new Error("Regra de envio não encontrada");
-    await assertTemplate(input.templateId, organizationId);
+    await assertTemplate(input, organizationId);
     return prisma.demandReportSchedule.update({ where: { id }, data: toData(input) });
   },
 
@@ -151,6 +254,30 @@ export const demandReportService = {
       orderBy: { name: "asc" },
     });
     return { period, clients };
+  },
+
+  /**
+   * What "Enviar agora" would send: the mode and the clients it covers. In the ALL_CLIENTS modes
+   * they all go in a single email; consumption covers the clients with a contract in force.
+   */
+  async previewRun(schedule: Pick<ScheduleRecord, "organizationId" | "clientIds" | "period" | "templateId">, now = new Date()) {
+    const template = await messageTemplateService.getById(schedule.templateId, schedule.organizationId);
+    const mode = template ? reportMode(template) : null;
+    if (mode === "USAGE_ALL_CLIENTS") {
+      const period = resolveReportPeriod(isReportPeriodKind(schedule.period) ? schedule.period : "currentMonth", now);
+      const month = usageMonth(period);
+      const usage = await contractUsageService.getMonthlyUsage(
+        schedule.organizationId,
+        month,
+        schedule.clientIds.length ? schedule.clientIds : undefined
+      );
+      const clients = usage
+        .map((u) => ({ id: u.clientId, name: u.clientName, email: u.clientEmail }))
+        .sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
+      return { mode, periodLabel: formatMonthLabel(month), clients };
+    }
+    const { period, clients } = await this.previewClients(schedule, now);
+    return { mode: mode ?? ("DEMANDS_PER_CLIENT" as const), periodLabel: period.label, clients };
   },
 
   /**
@@ -202,6 +329,9 @@ export const demandReportService = {
     const template = await messageTemplateService.getById(schedule.templateId, schedule.organizationId);
     if (!template || template.channel !== "EMAIL") throw new Error("O template de e-mail da regra não existe mais");
     if (!template.isActive) throw new Error(`O template "${template.name}" está inativo`);
+    const mode = reportMode(template);
+    if (!mode) throw new Error(`O template "${template.name}" não pode ser usado em regras de envio`);
+    if (mode !== "DEMANDS_PER_CLIENT") return this.sendAllClients(schedule, template, mode, now, userId);
 
     const { period, clients } = await this.previewClients(schedule, now);
     if (clients.length === 0) {
@@ -243,11 +373,81 @@ export const demandReportService = {
     return { status, message, sent, failed, skipped };
   },
 
+  /** ALL_CLIENTS modes: a single email to `toEmails` (+ `ccEmails`) with one table per client. */
+  async sendAllClients(
+    schedule: ScheduleRecord,
+    template: MessageTemplate,
+    mode: Exclude<ReportMode, "DEMANDS_PER_CLIENT">,
+    now: Date,
+    userId?: string
+  ): Promise<ScheduleRunResult> {
+    const period = resolveReportPeriod(isReportPeriodKind(schedule.period) ? schedule.period : "currentMonth", now);
+    const recipients = [...new Set(schedule.toEmails.map((e) => e.trim()).filter(Boolean))];
+    if (recipients.length === 0) throw new Error("A regra não tem destinatários em \"Para\"");
+    const baseVars: TemplateVars = {
+      ...(await messageRenderService.baseVars(schedule.organizationId)),
+      ...buildGeneralVars({ recipientEmail: recipients.join(", ") }),
+    };
+
+    let rendered: ReturnType<typeof renderEmailFromContent>;
+    let attachments: EmailAttachment[];
+    let clientsCount: number;
+    let label: string;
+    if (mode === "DEMANDS_ALL_CLIENTS") {
+      const { clients } = await this.previewClients(schedule, now);
+      if (clients.length === 0) {
+        return { status: "EMPTY", message: `Nenhum cliente com demandas em ${period.label}`, sent: 0, failed: 0, skipped: 0 };
+      }
+      const byClient = await getDemandsByClient(schedule.organizationId, clients.map((c) => c.id), period);
+      const groups = clients.map((client) => ({ client, demands: byClient.get(client.id) ?? [] }));
+      ({ rendered, attachments } = renderAllClientsDemandReport(template, baseVars, period, groups));
+      clientsCount = clients.length;
+      label = period.label;
+    } else {
+      const month = usageMonth(period);
+      const { usage, clients } = await contractUsageService.getAllClientsUsageVars(
+        schedule.organizationId,
+        month,
+        schedule.clientIds.length ? schedule.clientIds : undefined
+      );
+      label = formatMonthLabel(month);
+      if (usage.length === 0) {
+        return { status: "EMPTY", message: `Nenhum cliente com contrato vigente em ${label}`, sent: 0, failed: 0, skipped: 0 };
+      }
+      ({ rendered, attachments } = renderAllClientsUsage(template, baseVars, period, usage, clients));
+      clientsCount = usage.length;
+    }
+
+    const status = await sendEmail(schedule.organizationId, recipients, rendered.subject, rendered.text, userId, {
+      html: rendered.html,
+      cc: schedule.ccEmails,
+      attachments,
+    });
+    if (status === "SKIPPED") throw new Error("Envio de e-mail desativado — configure o SMTP em Integrações > E-mail (SMTP)");
+    if (status !== "SENT") {
+      return { status: "FAILED", message: "Falha no envio (veja Rastreamento de Atividades)", sent: 0, failed: 1, skipped: 0 };
+    }
+    return { status: "SUCCESS", message: `1 e-mail enviado com ${clientsCount} cliente(s) — ${label}`, sent: 1, failed: 0, skipped: 0 };
+  },
+
   /** Sample attachments for "Enviar teste": the client with the most recent demand in the current month. */
   async buildTestAttachments(organizationId: string, allowedClientIds: string[], template: MessageTemplate, vars: TemplateVars) {
     const configs = parseTemplateAttachments(template.attachments);
     if (configs.length === 0) return { attachments: [] as EmailAttachment[], vars };
     const period = resolveReportPeriod("currentMonth");
+    const mode = reportMode(template);
+    if (mode === "USAGE_ALL_CLIENTS") {
+      const { usage, clients } = await contractUsageService.getAllClientsUsageVars(organizationId, usageMonth(period), allowedClientIds);
+      const { attachments } = renderAllClientsUsage(template, vars, period, usage, clients);
+      return { attachments, vars: { ...vars, attachmentNames: attachments.map((a) => a.filename).join(", ") } };
+    }
+    if (mode === "DEMANDS_ALL_CLIENTS") {
+      const { clients } = await this.previewClients({ organizationId, clientIds: allowedClientIds, period: "currentMonth" });
+      const byClient = await getDemandsByClient(organizationId, clients.map((c) => c.id), period);
+      const groups = clients.map((client) => ({ client, demands: byClient.get(client.id) ?? [] }));
+      const { attachments } = renderAllClientsDemandReport(template, vars, period, groups);
+      return { attachments, vars: { ...vars, attachmentNames: attachments.map((a) => a.filename).join(", ") } };
+    }
     const latest = await prisma.demand.findFirst({
       where: { organizationId, deletedAt: null, clientId: { in: allowedClientIds }, date: { gte: period.gte, lt: period.lt } },
       orderBy: { date: "desc" },

@@ -285,7 +285,7 @@ export function TaskSheet({
 
   async function run(action: () => Promise<ActionResult>, success?: string) {
     setBusy(true)
-    const result = await action()
+    const result = await action().catch((): ActionResult => ({ success: false }))
     setBusy(false)
     if (result.success) {
       if (success) toast.success(success)
@@ -305,7 +305,8 @@ export function TaskSheet({
     if (await run(() => addTaskComment(projectId, task.id, { content: newComment }))) setNewComment("")
   }
 
-  const loggedMinutes = task?.demands.reduce((sum, d) => sum + d.durationMinutes, 0) ?? 0
+  // Denormalized total — `demands` is capped at the latest 200.
+  const loggedMinutes = task?.loggedMinutes ?? 0
   const checklistDone = task?.checklistItems.filter((i) => i.done).length ?? 0
   const predecessorIds = new Set(task?.predecessors.map((p) => p.predecessorId))
   const predecessorOptions = options.tasks
@@ -601,7 +602,7 @@ export function TaskSheet({
                             <Button
                               size="icon"
                               variant="ghost"
-                              className="h-7 w-7 opacity-0 group-hover:opacity-100"
+                              className="h-7 w-7 opacity-0 group-hover:opacity-100 pointer-coarse:opacity-100"
                               aria-label="Remover item"
                               onClick={() => run(() => deleteChecklistItem(projectId, item.id))}
                             >
@@ -631,7 +632,7 @@ export function TaskSheet({
                               <Button
                                 size="icon"
                                 variant="ghost"
-                                className="h-7 w-7 opacity-0 group-hover:opacity-100"
+                                className="h-7 w-7 opacity-0 group-hover:opacity-100 pointer-coarse:opacity-100"
                                 aria-label="Remover dependência"
                                 onClick={() => run(() => removeTaskDependency(projectId, dep.id), "Dependência removida")}
                               >
@@ -694,7 +695,7 @@ export function TaskSheet({
                             </div>
                             <span className="tabular-nums">{formatHours(demand.durationMinutes, "minutes")}</span>
                             {(can.editDemand || can.deleteDemand) && (
-                              <div className="flex opacity-0 group-hover:opacity-100">
+                              <div className="flex opacity-0 group-hover:opacity-100 pointer-coarse:opacity-100">
                                 {can.editDemand && (
                                   <WithTooltip label="Editar demanda">
                                     <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => onLogTime(demand.id)}>
@@ -740,7 +741,7 @@ export function TaskSheet({
                                 <Button
                                   size="icon"
                                   variant="ghost"
-                                  className="ml-auto h-6 w-6 opacity-0 group-hover:opacity-100"
+                                  className="ml-auto h-6 w-6 opacity-0 group-hover:opacity-100 pointer-coarse:opacity-100"
                                   aria-label="Excluir comentário"
                                   onClick={() => run(() => deleteTaskComment(projectId, comment.id), "Comentário excluído")}
                                 >

@@ -3,7 +3,7 @@
 import { useMemo, useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
-import { DndContext, PointerSensor, useDraggable, useDroppable, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core"
+import { DndContext, MouseSensor, TouchSensor, useDraggable, useDroppable, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core"
 import { ChevronLeft, ChevronRight, Diamond, Plus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
@@ -45,7 +45,7 @@ function Chip({ task, color, today, by, onOpen, draggable }: { task: ProjectTask
         onOpen()
       }}
       className={cn(
-        "flex w-full items-center gap-1 truncate rounded px-1.5 py-0.5 text-left text-[11px] leading-4 touch-none",
+        "flex w-full touch-manipulation select-none items-center gap-1 truncate rounded px-1.5 py-0.5 text-left text-[11px] leading-4 [-webkit-touch-callout:none]",
         isDragging && "opacity-40",
         task.status === "DONE" && "line-through opacity-70",
         overdue && "ring-1 ring-destructive"
@@ -102,7 +102,7 @@ function DayCell({
         {canCreate && (
           <button
             type="button"
-            className="rounded p-0.5 opacity-0 hover:bg-muted group-hover:opacity-100"
+            className="rounded p-0.5 opacity-0 hover:bg-muted group-hover:opacity-100 pointer-coarse:opacity-100"
             onClick={() => actions.newTask(by === "due" ? { dueDate: key } : { startDate: key })}
             aria-label="Nova tarefa neste dia"
           >
@@ -134,8 +134,14 @@ export function TaskCalendar({ projectId, tasks, stages, month, by, today, canCr
   const router = useRouter()
   const { pushParams } = useUrlParams()
   const [, startTransition] = useTransition()
-  const [optimistic, setOptimistic] = useState<Record<string, string>>({})
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }))
+  // Dates of dropped chips until the refreshed tasks arrive (a new `tasks` prop drops them).
+  const [optimistic, setOptimistic] = useState<{ tasks: ProjectTaskDTO[]; dates: Record<string, string> }>({ tasks, dates: {} })
+  if (optimistic.tasks !== tasks) setOptimistic({ tasks, dates: {} })
+  const sensors = useSensors(
+    useSensor(MouseSensor, { activationConstraint: { distance: 6 } }),
+    // Press and hold to drag on touch screens; a swipe before that scrolls.
+    useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 8 } })
+  )
 
   const todayDate = utcDay(today)
   const [year, monthIndex] = (month ?? today.slice(0, 7)).split("-").map(Number)
@@ -146,7 +152,7 @@ export function TaskCalendar({ projectId, tasks, stages, month, by, today, canCr
   const byDay = useMemo(() => {
     const map = new Map<string, ProjectTaskDTO[]>()
     for (const task of tasks) {
-      const value = optimistic[task.id] ?? (by === "due" ? task.dueDate : task.startDate)
+      const value = optimistic.dates[task.id] ?? (by === "due" ? task.dueDate : task.startDate)
       if (!value) continue
       const key = toDateParam(utcDay(value))
       map.set(key, [...(map.get(key) ?? []), task])
@@ -174,16 +180,25 @@ export function TaskCalendar({ projectId, tasks, stages, month, by, today, canCr
       by === "due"
         ? { dueDate: target, startDate: task.startDate ? toDateParam(addDays(utcDay(task.startDate), delta)) : undefined }
         : { startDate: target, dueDate: task.dueDate ? toDateParam(addDays(utcDay(task.dueDate), delta)) : undefined }
-    setOptimistic((prev) => ({ ...prev, [task.id]: target }))
-    const result = await rescheduleProjectTask(projectId, task.id, payload)
-    if (!result.success) toast.error(result.error || "Erro ao reagendar")
+    const rollback = () =>
+      setOptimistic((prev) => {
+        const dates = { ...prev.dates }
+        delete dates[task.id]
+        return { ...prev, dates }
+      })
+    setOptimistic((prev) => ({ ...prev, dates: { ...prev.dates, [task.id]: target } }))
+    try {
+      const result = await rescheduleProjectTask(projectId, task.id, payload)
+      if (!result.success) {
+        toast.error(result.error || "Erro ao reagendar")
+        rollback()
+      }
+    } catch {
+      toast.error("Erro ao reagendar")
+      rollback()
+    }
     startTransition(() => {
       router.refresh()
-    })
-    setOptimistic((prev) => {
-      const next = { ...prev }
-      delete next[task.id]
-      return next
     })
   }
 

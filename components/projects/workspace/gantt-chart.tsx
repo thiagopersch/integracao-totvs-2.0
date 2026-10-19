@@ -33,6 +33,9 @@ const ROW_H = 36
 const LEFT_W = 320
 const HEADER_H = 52
 const EDGE = 7
+/** Touch: hold this long (moving less than HOLD_TOLERANCE px) before a bar drags — a swipe scrolls. */
+const HOLD_MS = 250
+const HOLD_TOLERANCE = 8
 
 type DragState = {
   taskId: string
@@ -67,6 +70,8 @@ export function GanttChart({ projectId, projectCode, tasks, stages, phases, zoom
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
   const [drag, setDrag] = useState<DragState | null>(null)
   const dragRef = useRef<DragState | null>(null)
+  /** Touch press waiting for the hold delay before it becomes a drag. */
+  const holdRef = useRef<{ timer: ReturnType<typeof setTimeout>; x: number; y: number } | null>(null)
 
   const px = GANTT_PX_PER_DAY[zoom]
   const todayDate = utcDay(today)
@@ -181,27 +186,79 @@ export function GanttChart({ projectId, projectCode, tasks, stages, phases, zoom
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [zoom])
 
-  function startDrag(e: React.PointerEvent, task: ProjectTaskDTO, bar: { x: number; width: number }) {
+  // Once a touch drag is active, keep the browser from panning the chart under the finger.
+  useEffect(() => {
+    const el = scrollRef.current
+    if (!el) return
+    const block = (e: TouchEvent) => {
+      if (dragRef.current && e.cancelable) e.preventDefault()
+    }
+    el.addEventListener("touchmove", block, { passive: false })
+    return () => {
+      el.removeEventListener("touchmove", block)
+      if (holdRef.current) clearTimeout(holdRef.current.timer)
+    }
+  }, [])
+
+  function clearHold() {
+    if (holdRef.current) clearTimeout(holdRef.current.timer)
+    holdRef.current = null
+  }
+
+  function startDrag(e: React.PointerEvent, task: ProjectTaskDTO) {
     if (!canUpdate || e.button !== 0) return
-    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+    const el = e.currentTarget as HTMLElement
+    const rect = el.getBoundingClientRect()
     const offset = e.clientX - rect.left
     const mode: DragState["mode"] = task.isMilestone ? "move" : offset < EDGE ? "start" : offset > rect.width - EDGE ? "end" : "move"
-    ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
-    const state = { taskId: task.id, mode, originX: e.clientX, dx: 0 }
-    dragRef.current = state
-    setDrag(state)
+    const { pointerId, clientX, clientY } = e
     e.stopPropagation()
-    void bar
+    const activate = () => {
+      try {
+        el.setPointerCapture(pointerId)
+      } catch {
+        return // the pointer is gone (finger lifted / browser took the gesture)
+      }
+      const state = { taskId: task.id, mode, originX: clientX, dx: 0 }
+      dragRef.current = state
+      setDrag(state)
+    }
+    if (e.pointerType !== "touch") return activate()
+    clearHold()
+    holdRef.current = {
+      x: clientX,
+      y: clientY,
+      timer: setTimeout(() => {
+        holdRef.current = null
+        activate()
+        navigator.vibrate?.(10)
+      }, HOLD_MS),
+    }
   }
 
   function onPointerMove(e: React.PointerEvent) {
+    const hold = holdRef.current
+    if (hold && Math.hypot(e.clientX - hold.x, e.clientY - hold.y) > HOLD_TOLERANCE) clearHold()
     if (!dragRef.current) return
     const next = { ...dragRef.current, dx: e.clientX - dragRef.current.originX }
     dragRef.current = next
     setDrag(next)
   }
 
+  /** The browser took the pointer (e.g. started scrolling): drop the drag without saving. */
+  function cancelDrag() {
+    clearHold()
+    if (!dragRef.current) return
+    dragRef.current = null
+    setDrag(null)
+  }
+
   async function onPointerUp(task: ProjectTaskDTO) {
+    // A touch released before the hold delay is a tap.
+    if (holdRef.current) {
+      clearHold()
+      return actions.openTask(task.id)
+    }
     const state = dragRef.current
     dragRef.current = null
     setDrag(null)
@@ -230,11 +287,11 @@ export function GanttChart({ projectId, projectCode, tasks, stages, phases, zoom
       startDate: task.startDate || state.mode !== "move" ? toDateParam(nextStart) : undefined,
       dueDate: task.dueDate || state.mode !== "move" ? toDateParam(nextEnd) : undefined,
     }
-    const result = await rescheduleProjectTask(projectId, task.id, payload)
-    if (result.success) {
+    const result = await rescheduleProjectTask(projectId, task.id, payload).catch(() => null)
+    if (result?.success) {
       toast.success(`${taskKey(projectCode, task.number)}: ${formatDateOnly(nextStart)} → ${formatDateOnly(nextEnd)}`)
       startTransition(() => router.refresh())
-    } else toast.error(result.error || "Erro ao reagendar")
+    } else toast.error(result?.error || "Erro ao reagendar")
   }
 
   function previewBar(task: ProjectTaskDTO, bar: { x: number; width: number }) {
@@ -400,8 +457,10 @@ export function GanttChart({ projectId, projectCode, tasks, stages, phases, zoom
                         <div
                           className={cn("absolute top-1/2 z-10 -translate-y-1/2", canUpdate ? "cursor-grab" : "cursor-pointer")}
                           style={{ left: shown.x + shown.width / 2 - 8 }}
-                          onPointerDown={(e) => startDrag(e, task, shown)}
+                          onPointerDown={(e) => startDrag(e, task)}
                           onPointerUp={() => onPointerUp(task)}
+                          onPointerCancel={cancelDrag}
+                          onLostPointerCapture={cancelDrag}
                         >
                           <Diamond className="h-4 w-4" style={{ color, fill: color }} />
                         </div>
@@ -428,8 +487,10 @@ export function GanttChart({ projectId, projectCode, tasks, stages, phases, zoom
                             drag?.taskId === task.id && "ring-2 ring-primary/50"
                           )}
                           style={{ left: shown.x, width: shown.width, backgroundColor: `${color}55`, border: `1px solid ${color}` }}
-                          onPointerDown={(e) => startDrag(e, task, shown)}
+                          onPointerDown={(e) => startDrag(e, task)}
                           onPointerUp={() => onPointerUp(task)}
+                          onPointerCancel={cancelDrag}
+                          onLostPointerCapture={cancelDrag}
                         >
                           <div className="h-full" style={{ width: `${task.status === "DONE" ? 100 : task.progress}%`, backgroundColor: color }} />
                           {zoom !== "month" && shown.width > 60 && (

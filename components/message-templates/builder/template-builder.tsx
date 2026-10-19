@@ -42,11 +42,19 @@ import {
   MESSAGE_EVENT_DESCRIPTIONS,
   MESSAGE_EVENT_GROUPS,
   MESSAGE_EVENT_LABELS,
+  MESSAGE_SCOPE_DESCRIPTIONS,
+  MESSAGE_SCOPE_LABELS,
+  supportsAllClients,
   type MessageChannel,
   type MessageTemplateEvent,
+  type MessageTemplateScope,
 } from "@/lib/message-templates/events"
 import { variableGroupsForEvent } from "@/lib/message-templates/variable-catalog"
-import { DEFAULT_DEMANDS_XLSX_FILE_NAME, type TemplateAttachment } from "@/lib/message-templates/attachments"
+import {
+  allowedAttachmentTypes,
+  defaultAttachmentFileName,
+  type TemplateAttachment,
+} from "@/lib/message-templates/attachments"
 import { VariableInput } from "../variable-input"
 import { BlockPalette, BlockTypeCard, type PaletteBlockType } from "./block-palette"
 import { BuilderContext, type BuilderApi } from "./builder-context"
@@ -61,6 +69,7 @@ export interface TemplateBuilderValue {
   name: string
   channel: MessageChannel
   event: MessageTemplateEvent
+  scope: MessageTemplateScope
   subject: string
   content: BlockTree
   attachments: TemplateAttachment[]
@@ -83,12 +92,20 @@ function initialValue(template: TemplateBuilderProps["template"]): TemplateBuild
     name: "",
     channel: "EMAIL",
     event: "CONTRACT_USAGE",
+    scope: "PER_CLIENT",
     subject: d.subject,
     content: d.content,
     attachments: [],
     bodyText: d.whatsapp,
     isActive: true,
   }
+}
+
+const SCOPES: MessageTemplateScope[] = ["PER_CLIENT", "ALL_CLIENTS"]
+
+/** Spreadsheets the built-in default of an event/scope starts with. */
+function defaultAttachments(event: MessageTemplateEvent, scope: MessageTemplateScope): TemplateAttachment[] {
+  return allowedAttachmentTypes(event, scope).map((type) => ({ type, fileName: defaultAttachmentFileName(type, scope) }))
 }
 
 const isNestedZone = (id: unknown) => typeof id === "string" && (id.startsWith("column:") || id.startsWith("container:"))
@@ -108,7 +125,8 @@ export function TemplateBuilder({ template, canSave }: TemplateBuilderProps) {
   const [errors, setErrors] = useState<Record<string, string>>({})
 
   const dirty = JSON.stringify(value) !== savedSnapshot
-  const variableGroups = useMemo(() => variableGroupsForEvent(value.event), [value.event])
+  const variableGroups = useMemo(() => variableGroupsForEvent(value.event, value.scope), [value.event, value.scope])
+  const canChooseScope = value.channel === "EMAIL" && supportsAllClients(value.event)
 
   useEffect(() => {
     if (!dirty) return
@@ -120,22 +138,35 @@ export function TemplateBuilder({ template, canSave }: TemplateBuilderProps) {
   const patch = useCallback((p: Partial<TemplateBuilderValue>) => setValue((v) => ({ ...v, ...p })), [])
   const setTree = useCallback((fn: (tree: BlockTree) => BlockTree) => setValue((v) => ({ ...v, content: fn(v.content) })), [])
 
-  /** On a brand-new template still showing a built-in default, switching event loads that event's default. */
-  function changeEvent(event: MessageTemplateEvent) {
-    const current = defaultTemplate(value.event)
+  /**
+   * On a brand-new template still showing a built-in default, switching event or scope loads that
+   * event/scope's default. Events without "Todos os clientes" fall back to "Por cliente".
+   */
+  function changeKind(event: MessageTemplateEvent, requestedScope: MessageTemplateScope) {
+    const scope = value.channel === "EMAIL" && supportsAllClients(event) ? requestedScope : "PER_CLIENT"
+    const current = defaultTemplate(value.event, value.scope)
     const untouched =
       !template &&
       value.subject === current.subject &&
       value.bodyText === current.whatsapp &&
       JSON.stringify(value.content.map((b) => b.type)) === JSON.stringify(current.content.map((b) => b.type))
     if (untouched) {
-      const next = defaultTemplate(event)
-      const attachments: TemplateAttachment[] =
-        event === "DEMAND_REPORT" ? [{ type: "DEMANDS_XLSX", fileName: DEFAULT_DEMANDS_XLSX_FILE_NAME }] : []
-      setValue((v) => ({ ...v, event, subject: next.subject, content: next.content, bodyText: next.whatsapp, attachments }))
+      const next = defaultTemplate(event, scope)
+      setValue((v) => ({
+        ...v,
+        event,
+        scope,
+        subject: next.subject,
+        content: next.content,
+        // The all-clients defaults are email-only — keep the WhatsApp text of the per-client one.
+        bodyText: next.whatsapp || v.bodyText,
+        attachments: defaultAttachments(event, scope),
+      }))
       setSelectedId(null)
     } else {
-      patch({ event })
+      // Drop attachments the new event/scope can't generate.
+      const allowed = allowedAttachmentTypes(event, scope)
+      setValue((v) => ({ ...v, event, scope, attachments: v.attachments.filter((a) => allowed.includes(a.type)) }))
     }
   }
 
@@ -145,6 +176,7 @@ export function TemplateBuilder({ template, canSave }: TemplateBuilderProps) {
       selectedId,
       select: setSelectedId,
       variableGroups,
+      scope: value.scope,
       updateBlock: (id, updater) => setTree((t) => treeUtils.updateBlock(t, id, updater)),
       removeBlock: (id) => {
         setTree((t) => treeUtils.removeBlock(t, id))
@@ -161,7 +193,7 @@ export function TemplateBuilder({ template, canSave }: TemplateBuilderProps) {
       removeColumn: (rowId, columnId) => setTree((t) => treeUtils.removeColumnFromRow(t, rowId, columnId)),
       resizeColumn: (rowId, columnId, w) => setTree((t) => treeUtils.resizeColumn(t, rowId, columnId, w)),
     }),
-    [value.content, selectedId, variableGroups, setTree]
+    [value.content, selectedId, variableGroups, value.scope, setTree]
   )
 
   function addFromPalette(type: PaletteBlockType) {
@@ -300,7 +332,12 @@ export function TemplateBuilder({ template, canSave }: TemplateBuilderProps) {
         <Select
           items={MESSAGE_CHANNELS.map((c) => ({ value: c, label: MESSAGE_CHANNEL_LABELS[c] }))}
           value={value.channel}
-          onValueChange={(v) => v && patch({ channel: v as MessageChannel })}
+          onValueChange={(v) => {
+            if (!v) return
+            const channel = v as MessageChannel
+            // "Todos os clientes" is email-only.
+            setValue((cur) => ({ ...cur, channel, scope: channel === "EMAIL" ? cur.scope : "PER_CLIENT" }))
+          }}
         >
           <SelectTrigger className="w-full sm:w-36">
             <SelectValue />
@@ -316,7 +353,7 @@ export function TemplateBuilder({ template, canSave }: TemplateBuilderProps) {
         <Select
           items={Object.entries(MESSAGE_EVENT_LABELS).map(([v, label]) => ({ value: v, label }))}
           value={value.event}
-          onValueChange={(v) => v && changeEvent(v as MessageTemplateEvent)}
+          onValueChange={(v) => v && changeKind(v as MessageTemplateEvent, value.scope)}
         >
           <SelectTrigger className="w-full sm:w-64" title={MESSAGE_EVENT_DESCRIPTIONS[value.event]}>
             <SelectValue />
@@ -334,6 +371,24 @@ export function TemplateBuilder({ template, canSave }: TemplateBuilderProps) {
             ))}
           </SelectContent>
         </Select>
+        {canChooseScope && (
+          <Select
+            items={SCOPES.map((s) => ({ value: s, label: MESSAGE_SCOPE_LABELS[s] }))}
+            value={value.scope}
+            onValueChange={(v) => v && changeKind(value.event, v as MessageTemplateScope)}
+          >
+            <SelectTrigger className="w-full sm:w-44" title={MESSAGE_SCOPE_DESCRIPTIONS[value.scope]} aria-label="Escopo">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {SCOPES.map((s) => (
+                <SelectItem key={s} value={s}>
+                  {MESSAGE_SCOPE_LABELS[s]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
         <div className="flex items-center gap-2 px-2">
           <Switch id="tpl-active" checked={value.isActive} onCheckedChange={(isActive) => patch({ isActive })} />
           <Label htmlFor="tpl-active" className="text-sm">
@@ -364,7 +419,13 @@ export function TemplateBuilder({ template, canSave }: TemplateBuilderProps) {
           )}
         </div>
       </div>
-      <p className="-mt-2 text-xs text-muted-foreground">{MESSAGE_EVENT_DESCRIPTIONS[value.event]}</p>
+      <p className="-mt-2 text-xs text-muted-foreground">
+        {value.scope === "ALL_CLIENTS"
+          ? `${MESSAGE_SCOPE_DESCRIPTIONS.ALL_CLIENTS} Enviado pelas regras de Integrações > Envio de relatórios${
+              value.event === "CONTRACT_USAGE" ? " (não substitui o aviso automático de consumo por cliente)" : ""
+            }.`
+          : MESSAGE_EVENT_DESCRIPTIONS[value.event]}
+      </p>
 
       {isEmail ? (
         <BuilderContext.Provider value={api}>
@@ -385,7 +446,8 @@ export function TemplateBuilder({ template, canSave }: TemplateBuilderProps) {
             value={value.attachments}
             onChange={(attachments) => patch({ attachments })}
             variableGroups={variableGroups}
-            supportsDemandsXlsx={value.event === "DEMAND_REPORT"}
+            allowedTypes={allowedAttachmentTypes(value.event, value.scope)}
+            scope={value.scope}
             error={errors.attachments}
           />
           <DndContext
@@ -437,6 +499,7 @@ export function TemplateBuilder({ template, canSave }: TemplateBuilderProps) {
         subject={value.subject}
         content={value.content}
         bodyText={value.bodyText}
+        scope={value.scope}
       />
       <ConfirmDialog
         open={leaveOpen}

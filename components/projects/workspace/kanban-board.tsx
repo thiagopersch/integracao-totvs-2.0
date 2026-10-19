@@ -1,13 +1,14 @@
 "use client"
 
-import { Fragment, useMemo, useState, useTransition } from "react"
+import { Fragment, memo, useMemo, useRef, useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import {
   DndContext,
   DragOverlay,
   KeyboardSensor,
-  PointerSensor,
+  MouseSensor,
+  TouchSensor,
   closestCorners,
   useDroppable,
   useSensor,
@@ -18,7 +19,7 @@ import {
 } from "@dnd-kit/core"
 import { SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
-import { CalendarDays, Plus } from "lucide-react"
+import { CalendarDays, MoreHorizontal, Plus } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { ColorBadge } from "@/components/shared/color-badge"
@@ -27,10 +28,11 @@ import { DueDateLabel, TaskMeta, UserAvatar } from "@/components/projects/worksp
 import { moveProjectTask, quickCreateProjectTask } from "@/actions/project-tasks"
 import { PRIORITIES, PRIORITY_COLORS, PRIORITY_LABELS, byPriority, taskKey, type PhaseRef, type ProjectSettings, type StageRef } from "@/lib/projects"
 import { formatDateOnly } from "@/utils/format"
+import { sameRankNeighbours } from "@/lib/project-tasks"
 import type { Swimlane } from "@/lib/project-workspace-params"
 import { cn } from "@/lib/utils"
 import type { ProjectTaskDTO, WorkspaceActions } from "@/components/projects/workspace/types"
-import type { TaskContextMenu } from "@/components/projects/workspace/task-context-menu"
+import { openTaskMenuFrom, type TaskContextMenu } from "@/components/projects/workspace/task-context-menu"
 
 const SEP = "::"
 const containerId = (lane: string, stageId: string) => `${lane}${SEP}${stageId}`
@@ -80,20 +82,19 @@ type CardProps = {
   phase?: PhaseRef
   projectCode: string
   today: string
-  onOpen?: () => void
+  onOpen?: (taskId: string) => void
+  /** Shows the "⋯" menu button on touch screens (no right click there). */
+  menu?: boolean
   dragging?: boolean
 }
 
 /** Soft tint + left stripe in the priority color over the opaque card, so text keeps the theme contrast. */
-function KanbanCard({ task, stage, phase, projectCode, today, onOpen, dragging }: CardProps) {
+const KanbanCard = memo(function KanbanCard({ task, stage, phase, projectCode, today, onOpen, menu, dragging }: CardProps) {
   const color = PRIORITY_COLORS[task.priority]
   const progress = task.status === "DONE" ? 100 : task.progress
   return (
     <div
-      role="button"
-      tabIndex={0}
-      onClick={onOpen}
-      onKeyDown={(e) => e.key === "Enter" && onOpen?.()}
+      onClick={() => onOpen?.(task.id)}
       className={cn(
         "neon-border cursor-pointer space-y-2 rounded-md border bg-card p-2.5 text-left shadow-xs outline-none hover:shadow-md",
         dragging && "neon-off cursor-grabbing rotate-1 shadow-lg ring-2 ring-primary/40",
@@ -132,31 +133,54 @@ function KanbanCard({ task, stage, phase, projectCode, today, onOpen, dragging }
       <TaskMeta task={task} />
       <div className="flex items-center justify-between gap-2 border-t border-foreground/10 pt-2">
         <span className="font-mono text-[11px] text-muted-foreground">{taskKey(projectCode, task.number)}</span>
-        {task.assignee ? (
-          <span className="flex min-w-0 items-center gap-1.5 text-xs">
-            <span className="truncate">{task.assignee.name}</span>
-            <UserAvatar name={task.assignee.name} image={task.assignee.image} className="h-5 w-5" />
-          </span>
-        ) : (
-          <span className="text-xs text-muted-foreground">Sem responsável</span>
-        )}
+        <span className="ml-auto flex min-w-0 items-center gap-1.5">
+          {task.assignee ? (
+            <span className="flex min-w-0 items-center gap-1.5 text-xs">
+              <span className="truncate">{task.assignee.name}</span>
+              <UserAvatar name={task.assignee.name} image={task.assignee.image} className="h-5 w-5" />
+            </span>
+          ) : (
+            <span className="text-xs text-muted-foreground">Sem responsável</span>
+          )}
+          {menu && (
+            <button
+              type="button"
+              className="-my-1 -mr-1 hidden h-7 w-7 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-background/60 pointer-coarse:inline-flex"
+              aria-label="Ações da tarefa"
+              onClick={(e) => {
+                e.stopPropagation()
+                openTaskMenuFrom(e.currentTarget)
+              }}
+            >
+              <MoreHorizontal className="h-4 w-4" />
+            </button>
+          )}
+        </span>
       </div>
     </div>
   )
-}
+})
 
-function SortableCard(props: Omit<CardProps, "dragging"> & { disabled: boolean }) {
+/**
+ * Draggable wrapper — the only focus stop of the card (Enter opens it, Space picks it up). Touch
+ * drags start after a press-and-hold, so swiping over cards still scrolls the board/page.
+ */
+function SortableCard(props: Omit<CardProps, "dragging" | "menu"> & { disabled: boolean }) {
   const { disabled, ...card } = props
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: props.task.id, disabled })
   return (
     <div
       ref={setNodeRef}
       style={{ transform: CSS.Transform.toString(transform), transition }}
-      className={cn("touch-none", isDragging && "opacity-30")}
+      className={cn("touch-manipulation select-none rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring [-webkit-touch-callout:none]", isDragging && "opacity-30")}
       {...attributes}
       {...listeners}
+      onKeyDown={(e) => {
+        listeners?.onKeyDown?.(e)
+        if (e.key === "Enter" && e.target === e.currentTarget) card.onOpen?.(card.task.id)
+      }}
     >
-      <KanbanCard {...card} />
+      <KanbanCard {...card} menu />
     </div>
   )
 }
@@ -219,6 +243,7 @@ function Column({
   onOpen,
   onQuickAdd,
   taskMenu,
+  isDragging,
 }: {
   id: string
   stage: StageRef
@@ -236,6 +261,7 @@ function Column({
   onOpen: (id: string) => void
   onQuickAdd: (stageId: string, title: string) => Promise<boolean>
   taskMenu: TaskContextMenu
+  isDragging: () => boolean
 }) {
   const { setNodeRef, isOver } = useDroppable({ id })
   const [adding, setAdding] = useState<"top" | "bottom" | null>(null)
@@ -272,9 +298,10 @@ function Column({
                     phase={task.phaseId ? phasesById.get(task.phaseId) : undefined}
                     projectCode={projectCode}
                     today={today}
-                    onOpen={() => onOpen(taskId)}
+                    onOpen={onOpen}
                     disabled={!canUpdate}
-                  />
+                  />,
+                  { blockOpen: isDragging }
                 )}
               </Fragment>
             ) : null
@@ -330,11 +357,24 @@ export function KanbanBoard({ projectId, projectCode, tasks, settings, stages, p
     setBoard((prev) => ({ ...prev, columns: typeof next === "function" ? next(prev.columns) : next }))
   const [activeId, setActiveId] = useState<string | null>(null)
   const [origin, setOrigin] = useState<string | null>(null)
+  // Read by the card menus to veto the touch long-press while a card is lifted.
+  const draggingRef = useRef(false)
+  const isDragging = () => draggingRef.current
 
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+    useSensor(MouseSensor, { activationConstraint: { distance: 6 } }),
+    // Press and hold to drag on touch screens; a swipe before that scrolls.
+    useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 8 } }),
+    // Enter opens the task (card onKeyDown), so only Space picks up / drops.
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates, keyboardCodes: { start: ["Space"], cancel: ["Escape"], end: ["Space"] } })
   )
+
+  /** Tasks per stage across lanes (WIP counts). */
+  const stageCounts = useMemo(() => {
+    const counts = new Map<string, number>()
+    for (const t of tasks) if (t.stageId) counts.set(t.stageId, (counts.get(t.stageId) ?? 0) + 1)
+    return counts
+  }, [tasks])
 
   const findContainer = (id: string) => (id in columns ? id : Object.keys(columns).find((key) => columns[key].includes(id)))
 
@@ -342,10 +382,17 @@ export function KanbanBoard({ projectId, projectCode, tasks, settings, stages, p
     startTransition(() => router.refresh())
   }
 
+  function resetBoard() {
+    setColumns(base)
+  }
+
   function onDragStart(event: DragStartEvent) {
     const id = String(event.active.id)
+    draggingRef.current = true
     setActiveId(id)
     setOrigin(findContainer(id) ?? null)
+    // Haptic tick when the hold lifts the card (no-op where unsupported, e.g. iOS Safari).
+    if (typeof TouchEvent !== "undefined" && event.activatorEvent instanceof TouchEvent) navigator.vibrate?.(10)
   }
 
   function onDragOver(event: DragOverEvent) {
@@ -369,9 +416,11 @@ export function KanbanBoard({ projectId, projectCode, tasks, settings, stages, p
   async function onDragEnd(event: DragEndEvent) {
     const { active, over } = event
     const id = String(active.id)
+    draggingRef.current = false
     setActiveId(null)
     const container = findContainer(id)
-    if (!over || !container) return setColumns(buildColumns(tasks, lanes, stages, swimlane))
+    const task = tasksById.get(id)
+    if (!over || !container || !task) return resetBoard()
 
     // Reorder inside the final container.
     let ids = columns[container]
@@ -384,39 +433,41 @@ export function KanbanBoard({ projectId, projectCode, tasks, settings, stages, p
       setColumns((prev) => ({ ...prev, [container]: ids }))
     }
 
-    const task = tasksById.get(id)!
     const stageId = stageOf(container)
-    const stage = stages.find((s) => s.id === stageId)!
+    const stage = stagesById.get(stageId)
+    if (!stage) return resetBoard()
     const index = ids.indexOf(id)
-    const beforeId = index > 0 ? ids[index - 1] : null
-    const afterId = index < ids.length - 1 ? ids[index + 1] : null
     if (stageId === task.stageId && origin === container && activeIndex === index) return
 
     // WIP limit (column total across lanes, without the moved card).
     const limit = stage.wipLimit
-    if (limit && settings.wipEnforced && stageId !== task.stageId) {
-      const inColumn = tasks.filter((t) => t.stageId === stageId).length
-      if (inColumn >= limit) {
-        toast.error(`Limite WIP de "${stage.name}" atingido (${limit}).`)
-        return setColumns(buildColumns(tasks, lanes, stages, swimlane))
-      }
+    if (limit && settings.wipEnforced && stageId !== task.stageId && (stageCounts.get(stageId) ?? 0) >= limit) {
+      toast.error(`Limite WIP de "${stage.name}" atingido (${limit}).`)
+      return resetBoard()
     }
     if (swimlane !== "none" && origin && origin.split(SEP)[0] !== container.split(SEP)[0]) {
       toast.info("Mover entre raias altera apenas o status — edite a tarefa para trocar responsável ou prioridade.")
     }
 
-    const result = await moveProjectTask(projectId, id, { stageId, beforeId, afterId })
-    if (!result.success) {
-      toast.error(result.error || "Erro ao mover tarefa")
-      setColumns(buildColumns(tasks, lanes, stages, swimlane))
-    } else if (result.warning) toast.warning(result.warning)
+    // Cards are shown by priority first, so the drop position is defined by the same-priority neighbours.
+    const { beforeId, afterId } = sameRankNeighbours(ids, id, (taskId) => tasksById.get(taskId)?.priority)
+    try {
+      const result = await moveProjectTask(projectId, id, { stageId, beforeId, afterId })
+      if (!result.success) {
+        toast.error(result.error || "Erro ao mover tarefa")
+        resetBoard()
+      } else if (result.warning) toast.warning(result.warning)
+    } catch {
+      toast.error("Erro ao mover tarefa")
+      resetBoard()
+    }
     refresh()
   }
 
   async function quickAdd(stageId: string, title: string, lane: string) {
-    const result = await quickCreateProjectTask(projectId, { title, stageId })
-    if (!result.success) {
-      toast.error(result.error || "Erro ao criar tarefa")
+    const result = await quickCreateProjectTask(projectId, { title, stageId }).catch(() => null)
+    if (!result?.success) {
+      toast.error(result?.error || "Erro ao criar tarefa")
       return false
     }
     if (lane !== "all") toast.info("Tarefa criada — defina responsável/prioridade ao editá-la.")
@@ -425,7 +476,7 @@ export function KanbanBoard({ projectId, projectCode, tasks, settings, stages, p
   }
 
   const activeTask = activeId ? tasksById.get(activeId) : null
-  const countIn = (stageId: string) => tasks.filter((t) => t.stageId === stageId).length
+  const countIn = (stageId: string) => stageCounts.get(stageId) ?? 0
   const wipFull = (stage: StageRef) => !!stage.wipLimit && !!settings.wipEnforced && countIn(stage.id) >= stage.wipLimit
 
   return (
@@ -438,8 +489,9 @@ export function KanbanBoard({ projectId, projectCode, tasks, settings, stages, p
       onDragOver={onDragOver}
       onDragEnd={onDragEnd}
       onDragCancel={() => {
+        draggingRef.current = false
         setActiveId(null)
-        setColumns(buildColumns(tasks, lanes, stages, swimlane))
+        resetBoard()
       }}
     >
       {/* Scrolls with the screen width (trackpad, shift+wheel, auto-scroll while dragging) but the bar stays hidden. */}
@@ -489,6 +541,7 @@ export function KanbanBoard({ projectId, projectCode, tasks, settings, stages, p
                       onOpen={actions.openTask}
                       onQuickAdd={(s, title) => quickAdd(s, title, lane.id)}
                       taskMenu={taskMenu}
+                      isDragging={isDragging}
                     />
                   )
                 })}

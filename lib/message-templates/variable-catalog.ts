@@ -1,4 +1,4 @@
-import type { MessageTemplateEvent } from "./events";
+import type { MessageTemplateEvent, MessageTemplateScope } from "./events";
 
 export interface VariableField {
   key: string;
@@ -12,6 +12,8 @@ export interface VariableGroup {
   label: string;
   /** Events whose sends fill these variables — the picker shows only the groups of the selected event. */
   events: MessageTemplateEvent[] | "all";
+  /** Template scopes that fill these variables — absent means every scope. */
+  scopes?: MessageTemplateScope[];
   fields: VariableField[];
 }
 
@@ -96,9 +98,24 @@ export const VARIABLE_CATALOG: VariableGroup[] = [
     ],
   },
   {
+    id: "allClients",
+    label: "Todos os clientes (totais)",
+    events: ["DEMAND_REPORT", "CONTRACT_USAGE"],
+    scopes: ["ALL_CLIENTS"],
+    fields: [
+      { key: "clientsCount", label: "Quantidade de clientes no e-mail", example: "3" },
+      { key: "grandDemandsCount", label: "Total de demandas (todos os clientes)", example: "27" },
+      { key: "grandTotalHours", label: "Total de horas (todos os clientes)", example: "86,5h" },
+      { key: "grandContractedHours", label: "Total de horas contratadas (consumo)", example: "150h" },
+      { key: "grandUsedHours", label: "Total de horas utilizadas (consumo)", example: "86,5h" },
+      { key: "grandRemainingHours", label: "Saldo total de horas (consumo)", example: "63,5h" },
+    ],
+  },
+  {
     id: "demand",
     label: "Demanda lançada",
     events: ["CONTRACT_USAGE"],
+    scopes: ["PER_CLIENT"],
     fields: [
       { key: "demandName", label: "Título", example: "Ajuste na fórmula de cálculo" },
       { key: "demandDescription", label: "Descrição", example: "Correção da fórmula visual do processo de matrícula." },
@@ -147,8 +164,10 @@ export const VARIABLE_CATALOG: VariableGroup[] = [
   },
 ];
 
-export function variableGroupsForEvent(event: MessageTemplateEvent): VariableGroup[] {
-  return VARIABLE_CATALOG.filter((g) => g.events === "all" || g.events.includes(event));
+export function variableGroupsForEvent(event: MessageTemplateEvent, scope: MessageTemplateScope = "PER_CLIENT"): VariableGroup[] {
+  return VARIABLE_CATALOG.filter(
+    (g) => (g.events === "all" || g.events.includes(event)) && (!g.scopes || g.scopes.includes(scope))
+  );
 }
 
 export function flattenVariables(groups: VariableGroup[] = VARIABLE_CATALOG): VariableField[] {
@@ -159,4 +178,23 @@ export function flattenVariables(groups: VariableGroup[] = VARIABLE_CATALOG): Va
 /** `{ key: example }` for every variable — preview and test-send values. */
 export function exampleVariables(): Record<string, string> {
   return Object.fromEntries(flattenVariables().map((f) => [f.key, f.example]));
+}
+
+/**
+ * Sample clients for previewing ALL_CLIENTS templates — only the per-client values; the rest comes
+ * from the email's own vars (fillTemplateHtml merges them).
+ */
+export function exampleClients(): Record<string, string>[] {
+  return [
+    { clientName: "ITE - Toledo", demandsCount: "12", totalHours: "34,5h", analystsNames: "João Silva, Maria Souza" },
+    { clientName: "Colégio Horizonte", demandsCount: "9", totalHours: "28h", analystsNames: "João Silva" },
+    { clientName: "Faculdade Vale Verde", demandsCount: "6", totalHours: "24h", analystsNames: "Ana Pereira" },
+  ].map((client, i) => ({
+    ...client,
+    clientLegalName: `${client.clientName} Ltda.`,
+    contractedHours: ["50h", "40h", "60h"][i],
+    usedHours: client.totalHours,
+    remainingHours: ["15,5h", "12h", "36h"][i],
+    usagePercent: ["69%", "70%", "40%"][i],
+  }));
 }

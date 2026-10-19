@@ -33,6 +33,8 @@ async function ReportSchedulesContent() {
         templateId: s.templateId,
         templateName: s.template.name,
         templateUsable: s.template.isActive && !s.template.deletedAt,
+        templateEvent: s.template.event,
+        templateAllClients: s.template.scope === "ALL_CLIENTS",
         period: s.period,
         clientIds: s.clientIds,
         toEmails: s.toEmails,

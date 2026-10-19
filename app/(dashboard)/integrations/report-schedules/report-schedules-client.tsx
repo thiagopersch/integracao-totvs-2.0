@@ -40,6 +40,9 @@ export interface ScheduleRow {
   templateId: string
   templateName: string
   templateUsable: boolean
+  templateEvent: string
+  /** ALL_CLIENTS template: one email listing every client. */
+  templateAllClients: boolean
   period: string
   clientIds: string[]
   toEmails: string[]
@@ -57,9 +60,24 @@ export interface ScheduleRow {
 
 interface Props {
   schedules: ScheduleRow[]
-  templates: { id: string; name: string }[]
+  templates: ReportTemplate[]
   clients: { id: string; name: string; email: string | null }[]
   permissions: { create: boolean; update: boolean; delete: boolean; execute: boolean }
+}
+
+interface ReportTemplate {
+  id: string
+  name: string
+  event: string
+  scope: string
+}
+
+const MONTHLY_PERIODS = ["currentMonth", "previousMonth"]
+
+/** "Consumo de horas · Todos os clientes" — shown next to each template name. */
+function templateKindLabel(t: Pick<ReportTemplate, "event" | "scope">) {
+  const report = t.event === "CONTRACT_USAGE" ? "Consumo de horas" : "Demandas"
+  return `${report} · ${t.scope === "ALL_CLIENTS" ? "Todos os clientes" : "Por cliente"}`
 }
 
 interface FormState {
@@ -150,14 +168,33 @@ export function ReportSchedulesClient({ schedules, templates, clients, permissio
   const [runTarget, setRunTarget] = useState<{
     id: string
     name: string
+    allClients: boolean
     periodLabel: string
     clients: { id: string; name: string; to: string[] }[]
+    to: string[]
     cc: string[]
   } | null>(null)
   const [busyId, setBusyId] = useState<string | null>(null)
   const [running, setRunning] = useState(false)
 
   const patch = (p: Partial<FormState>) => setForm((f) => ({ ...f, ...p }))
+  const selectedTemplate = templates.find((t) => t.id === form.templateId)
+  const formAllClients = selectedTemplate?.scope === "ALL_CLIENTS"
+  const formUsage = selectedTemplate?.event === "CONTRACT_USAGE"
+  const periodKinds = formUsage ? REPORT_PERIOD_KINDS.filter((k) => MONTHLY_PERIODS.includes(k)) : REPORT_PERIOD_KINDS
+
+  function changeTemplate(templateId: string) {
+    const template = templates.find((t) => t.id === templateId)
+    const allClients = template?.scope === "ALL_CLIENTS"
+    const usage = template?.event === "CONTRACT_USAGE"
+    setForm((f) => ({
+      ...f,
+      templateId,
+      // The single all-clients email never goes to each client's own address.
+      sendToClientEmail: allClients ? false : f.sendToClientEmail,
+      period: usage && !MONTHLY_PERIODS.includes(f.period) ? "currentMonth" : f.period,
+    }))
+  }
 
   function openNew() {
     setForm(emptyForm(templates))
@@ -203,7 +240,15 @@ export function ReportSchedulesClient({ schedules, templates, clients, permissio
       toast.error(preview.error)
       return
     }
-    setRunTarget({ id: row.id, name: row.name, periodLabel: preview.periodLabel, clients: preview.clients, cc: preview.cc })
+    setRunTarget({
+      id: row.id,
+      name: row.name,
+      allClients: preview.allClients,
+      periodLabel: preview.periodLabel,
+      clients: preview.clients,
+      to: preview.to,
+      cc: preview.cc,
+    })
   }
 
   async function handleRun() {
@@ -232,7 +277,7 @@ export function ReportSchedulesClient({ schedules, templates, clients, permissio
     <div className="space-y-4 p-4 md:p-6">
       <PageHeader
         title="Envio de Relatórios"
-        description="Envia automaticamente, para cada cliente com demandas no período, um e-mail com a planilha XLSX das demandas (mesma do Exportar demandas)."
+        description="Envia automaticamente o relatório de demandas do período (um e-mail por cliente ou um único e-mail com todos os clientes) e o consumo de horas de todos os clientes, conforme o escopo do template."
       >
         {permissions.create && (
           <Button onClick={openNew} disabled={templates.length === 0}>
@@ -244,7 +289,8 @@ export function ReportSchedulesClient({ schedules, templates, clients, permissio
       {templates.length === 0 && (
         <Card>
           <CardContent className="pt-6 text-sm">
-            Nenhum template ativo do evento <strong>Relatório de demandas do período</strong>.{" "}
+            Nenhum template ativo do evento <strong>Relatório de demandas do período</strong> ou de{" "}
+            <strong>Consumo de horas do contrato</strong> com escopo <strong>Todos os clientes</strong>.{" "}
             <Link href="/integrations/message-templates/new" className="text-primary underline">
               Crie um template
             </Link>{" "}
@@ -283,6 +329,9 @@ export function ReportSchedulesClient({ schedules, templates, clients, permissio
                       <div className="font-medium">{row.name}</div>
                       <div className="text-xs text-muted-foreground">
                         {row.templateName}
+                        <Badge variant="outline" className="ml-2">
+                          {templateKindLabel({ event: row.templateEvent, scope: row.templateAllClients ? "ALL_CLIENTS" : "PER_CLIENT" })}
+                        </Badge>
                         {!row.templateUsable && (
                           <Badge variant="destructive" className="ml-2">
                             template inativo
@@ -293,7 +342,8 @@ export function ReportSchedulesClient({ schedules, templates, clients, permissio
                     <TableCell className="max-w-56 text-xs">
                       <div className="truncate" title={row.toEmails.join(", ")}>
                         <span className="text-muted-foreground">Para: </span>
-                        {[...row.toEmails, ...(row.sendToClientEmail ? ["e-mail do cliente"] : [])].join(", ") || "—"}
+                        {[...row.toEmails, ...(row.sendToClientEmail && !row.templateAllClients ? ["e-mail do cliente"] : [])].join(", ") ||
+                          "—"}
                       </div>
                       {row.ccEmails.length > 0 && (
                         <div className="truncate" title={row.ccEmails.join(", ")}>
@@ -302,7 +352,12 @@ export function ReportSchedulesClient({ schedules, templates, clients, permissio
                         </div>
                       )}
                       <div className="text-muted-foreground">
-                        {row.clientIds.length ? `${row.clientIds.length} cliente(s)` : "Todos os clientes com demanda"}
+                        {row.clientIds.length
+                          ? `${row.clientIds.length} cliente(s)`
+                          : row.templateEvent === "CONTRACT_USAGE"
+                            ? "Todos os clientes com contrato"
+                            : "Todos os clientes com demanda"}
+                        {row.templateAllClients && " · um único e-mail"}
                       </div>
                     </TableCell>
                     <TableCell>
@@ -385,7 +440,7 @@ export function ReportSchedulesClient({ schedules, templates, clients, permissio
                 <Select
                   items={templates.map((t) => ({ value: t.id, label: t.name }))}
                   value={form.templateId}
-                  onValueChange={(v) => v && patch({ templateId: v })}
+                  onValueChange={(v) => v && changeTemplate(v)}
                 >
                   <SelectTrigger className="w-full">
                     <SelectValue placeholder="Selecione" />
@@ -393,17 +448,22 @@ export function ReportSchedulesClient({ schedules, templates, clients, permissio
                   <SelectContent>
                     {templates.map((t) => (
                       <SelectItem key={t.id} value={t.id}>
-                        {t.name}
+                        <span className="flex flex-col">
+                          <span>{t.name}</span>
+                          <span className="text-xs text-muted-foreground">{templateKindLabel(t)}</span>
+                        </span>
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
-                <FieldDescription>O anexo XLSX e o texto vêm do template.</FieldDescription>
+                <FieldDescription>
+                  {selectedTemplate ? `${templateKindLabel(selectedTemplate)}. ` : ""}O anexo XLSX e o texto vêm do template.
+                </FieldDescription>
               </Field>
               <Field>
                 <FieldLabel>Período de referência</FieldLabel>
                 <Select
-                  items={REPORT_PERIOD_KINDS.map((k) => ({ value: k, label: REPORT_PERIOD_LABELS[k] }))}
+                  items={periodKinds.map((k) => ({ value: k, label: REPORT_PERIOD_LABELS[k] }))}
                   value={form.period}
                   onValueChange={(v) => v && patch({ period: v })}
                 >
@@ -411,14 +471,16 @@ export function ReportSchedulesClient({ schedules, templates, clients, permissio
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {REPORT_PERIOD_KINDS.map((k) => (
+                    {periodKinds.map((k) => (
                       <SelectItem key={k} value={k}>
                         {REPORT_PERIOD_LABELS[k]}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
-                <FieldDescription>Calculado na data do envio (ex.: mês atual).</FieldDescription>
+                <FieldDescription>
+                  {formUsage ? "Mês de referência do consumo, calculado na data do envio." : "Calculado na data do envio (ex.: mês atual)."}
+                </FieldDescription>
               </Field>
             </div>
 
@@ -428,10 +490,16 @@ export function ReportSchedulesClient({ schedules, templates, clients, permissio
                 items={clientItems}
                 value={form.clientIds}
                 onValueChange={(clientIds) => patch({ clientIds })}
-                placeholder="Todos os clientes com demandas no período"
+                placeholder={formUsage ? "Todos os clientes com contrato vigente" : "Todos os clientes com demandas no período"}
                 searchPlaceholder="Buscar cliente..."
               />
-              <FieldDescription>Um e-mail por cliente. Clientes sem demandas no período são ignorados.</FieldDescription>
+              <FieldDescription>
+                {formUsage
+                  ? "Um único e-mail com uma tabela por cliente. Clientes sem contrato vigente no mês são ignorados."
+                  : formAllClients
+                    ? "Um único e-mail com uma tabela por cliente, uma abaixo da outra. Clientes sem demandas no período são ignorados."
+                    : "Um e-mail por cliente. Clientes sem demandas no período são ignorados."}
+              </FieldDescription>
             </Field>
 
             <Field>
@@ -452,14 +520,16 @@ export function ReportSchedulesClient({ schedules, templates, clients, permissio
                 placeholder="coordenador@empresa.com.br"
               />
             </Field>
-            <div className="flex items-center gap-2">
-              <Checkbox
-                id="rs-client-email"
-                checked={form.sendToClientEmail}
-                onCheckedChange={(v) => patch({ sendToClientEmail: v === true })}
-              />
-              <Label htmlFor="rs-client-email">Enviar também ao e-mail cadastrado do cliente</Label>
-            </div>
+            {!formAllClients && (
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="rs-client-email"
+                  checked={form.sendToClientEmail}
+                  onCheckedChange={(v) => patch({ sendToClientEmail: v === true })}
+                />
+                <Label htmlFor="rs-client-email">Enviar também ao e-mail cadastrado do cliente</Label>
+              </div>
+            )}
 
             <div className="grid gap-4 md:grid-cols-3">
               <Field>
@@ -532,9 +602,13 @@ export function ReportSchedulesClient({ schedules, templates, clients, permissio
         onOpenChange={(open) => !open && setRunTarget(null)}
         title={`Enviar agora — ${runTarget?.name ?? ""}`}
         description={
-          runTarget && runTarget.clients.length
-            ? `${runTarget.clients.length} e-mail(s) com as demandas de ${runTarget.periodLabel}:`
-            : `Nenhum cliente com demandas em ${runTarget?.periodLabel ?? ""}.`
+          !runTarget
+            ? ""
+            : runTarget.clients.length === 0
+              ? `Nenhum cliente para ${runTarget.periodLabel}.`
+              : runTarget.allClients
+                ? `1 e-mail com ${runTarget.clients.length} cliente(s) — ${runTarget.periodLabel} — para ${runTarget.to.join(", ") || "(sem destinatário)"}:`
+                : `${runTarget.clients.length} e-mail(s) com as demandas de ${runTarget.periodLabel}:`
         }
         confirmLabel="Enviar"
         loading={running}
@@ -545,7 +619,10 @@ export function ReportSchedulesClient({ schedules, templates, clients, permissio
           <ul className="max-h-60 space-y-1 overflow-y-auto text-xs">
             {runTarget.clients.map((c) => (
               <li key={c.id}>
-                <strong>{c.name}</strong> → {c.to.join(", ") || <span className="text-destructive">sem destinatário</span>}
+                <strong>{c.name}</strong>
+                {!runTarget.allClients && (
+                  <> → {c.to.join(", ") || <span className="text-destructive">sem destinatário</span>}</>
+                )}
               </li>
             ))}
             {runTarget.cc.length > 0 && <li className="pt-1 text-muted-foreground">CC: {runTarget.cc.join(", ")}</li>}

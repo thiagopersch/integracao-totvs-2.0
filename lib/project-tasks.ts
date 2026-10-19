@@ -44,6 +44,23 @@ export function insertAfter(orderedIds: string[], id: string, beforeId: string |
 }
 
 /**
+ * Neighbours of a dropped card among the cards of the same priority. Boards sort by priority before
+ * the manual position, so positions aren't monotonic across priority groups and only same-rank
+ * neighbours describe where the card was dropped.
+ */
+export function sameRankNeighbours(
+  orderedIds: string[],
+  movedId: string,
+  priorityOf: (id: string) => Priority | undefined,
+): { beforeId: string | null; afterId: string | null } {
+  const rank = priorityOf(movedId);
+  const peers = orderedIds.filter((id) => id === movedId || priorityOf(id) === rank);
+  const index = peers.indexOf(movedId);
+  if (index < 0) return { beforeId: null, afterId: null };
+  return { beforeId: peers[index - 1] ?? null, afterId: peers[index + 1] ?? null };
+}
+
+/**
  * Would adding `predecessor → successor` close a cycle? True when `predecessor` is already
  * reachable from `successor` through the existing edges (or both are the same task).
  */

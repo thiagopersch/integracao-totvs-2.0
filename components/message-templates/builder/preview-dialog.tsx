@@ -8,11 +8,11 @@ import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { cn } from "@/lib/utils"
 import { renderBlockTree, wrapPreviewDocument } from "@/lib/message-templates/render-email"
-import { applyConditionals, interpolate } from "@/lib/message-templates/interpolate"
-import { exampleVariables } from "@/lib/message-templates/variable-catalog"
+import { fillTemplateHtml, interpolate } from "@/lib/message-templates/interpolate"
+import { exampleClients, exampleVariables } from "@/lib/message-templates/variable-catalog"
 import { whatsappToHtml } from "@/lib/message-templates/whatsapp"
 import type { BlockTree } from "@/lib/message-templates/block-types"
-import type { MessageChannel } from "@/lib/message-templates/events"
+import type { MessageChannel, MessageTemplateScope } from "@/lib/message-templates/events"
 
 interface PreviewDialogProps {
   open: boolean
@@ -21,11 +21,12 @@ interface PreviewDialogProps {
   subject: string
   content: BlockTree
   bodyText: string
+  scope?: MessageTemplateScope
 }
 
 /** Full preview: email in an iframe (desktop 600px / mobile 375px) or WhatsApp bubble — optionally
  *  filled with the catalog's example values, exactly as the send path renders it. */
-export function PreviewDialog({ open, onOpenChange, channel, subject, content, bodyText }: PreviewDialogProps) {
+export function PreviewDialog({ open, onOpenChange, channel, subject, content, bodyText, scope = "PER_CLIENT" }: PreviewDialogProps) {
   const [device, setDevice] = useState<"desktop" | "mobile">("desktop")
   const [withExamples, setWithExamples] = useState(true)
 
@@ -35,8 +36,10 @@ export function PreviewDialog({ open, onOpenChange, channel, subject, content, b
   const doc = useMemo(() => {
     if (channel !== "EMAIL") return ""
     const html = renderBlockTree(content, { baseUrl: typeof window !== "undefined" ? window.location.origin : "" })
-    return wrapPreviewDocument(withExamples ? interpolate(applyConditionals(html, examples), examples) : html)
-  }, [channel, content, withExamples, examples])
+    // ALL_CLIENTS: the repeated containers show the sample clients, one under the other.
+    const clients = scope === "ALL_CLIENTS" ? exampleClients() : undefined
+    return wrapPreviewDocument(withExamples ? fillTemplateHtml(html, examples, clients) : html)
+  }, [channel, content, withExamples, examples, scope])
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

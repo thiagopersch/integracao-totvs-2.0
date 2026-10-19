@@ -1,5 +1,5 @@
 import { renderBlockTree, wrapEmailDocument } from "@/lib/message-templates/render-email";
-import { applyConditionals, htmlToText, interpolate } from "@/lib/message-templates/interpolate";
+import { fillTemplateHtml, htmlToText, interpolate } from "@/lib/message-templates/interpolate";
 import { defaultTemplate } from "@/lib/message-templates/defaults";
 import { prisma } from "@/lib/prisma";
 import { appUrl, buildGeneralVars, buildOrganizationVars, type TemplateVars } from "@/lib/message-templates/vars-builder";
@@ -15,10 +15,18 @@ export interface RenderedEmail {
   templateId: string | null;
 }
 
-/** Renders a subject + block tree with the given variables into a sendable email. */
-export function renderEmailFromContent(subject: string, content: BlockTree, vars: TemplateVars): Omit<RenderedEmail, "templateId"> {
+/**
+ * Renders a subject + block tree with the given variables into a sendable email. `clients` (ALL_CLIENTS
+ * templates) holds one variable set per client for the containers flagged `repeatPerClient`.
+ */
+export function renderEmailFromContent(
+  subject: string,
+  content: BlockTree,
+  vars: TemplateVars,
+  clients?: TemplateVars[]
+): Omit<RenderedEmail, "templateId"> {
   const renderedSubject = interpolate(subject, vars, { escape: false }).replace(/\s+/g, " ").trim();
-  const body = interpolate(applyConditionals(renderBlockTree(content, { baseUrl: appUrl() }), vars), vars);
+  const body = fillTemplateHtml(renderBlockTree(content, { baseUrl: appUrl() }), vars, clients);
   return { subject: renderedSubject, html: wrapEmailDocument(body, renderedSubject), text: htmlToText(body) };
 }
 

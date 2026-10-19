@@ -29,6 +29,7 @@ async function EditMessageTemplateContent({ params }: { params: Promise<{ id: st
         name: template.name,
         channel: template.channel,
         event: template.event,
+        scope: template.scope,
         subject: template.subject,
         content: (Array.isArray(template.content) ? template.content : []) as unknown as BlockTree,
         attachments: parseTemplateAttachments(template.attachments),

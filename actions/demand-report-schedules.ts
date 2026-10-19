@@ -34,7 +34,7 @@ export async function getReportSchedulesPageData() {
   const ctx = await requirePermission("report_schedules", "read");
   const [schedules, templates, clients] = await Promise.all([
     demandReportService.list(ctx.organizationId),
-    messageTemplateService.listActiveEmail(ctx.organizationId, "DEMAND_REPORT"),
+    messageTemplateService.listReportScheduleTemplates(ctx.organizationId),
     prisma.client.findMany({
       where: { organizationId: ctx.organizationId, deletedAt: null, id: { in: ctx.allowedClientIds } },
       orderBy: { name: "asc" },
@@ -114,15 +114,19 @@ export async function previewReportSchedule(id: string) {
   const ctx = await requirePermission("report_schedules", "read");
   const schedule = await demandReportService.getById(id, ctx.organizationId);
   if (!schedule) return { success: false as const, error: "Regra de envio não encontrada" };
-  const { period, clients } = await demandReportService.previewClients(schedule);
+  const { mode, periodLabel, clients } = await demandReportService.previewRun(schedule);
+  const allClients = mode !== "DEMANDS_PER_CLIENT";
   return {
     success: true as const,
-    periodLabel: period.label,
+    /** ALL_CLIENTS modes send a single email listing every client to `toEmails`. */
+    allClients,
+    periodLabel,
     clients: clients.map((c) => ({
       id: c.id,
       name: c.name,
-      to: [...schedule.toEmails, ...(schedule.sendToClientEmail && c.email ? [c.email] : [])],
+      to: allClients ? schedule.toEmails : [...schedule.toEmails, ...(schedule.sendToClientEmail && c.email ? [c.email] : [])],
     })),
+    to: schedule.toEmails,
     cc: schedule.ccEmails,
   };
 }

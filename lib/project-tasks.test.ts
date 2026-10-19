@@ -8,6 +8,7 @@ import {
   positionBetween,
   rebalance,
   rollupSummary,
+  sameRankNeighbours,
   soleAssigneeId,
   statusSideEffects,
   wouldCreateCycle,
@@ -110,5 +111,21 @@ describe("soleAssigneeId", () => {
     expect(soleAssigneeId(null, [])).toBeNull();
     expect(soleAssigneeId("m", ["u"])).toBeNull();
     expect(soleAssigneeId(null, ["a", "b"])).toBeNull();
+  });
+});
+
+describe("sameRankNeighbours", () => {
+  const priority: Record<string, "URGENT" | "LOW"> = { u1: "URGENT", l1: "LOW", l2: "LOW", m: "LOW" };
+  const of = (id: string) => priority[id];
+
+  it("skips cards of another priority", () => {
+    // Dropped right below an urgent card: the first low card above is none, the next low is l1.
+    expect(sameRankNeighbours(["u1", "m", "l1", "l2"], "m", of)).toEqual({ beforeId: null, afterId: "l1" });
+    expect(sameRankNeighbours(["u1", "l1", "m", "l2"], "m", of)).toEqual({ beforeId: "l1", afterId: "l2" });
+    expect(sameRankNeighbours(["l1", "l2", "u1", "m"], "m", of)).toEqual({ beforeId: "l2", afterId: null });
+  });
+
+  it("returns no neighbours when the card isn't in the list", () => {
+    expect(sameRankNeighbours(["u1"], "m", of)).toEqual({ beforeId: null, afterId: null });
   });
 });

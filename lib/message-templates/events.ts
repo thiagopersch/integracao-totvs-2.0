@@ -2,6 +2,26 @@
 export type MessageChannel = "EMAIL" | "WHATSAPP";
 export type MessageTemplateEvent = "CONTRACT_USAGE" | "BACKUP_FAILED" | "SOAP_FAILED" | "GENERAL" | "DEMAND_REPORT";
 
+export type MessageTemplateScope = "PER_CLIENT" | "ALL_CLIENTS";
+
+export const MESSAGE_SCOPE_LABELS: Record<MessageTemplateScope, string> = {
+  PER_CLIENT: "Por cliente",
+  ALL_CLIENTS: "Todos os clientes",
+};
+
+export const MESSAGE_SCOPE_DESCRIPTIONS: Record<MessageTemplateScope, string> = {
+  PER_CLIENT: "Um e-mail para cada cliente, só com os dados dele.",
+  ALL_CLIENTS:
+    "Um único e-mail com todos os clientes da regra de envio: os contêineres marcados com \"Repetir para cada cliente\" aparecem uma vez por cliente, um abaixo do outro.",
+};
+
+/** Events whose templates can be ALL_CLIENTS (sent by the report schedules). */
+export const ALL_CLIENTS_EVENTS: MessageTemplateEvent[] = ["DEMAND_REPORT", "CONTRACT_USAGE"];
+
+export function supportsAllClients(event: MessageTemplateEvent): boolean {
+  return ALL_CLIENTS_EVENTS.includes(event);
+}
+
 export const MESSAGE_CHANNEL_LABELS: Record<MessageChannel, string> = {
   EMAIL: "E-mail",
   WHATSAPP: "WhatsApp",

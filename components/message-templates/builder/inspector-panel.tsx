@@ -333,10 +333,30 @@ function RowInspector({ block, patch }: { block: RowBlock; patch: Patch<RowBlock
 }
 
 function ContainerInspector({ block, patch }: { block: ContainerBlock; patch: Patch<ContainerBlock> }) {
+  const { scope } = useBuilder()
   const p = block.props
   const flex = p.display === "flex"
   return (
     <>
+      {(scope === "ALL_CLIENTS" || p.repeatPerClient) && (
+        <Section title="Todos os clientes">
+          <div className="flex items-center justify-between gap-2">
+            <Label htmlFor={`repeat-${block.id}`} className="text-xs">
+              Repetir para cada cliente
+            </Label>
+            <Switch
+              id={`repeat-${block.id}`}
+              checked={!!p.repeatPerClient}
+              onCheckedChange={(repeatPerClient) => patch({ repeatPerClient })}
+            />
+          </div>
+          <p className="text-[11px] text-muted-foreground">
+            O contêiner aparece uma vez por cliente, um abaixo do outro, com as variáveis daquele cliente (ex.: {"{{clientName}}"},{" "}
+            {"{{totalHours}}"}).
+            {scope !== "ALL_CLIENTS" && " Só tem efeito em templates com escopo \"Todos os clientes\"."}
+          </p>
+        </Section>
+      )}
       <Section title="Aparência">
         <ColorField label="Cor de fundo" value={p.backgroundColor} onChange={(backgroundColor) => patch({ backgroundColor })} allowTransparent />
         <ColorField label="Cor da borda" value={p.borderColor ?? "transparent"} onChange={(borderColor) => patch({ borderColor })} allowTransparent />

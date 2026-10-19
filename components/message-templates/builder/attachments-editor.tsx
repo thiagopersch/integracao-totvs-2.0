@@ -4,11 +4,13 @@ import { FileSpreadsheet, Paperclip, Plus, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import {
-  DEFAULT_DEMANDS_XLSX_FILE_NAME,
+  defaultAttachmentFileName,
   TEMPLATE_ATTACHMENT_DESCRIPTIONS,
   TEMPLATE_ATTACHMENT_LABELS,
   type TemplateAttachment,
+  type TemplateAttachmentType,
 } from "@/lib/message-templates/attachments"
+import type { MessageTemplateScope } from "@/lib/message-templates/events"
 import type { VariableGroup } from "@/lib/message-templates/variable-catalog"
 import { VariableInput } from "../variable-input"
 
@@ -16,14 +18,15 @@ interface AttachmentsEditorProps {
   value: TemplateAttachment[]
   onChange: (value: TemplateAttachment[]) => void
   variableGroups: VariableGroup[]
-  /** Only the demands report fills the client + period the spreadsheet needs. */
-  supportsDemandsXlsx: boolean
+  /** Attachments the event/scope can generate (allowedAttachmentTypes) — the sends that fill them. */
+  allowedTypes: TemplateAttachmentType[]
+  scope: MessageTemplateScope
   error?: string
 }
 
 /** "Anexos" section of an EMAIL template: files generated at send time and attached to the email. */
-export function AttachmentsEditor({ value, onChange, variableGroups, supportsDemandsXlsx, error }: AttachmentsEditorProps) {
-  const hasXlsx = value.some((a) => a.type === "DEMANDS_XLSX")
+export function AttachmentsEditor({ value, onChange, variableGroups, allowedTypes, scope, error }: AttachmentsEditorProps) {
+  const addable = allowedTypes.filter((type) => !value.some((a) => a.type === type))
 
   function update(index: number, patch: Partial<TemplateAttachment>) {
     onChange(value.map((a, i) => (i === index ? { ...a, ...patch } : a)))
@@ -34,25 +37,27 @@ export function AttachmentsEditor({ value, onChange, variableGroups, supportsDem
       <div className="flex flex-wrap items-center gap-2">
         <Paperclip className="h-4 w-4 text-muted-foreground" />
         <Label className="text-sm">Anexos</Label>
-        {supportsDemandsXlsx && !hasXlsx && (
+        {addable.map((type) => (
           <Button
+            key={type}
             type="button"
             variant="outline"
             size="sm"
             className="ml-auto"
-            onClick={() => onChange([...value, { type: "DEMANDS_XLSX", fileName: DEFAULT_DEMANDS_XLSX_FILE_NAME }])}
+            onClick={() => onChange([...value, { type, fileName: defaultAttachmentFileName(type, scope) }])}
           >
-            <Plus className="mr-1 h-3.5 w-3.5" /> Planilha de demandas (XLSX)
+            <Plus className="mr-1 h-3.5 w-3.5" /> {TEMPLATE_ATTACHMENT_LABELS[type]}
           </Button>
-        )}
+        ))}
       </div>
 
-      {!supportsDemandsXlsx && value.length === 0 && (
+      {allowedTypes.length === 0 && value.length === 0 && (
         <p className="text-xs text-muted-foreground">
-          Anexos gerados automaticamente estão disponíveis para o evento &quot;Relatório de demandas do período&quot;.
+          Anexos gerados automaticamente estão disponíveis para o relatório de demandas do período e para o consumo de horas com
+          escopo &quot;Todos os clientes&quot;.
         </p>
       )}
-      {supportsDemandsXlsx && value.length === 0 && (
+      {allowedTypes.length > 0 && value.length === 0 && (
         <p className="text-xs text-muted-foreground">Nenhum anexo. Adicione a planilha para enviá-la junto com o e-mail.</p>
       )}
 
@@ -81,11 +86,11 @@ export function AttachmentsEditor({ value, onChange, variableGroups, supportsDem
             value={attachment.fileName}
             onChange={(fileName) => update(index, { fileName })}
             groups={variableGroups}
-            placeholder={DEFAULT_DEMANDS_XLSX_FILE_NAME}
+            placeholder={defaultAttachmentFileName(attachment.type, scope)}
             aria-invalid={!!error}
           />
-          {!supportsDemandsXlsx && (
-            <p className="text-xs text-destructive">Este anexo só é gerado no evento &quot;Relatório de demandas do período&quot;.</p>
+          {!allowedTypes.includes(attachment.type) && (
+            <p className="text-xs text-destructive">Este anexo não é gerado para o evento/escopo selecionado — remova-o.</p>
           )}
         </div>
       ))}

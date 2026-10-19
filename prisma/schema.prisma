@@ -69,6 +69,13 @@ enum MessageTemplateEvent {
   DEMAND_REPORT
 }
 
+/// PER_CLIENT = one email per client (default). ALL_CLIENTS = one email listing every client
+/// (containers flagged `repeatPerClient` repeat once per client) — sent only by report schedules.
+enum MessageTemplateScope {
+  PER_CLIENT
+  ALL_CLIENTS
+}
+
 enum AiProvider {
   ANTHROPIC
   OPENAI
@@ -931,6 +938,7 @@ model MessageTemplate {
   name           String
   event          MessageTemplateEvent
   channel        MessageChannel
+  scope          MessageTemplateScope @default(PER_CLIENT)
   subject        String               @default("")
   content        Json?
   bodyHtml       String               @default("") @map("body_html") @db.Text

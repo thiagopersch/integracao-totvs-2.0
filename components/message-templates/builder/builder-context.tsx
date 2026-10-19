@@ -4,6 +4,7 @@ import { createContext, useContext } from "react"
 import type { Block, BlockTree, LeafBlock, LeafBlockType } from "@/lib/message-templates/block-types"
 import type { BlockLocation } from "@/lib/message-templates/block-tree-utils"
 import type { VariableGroup } from "@/lib/message-templates/variable-catalog"
+import type { MessageTemplateScope } from "@/lib/message-templates/events"
 
 export interface BuilderApi {
   tree: BlockTree
@@ -18,6 +19,8 @@ export interface BuilderApi {
   removeColumn: (rowId: string, columnId: string) => void
   resizeColumn: (rowId: string, columnId: string, widthPercent: number) => void
   variableGroups: VariableGroup[]
+  /** ALL_CLIENTS enables the "Repetir para cada cliente" container option. */
+  scope: MessageTemplateScope
 }
 
 export const BuilderContext = createContext<BuilderApi | null>(null)
