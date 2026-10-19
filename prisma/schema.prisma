@@ -163,6 +163,7 @@ model Organization {
   notifications          Notification[]
   emailSettings          EmailSettings?
   aiSettings             AiSettings?
+  aiConversations        AiConversation[]
   demandReportSchedules  DemandReportSchedule[]
   usageAlerts            ContractUsageAlert[]
   messageTemplates       MessageTemplate[]
@@ -1232,6 +1233,26 @@ model AiSettings {
   organization Organization @relation(fields: [organizationId], references: [id])
 
   @@map("ai_settings")
+}
+
+/// Assistente IA chats, kept so a user can search and resume them. Private to the user who had them.
+model AiConversation {
+  id             String   @id @default(uuid())
+  organizationId String   @map("organization_id")
+  /// Plain column (no relation): a chat history must never block deleting the user.
+  userId         String   @map("user_id")
+  title          String
+  /// User and assistant messages flattened, for the history search.
+  searchText     String   @default("") @map("search_text") @db.Text
+  /// { chat, proposals } as shown in the assistant panel.
+  state          Json
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId, userId, updatedAt])
+  @@map("ai_conversations")
 }
 
 /// Automated "demands report" email: one email per client with demands in the period, rendered from

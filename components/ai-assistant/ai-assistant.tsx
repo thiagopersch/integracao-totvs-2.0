@@ -1,13 +1,14 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import { CheckCircle2, Loader2, RotateCcw, Send, Sparkles } from "lucide-react"
+import { ArrowLeft, CheckCircle2, History, Loader2, RotateCcw, Send, Sparkles } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { Textarea } from "@/components/ui/textarea"
 import { cn } from "@/lib/utils"
-import { getAiAssistantData, proposeRecordsWithAi } from "@/actions/ai-assistant"
+import { ConfirmDialog } from "@/components/shared/confirm-dialog"
+import { getAiAssistantData, getAiConversation, proposeRecordsWithAi, saveAiConversation } from "@/actions/ai-assistant"
 import {
   AI_ENTITIES,
   orderForCreation,
@@ -21,11 +22,10 @@ import {
 import type { AiChatMessage } from "@/lib/ai/types"
 import { createRecord } from "./create-record"
 import { ProposalCard, type ProposalState } from "./proposal-card"
+import { ConversationHistory } from "./conversation-history"
 
 interface AiAssistantProps {
   onCreated: () => void
-  /** "button": toolbar button (e.g. /demands); "floating": chat bubble fixed at the bottom-right corner. */
-  trigger?: "button" | "floating"
 }
 
 interface ChatEntry {
@@ -40,6 +40,21 @@ interface ChatEntry {
 const EXAMPLE =
   "Ex.: \"Cadastra o cliente ACME e um projeto de implantação do RM para ele, com início em 01/11\" ou \"Lança 3 demandas para o ITE Toledo ontem das 08:00 às 10:00, ajuste no relatório de matrícula\"."
 
+/** Panel width: dragged from its left edge, between MIN_WIDTH and half the screen. */
+const MIN_WIDTH = 380
+const DEFAULT_WIDTH = 672
+const WIDTH_STORAGE_KEY = "ai-assistant-width"
+const maxWidth = () => Math.max(MIN_WIDTH, Math.floor(window.innerWidth * 0.5))
+
+function storedWidth() {
+  try {
+    const value = Number(localStorage.getItem(WIDTH_STORAGE_KEY))
+    return Number.isFinite(value) && value >= MIN_WIDTH ? value : DEFAULT_WIDTH
+  } catch {
+    return DEFAULT_WIDTH
+  }
+}
+
 let keySeq = 0
 const nextKey = () => `p${++keySeq}`
 
@@ -49,8 +64,12 @@ function revalidate(list: ProposalState[], catalogs: AiCatalogs, analystScope: s
   return list.map((p) => (p.created ? p : { ...p, errors: validateRecord(p.entity, p.values, { catalogs, batch, analystScope }) }))
 }
 
-export function AiAssistant({ onCreated, trigger = "button" }: AiAssistantProps) {
+export function AiAssistant({ onCreated }: AiAssistantProps) {
   const [open, setOpen] = useState(false)
+  const [confirmClose, setConfirmClose] = useState(false)
+  const [showHistory, setShowHistory] = useState(false)
+  const [conversationId, setConversationId] = useState<string | null>(null)
+  const [width, setWidth] = useState(DEFAULT_WIDTH)
   const [catalogs, setCatalogs] = useState<AiCatalogs>({})
   const [entities, setEntities] = useState<AiEntityKey[]>([])
   const [analystScope, setAnalystScope] = useState<string | null>(null)
@@ -66,6 +85,39 @@ export function AiAssistant({ onCreated, trigger = "button" }: AiAssistantProps)
   // Every change to proposals/catalogs goes through commit()/setCatalogsNow(), which keep these in sync.
   const proposalsRef = useRef<ProposalState[]>([])
   const catalogsRef = useRef<AiCatalogs>({})
+  const chatRef = useRef<ChatEntry[]>([])
+  const conversationIdRef = useRef<string | null>(null)
+  /** Bumped to discard the answer of a request the user walked away from. */
+  const requestRef = useRef(0)
+
+  function setChatNow(next: ChatEntry[]) {
+    chatRef.current = next
+    setChat(next)
+  }
+
+  function setConversationIdNow(id: string | null) {
+    conversationIdRef.current = id
+    setConversationId(id)
+  }
+
+  /** Saves the conversation to the user's history (best effort — the chat keeps working without it). */
+  async function persist() {
+    if (!chatRef.current.length) return
+    const result = await saveAiConversation({
+      id: conversationIdRef.current ?? undefined,
+      chat: chatRef.current,
+      proposals: proposalsRef.current.map(({ key, tempId, entity, values, created, createdId, reported }) => ({
+        key,
+        tempId,
+        entity,
+        values,
+        created,
+        createdId,
+        reported,
+      })),
+    })
+    if (result.success) setConversationIdNow(result.data.id)
+  }
 
   function setCatalogsNow(next: AiCatalogs) {
     catalogsRef.current = next
@@ -73,6 +125,7 @@ export function AiAssistant({ onCreated, trigger = "button" }: AiAssistantProps)
   }
 
   async function openAssistant() {
+    setWidth(storedWidth())
     setOpen(true)
     if (loaded || loading) return
     setLoading(true)
@@ -110,22 +163,82 @@ export function AiAssistant({ onCreated, trigger = "button" }: AiAssistantProps)
           .map((p) => `${AI_ENTITIES[p.entity].label} "${recordTitle(p.entity, p.values)}"${p.createdId ? ` (id ${p.createdId})` : ""}`)
           .join("; ")}]`
       : text
-    const nextChat: ChatEntry[] = [...chat, { role: "user", display: text, content }]
-    setChat(nextChat)
+    const nextChat: ChatEntry[] = [...chatRef.current, { role: "user", display: text, content }]
+    setChatNow(nextChat)
     setInput("")
     setThinking(true)
+    const request = ++requestRef.current
     const history: AiChatMessage[] = nextChat.map((m) => ({ role: m.role, content: m.content }))
     const result = await proposeRecordsWithAi(history)
+    // The user left (or started another conversation) while it was thinking: drop the answer.
+    if (request !== requestRef.current) return
     setThinking(false)
     if (!result.success) {
       toast.error(result.error)
-      setChat((c) => [...c, { role: "assistant", display: `⚠️ ${result.error}`, content: "Não foi possível processar o pedido." }])
+      setChatNow([...chatRef.current, { role: "assistant", display: `⚠️ ${result.error}`, content: "Não foi possível processar o pedido." }])
       return
     }
-    setChat((c) => [...c, { role: "assistant", display: result.reply, questions: result.questions, content: result.assistantMessage }])
+    setChatNow([...chatRef.current, { role: "assistant", display: result.reply, questions: result.questions, content: result.assistantMessage }])
     // The AI always returns the full updated list; records already created stay listed above it.
-    const kept = proposalsRef.current.filter((p) => p.created).map((p) => (newlyCreated.includes(p) ? { ...p, reported: true } : p))
+    const reportedKeys = new Set(newlyCreated.map((p) => p.key))
+    const kept = proposalsRef.current.filter((p) => p.created).map((p) => (reportedKeys.has(p.key) ? { ...p, reported: true } : p))
     commit([...kept, ...result.proposals.map((p) => ({ ...p, key: nextKey() }))])
+    void persist()
+  }
+
+  /** Abandons the request in flight: its message goes back to the input box. */
+  function abandonRequest() {
+    requestRef.current++
+    setThinking(false)
+    const last = chatRef.current.at(-1)
+    if (last?.role === "user") {
+      setChatNow(chatRef.current.slice(0, -1))
+      setInput(last.display)
+    }
+  }
+
+  function requestClose() {
+    if (thinking) setConfirmClose(true)
+    else setOpen(false)
+  }
+
+  async function openConversation(id: string) {
+    const result = await getAiConversation(id)
+    if (!result.success) {
+      toast.error(result.error)
+      return
+    }
+    abandonRequest()
+    setInput("")
+    setChatNow(result.data.chat)
+    commit(result.data.proposals.map((p) => ({ ...p, key: nextKey(), errors: {} })))
+    setConversationIdNow(result.data.id)
+    setShowHistory(false)
+  }
+
+  /** Drag the panel's left edge to resize it (up to half the screen). */
+  function startResize(event: React.PointerEvent<HTMLDivElement>) {
+    event.preventDefault()
+    const handle = event.currentTarget
+    handle.setPointerCapture(event.pointerId)
+    let next = width
+    const move = (e: PointerEvent) => {
+      next = Math.min(maxWidth(), Math.max(MIN_WIDTH, window.innerWidth - e.clientX))
+      setWidth(next)
+    }
+    const stop = () => {
+      handle.removeEventListener("pointermove", move)
+      handle.removeEventListener("pointerup", stop)
+      handle.removeEventListener("pointercancel", stop)
+      try {
+        localStorage.setItem(WIDTH_STORAGE_KEY, String(next))
+      } catch {
+        // Width just isn't remembered.
+      }
+    }
+    handle.addEventListener("pointermove", move)
+    handle.addEventListener("pointerup", stop)
+    handle.addEventListener("pointercancel", stop)
   }
 
   function update(key: string, patch: Record<string, string>) {
@@ -134,6 +247,7 @@ export function AiAssistant({ onCreated, trigger = "button" }: AiAssistantProps)
 
   function discard(key: string) {
     const removed = proposalsRef.current.find((p) => p.key === key)
+    queueMicrotask(() => void persist())
     // References to the discarded record are cleared (and flagged by the revalidation).
     commit(
       proposalsRef.current
@@ -214,6 +328,7 @@ export function AiAssistant({ onCreated, trigger = "button" }: AiAssistantProps)
     if (created) {
       toast.success(`${created} registro(s) criado(s)`)
       onCreated()
+      void persist()
     }
   }
 
@@ -221,13 +336,17 @@ export function AiAssistant({ onCreated, trigger = "button" }: AiAssistantProps)
     if (await confirm(key)) {
       toast.success("Registro criado")
       onCreated()
+      void persist()
     }
   }
 
   function reset() {
-    setChat([])
+    abandonRequest()
+    setChatNow([])
     commit([])
     setInput("")
+    setConversationIdNow(null)
+    setShowHistory(false)
   }
 
   const pending = proposals.filter((p) => !p.created)
@@ -236,33 +355,59 @@ export function AiAssistant({ onCreated, trigger = "button" }: AiAssistantProps)
 
   return (
     <>
-      {trigger === "floating" ? (
-        <Button
-          size="icon"
-          aria-label="Assistente IA"
-          title="Assistente IA — cadastrar conversando"
-          onClick={openAssistant}
-          className="fixed right-4 bottom-4 z-40 size-12 rounded-full shadow-lg md:right-6 md:bottom-6"
+      <Button
+        size="icon"
+        aria-label="Assistente IA"
+        title="Assistente IA — cadastrar conversando"
+        onClick={openAssistant}
+        className="fixed right-4 bottom-4 z-40 size-12 rounded-full shadow-lg md:right-6 md:bottom-6"
+      >
+        <Sparkles className="size-5" />
+      </Button>
+      <Sheet open={open} onOpenChange={(next) => (next ? setOpen(true) : requestClose())}>
+        <SheetContent
+          side="right"
+          className="gap-0 p-0 data-[side=right]:w-full data-[side=right]:sm:w-(--ai-panel-width) data-[side=right]:sm:max-w-[50vw]"
+          style={{ "--ai-panel-width": `${width}px` } as React.CSSProperties}
         >
-          <Sparkles className="size-5" />
-        </Button>
-      ) : (
-        <Button variant="outline" onClick={openAssistant}>
-          <Sparkles className="mr-2 h-4 w-4" /> Assistente IA
-        </Button>
-      )}
-      <Sheet open={open} onOpenChange={setOpen}>
-        <SheetContent side="right" className="w-full gap-0 p-0 data-[side=right]:sm:max-w-2xl">
+          <div
+            role="separator"
+            aria-orientation="vertical"
+            aria-label="Redimensionar o assistente"
+            title="Arraste para redimensionar"
+            onPointerDown={startResize}
+            className="absolute inset-y-0 left-0 z-10 hidden w-1.5 cursor-col-resize hover:bg-primary/30 active:bg-primary/40 sm:block"
+          />
           <SheetHeader className="border-b">
-            <SheetTitle className="flex items-center gap-2">
+            <SheetTitle className="flex items-center gap-2 pr-16">
               <Sparkles className="h-4 w-4" /> Assistente IA
+              <Button
+                size="icon-sm"
+                variant={showHistory ? "secondary" : "ghost"}
+                aria-label={showHistory ? "Voltar à conversa" : "Conversas anteriores"}
+                title={showHistory ? "Voltar à conversa" : "Conversas anteriores"}
+                onClick={() => setShowHistory((v) => !v)}
+                className="absolute top-3 right-12"
+              >
+                {showHistory ? <ArrowLeft className="h-4 w-4" /> : <History className="h-4 w-4" />}
+              </Button>
             </SheetTitle>
             <SheetDescription>
-              Peça o que quer cadastrar. Quando faltar algo, o assistente pergunta; revise a prévia e confirme — nada é gravado sem
-              confirmação.
+              {showHistory
+                ? "Busque uma conversa anterior para reler o contexto ou continuar de onde parou."
+                : "Peça o que quer cadastrar. Quando faltar algo, o assistente pergunta; revise a prévia e confirme — nada é gravado sem confirmação."}
             </SheetDescription>
           </SheetHeader>
 
+          {showHistory ? (
+            <div className="min-h-0 flex-1 overflow-y-auto p-4">
+              <ConversationHistory
+                currentId={conversationId}
+                onOpen={openConversation}
+                onDeletedCurrent={() => setConversationIdNow(null)}
+              />
+            </div>
+          ) : (
           <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4">
             {loading && (
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -315,7 +460,9 @@ export function AiAssistant({ onCreated, trigger = "button" }: AiAssistantProps)
             ))}
             <div ref={bottomRef} />
           </div>
+          )}
 
+          {!showHistory && (
           <div className="space-y-2 border-t p-4">
             {pending.length > 0 && (
               <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
@@ -350,8 +497,23 @@ export function AiAssistant({ onCreated, trigger = "button" }: AiAssistantProps)
               </Button>
             </div>
           </div>
+          )}
         </SheetContent>
       </Sheet>
+      <ConfirmDialog
+        open={confirmClose}
+        onOpenChange={setConfirmClose}
+        title="Sair do assistente?"
+        description="O assistente ainda está respondendo. Se sair agora, essa resposta será perdida (sua mensagem volta para a caixa de texto)."
+        confirmLabel="Sair mesmo assim"
+        cancelLabel="Continuar aqui"
+        variant="destructive"
+        onConfirm={() => {
+          abandonRequest()
+          setConfirmClose(false)
+          setOpen(false)
+        }}
+      />
     </>
   )
 }
