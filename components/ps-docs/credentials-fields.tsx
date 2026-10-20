@@ -13,7 +13,7 @@ export function CredentialsFields({ value, onChange }: { value: string; onChange
     <div className="space-y-2 rounded-md border p-4">
       <CredentialsHelp />
       <Field>
-        <FieldLabel htmlFor="cookieHeader">Cookie</FieldLabel>
+        <FieldLabel htmlFor="psAdminSession">Cookie</FieldLabel>
         <Textarea {...COOKIE_TEXTAREA_PROPS} value={value} onChange={(e) => onChange(e.target.value)} aria-invalid={missing.length > 0} />
         {missing.length > 0 && <p className="text-sm text-destructive">Faltando no cookie: {missing.join(", ")}</p>}
       </Field>

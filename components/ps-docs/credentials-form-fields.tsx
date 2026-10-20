@@ -17,7 +17,7 @@ export function CredentialsFormFields({ control, errors }: CredentialsFormFields
     <div className="space-y-2 rounded-md border p-4">
       <CredentialsHelp />
       <Field>
-        <FieldLabel htmlFor="cookieHeader">Cookie</FieldLabel>
+        <FieldLabel htmlFor="psAdminSession">Cookie</FieldLabel>
         <Controller
           control={control}
           name="cookie"

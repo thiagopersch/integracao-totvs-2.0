@@ -15,7 +15,9 @@ export function CredentialsHelp() {
 /** Props of the cookie textarea: a ~1KB value that is not a login password, so it is kept out of
  *  `type="password"` (autofill / password managers) and wraps inside a capped, scrollable box. */
 export const COOKIE_TEXTAREA_PROPS = {
-  id: "cookieHeader",
+  // No "cookie" in the id: ad/cookie-banner blockers (EasyList Cookie, uBlock annoyances) hide
+  // elements whose id contains it — the field vanished in production for users with one.
+  id: "psAdminSession",
   rows: 3,
   className: "max-h-32 overflow-y-auto font-mono text-xs break-all md:text-xs",
   placeholder: "branch=master; client_id=...; inscricoes_session=...; XSRF-TOKEN=...",
