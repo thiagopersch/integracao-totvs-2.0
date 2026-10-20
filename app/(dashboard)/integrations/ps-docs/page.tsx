@@ -17,7 +17,7 @@ import { Progress } from "@/components/ui/progress"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import type { PsCredentials } from "@/lib/ps-docs/credential"
+import { parseCookieString, type PsCredentials } from "@/lib/ps-docs/credential"
 import {
   DEFAULT_STYLE,
   type DocumentacaoPS,
@@ -47,10 +47,7 @@ export default function PsDocsPage() {
     resolver: zodResolver(psDocsSchema) as Resolver<PsDocsFormInput>,
     defaultValues: {
       docMode: "processo",
-      branch: "master",
-      clientId: "",
-      session: "",
-      xsrf: "",
+      cookie: "",
       idPs: "",
       crmDomain: "",
       idPortal: "",
@@ -88,12 +85,7 @@ export default function PsDocsPage() {
     )
   }
 
-  const toCredentials = (d: PsDocsFormInput): PsCredentials => ({
-    session: d.session,
-    xsrf: d.xsrf,
-    clientId: d.clientId,
-    branch: d.branch,
-  })
+  const toCredentials = (d: PsDocsFormInput): PsCredentials => parseCookieString(d.cookie)
 
   async function handleSubmitProcesso(data: PsDocsFormInput) {
     const credentials = toCredentials(data)

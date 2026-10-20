@@ -28,6 +28,7 @@ import { DataTable } from "@/components/shared/data-table"
 import { CollapsibleCardHeader } from "@/components/shared/collapsible-card-header"
 import { CredentialsFormFields } from "@/components/ps-docs/credentials-form-fields"
 import { ComponentDetailPanel } from "@/components/ps-docs/component-detail-panel"
+import { TotvsFieldAuditResults, useTotvsFieldAudit } from "@/components/ps-docs/totvs-field-audit"
 import { SearchCode, Loader2, RefreshCw, Info, ChevronDown, ChevronRight, Copy, FileSpreadsheet, FileText, FileCode2, MoreHorizontal } from "lucide-react"
 import { toast } from "sonner"
 import { fetchComponentDetail } from "@/actions/integrations/ps-field-search"
@@ -47,11 +48,14 @@ import {
   type ProcessSearchSource,
   type SearchQuery,
 } from "@/lib/ps-docs/field-search"
-import type { PsCredentials } from "@/lib/ps-docs/credential"
+import { parseCookieString, type PsCredentials } from "@/lib/ps-docs/credential"
 import { psDocsSchema, type PsDocsFormInput } from "@/schemas/ps-docs.schema"
 import type { PortalOverviewSpec } from "@/lib/ps-docs/types"
 
 type DocMode = "processo" | "portal" | "ambiente"
+/** "Elementos": find a field/component across the structure. "Integração TOTVS dos campos":
+ *  check every field of the registry for its TOTVS table/field/alternative name. */
+type SearchKind = "elementos" | "totvs"
 
 /** Everything read for one scope (mode + id + session) — a new term on the same scope only re-runs
  *  the local search instead of calling the Rubeus API again. */
@@ -72,7 +76,8 @@ type DetailState = { status: "loading" } | { status: "done"; detail: ComponentDe
 
 function scopeKey(d: PsDocsFormInput): string {
   const target = d.docMode === "processo" ? d.idPs : d.docMode === "portal" ? `${d.idPortal}:${d.localId}` : "*"
-  return [d.docMode, d.clientId, d.branch, d.session, target].join("|")
+  const { clientId, branch, session } = parseCookieString(d.cookie)
+  return [d.docMode, clientId, branch, session, target].join("|")
 }
 
 function runQuery(scope: Pick<LoadedScope, "portal" | "sources" | "overviews" | "standalone">, q: SearchQuery): FieldSearchHit[] {
@@ -102,11 +107,27 @@ export default function PsFieldSearchPage() {
   } = useForm<PsDocsFormInput>({
     mode: "onChange",
     resolver: zodResolver(psDocsSchema) as Resolver<PsDocsFormInput>,
-    defaultValues: { docMode: "processo", branch: "master", clientId: "", session: "", xsrf: "", idPs: "", crmDomain: "", idPortal: "", localId: "2" },
+    defaultValues: { docMode: "processo", cookie: "", idPs: "", crmDomain: "", idPortal: "", localId: "2" },
   })
   const docMode = useWatch({ control, name: "docMode" }) as DocMode
   const idPsValue = useWatch({ control, name: "idPs" })
   const idPortalValue = useWatch({ control, name: "idPortal" })
+
+  const [searchKind, setSearchKind] = useState<SearchKind>("elementos")
+  const audit = useTotvsFieldAudit()
+  // The audit only needs the cookies, so it validates as "ambiente"; the scope chosen for
+  // "Elementos" comes back when switching again.
+  const elementosModeRef = useRef<DocMode>("processo")
+  function changeSearchKind(kind: SearchKind) {
+    if (kind === searchKind) return
+    if (kind === "totvs") {
+      elementosModeRef.current = docMode
+      setValue("docMode", "ambiente", { shouldValidate: true })
+    } else {
+      setValue("docMode", elementosModeRef.current, { shouldValidate: true })
+    }
+    setSearchKind(kind)
+  }
 
   const [termo, setTermo] = useState("")
   const [exact, setExact] = useState(false)
@@ -125,7 +146,7 @@ export default function PsFieldSearchPage() {
   const [formOpen, setFormOpen] = useState(true)
   const [resultsOpen, setResultsOpen] = useState(true)
 
-  const toCredentials = (d: PsDocsFormInput): PsCredentials => ({ session: d.session, xsrf: d.xsrf, clientId: d.clientId, branch: d.branch })
+  const toCredentials = (d: PsDocsFormInput): PsCredentials => parseCookieString(d.cookie)
 
   // The sweep in flight — a new search or leaving the page cancels it (and its Rubeus requests).
   const sweepRef = useRef<AbortController | null>(null)
@@ -206,6 +227,10 @@ export default function PsFieldSearchPage() {
   }
 
   async function onSubmit(data: PsDocsFormInput, forceReload = false) {
+    if (searchKind === "totvs") {
+      if (await audit.run(toCredentials(data))) setFormOpen(false)
+      return
+    }
     const q = buildQuery(termo, exact)
     if (!q.norm) {
       toast.error("Informe o nome do campo ou componente")
@@ -463,7 +488,10 @@ export default function PsFieldSearchPage() {
     </div>
   )
 
-  const canSubmit = isValid && termo.trim().length > 0 && !loading
+  const isAudit = searchKind === "totvs"
+  const busy = isAudit ? audit.loading : loading
+  const activePhase = isAudit ? audit.phase : phase
+  const canSubmit = isValid && (isAudit || termo.trim().length > 0) && !busy
   const hasLoadedScope = !!loadedScope
 
   return (
@@ -488,15 +516,44 @@ export default function PsFieldSearchPage() {
           expandLabel="Expandir parâmetros"
           collapseLabel="Recolher parâmetros"
           summary={
-            <>
-              {docMode === "ambiente" ? "Ambiente inteiro" : docMode === "portal" ? `Portal ${idPortalValue || "—"}` : `Processo ${idPsValue || "—"}`}
-              {termo.trim() && ` · "${termo.trim()}"`}
-              {exact && " · nome exato"}
-            </>
+            isAudit ? (
+              "Integração TOTVS dos campos"
+            ) : (
+              <>
+                {docMode === "ambiente" ? "Ambiente inteiro" : docMode === "portal" ? `Portal ${idPortalValue || "—"}` : `Processo ${idPsValue || "—"}`}
+                {termo.trim() && ` · "${termo.trim()}"`}
+                {exact && " · nome exato"}
+              </>
+            )
           }
         />
         <CardContent id="ps-field-search-form" hidden={!formOpen}>
           <form onSubmit={(e) => handleSubmit((d) => onSubmit(d))(e)} className="space-y-4" noValidate>
+            <Field>
+              <FieldLabel>O que buscar?</FieldLabel>
+              <RadioGroup value={searchKind} onValueChange={(v) => changeSearchKind(v as SearchKind)} className="flex-row flex-wrap gap-x-6 gap-y-2 pt-1">
+                <div className="flex items-center gap-2">
+                  <RadioGroupItem value="elementos" id="kind-elementos" />
+                  <Label htmlFor="kind-elementos" className="font-normal cursor-pointer">
+                    Campos e componentes
+                  </Label>
+                </div>
+                <div className="flex items-center gap-2">
+                  <RadioGroupItem value="totvs" id="kind-totvs" />
+                  <Label htmlFor="kind-totvs" className="font-normal cursor-pointer">
+                    Integração TOTVS dos campos
+                  </Label>
+                </div>
+              </RadioGroup>
+              {isAudit && (
+                <p className="text-xs text-muted-foreground">
+                  Verifica todos os campos do cadastro (Definições → Campos) e mostra a tabela, o campo e o nome alternativo configurados na Integração TOTVS
+                  de cada um — e quais ainda precisam ser configurados.
+                </p>
+              )}
+            </Field>
+
+            {!isAudit && (
             <Field>
               <FieldLabel>Onde buscar?</FieldLabel>
               <RadioGroup value={docMode} onValueChange={(v) => setValue("docMode", v as DocMode, { shouldValidate: true })} className="flex-row flex-wrap gap-x-6 gap-y-2 pt-1">
@@ -520,10 +577,11 @@ export default function PsFieldSearchPage() {
                 </div>
               </RadioGroup>
             </Field>
+            )}
 
             <CredentialsFormFields control={control} errors={errors} />
 
-            {docMode === "ambiente" ? null : docMode === "processo" ? (
+            {isAudit || docMode === "ambiente" ? null : docMode === "processo" ? (
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <Field>
                   <FieldLabel htmlFor="idPs">ID do Processo Seletivo no I&M</FieldLabel>
@@ -556,6 +614,7 @@ export default function PsFieldSearchPage() {
               </div>
             )}
 
+            {!isAudit && (
             <Field>
               <FieldLabel htmlFor="termo" className="flex items-center gap-1.5">
                 Nome do campo ou componente
@@ -585,28 +644,31 @@ export default function PsFieldSearchPage() {
                 </div>
               </div>
             </Field>
+            )}
 
             <div className="flex flex-col items-center gap-2">
               <div className="flex flex-wrap justify-center gap-2">
                 <Button type="submit" disabled={!canSubmit}>
-                  {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <SearchCode className="h-4 w-4 mr-2" />}
-                  Buscar
+                  {busy ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <SearchCode className="h-4 w-4 mr-2" />}
+                  {isAudit ? "Verificar campos" : "Buscar"}
                 </Button>
-                {hasLoadedScope && (
+                {!isAudit && hasLoadedScope && (
                   <Button type="button" variant="outline" disabled={!canSubmit} onClick={(e) => handleSubmit((d) => onSubmit(d, true))(e)}>
                     <RefreshCw className="h-4 w-4 mr-2" /> Recarregar estrutura
                   </Button>
                 )}
               </div>
-              {loading && phase && (
+              {busy && activePhase && (
                 <div className="w-full max-w-xs space-y-1">
-                  {phase.total > 0 && <Progress value={(phase.done / phase.total) * 100} />}
+                  {activePhase.total > 0 && <Progress value={(activePhase.done / activePhase.total) * 100} />}
                   <p className="text-xs text-muted-foreground text-center">
-                    {phase.total > 0 ? `${phase.done}/${phase.total} ${phase.label}` : `${phase.label[0].toUpperCase()}${phase.label.slice(1)}...`}
+                    {activePhase.total > 0
+                      ? `${activePhase.done}/${activePhase.total} ${activePhase.label}`
+                      : `${activePhase.label[0].toUpperCase()}${activePhase.label.slice(1)}...`}
                   </p>
                 </div>
               )}
-              {!loading && hasLoadedScope && (
+              {!isAudit && !loading && hasLoadedScope && (
                 <p className="text-xs text-muted-foreground">Estrutura já carregada — novas buscas no mesmo escopo e sessão não consultam a API de novo.</p>
               )}
             </div>
@@ -614,7 +676,9 @@ export default function PsFieldSearchPage() {
         </CardContent>
       </Card>
 
-      {searched && (
+      {isAudit && audit.ran && <TotvsFieldAuditResults audit={audit} />}
+
+      {!isAudit && searched && (
         <Card>
           <CollapsibleCardHeader
             title={
@@ -677,7 +741,7 @@ export default function PsFieldSearchPage() {
         </Card>
       )}
 
-      {warnings.length > 0 && (
+      {!isAudit && warnings.length > 0 && (
         <Card>
           <CardContent className="pt-6">
             <details>

@@ -1,5 +1,6 @@
 import { requirePermission } from "@/lib/rbac";
 import { logApiCall, logAndNotifyFailure, sessionErrorMessage } from "@/lib/ps-docs/api-helpers";
+import { parseCookieString } from "@/lib/ps-docs/credential";
 import { createRubeusClient } from "@/lib/ps-docs/server/rubeus-client";
 import { runFieldSearchSweep, type SweepInput } from "@/lib/ps-docs/server/field-search-sweep";
 import type { SweepEvent } from "@/lib/ps-docs/field-search-stream";
@@ -29,7 +30,7 @@ export async function POST(request: Request) {
       : data.docMode === "portal"
         ? { docMode: "portal", idPortal: data.idPortal, localId: data.localId, crmDomain: data.crmDomain }
         : { docMode: "ambiente" };
-  const client = createRubeusClient({ session: data.session, xsrf: data.xsrf, clientId: data.clientId, branch: data.branch }, { signal: request.signal });
+  const client = createRubeusClient(parseCookieString(data.cookie), { signal: request.signal });
   const url = "https://admin.portal.apprbs.com.br/api (busca de elementos)";
 
   const stream = new ReadableStream<Uint8Array>({

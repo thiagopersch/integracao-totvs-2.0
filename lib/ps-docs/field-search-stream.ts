@@ -1,6 +1,7 @@
 import type { ActionCatalogEntries } from "@/lib/ps-docs/server/process-structure";
 import type { ProcessSearchSource } from "@/lib/ps-docs/field-search";
 import type { PaginaSpec, PopupSpec, PortalOverviewSpec } from "@/lib/ps-docs/types";
+import type { TotvsFieldAuditRow } from "@/lib/ps-docs/totvs-field-audit";
 
 /** Wire format of `POST /api/ps-field-search` (client-safe): one JSON event per line (NDJSON),
  *  emitted by `runFieldSearchSweep` as each piece of the structure is read. */
@@ -14,6 +15,14 @@ export type SweepEvent =
   | { type: "standalone"; containers: StandaloneContainer[] }
   | { type: "warning"; messages: string[] }
   | { type: "done"; portal: string; fieldCatalogEntries: [number, string][]; actionCatalogEntries?: ActionCatalogEntries }
+  | { type: "error"; error: string };
+
+/** Wire format of `POST /api/ps-field-totvs-audit`, emitted by `runTotvsFieldAudit`. */
+export type TotvsAuditEvent =
+  | { type: "progress"; label: string; done: number; total: number }
+  | { type: "rows"; rows: TotvsFieldAuditRow[] }
+  | { type: "warning"; messages: string[] }
+  | { type: "done"; total: number }
   | { type: "error"; error: string };
 
 /** Splits a byte stream into lines and parses each as one event — a line may arrive split across

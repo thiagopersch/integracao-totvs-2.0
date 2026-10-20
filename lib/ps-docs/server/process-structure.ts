@@ -26,7 +26,7 @@ const BASE_URL = `${ADMIN_API}/selective-process`;
 /** `GET /api/settings/fields` returns a field catalog scoped to the calling token's OWN
  *  institution — see the long-form comment in `actions/integrations/ps-docs.ts`. It needs these
  *  browser-like headers (Referer + no-cache), not just the session cookies. */
-function settingsFieldsHeaders(): Record<string, string> {
+export function settingsFieldsHeaders(): Record<string, string> {
   return {
     Accept: "application/json, text/plain, */*",
     "Accept-Language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",

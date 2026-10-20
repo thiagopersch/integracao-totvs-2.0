@@ -18,7 +18,7 @@ import { Field, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { ERROR_KIND_BADGE_VARIANT, ERROR_KIND_LABELS, type ErrorKind } from "@/lib/error-kind"
-import { EMPTY_CREDENTIALS, hasRequiredCredentials, type PsCredentials } from "@/lib/ps-docs/credential"
+import { hasRequiredCredentials, parseCookieString } from "@/lib/ps-docs/credential"
 import { countUnresolvedFieldPlaceholders } from "@/lib/ps-docs/parse-structure"
 import type { RuleCheck } from "@/lib/ps-ficha-automation/browser-engine"
 import type { PlannedCheck } from "@/lib/ps-ficha-automation/test-plan"
@@ -35,7 +35,7 @@ import {
   Play,
   Square,
 } from "lucide-react"
-import { useRef, useState } from "react"
+import { useMemo, useRef, useState } from "react"
 import { toast } from "sonner"
 
 type CheckStatus = "pending" | "running" | "success" | "failed" | "skipped"
@@ -94,7 +94,8 @@ function StatusIcon({ status }: { status: CheckStatus }) {
 }
 
 export default function PsFichaTestPage() {
-  const [credentials, setCredentials] = useState<PsCredentials>(EMPTY_CREDENTIALS)
+  const [cookie, setCookie] = useState("")
+  const credentials = useMemo(() => parseCookieString(cookie), [cookie])
   const [idPs, setIdPs] = useState("")
   const [pageUrl, setPageUrl] = useState("")
   const [crmDomain, setCrmDomain] = useState("")
@@ -466,7 +467,7 @@ export default function PsFichaTestPage() {
       <Card>
         <CardContent className="pt-6">
           <form onSubmit={handleRunTests} className="space-y-4">
-            <CredentialsFields value={credentials} onChange={setCredentials} />
+            <CredentialsFields value={cookie} onChange={setCookie} />
 
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <Field>

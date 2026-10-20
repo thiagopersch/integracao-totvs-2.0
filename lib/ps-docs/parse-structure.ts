@@ -189,7 +189,7 @@ const DIRECTION_LABELS: Record<string, string> = { row: "Linha", column: "Coluna
 const ALIGN_LABELS: Record<string, string> = { start: "Início", center: "Centro", end: "Fim", "space-between": "Espaço entre", "space-around": "Espaço ao redor", stretch: "Esticar" };
 
 /** `type`/`form_build.type` (Form.io component type) -> human label, for "Tipo do campo". */
-const FIELD_TYPE_LABELS: Record<string, string> = {
+export const FIELD_TYPE_LABELS: Record<string, string> = {
   textfield: "Campo de texto",
   text: "Campo de texto",
   textarea: "Área de texto",
@@ -253,7 +253,7 @@ export function stripHtml(html: string): string {
     .trim();
 }
 
-function parseFormBuild(raw: unknown): Raw {
+export function parseFormBuild(raw: unknown): Raw {
   if (!raw) return {};
   if (typeof raw === "object") return raw as Raw;
   if (typeof raw === "string") {

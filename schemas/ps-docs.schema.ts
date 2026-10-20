@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { missingCookieNames } from "@/lib/ps-docs/credential";
 
 const required = (label: string) => z.string().trim().min(1, `${label} é obrigatório`);
 const integerId = (label: string) => required(label).regex(/^\d+$/, "Informe apenas números inteiros");
@@ -15,11 +16,12 @@ const urlLink = z
     }
   }, "Informe um link válido (ex: https://crm.exemplo.com.br/)");
 
+/** The whole `Cookie` header of the portal admin, pasted as-is (see `parseCookieString`). */
 const credentials = {
-  branch: required("Branch"),
-  clientId: required("client_id"),
-  session: required("inscricoes_session"),
-  xsrf: required("XSRF-TOKEN"),
+  cookie: required("Cookie").superRefine((v, ctx) => {
+    const missing = missingCookieNames(v);
+    if (missing.length) ctx.addIssue({ code: "custom", message: `Faltando no cookie: ${missing.join(", ")}` });
+  }),
 };
 
 export const psDocsProcessoSchema = z.object({
@@ -52,5 +54,14 @@ export const psDocsAmbienteSchema = z.object({
 });
 
 export const psDocsSchema = z.discriminatedUnion("docMode", [psDocsProcessoSchema, psDocsPortalSchema, psDocsAmbienteSchema]);
+
+/** "Integração TOTVS dos campos": the field registry is environment-wide — just the cookies, sent
+ *  by the client already parsed into `PsCredentials`. */
+export const psCredentialsSchema = z.object({
+  branch: required("Branch"),
+  clientId: required("client_id"),
+  session: required("inscricoes_session"),
+  xsrf: required("XSRF-TOKEN"),
+});
 
 export type PsDocsFormInput = z.infer<typeof psDocsSchema>;
