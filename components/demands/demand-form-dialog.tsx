@@ -17,6 +17,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { MultiSelect } from "@/components/ui/multi-select"
+import { autoPickSingle, departmentsForRequesters, pruneSelection, requestersForClient } from "@/lib/demand-cascade"
 import { DatePicker } from "@/components/ui/date-picker"
 import { TimePicker } from "@/components/ui/time-picker"
 import { createDemand, updateDemand } from "@/actions/demands"
@@ -80,8 +81,9 @@ const FIELD_TAB: Record<string, string> = {
 export type DemandFormCatalogs = {
   analysts: Analyst[]
   clients: Client[]
-  requesters: Requester[]
-  departments: Department[]
+  /** `clientId` + `departmentIds`/`requesterIds` drive the Cliente → Solicitantes → Departamentos cascade. */
+  requesters: (Requester & { departmentIds?: string[] })[]
+  departments: (Department & { requesterIds: string[] })[]
   demandTypes: DemandType[]
   tags: Tag[]
 }
@@ -223,6 +225,11 @@ function DemandFormBody({ onOpenChange, catalogs, context, demand, defaults = {}
   const [activeTab, setActiveTab] = useState("identificacao")
   const [today] = useState(() => new Date().toISOString().slice(0, 10))
   const initial = initialValues(demand, defaults, context.myAnalystId, today)
+  // A new demand opened with its client already set (e.g. from a project) gets the same single-option fill.
+  if (!demand && initial.clientId) {
+    initial.requesterIds = autoPickSingle([], requestersForClient(requesters, initial.clientId))
+    initial.departmentIds = autoPickSingle([], departmentsForRequesters(departments, initial.requesterIds))
+  }
   const [tasks, setTasks] = useState<{ projectId: string; items: TaskOption[] }>(() => ({
     projectId: initial.projectId ?? "",
     items: initialTasks ?? [],
@@ -272,8 +279,36 @@ function DemandFormBody({ onOpenChange, catalogs, context, demand, defaults = {}
     form.setValue("projectId", nextProjectId, { shouldValidate: true })
     form.setValue("projectTaskId", "", { shouldValidate: true })
     const next = context.projects.find((p) => p.id === nextProjectId)
-    if (next) form.setValue("clientId", next.clientId, { shouldValidate: true })
+    if (next) selectClient(next.clientId)
     void loadTasks(nextProjectId)
+  }
+
+  // Cascade: the client narrows the requesters, the requesters narrow the departments. Values already
+  // saved on the demand stay listed while its client is unchanged, so legacy (unlinked) links don't vanish.
+  const clientId = form.watch("clientId") || ""
+  const requesterIds = form.watch("requesterIds") || []
+  const keepSaved = !!demand && clientId === initial.clientId
+  const requesterOptions = requestersForClient(requesters, clientId, keepSaved ? initial.requesterIds : [])
+  const departmentOptions = departmentsForRequesters(departments, requesterIds, keepSaved ? initial.departmentIds : [])
+
+  function selectRequesters(nextIds: string[]) {
+    form.setValue("requesterIds", nextIds, { shouldValidate: true })
+    const keep = keepSaved ? initial.departmentIds : []
+    const options = departmentsForRequesters(departments, nextIds, keep)
+    const nextDepartmentIds = autoPickSingle(pruneSelection(form.getValues("departmentIds") || [], options), options)
+    form.setValue("departmentIds", nextDepartmentIds, { shouldValidate: form.formState.isSubmitted })
+  }
+
+  function selectClient(nextClientId: string) {
+    form.setValue("clientId", nextClientId, { shouldValidate: true })
+    const keep = !!demand && nextClientId === initial.clientId
+    const options = requestersForClient(requesters, nextClientId, keep ? initial.requesterIds : [])
+    // A single requester/department option is filled in; with more than one the user picks.
+    const nextRequesterIds = autoPickSingle(pruneSelection(form.getValues("requesterIds") || [], options), options)
+    form.setValue("requesterIds", nextRequesterIds, { shouldValidate: form.formState.isSubmitted })
+    const departmentOpts = departmentsForRequesters(departments, nextRequesterIds, keep ? initial.departmentIds : [])
+    const nextDepartmentIds = autoPickSingle(pruneSelection(form.getValues("departmentIds") || [], departmentOpts), departmentOpts)
+    form.setValue("departmentIds", nextDepartmentIds, { shouldValidate: form.formState.isSubmitted })
   }
 
   async function onSubmit(data: CreateDemandInput) {
@@ -393,7 +428,7 @@ function DemandFormBody({ onOpenChange, catalogs, context, demand, defaults = {}
                 <Select
                   items={clients.map((c) => ({ value: c.id, label: c.name }))}
                   value={form.watch("clientId") || null}
-                  onValueChange={(v) => form.setValue("clientId", v || "", { shouldValidate: true })}
+                  onValueChange={(v) => selectClient(v || "")}
                   disabled={!!project}
                 >
                   <SelectTrigger className="w-full" aria-invalid={!!errors.clientId}>
@@ -418,12 +453,13 @@ function DemandFormBody({ onOpenChange, catalogs, context, demand, defaults = {}
               <Field>
                 <FieldLabel htmlFor="requesterIds">Solicitantes</FieldLabel>
                 <MultiSelect
-                  items={requesters.map((r) => ({ value: r.id, label: r.name, color: r.color }))}
-                  value={form.watch("requesterIds") || []}
-                  onValueChange={(v) => form.setValue("requesterIds", v, { shouldValidate: true })}
-                  placeholder="Selecione os solicitantes"
+                  items={requesterOptions.map((r) => ({ value: r.id, label: r.name, color: r.color }))}
+                  value={requesterIds}
+                  onValueChange={selectRequesters}
+                  placeholder={clientId ? "Selecione os solicitantes" : "Selecione um cliente primeiro"}
                   searchPlaceholder="Buscar solicitante..."
-                  emptyText="Nenhum solicitante encontrado."
+                  emptyText="Nenhum solicitante vinculado a este cliente."
+                  disabled={!clientId}
                   className={errors.requesterIds ? "border-destructive" : undefined}
                 />
                 <FieldError errors={[errors.requesterIds]} />
@@ -434,12 +470,13 @@ function DemandFormBody({ onOpenChange, catalogs, context, demand, defaults = {}
               <Field>
                 <FieldLabel htmlFor="departmentIds">Departamentos</FieldLabel>
                 <MultiSelect
-                  items={departments.map((d) => ({ value: d.id, label: d.name, color: d.color }))}
+                  items={departmentOptions.map((d) => ({ value: d.id, label: d.name, color: d.color }))}
                   value={form.watch("departmentIds") || []}
                   onValueChange={(v) => form.setValue("departmentIds", v, { shouldValidate: true })}
-                  placeholder="Selecione os departamentos"
+                  placeholder={requesterIds.length ? "Selecione os departamentos" : "Selecione um solicitante primeiro"}
                   searchPlaceholder="Buscar departamento..."
-                  emptyText="Nenhum departamento encontrado."
+                  emptyText="Nenhum departamento vinculado aos solicitantes."
+                  disabled={!requesterIds.length}
                   className={errors.departmentIds ? "border-destructive" : undefined}
                 />
                 <FieldError errors={[errors.departmentIds]} />

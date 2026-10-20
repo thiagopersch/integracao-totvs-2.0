@@ -65,8 +65,8 @@ const demand: AiEntityDef = {
   fields: [
     { key: "clientId", label: "Cliente", kind: "ref", ref: "clients", required: true },
     { key: "analystId", label: "Analista", kind: "ref", ref: "analysts", required: true },
-    { key: "requesterId", label: "Solicitante", kind: "ref", ref: "requesters", required: true },
-    { key: "departmentId", label: "Setor", kind: "ref", ref: "departments", required: true },
+    { key: "requesterId", label: "Solicitante", kind: "ref", ref: "requesters", parentField: "clientId", required: true, hint: "solicitante do cliente escolhido" },
+    { key: "departmentId", label: "Setor", kind: "ref", ref: "departments", required: true, hint: "setor vinculado ao solicitante escolhido" },
     { key: "demandTypeId", label: "Tipo", kind: "ref", ref: "demandTypes", required: true },
     { key: "status", label: "Status", kind: "enum", options: opt(DEMAND_STATUSES, DEMAND_STATUS_LABELS) },
     { key: "date", label: "Data", kind: "date", required: true },
@@ -180,12 +180,13 @@ const requester: AiEntityDef = {
   titleField: "name",
   fields: [
     { key: "name", label: "Nome", kind: "text", required: true },
+    { key: "clientId", label: "Cliente", kind: "ref", ref: "clients", required: true },
     { key: "email", label: "E-mail", kind: "text" },
     { key: "phone", label: "Telefone", kind: "text" },
     color("aleatória"),
   ],
   schema: createRequesterSchema,
-  toInput: (v) => ({ name: v.name, email: v.email ?? "", phone: v.phone ?? "", status: true, color: v.color || randomColor() }),
+  toInput: (v) => ({ name: v.name, clientId: v.clientId, email: v.email ?? "", phone: v.phone ?? "", status: true, color: v.color || randomColor() }),
 };
 
 const department: AiEntityDef = {
@@ -196,11 +197,19 @@ const department: AiEntityDef = {
   titleField: "name",
   fields: [
     { key: "name", label: "Nome", kind: "text", required: true },
+    { key: "clientId", label: "Cliente", kind: "ref", ref: "clients", required: true },
+    { key: "requesterId", label: "Solicitante", kind: "ref", ref: "requesters", parentField: "clientId", required: true, hint: "solicitante do cliente escolhido; mais solicitantes podem ser vinculados depois no cadastro" },
     color("aleatória"),
     { key: "description", label: "Descrição", kind: "textarea", wide: true },
   ],
   schema: createDepartmentSchema,
-  toInput: (v) => ({ name: v.name, description: opt$(v.description), color: v.color || randomColor() }),
+  toInput: (v) => ({
+    name: v.name,
+    clientId: v.clientId,
+    requesterIds: v.requesterId ? [v.requesterId] : [],
+    description: opt$(v.description),
+    color: v.color || randomColor(),
+  }),
 };
 
 const demandType: AiEntityDef = {

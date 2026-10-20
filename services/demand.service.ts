@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { Prisma } from "@/generated/prisma/client";
 import { BaseRepository } from "@/repositories/base.repository";
 import { assertClientAllowed } from "@/lib/client-access";
+import { departmentsForRequesters } from "@/lib/demand-cascade";
 import { timeToMinutes, type CreateDemandInput, type UpdateDemandInput } from "@/schemas/demand.schema";
 import type { Client, Demand, DemandStatus, Priority } from "@/generated/prisma/client";
 import type { ListParams } from "@/types/common";
@@ -229,6 +230,44 @@ async function assertProjectLink(organizationId: string, allowedClientIds: strin
   }
 }
 
+/**
+ * Cliente → Solicitantes → Departamentos (lib/demand-cascade.ts): requesters must be of the demand's client
+ * and departments linked to one of the chosen requesters. Links the demand already had are accepted as-is,
+ * so editing a demand saved before the cascade existed doesn't fail on its legacy requesters/departments.
+ */
+async function assertPeopleLinks(
+  organizationId: string,
+  clientId: string,
+  requesterIds: string[],
+  departmentIds: string[],
+  saved: { requesterIds: string[]; departmentIds: string[] } = { requesterIds: [], departmentIds: [] },
+) {
+  const [requesters, departments] = await Promise.all([
+    requesterIds.length
+      ? prisma.requester.findMany({ where: { id: { in: requesterIds }, organizationId, deletedAt: null }, select: { id: true, name: true, clientId: true } })
+      : [],
+    departmentIds.length
+      ? prisma.department.findMany({
+          where: { id: { in: departmentIds }, organizationId, deletedAt: null },
+          select: { id: true, name: true, departmentRequesters: { select: { requesterId: true } } },
+        })
+      : [],
+  ]);
+  const wrongRequesters = requesters.filter((r) => r.clientId !== clientId && !saved.requesterIds.includes(r.id));
+  if (wrongRequesters.length) {
+    throw new Error(`Solicitante(s) não vinculado(s) ao cliente da demanda: ${wrongRequesters.map((r) => r.name).join(", ")}`);
+  }
+  const options = departmentsForRequesters(
+    departments.map((d) => ({ id: d.id, requesterIds: d.departmentRequesters.map((dr) => dr.requesterId) })),
+    requesterIds,
+    saved.departmentIds,
+  );
+  const wrongDepartments = departments.filter((d) => !options.some((o) => o.id === d.id));
+  if (wrongDepartments.length) {
+    throw new Error(`Departamento(s) não vinculado(s) aos solicitantes da demanda: ${wrongDepartments.map((d) => d.name).join(", ")}`);
+  }
+}
+
 type LinkIds = { analystIds?: string[]; requesterIds?: string[]; departmentIds?: string[]; demandTypeIds?: string[] };
 
 /**
@@ -421,6 +460,7 @@ export const demandService = {
     assertClientAllowed(input.clientId, allowedClientIds);
     const { tagIds, analystIds, requesterIds, departmentIds, demandTypeIds, date, startTime, endTime, projectId, projectTaskId, ...rest } = input;
     await assertProjectLink(organizationId, allowedClientIds, input.clientId, projectId, projectTaskId);
+    await assertPeopleLinks(organizationId, input.clientId, requesterIds ?? [], departmentIds ?? []);
     return prisma.demand.create({
       data: {
         ...rest,
@@ -440,13 +480,29 @@ export const demandService = {
 
   async update(id: string, input: UpdateDemandInput, organizationId: string, allowedClientIds: string[]) {
     if (input.clientId) assertClientAllowed(input.clientId, allowedClientIds);
-    const existing = await prisma.demand.findFirst({ where: { id, organizationId, clientId: { in: allowedClientIds } } });
+    const existing = await prisma.demand.findFirst({
+      where: { id, organizationId, clientId: { in: allowedClientIds } },
+      include: { demandRequesters: { select: { requesterId: true } }, demandDepartments: { select: { departmentId: true } } },
+    });
     if (!existing) throw new Error("Demanda não encontrada ou fora do seu escopo de acesso");
 
     const { tagIds, analystIds, requesterIds, departmentIds, demandTypeIds, date, startTime, endTime, projectId, projectTaskId, ...rest } = input;
     const nextProjectId = projectId === undefined ? existing.projectId : projectId || null;
     const nextTaskId = projectTaskId === undefined ? (projectId === "" ? null : existing.projectTaskId) : projectTaskId || null;
     await assertProjectLink(organizationId, allowedClientIds, input.clientId ?? existing.clientId, nextProjectId, nextTaskId);
+    if (input.clientId || requesterIds || departmentIds) {
+      const saved = {
+        requesterIds: existing.demandRequesters.map((dr) => dr.requesterId),
+        departmentIds: existing.demandDepartments.map((dd) => dd.departmentId),
+      };
+      await assertPeopleLinks(
+        organizationId,
+        input.clientId ?? existing.clientId,
+        requesterIds ?? saved.requesterIds,
+        departmentIds ?? saved.departmentIds,
+        saved,
+      );
+    }
     if (tagIds) {
       await prisma.demandTag.deleteMany({ where: { demandId: id } });
     }

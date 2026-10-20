@@ -69,7 +69,7 @@ async function loadCatalogs(ctx: RequestContext, entities: AiEntityKey[], analys
   if (clients) catalogs.clients = toItems(active(clients));
   // A non-privileged user only launches demands for their own analyst.
   if (analysts) catalogs.analysts = toItems(active(analysts).filter((a) => !analystScope || a.id === analystScope));
-  if (requesters) catalogs.requesters = toItems(active(requesters));
+  if (requesters) catalogs.requesters = active(requesters).map((r) => ({ id: r.id, name: r.name, parentId: r.clientId }));
   if (departments) catalogs.departments = toItems(departments);
   if (demandTypes) catalogs.demandTypes = toItems(demandTypes);
   if (tags) catalogs.tags = toItems(tags);

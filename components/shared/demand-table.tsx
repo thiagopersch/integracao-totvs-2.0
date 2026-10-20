@@ -32,12 +32,12 @@ import { PeriodSelect } from "@/components/shared/period-select"
 import { TotalsByClientSummary } from "@/components/shared/totals-by-client-summary"
 import { DemandExportDialog } from "@/components/shared/demand-export-dialog"
 import { DemandImportDialog } from "@/components/shared/demand-import-dialog"
-import type { Analyst, Client, Requester, Department, DemandType, Tag } from "@/generated/prisma/client"
+import type { Analyst, Client, DemandType, Tag } from "@/generated/prisma/client"
 import { demandAnalysts, demandDepartments, demandRequesters, demandTypesOf } from "@/lib/demand-people"
 import type { PaginationMeta } from "@/types/common"
 import type { Period } from "@/lib/period"
 import Link from "next/link"
-import { DemandFormDialog, type DemandFormContext } from "@/components/demands/demand-form-dialog"
+import { DemandFormDialog, type DemandFormCatalogs, type DemandFormContext } from "@/components/demands/demand-form-dialog"
 
 type DemandRow = {
   id: string
@@ -66,8 +66,8 @@ interface DemandTableProps {
   analysts: Analyst[]
   clients: Client[]
   filterOptions: Awaited<ReturnType<typeof getDemandFilterOptions>>
-  requesters: Requester[]
-  departments: Department[]
+  requesters: DemandFormCatalogs["requesters"]
+  departments: DemandFormCatalogs["departments"]
   demandTypes: DemandType[]
   tags: Tag[]
   totalsByClient: { clientId: string; clientName: string; clientColor: string; hours: number }[]

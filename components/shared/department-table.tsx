@@ -30,18 +30,25 @@ import { createDepartmentSchema, updateDepartmentSchema, type CreateDepartmentIn
 import { toast } from "sonner"
 import { useCrudTable } from "@/hooks/use-crud-table"
 import { useHasPermission } from "@/hooks/use-permissions"
-import type { Department } from "@/generated/prisma/client"
+import type { DepartmentWithLinks } from "@/services/department.service"
+import type { RequesterOption } from "@/services/requester.service"
+import { ClientSelect, type ClientSelectOption } from "@/components/shared/client-select"
+import { MultiSelect } from "@/components/ui/multi-select"
 import { randomColor } from "@/lib/colors"
 import type { PaginationMeta } from "@/types/common"
+
+type Department = DepartmentWithLinks
 
 interface DepartmentTableProps {
   data: Department[]
   meta: PaginationMeta
+  clients: ClientSelectOption[]
+  requesters: RequesterOption[]
 }
 
-const SORTABLE_COLUMNS = ["name", "description"]
+const SORTABLE_COLUMNS = ["name", "client", "description"]
 
-export function DepartmentTable({ data, meta }: DepartmentTableProps) {
+export function DepartmentTable({ data, meta, clients, requesters }: DepartmentTableProps) {
   const {
     deleteDialog,
     setDeleteDialog,
@@ -68,15 +75,32 @@ export function DepartmentTable({ data, meta }: DepartmentTableProps) {
     mode: "onChange",
     resolver: zodResolver(editDialog.entity ? updateDepartmentSchema : createDepartmentSchema) as Resolver<CreateDepartmentInput>,
     values: editDialog.entity
-      ? { name: editDialog.entity.name, description: editDialog.entity.description || "", color: editDialog.entity.color }
-      : { name: "", description: "", color: newColor },
+      ? {
+          name: editDialog.entity.name,
+          description: editDialog.entity.description || "",
+          color: editDialog.entity.color,
+          clientId: editDialog.entity.clientId || "",
+          requesterIds: editDialog.entity.departmentRequesters.map((dr) => dr.requester.id),
+        }
+      : { name: "", description: "", color: newColor, clientId: "", requesterIds: [] },
   })
+  const clientId = form.watch("clientId") || ""
+  const clientRequesters = useMemo(() => requesters.filter((r) => r.clientId === clientId), [requesters, clientId])
+
+  function handleClientChange(value: string) {
+    form.setValue("clientId", value, { shouldValidate: true })
+    // Requesters belong to one client: keep only those of the newly picked one.
+    const allowed = new Set(requesters.filter((r) => r.clientId === value).map((r) => r.id))
+    const current = form.getValues("requesterIds") || []
+    form.setValue("requesterIds", current.filter((id) => allowed.has(id)), { shouldValidate: form.formState.isSubmitted })
+  }
 
   async function onSubmit(data: CreateDepartmentInput) {
     setLoading(true)
     const formData = new FormData()
     Object.entries(data).forEach(([key, value]) => {
-      if (value !== undefined) formData.append(key, String(value))
+      if (Array.isArray(value)) value.forEach((v) => formData.append(key, v))
+      else if (value !== undefined) formData.append(key, String(value))
     })
 
     const result = editDialog.entity
@@ -103,6 +127,25 @@ export function DepartmentTable({ data, meta }: DepartmentTableProps) {
     const columns: ColumnDef<Department>[] = [
     createSelectColumn<Department>(),
     { accessorKey: "name", header: "Nome", cell: ({ row }) => <ColorBadge label={row.original.name} color={row.original.color} /> },
+    {
+      id: "client",
+      header: "Cliente",
+      cell: ({ row }) => (row.original.client ? <ColorBadge label={row.original.client.name} color={row.original.client.color} /> : "-"),
+    },
+    {
+      id: "requesters",
+      header: "Solicitantes",
+      cell: ({ row }) =>
+        row.original.departmentRequesters.length ? (
+          <div className="flex flex-wrap gap-1">
+            {row.original.departmentRequesters.map(({ requester }) => (
+              <ColorBadge key={requester.id} label={requester.name} color={requester.color} />
+            ))}
+          </div>
+        ) : (
+          "-"
+        ),
+    },
     {
       accessorKey: "description",
       header: "Descrição",
@@ -136,6 +179,25 @@ export function DepartmentTable({ data, meta }: DepartmentTableProps) {
             <FieldLabel htmlFor="name">Nome</FieldLabel>
             <Input id="name" {...form.register("name")} placeholder="Nome do departamento" aria-invalid={!!form.formState.errors.name} />
             <FieldError errors={[form.formState.errors.name]} />
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="clientId">Cliente</FieldLabel>
+            <ClientSelect clients={clients} value={clientId} onValueChange={handleClientChange} invalid={!!form.formState.errors.clientId} />
+            <FieldError errors={[form.formState.errors.clientId]} />
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="requesterIds">Solicitantes</FieldLabel>
+            <MultiSelect
+              items={clientRequesters.map((r) => ({ value: r.id, label: r.name, color: r.color }))}
+              value={form.watch("requesterIds") || []}
+              onValueChange={(v) => form.setValue("requesterIds", v, { shouldValidate: true })}
+              placeholder={clientId ? "Selecione os solicitantes" : "Selecione um cliente primeiro"}
+              searchPlaceholder="Buscar solicitante..."
+              emptyText="Nenhum solicitante deste cliente."
+              disabled={!clientId}
+              className={form.formState.errors.requesterIds ? "border-destructive" : undefined}
+            />
+            <FieldError errors={[form.formState.errors.requesterIds]} />
           </Field>
           <Field>
             <FieldLabel htmlFor="description">Descrição</FieldLabel>

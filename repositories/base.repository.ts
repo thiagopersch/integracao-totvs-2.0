@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@/generated/prisma/client";
 import { findBlockingReferences, formatBlockingReferences, type BlockingReference } from "@/lib/entity-relations";
-import type { ListParams, PaginationMeta } from "@/types/common";
+import type { ListParams, PaginationMeta, SortParams } from "@/types/common";
 import { safeOrderBy } from "@/lib/sort";
 
 export interface BulkDeleteBlocked {
@@ -31,6 +31,7 @@ export interface CrudDelegate<T> {
     orderBy: Record<string, unknown> | Record<string, unknown>[];
     skip?: number;
     take?: number;
+    include?: Record<string, unknown>;
   }): Promise<T[]>;
   count(args: { where: Record<string, unknown> }): Promise<number>;
   findFirst(args: { where: Record<string, unknown> }): Promise<T | null>;
@@ -105,6 +106,36 @@ export class BaseRepository<T extends { id: string; deletedAt: Date | null }> {
     return where;
   }
 
+  /** Maps a validated sort column to a Prisma orderBy. Override to sort by a relation (e.g. `client` → `{ client: { name } }`). */
+  protected orderByFor(sort: SortParams): Record<string, unknown> {
+    return safeOrderBy(sort);
+  }
+
+  /** Child models this entity owns (deleted together with it), so they never block its own delete. */
+  protected ownedModels(): string[] {
+    return [];
+  }
+
+  /** Extra "still in use" checks the generic FK scan can't express (e.g. links whose parent row is soft-deleted). */
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  protected async extraBlockingReferences(_id: string): Promise<BlockingReference[]> {
+    return [];
+  }
+
+  private async blockingReasons(id: string): Promise<BlockingReference[]> {
+    if (!this.modelName) return [];
+    const [generic, extra] = await Promise.all([
+      findBlockingReferences(this.modelName, id, { ignoreModels: this.ownedModels() }),
+      this.extraBlockingReferences(id),
+    ]);
+    return [...generic, ...extra];
+  }
+
+  /** Relations loaded with each row of the paginated list. */
+  protected listInclude(): Record<string, unknown> | undefined {
+    return undefined;
+  }
+
   /** Order used when the caller hasn't picked a column to sort by. Override for entities with a custom default (e.g. favorites first). */
   protected defaultOrderBy(): Record<string, unknown> | Record<string, unknown>[] {
     return { createdAt: "desc" as const };
@@ -116,8 +147,9 @@ export class BaseRepository<T extends { id: string; deletedAt: Date | null }> {
     const where = await this.buildWhere(params, organizationId);
     if (extraWhere) Object.assign(where, extraWhere);
     const orderBy = params.sort
-      ? safeOrderBy(params.sort)
+      ? this.orderByFor(params.sort)
       : this.defaultOrderBy();
+    const include = this.listInclude();
 
     const [data, total] = await Promise.all([
       this.model.findMany({
@@ -125,6 +157,7 @@ export class BaseRepository<T extends { id: string; deletedAt: Date | null }> {
         orderBy,
         skip: (page - 1) * pageSize,
         take: pageSize,
+        ...(include ? { include } : {}),
       }),
       this.model.count({ where }),
     ]);
@@ -159,7 +192,7 @@ export class BaseRepository<T extends { id: string; deletedAt: Date | null }> {
 
   async softDelete(id: string, organizationId?: string, extraWhere?: Record<string, unknown>): Promise<T> {
     if (this.modelName) {
-      const reasons = await findBlockingReferences(this.modelName, id);
+      const reasons = await this.blockingReasons(id);
       if (reasons.length > 0) {
         throw new Error(`Não é possível excluir: registro em uso em ${formatBlockingReferences(reasons)}.`);
       }
@@ -180,7 +213,7 @@ export class BaseRepository<T extends { id: string; deletedAt: Date | null }> {
   /** Flips the `status` (Ativado/Desativado) flag directly from the table row — blocked, like delete, when another registry still references this record. */
   async setStatus(id: string, status: boolean, organizationId?: string, extraWhere?: Record<string, unknown>): Promise<T> {
     if (!status && this.modelName) {
-      const reasons = await findBlockingReferences(this.modelName, id);
+      const reasons = await this.blockingReasons(id);
       if (reasons.length > 0) {
         throw new Error(`Não é possível desativar: registro em uso em ${formatBlockingReferences(reasons)}.`);
       }
@@ -204,7 +237,7 @@ export class BaseRepository<T extends { id: string; deletedAt: Date | null }> {
     const deletableIds: string[] = [];
 
     for (const id of ids) {
-      const reasons = await findBlockingReferences(this.modelName, id);
+      const reasons = await this.blockingReasons(id);
       if (reasons.length > 0) blocked.push({ id, reasons });
       else deletableIds.push(id);
     }

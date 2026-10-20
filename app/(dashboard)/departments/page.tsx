@@ -3,6 +3,8 @@ import { listDepartments } from "@/queries/departments"
 import { DepartmentTable } from "@/components/shared/department-table"
 import { TableSkeleton } from "@/components/shared/table-skeleton"
 import { getCurrentOrganizationId } from "@/lib/tenant"
+import { listAllClients } from "@/actions/admin/clients"
+import { listAllRequesters } from "@/actions/requesters"
 
 export default function DepartmentsPage({ searchParams }: { searchParams: Promise<Record<string, string>> }) {
   return (
@@ -17,12 +19,12 @@ export default function DepartmentsPage({ searchParams }: { searchParams: Promis
 async function DepartmentsContent({ searchParams }: { searchParams: Promise<Record<string, string>> }) {
   const params = await searchParams
   const organizationId = await getCurrentOrganizationId()
-  const { data, meta } = await listDepartments({
+  const [{ data, meta }, clients, requesters] = await Promise.all([listDepartments({
     page: Number(params.page) || 1,
     pageSize: Number(params.pageSize) || 10,
     search: params.search,
     sort: params.sort ? { field: params.sort.split(":")[0], direction: params.sort.split(":")[1] as "asc" | "desc" } : undefined,
-  }, organizationId)
+  }, organizationId), listAllClients(), listAllRequesters()])
 
-  return <DepartmentTable data={data} meta={meta} />
+  return <DepartmentTable data={data} meta={meta} clients={clients} requesters={requesters} />
 }

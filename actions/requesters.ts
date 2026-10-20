@@ -20,6 +20,7 @@ export async function createRequester(formData: FormData) {
     phone: (formData.get("phone") as string) || "",
     status: formData.get("status") === "true",
     color: (formData.get("color") as string) || "#0ea5e9",
+    clientId: (formData.get("clientId") as string) || "",
   };
 
   const parsed = createRequesterSchema.safeParse(data);
@@ -45,6 +46,7 @@ export async function updateRequester(id: string, formData: FormData) {
     phone: (formData.get("phone") as string) || "",
     status: formData.get("status") === "true",
     color: (formData.get("color") as string) || undefined,
+    clientId: (formData.get("clientId") as string) || "",
   };
 
   const parsed = updateRequesterSchema.safeParse(data);
@@ -56,6 +58,8 @@ export async function updateRequester(id: string, formData: FormData) {
     const entity = await requesterService.update(id, parsed.data, organizationId);
     await auditService.log({ action: "UPDATE", entity: "Requester", entityId: id, newData: { name: entity.name } });
     updateTag("requesters");
+    // A client change may drop the requester's links to the previous client's departments.
+    updateTag("departments");
     return { success: true, data: entity };
   } catch (error) {
     return { success: false, error: (error as Error).message };

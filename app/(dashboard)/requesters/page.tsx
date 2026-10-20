@@ -3,6 +3,7 @@ import { listRequesters } from "@/queries/requesters"
 import { RequesterTable } from "@/components/shared/requester-table"
 import { TableSkeleton } from "@/components/shared/table-skeleton"
 import { getCurrentOrganizationId } from "@/lib/tenant"
+import { listAllClients } from "@/actions/admin/clients"
 
 export default function RequestersPage({ searchParams }: { searchParams: Promise<Record<string, string>> }) {
   return (
@@ -17,13 +18,13 @@ export default function RequestersPage({ searchParams }: { searchParams: Promise
 async function RequestersContent({ searchParams }: { searchParams: Promise<Record<string, string>> }) {
   const params = await searchParams
   const organizationId = await getCurrentOrganizationId()
-  const { data, meta } = await listRequesters({
+  const [{ data, meta }, clients] = await Promise.all([listRequesters({
     page: Number(params.page) || 1,
     pageSize: Number(params.pageSize) || 10,
     search: params.search,
     sort: params.sort ? { field: params.sort.split(":")[0], direction: params.sort.split(":")[1] as "asc" | "desc" } : undefined,
     filters: params.status ? { status: params.status } : undefined,
-  }, organizationId)
+  }, organizationId), listAllClients()])
 
-  return <RequesterTable data={data} meta={meta} />
+  return <RequesterTable data={data} meta={meta} clients={clients} />
 }

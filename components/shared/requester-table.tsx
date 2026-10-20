@@ -34,18 +34,22 @@ import { formatPhone } from "@/lib/masks"
 import { toast } from "sonner"
 import { useCrudTable } from "@/hooks/use-crud-table"
 import { useHasPermission } from "@/hooks/use-permissions"
-import type { Requester } from "@/generated/prisma/client"
+import type { RequesterWithClient } from "@/services/requester.service"
+import { ClientSelect, type ClientSelectOption } from "@/components/shared/client-select"
 import { randomColor } from "@/lib/colors"
 import type { PaginationMeta } from "@/types/common"
+
+type Requester = RequesterWithClient
 
 interface RequesterTableProps {
   data: Requester[]
   meta: PaginationMeta
+  clients: ClientSelectOption[]
 }
 
-const SORTABLE_COLUMNS = ["name", "email", "phone", "status"]
+const SORTABLE_COLUMNS = ["name", "client", "email", "phone", "status"]
 
-export function RequesterTable({ data, meta }: RequesterTableProps) {
+export function RequesterTable({ data, meta, clients }: RequesterTableProps) {
   const {
     searchParams,
     deleteDialog,
@@ -76,8 +80,8 @@ export function RequesterTable({ data, meta }: RequesterTableProps) {
     mode: "onChange",
     resolver: zodResolver(editDialog.entity ? updateRequesterSchema : createRequesterSchema) as Resolver<CreateRequesterInput>,
     values: editDialog.entity
-      ? { name: editDialog.entity.name, email: editDialog.entity.email || "", phone: formatPhone(editDialog.entity.phone), status: editDialog.entity.status, color: editDialog.entity.color }
-      : { name: "", email: "", phone: "", status: true, color: newColor },
+      ? { name: editDialog.entity.name, email: editDialog.entity.email || "", phone: formatPhone(editDialog.entity.phone), status: editDialog.entity.status, color: editDialog.entity.color, clientId: editDialog.entity.clientId || "" }
+      : { name: "", email: "", phone: "", status: true, color: newColor, clientId: "" },
   })
 
   async function onSubmit(data: CreateRequesterInput) {
@@ -119,6 +123,11 @@ export function RequesterTable({ data, meta }: RequesterTableProps) {
       },
     },
     { accessorKey: "name", header: "Nome", cell: ({ row }) => <ColorBadge label={row.original.name} color={row.original.color} /> },
+    {
+      id: "client",
+      header: "Cliente",
+      cell: ({ row }) => (row.original.client ? <ColorBadge label={row.original.client.name} color={row.original.client.color} /> : "-"),
+    },
     { accessorKey: "email", header: "E-mail", cell: ({ row }) => row.getValue("email") || "-" },
     { accessorKey: "phone", header: "Telefone", cell: ({ row }) => row.getValue("phone") || "-" },
   ]
@@ -161,6 +170,16 @@ export function RequesterTable({ data, meta }: RequesterTableProps) {
             <FieldLabel htmlFor="name">Nome</FieldLabel>
             <Input id="name" {...form.register("name")} placeholder="Nome do solicitante" aria-invalid={!!form.formState.errors.name} />
             <FieldError errors={[form.formState.errors.name]} />
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="clientId">Cliente</FieldLabel>
+            <ClientSelect
+              clients={clients}
+              value={form.watch("clientId") || ""}
+              onValueChange={(v) => form.setValue("clientId", v, { shouldValidate: true })}
+              invalid={!!form.formState.errors.clientId}
+            />
+            <FieldError errors={[form.formState.errors.clientId]} />
           </Field>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field>

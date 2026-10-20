@@ -33,6 +33,7 @@ export const ENTITY_LABELS: Record<string, string> = {
   DemandRequester: "Demandas",
   DemandDepartment: "Demandas",
   DemandDemandType: "Demandas",
+  DepartmentRequester: "Departamentos",
   Comment: "Comentários",
   Attachment: "Anexos",
   Notification: "Notificações",
