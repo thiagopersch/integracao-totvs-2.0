@@ -1,8 +1,8 @@
 "use client"
 
-import { PasswordInput } from "@/components/ui/password-input"
+import { Textarea } from "@/components/ui/textarea"
 import { Field, FieldLabel } from "@/components/ui/field"
-import { CredentialsHelp } from "@/components/ps-docs/credentials-help"
+import { COOKIE_TEXTAREA_PROPS, CredentialsHelp } from "@/components/ps-docs/credentials-help"
 import { missingCookieNames } from "@/lib/ps-docs/credential"
 
 /** Single `Cookie` input for the portal admin session (controlled version, used outside react-hook-form). */
@@ -14,13 +14,7 @@ export function CredentialsFields({ value, onChange }: { value: string; onChange
       <CredentialsHelp />
       <Field>
         <FieldLabel htmlFor="cookieHeader">Cookie</FieldLabel>
-        <PasswordInput
-          id="cookieHeader"
-          value={value}
-          onChange={onChange}
-          placeholder="branch=master; client_id=...; inscricoes_session=...; XSRF-TOKEN=..."
-          aria-invalid={missing.length > 0}
-        />
+        <Textarea {...COOKIE_TEXTAREA_PROPS} value={value} onChange={(e) => onChange(e.target.value)} aria-invalid={missing.length > 0} />
         {missing.length > 0 && <p className="text-sm text-destructive">Faltando no cookie: {missing.join(", ")}</p>}
       </Field>
     </div>

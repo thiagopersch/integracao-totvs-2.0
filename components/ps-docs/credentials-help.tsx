@@ -11,3 +11,19 @@ export function CredentialsHelp() {
     </div>
   )
 }
+
+/** Props of the cookie textarea: a ~1KB value that is not a login password, so it is kept out of
+ *  `type="password"` (autofill / password managers) and wraps inside a capped, scrollable box. */
+export const COOKIE_TEXTAREA_PROPS = {
+  id: "cookieHeader",
+  rows: 3,
+  className: "max-h-32 overflow-y-auto font-mono text-xs break-all md:text-xs",
+  placeholder: "branch=master; client_id=...; inscricoes_session=...; XSRF-TOKEN=...",
+  autoComplete: "off",
+  autoCorrect: "off",
+  autoCapitalize: "off",
+  spellCheck: false,
+  "data-1p-ignore": true,
+  "data-lpignore": "true",
+  "data-bwignore": true,
+} as const
