@@ -463,7 +463,7 @@ export function AiAssistant({ onCreated }: AiAssistantProps) {
           )}
 
           {!showHistory && (
-          <div className="space-y-2 border-t p-4">
+          <div className="shrink-0 space-y-2 border-t p-4">
             {pending.length > 0 && (
               <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
                 <span>
@@ -477,6 +477,7 @@ export function AiAssistant({ onCreated }: AiAssistantProps) {
             )}
             <Textarea
               rows={3}
+              className="max-h-[40vh] resize-none overflow-y-auto"
               value={input}
               placeholder="O que você quer cadastrar? (Ctrl+Enter para enviar)"
               onChange={(e) => setInput(e.target.value)}
