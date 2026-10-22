@@ -4,7 +4,7 @@ import { sendEmail, type EmailAttachment } from "@/lib/mailer";
 import { toExportRow, type DemandForExport } from "@/lib/export-mappers";
 import { demandsByClientXlsxBuffer, demandsXlsxBuffer, XLSX_CONTENT_TYPE } from "@/lib/demands-xlsx";
 import { contractUsageXlsxBuffer } from "@/lib/contract-usage-xlsx";
-import { formatMonthLabel } from "@/lib/contract-usage";
+import { demandMinutesByStatus, formatMonthLabel } from "@/lib/contract-usage";
 import { parseTemplateAttachments, resolveAttachmentFileName } from "@/lib/message-templates/attachments";
 import {
   buildAllClientsDemandReportVars,
@@ -72,16 +72,23 @@ async function getDemandsByClient(organizationId: string, clientIds: string[], p
   return byClient;
 }
 
-/** Subject/body/attachments of the ALL_CLIENTS demands report (one table per client). */
+/** Monthly allowance (contract + extras) of each client for the report's reference month, by client id. */
+async function getUsageByClient(organizationId: string, clientIds: string[], period: ResolvedReportPeriod) {
+  if (clientIds.length === 0) return new Map<string, ClientMonthlyUsage>();
+  const usage = await contractUsageService.getMonthlyUsage(organizationId, usageMonth(period), clientIds);
+  return new Map(usage.map((u) => [u.clientId, u]));
+}
+
+/** Subject/body/attachments of the ALL_CLIENTS demands report (a table row or container per client). */
 function renderAllClientsDemandReport(
   template: MessageTemplate,
   baseVars: TemplateVars,
   period: ResolvedReportPeriod,
-  groups: { client: Client; demands: DemandForExport[] }[]
+  groups: { client: Client; demands: DemandForExport[]; usage?: ClientMonthlyUsage | null }[]
 ) {
   const vars: TemplateVars = {
     ...baseVars,
-    ...buildAllClientsDemandReportVars({ period, clients: groups.map((g) => g.demands) }),
+    ...buildAllClientsDemandReportVars({ period, clients: groups.map((g) => g.demands), usage: groups.map((g) => g.usage) }),
   };
   const attachments: EmailAttachment[] = [];
   for (const config of parseTemplateAttachments(template.attachments)) {
@@ -89,17 +96,26 @@ function renderAllClientsDemandReport(
     attachments.push({
       filename: resolveAttachmentFileName(config.fileName, vars),
       content: demandsByClientXlsxBuffer(
-        groups.map((g) => ({
-          clientName: g.client.name,
-          rows: g.demands.map(toExportRow),
-          minutes: g.demands.reduce((sum, d) => sum + d.durationMinutes, 0),
-        }))
+        groups.map((g) => {
+          const { executedMinutes, scheduledMinutes, totalMinutes } = demandMinutesByStatus(g.demands);
+          return {
+            clientName: g.client.name,
+            rows: g.demands.map(toExportRow),
+            minutes: totalMinutes,
+            executedMinutes,
+            scheduledMinutes,
+            usage: g.usage,
+          };
+        })
       ),
       contentType: XLSX_CONTENT_TYPE,
     });
   }
   vars.attachmentNames = attachments.map((a) => a.filename).join(", ");
-  const clients = groups.map((g) => ({ ...vars, ...buildDemandReportVars({ client: g.client, period, demands: g.demands }) }));
+  const clients = groups.map((g) => ({
+    ...vars,
+    ...buildDemandReportVars({ client: g.client, period, demands: g.demands, usage: g.usage }),
+  }));
   const rendered = renderEmailFromContent(template.subject, (template.content ?? []) as unknown as BlockTree, vars, clients);
   return { rendered, attachments };
 }
@@ -158,7 +174,7 @@ async function renderClientReport(
     ...(await messageRenderService.baseVars(organizationId)),
     // Same recipient rule as the contract usage email: the client's responsible, else the client.
     ...buildGeneralVars({ recipientName: client.responsible || client.name, recipientEmail: to.join(", ") }),
-    ...buildDemandReportVars({ client, period, demands }),
+    ...buildDemandReportVars({ client, period, demands, usage: (await getUsageByClient(organizationId, [client.id], period)).get(client.id) }),
   };
   const attachments = buildAttachments(template, demands, vars);
   vars.attachmentNames = attachments.map((a) => a.filename).join(", ");
@@ -398,8 +414,12 @@ export const demandReportService = {
       if (clients.length === 0) {
         return { status: "EMPTY", message: `Nenhum cliente com demandas em ${period.label}`, sent: 0, failed: 0, skipped: 0 };
       }
-      const byClient = await getDemandsByClient(schedule.organizationId, clients.map((c) => c.id), period);
-      const groups = clients.map((client) => ({ client, demands: byClient.get(client.id) ?? [] }));
+      const clientIds = clients.map((c) => c.id);
+      const [byClient, usageByClient] = await Promise.all([
+        getDemandsByClient(schedule.organizationId, clientIds, period),
+        getUsageByClient(schedule.organizationId, clientIds, period),
+      ]);
+      const groups = clients.map((client) => ({ client, demands: byClient.get(client.id) ?? [], usage: usageByClient.get(client.id) }));
       ({ rendered, attachments } = renderAllClientsDemandReport(template, baseVars, period, groups));
       clientsCount = clients.length;
       label = period.label;
@@ -443,8 +463,12 @@ export const demandReportService = {
     }
     if (mode === "DEMANDS_ALL_CLIENTS") {
       const { clients } = await this.previewClients({ organizationId, clientIds: allowedClientIds, period: "currentMonth" });
-      const byClient = await getDemandsByClient(organizationId, clients.map((c) => c.id), period);
-      const groups = clients.map((client) => ({ client, demands: byClient.get(client.id) ?? [] }));
+      const clientIds = clients.map((c) => c.id);
+      const [byClient, usageByClient] = await Promise.all([
+        getDemandsByClient(organizationId, clientIds, period),
+        getUsageByClient(organizationId, clientIds, period),
+      ]);
+      const groups = clients.map((client) => ({ client, demands: byClient.get(client.id) ?? [], usage: usageByClient.get(client.id) }));
       const { attachments } = renderAllClientsDemandReport(template, vars, period, groups);
       return { attachments, vars: { ...vars, attachmentNames: attachments.map((a) => a.filename).join(", ") } };
     }
@@ -458,7 +482,8 @@ export const demandReportService = {
       return { attachments, vars: { ...vars, attachmentNames: attachments.map((a) => a.filename).join(", ") } };
     }
     const demands = await getClientDemands(organizationId, latest.client.id, period);
-    const realVars = { ...vars, ...buildDemandReportVars({ client: latest.client, period, demands }) };
+    const usage = (await getUsageByClient(organizationId, [latest.client.id], period)).get(latest.client.id);
+    const realVars = { ...vars, ...buildDemandReportVars({ client: latest.client, period, demands, usage }) };
     const attachments = buildAttachments(template, demands, realVars);
     return { attachments, vars: { ...realVars, attachmentNames: attachments.map((a) => a.filename).join(", ") } };
   },

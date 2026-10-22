@@ -145,7 +145,7 @@ function renderDivider(block: DividerBlock): string {
 }
 
 function renderTable(block: TableBlock): string {
-  const { cells, hasHeader, headerBgColor = "#f8fafc", borderColor = "#e2e8f0" } = block.props;
+  const { cells, hasHeader, repeatRows = [], headerBgColor = "#f8fafc", borderColor = "#e2e8f0" } = block.props;
   const rows = cells
     .map((row, rowIndex) => {
       const header = hasHeader && rowIndex === 0;
@@ -153,7 +153,8 @@ function renderTable(block: TableBlock): string {
       const style = `border:1px solid ${attr(borderColor)};padding:8px;text-align:left;font-size:14px;${
         header ? `background-color:${attr(headerBgColor)};font-weight:600;` : ""
       }`;
-      return `<tr>${row.map((cell) => `<${tag} style="${style}">${attr(cell)}</${tag}>`).join("")}</tr>`;
+      const html = `<tr>${row.map((cell) => `<${tag} style="${style}">${attr(cell)}</${tag}>`).join("")}</tr>`;
+      return !header && repeatRows.includes(rowIndex) ? `<!--rowrepeat-->${html}<!--endrowrepeat-->` : html;
     })
     .join("");
   return `<td style="padding:8px 0;"><table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">${rows}</table></td>`;

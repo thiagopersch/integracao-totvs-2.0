@@ -1,5 +1,5 @@
 import { ERROR_KIND_LABELS, type ErrorKind } from "@/lib/error-kind";
-import { formatHours, formatMonthLabel, USAGE_LEVEL_LABELS, type UsageLevel } from "@/lib/contract-usage";
+import { demandMinutesByStatus, formatHours, formatMonthLabel, usagePercent, USAGE_LEVEL_LABELS, type UsageLevel } from "@/lib/contract-usage";
 import { demandAnalysts, demandDepartments, demandRequesters, demandTypesOf, joinEmails, joinNames } from "@/lib/demand-people";
 
 /** Template variables resolved at send time — keys must match lib/message-templates/variable-catalog.ts. */
@@ -27,6 +27,7 @@ const DEMAND_PRIORITY_LABELS: Record<string, string> = {
 };
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
+const fmtPercent = (n: number) => `${n.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%`;
 /** Dates stored as UTC midnights / UTC wall-clock times (demand date, start/end, contract dates). */
 const formatUtcDate = (date: Date) => date.toLocaleDateString("pt-BR", { timeZone: "UTC" });
 const formatUtcTime = (date: Date) =>
@@ -111,7 +112,6 @@ export function buildContractUsageVars(input: ContractUsageVarsInput): TemplateV
   const starts = input.contracts.map((c) => c.startDate.getTime());
   const openEnded = input.contracts.some((c) => !c.endDate);
   const ends = input.contracts.filter((c) => c.endDate).map((c) => c.endDate!.getTime());
-  const fmtPercent = (n: number) => `${n.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%`;
 
   // Used value = Σ analyst hours × analyst hourly rate; the average rate (weighted by those hours)
   // prices the contracted hours.
@@ -184,7 +184,32 @@ export function buildDemandVars(demand: DemandVarsInput | null): TemplateVars {
 export interface DemandReportVarsInput {
   client: ClientVarsInput;
   period: { label: string; startLabel: string; endLabel: string; slug: string };
-  demands: { durationMinutes: number; demandAnalysts?: { analyst: { name: string } }[] }[];
+  demands: { durationMinutes: number; status?: string | null; demandAnalysts?: { analyst: { name: string } }[] }[];
+  /** The client's contract allowance for the report's reference month (getMonthlyUsage) — absent without a contract. */
+  usage?: ContractAllowance | null;
+}
+
+/** Monthly allowance of a client: contract hours + extra hours launched for the month. */
+export interface ContractAllowance {
+  baseHours: number;
+  extraHours: number;
+  contractedHours: number;
+}
+
+const NO_CONTRACT = "—";
+
+/** Executed/scheduled hours and the contract figures (consumption = executed ÷ contract + extras). */
+function demandReportHoursVars(demands: { durationMinutes: number; status?: string | null }[], usage: ContractAllowance | null | undefined) {
+  const { executedMinutes, scheduledMinutes } = demandMinutesByStatus(demands);
+  const executed = round2(executedMinutes / 60);
+  return {
+    executedHours: formatHours(executed),
+    scheduledHours: formatHours(round2(scheduledMinutes / 60)),
+    contractBaseHours: usage ? formatHours(usage.baseHours) : NO_CONTRACT,
+    contractExtraHours: usage ? formatHours(usage.extraHours) : NO_CONTRACT,
+    contractTotalHours: usage ? formatHours(usage.contractedHours) : NO_CONTRACT,
+    contractUsagePercent: usage && usage.contractedHours > 0 ? fmtPercent(usagePercent(executed, usage.contractedHours)) : NO_CONTRACT,
+  };
 }
 
 /** A client's demands in the report period (DEMAND_REPORT event). `attachmentNames` is added by the sender. */
@@ -200,18 +225,35 @@ export function buildDemandReportVars(input: DemandReportVarsInput): TemplateVar
     demandsCount: String(input.demands.length),
     totalHours: formatHours(round2(minutes / 60)),
     analystsNames: analysts.join(", "),
+    ...demandReportHoursVars(input.demands, input.usage),
   };
 }
 
 export interface AllClientsDemandReportVarsInput {
   period: { label: string; startLabel: string; endLabel: string; slug: string };
-  clients: { durationMinutes: number }[][];
+  clients: { durationMinutes: number; status?: string | null }[][];
+  /** Each client's allowance, aligned with `clients` (null without a contract). The grand contract
+   *  totals and consumption % only count the clients that have one. */
+  usage?: (ContractAllowance | null | undefined)[];
 }
 
 /** Totals of an ALL_CLIENTS demands report — each client's own vars come from buildDemandReportVars. */
 export function buildAllClientsDemandReportVars(input: AllClientsDemandReportVarsInput): TemplateVars {
   const demands = input.clients.flat();
   const minutes = demands.reduce((sum, d) => sum + d.durationMinutes, 0);
+  const contracted = input.clients.flatMap((clientDemands, i) => {
+    const usage = input.usage?.[i];
+    return usage ? [{ usage, clientDemands }] : [];
+  });
+  const totals: ContractAllowance | null = contracted.length
+    ? {
+        baseHours: round2(contracted.reduce((sum, c) => sum + c.usage.baseHours, 0)),
+        extraHours: round2(contracted.reduce((sum, c) => sum + c.usage.extraHours, 0)),
+        contractedHours: round2(contracted.reduce((sum, c) => sum + c.usage.contractedHours, 0)),
+      }
+    : null;
+  const contractHours = demandReportHoursVars(contracted.flatMap((c) => c.clientDemands), totals);
+  const hours = demandReportHoursVars(demands, null);
   return {
     periodLabel: input.period.label,
     periodStart: input.period.startLabel,
@@ -220,6 +262,12 @@ export function buildAllClientsDemandReportVars(input: AllClientsDemandReportVar
     clientsCount: String(input.clients.length),
     grandDemandsCount: String(demands.length),
     grandTotalHours: formatHours(round2(minutes / 60)),
+    grandExecutedHours: hours.executedHours,
+    grandScheduledHours: hours.scheduledHours,
+    grandContractBaseHours: contractHours.contractBaseHours,
+    grandExtraHours: contractHours.contractExtraHours,
+    grandContractTotalHours: contractHours.contractTotalHours,
+    grandUsagePercent: contractHours.contractUsagePercent,
   };
 }
 

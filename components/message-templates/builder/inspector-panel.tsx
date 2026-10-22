@@ -220,9 +220,15 @@ function DividerInspector({ block, patch }: { block: DividerBlock; patch: Patch<
 }
 
 function TableInspector({ block, patch }: { block: TableBlock; patch: Patch<TableBlock> }) {
-  const { variableGroups } = useBuilder()
-  const { cells, hasHeader } = block.props
+  const { variableGroups, scope, tree } = useBuilder()
+  const { cells, hasHeader, repeatRows = [] } = block.props
   const cols = cells[0]?.length ?? 1
+  // Inside a container repeated per client the whole table already repeats, so rows render once there.
+  const inRepeatedContainer = tree.some((b) => b.type === "container" && b.props.repeatPerClient && b.children.some((c) => c.id === block.id))
+  const canRepeatRows = (scope === "ALL_CLIENTS" || repeatRows.length > 0) && !inRepeatedContainer
+
+  const toggleRepeat = (r: number, on: boolean) =>
+    patch({ repeatRows: on ? [...repeatRows, r].sort((a, b) => a - b) : repeatRows.filter((i) => i !== r) })
 
   const setCell = (r: number, c: number, value: string) =>
     patch({ cells: cells.map((row, ri) => (ri === r ? row.map((cell, ci) => (ci === c ? value : cell)) : row)) })
@@ -234,7 +240,11 @@ function TableInspector({ block, patch }: { block: TableBlock; patch: Patch<Tabl
           <Label htmlFor="table-header" className="text-xs">
             Primeira linha como cabeçalho
           </Label>
-          <Switch id="table-header" checked={hasHeader} onCheckedChange={(v) => patch({ hasHeader: v })} />
+          <Switch
+            id="table-header"
+            checked={hasHeader}
+            onCheckedChange={(v) => patch({ hasHeader: v, ...(v ? { repeatRows: repeatRows.filter((i) => i !== 0) } : {}) })}
+          />
         </div>
         <div className="grid grid-cols-2 gap-2">
           <Button
@@ -260,7 +270,7 @@ function TableInspector({ block, patch }: { block: TableBlock; patch: Patch<Tabl
             variant="outline"
             size="sm"
             disabled={cells.length <= 1}
-            onClick={() => patch({ cells: cells.slice(0, -1) })}
+            onClick={() => patch({ cells: cells.slice(0, -1), repeatRows: repeatRows.filter((i) => i < cells.length - 1) })}
           >
             <Trash2 className="mr-1 h-3 w-3" /> Últ. linha
           </Button>
@@ -276,9 +286,31 @@ function TableInspector({ block, patch }: { block: TableBlock; patch: Patch<Tabl
         </div>
       </Section>
       <Section title="Células">
+        {canRepeatRows && (
+          <p className="text-[11px] text-muted-foreground">
+            Marque &quot;Repetir por cliente&quot; numa linha para gerar uma linha por cliente nesta tabela, com as variáveis daquele
+            cliente (ex.: {"{{clientName}}"}, {"{{executedHours}}"}, {"{{contractUsagePercent}}"}).
+            {scope !== "ALL_CLIENTS" && " Só tem efeito em templates com escopo \"Todos os clientes\"."}
+          </p>
+        )}
         {cells.map((row, r) => (
           <div key={r} className="space-y-1.5">
-            <p className="text-[11px] text-muted-foreground">{hasHeader && r === 0 ? "Cabeçalho" : `Linha ${hasHeader ? r : r + 1}`}</p>
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-[11px] text-muted-foreground">{hasHeader && r === 0 ? "Cabeçalho" : `Linha ${hasHeader ? r : r + 1}`}</p>
+              {canRepeatRows && !(hasHeader && r === 0) && (
+                <div className="flex items-center gap-1.5">
+                  <Label htmlFor={`repeat-row-${block.id}-${r}`} className="text-[11px] font-normal text-muted-foreground">
+                    Repetir por cliente
+                  </Label>
+                  <Switch
+                    id={`repeat-row-${block.id}-${r}`}
+                    size="sm"
+                    checked={repeatRows.includes(r)}
+                    onCheckedChange={(on) => toggleRepeat(r, on)}
+                  />
+                </div>
+              )}
+            </div>
             {row.map((cell, c) => (
               <VariableInput
                 key={c}

@@ -116,6 +116,27 @@ export function formatHours(hours: number): string {
 }
 
 /**
+ * Demand minutes split by status for the demands report: executed = COMPLETED, scheduled ("horas
+ * programadas") = PENDING + IN_PROGRESS; CANCELLED only counts in `totalMinutes`, which (like the
+ * report's historical `totalHours`) sums every demand.
+ */
+export function demandMinutesByStatus(demands: { durationMinutes: number; status?: string | null }[]): {
+  executedMinutes: number;
+  scheduledMinutes: number;
+  totalMinutes: number;
+} {
+  let executedMinutes = 0;
+  let scheduledMinutes = 0;
+  let totalMinutes = 0;
+  for (const d of demands) {
+    totalMinutes += d.durationMinutes;
+    if (d.status === "COMPLETED") executedMinutes += d.durationMinutes;
+    else if (d.status === "PENDING" || d.status === "IN_PROGRESS") scheduledMinutes += d.durationMinutes;
+  }
+  return { executedMinutes, scheduledMinutes, totalMinutes };
+}
+
+/**
  * Minutes consumed per client in a month: every demand counts once; `projectMinutes` is the share of
  * those demands linked to a project (Gestão de Projetos), reported separately but never added again.
  */

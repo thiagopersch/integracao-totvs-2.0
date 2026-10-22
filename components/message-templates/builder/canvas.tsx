@@ -1,5 +1,6 @@
 "use client"
 
+import { useSyncExternalStore } from "react"
 import DOMPurify from "dompurify"
 import { useDroppable } from "@dnd-kit/core"
 import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable"
@@ -133,9 +134,14 @@ function FrameAction({
   )
 }
 
+const noopSubscribe = () => () => {}
+
 /** Leaf content: the same HTML the email gets (so the canvas is WYSIWYG); text is edited inline. */
 function LeafView({ block }: { block: LeafBlock }) {
   const { selectedId, updateBlock, variableGroups } = useBuilder()
+  // DOMPurify needs a DOM — without one (SSR) `sanitize` doesn't exist, so the HTML is only injected
+  // in the browser; the server renders the empty wrapper and hydration fills it in.
+  const isBrowser = useSyncExternalStore(noopSubscribe, () => true, () => false)
   if (block.type === "text" && selectedId === block.id) {
     return (
       <RichTextEditor
@@ -154,17 +160,27 @@ function LeafView({ block }: { block: LeafBlock }) {
       </div>
     )
   }
+  const repeatedRows = block.type === "table" ? (block.props.repeatRows ?? []).length : 0
   return (
-    <div
-      className={cn("pointer-events-none", block.type === "text" && EMAIL_TYPOGRAPHY_CLASSES)}
-      dangerouslySetInnerHTML={{
-        // renderLeafBlock already sanitizes server-side-compatibly; DOMPurify is the browser-grade
-        // second layer since this is injected into the app's own origin.
-        __html: DOMPurify.sanitize(
-          `<table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0"><tr>${renderLeafBlock(block)}</tr></table>`
-        ),
-      }}
-    />
+    <>
+      <div
+        className={cn("pointer-events-none", block.type === "text" && EMAIL_TYPOGRAPHY_CLASSES)}
+        dangerouslySetInnerHTML={{
+          // renderLeafBlock already sanitizes server-side-compatibly; DOMPurify is the browser-grade
+          // second layer since this is injected into the app's own origin.
+          __html: isBrowser
+            ? DOMPurify.sanitize(
+                `<table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0"><tr>${renderLeafBlock(block)}</tr></table>`
+              )
+            : "",
+        }}
+      />
+      {repeatedRows > 0 && (
+        <p className="mt-1 text-[10px] text-sky-600">
+          ↻ {repeatedRows === 1 ? "1 linha repetida" : `${repeatedRows} linhas repetidas`} para cada cliente
+        </p>
+      )}
+    </>
   )
 }
 

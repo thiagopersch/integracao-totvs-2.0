@@ -174,7 +174,7 @@ const repeatContainer = (id: string, children: BlockTree) => ({
   children: children as never,
 });
 
-/** ALL_CLIENTS versions: one email, a container repeated per client (one table under the other). */
+/** ALL_CLIENTS versions: one email, with table rows / containers repeated per client. */
 const ALL_CLIENTS_DEFAULTS: Partial<Record<MessageTemplateEvent, DefaultTemplate>> = {
   DEMAND_REPORT: {
     subject: "Relatório de demandas — todos os clientes — {{periodLabel}}",
@@ -183,22 +183,37 @@ const ALL_CLIENTS_DEFAULTS: Partial<Record<MessageTemplateEvent, DefaultTemplate
         "text1",
         "<h2>Relatório de demandas</h2><p>Olá,</p><p>Segue o resumo das demandas atendidas referentes a <strong>{{periodLabel}}</strong> ({{periodStart}} a {{periodEnd}}): <strong>{{clientsCount}}</strong> cliente(s), <strong>{{grandDemandsCount}}</strong> demanda(s) e <strong>{{grandTotalHours}}</strong> no total. A planilha em anexo traz uma aba de resumo e uma aba por cliente.</p>"
       ),
-      repeatContainer("container1", [
-        text("text2", "<h3>{{clientName}}</h3>"),
-        {
-          id: "table1",
-          name: "table1",
-          type: "table",
-          props: {
-            hasHeader: true,
-            cells: [
-              ["Resumo do período", ""],
-              ["Demandas lançadas", "{{demandsCount}}"],
-              ["Horas executadas", "{{totalHours}}"],
-              ["Analistas", "{{analystsNames}}"],
+      // One table, one row per client (repeatRows) — contract figures are the month's allowance.
+      {
+        id: "table1",
+        name: "table1",
+        type: "table",
+        props: {
+          hasHeader: true,
+          cells: [
+            ["Cliente", "Executadas", "Programadas", "Contratadas", "Extras", "% usado"],
+            [
+              "{{clientName}}",
+              "{{executedHours}}",
+              "{{scheduledHours}}",
+              "{{contractTotalHours}}",
+              "{{contractExtraHours}}",
+              "{{contractUsagePercent}}",
             ],
-          },
+            [
+              "Total",
+              "{{grandExecutedHours}}",
+              "{{grandScheduledHours}}",
+              "{{grandContractTotalHours}}",
+              "{{grandExtraHours}}",
+              "{{grandUsagePercent}}",
+            ],
+          ],
+          repeatRows: [1],
         },
+      },
+      repeatContainer("container1", [
+        text("text2", "<p><strong>{{clientName}}</strong>: {{demandsCount}} demanda(s) — analistas: {{analystsNames}}</p>"),
       ]),
       { id: "divider1", name: "divider1", type: "divider", props: { color: "#e2e8f0", thickness: 1, marginY: 16 } },
       text("text3", '<p style="color:#6b7280;font-size:13px">Este é um envio automático. Em caso de dúvidas, responda este e-mail.</p>'),

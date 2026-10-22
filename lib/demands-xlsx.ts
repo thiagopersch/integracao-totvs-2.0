@@ -37,21 +37,66 @@ export interface ClientDemandsGroup {
   rows: ExportRow[];
   /** Total minutes of the client's demands in the period. */
   minutes: number;
+  /** COMPLETED demands. */
+  executedMinutes: number;
+  /** PENDING + IN_PROGRESS demands ("horas programadas"). */
+  scheduledMinutes: number;
+  /** Monthly allowance (contract + extra hours) — absent when the client has no contract in force. */
+  usage?: { baseHours: number; extraHours: number; contractedHours: number } | null;
 }
 
 const hoursNumber = (minutes: number) => Math.round((minutes / 60) * 100) / 100;
+const round2 = (n: number) => Math.round(n * 100) / 100;
+const percentOf = (usedHours: number, contractedHours: number) => (contractedHours > 0 ? round2((usedHours / contractedHours) * 100) : "");
 
-/** ALL_CLIENTS demands report: a "Resumo" sheet (client, demands, hours + total) and one sheet per client. */
+/**
+ * ALL_CLIENTS demands report: a "Resumo" sheet (per client: demands, executed/scheduled hours,
+ * contract + extra hours and consumption %, plus a total row) and one sheet per client. "Horas
+ * extras" only shows up when some client has extra hours launched for the month.
+ */
 export function demandsByClientXlsxBuffer(groups: ClientDemandsGroup[]): Buffer {
   const workbook = XLSX.utils.book_new();
-  const summary = groups.map((g) => ({ Cliente: g.clientName, Demandas: g.rows.length, Horas: hoursNumber(g.minutes) }));
-  summary.push({
-    Cliente: "Total",
-    Demandas: groups.reduce((sum, g) => sum + g.rows.length, 0),
-    Horas: hoursNumber(groups.reduce((sum, g) => sum + g.minutes, 0)),
+  const withExtras = groups.some((g) => (g.usage?.extraHours ?? 0) > 0);
+  const summaryRow = (
+    clientName: string,
+    demands: number,
+    executedMinutes: number,
+    scheduledMinutes: number,
+    usage: ClientDemandsGroup["usage"]
+  ) => ({
+    Cliente: clientName,
+    Demandas: demands,
+    "Horas executadas": hoursNumber(executedMinutes),
+    "Horas programadas": hoursNumber(scheduledMinutes),
+    "Horas do contrato": usage ? usage.baseHours : "",
+    ...(withExtras ? { "Horas extras": usage ? usage.extraHours : "" } : {}),
+    "Horas contratadas": usage ? usage.contractedHours : "",
+    "Consumo (%)": usage ? percentOf(hoursNumber(executedMinutes), usage.contractedHours) : "",
   });
+  const summary = groups.map((g) => summaryRow(g.clientName, g.rows.length, g.executedMinutes, g.scheduledMinutes, g.usage));
+  // Contract totals (and the total %) only count the clients that have a contract.
+  const contracted = groups.filter((g) => g.usage);
+  const totalUsage = contracted.length
+    ? {
+        baseHours: round2(contracted.reduce((sum, g) => sum + g.usage!.baseHours, 0)),
+        extraHours: round2(contracted.reduce((sum, g) => sum + g.usage!.extraHours, 0)),
+        contractedHours: round2(contracted.reduce((sum, g) => sum + g.usage!.contractedHours, 0)),
+      }
+    : null;
+  const total = summaryRow(
+    "Total",
+    groups.reduce((sum, g) => sum + g.rows.length, 0),
+    groups.reduce((sum, g) => sum + g.executedMinutes, 0),
+    groups.reduce((sum, g) => sum + g.scheduledMinutes, 0),
+    totalUsage
+  );
+  if (totalUsage) {
+    const contractedExecuted = hoursNumber(contracted.reduce((sum, g) => sum + g.executedMinutes, 0));
+    total["Consumo (%)"] = percentOf(contractedExecuted, totalUsage.contractedHours);
+  }
+  summary.push(total);
   const used = new Set(["resumo"]);
-  XLSX.utils.book_append_sheet(workbook, autoSizedSheet(summary, ["Cliente", "Demandas", "Horas"]), "Resumo");
+  XLSX.utils.book_append_sheet(workbook, autoSizedSheet(summary, Object.keys(summary[0])), "Resumo");
   for (const group of groups) {
     XLSX.utils.book_append_sheet(workbook, autoSizedSheet(group.rows), uniqueSheetName(group.clientName, used));
   }

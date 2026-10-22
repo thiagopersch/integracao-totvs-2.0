@@ -88,6 +88,8 @@ export interface TableBlock extends BaseBlock {
   props: {
     hasHeader: boolean;
     cells: string[][];
+    /** ALL_CLIENTS templates: indexes of the rows rendered once per client (one row per client). */
+    repeatRows?: number[];
     headerBgColor?: string;
     borderColor?: string;
   };

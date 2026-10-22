@@ -38,24 +38,39 @@ export function applyConditionals(html: string, vars: Record<string, unknown>): 
 }
 
 const REPEAT_RE = /<!--repeat-->([\s\S]*?)<!--endrepeat-->/g;
+const ROW_REPEAT_RE = /<!--rowrepeat-->([\s\S]*?)<!--endrowrepeat-->/g;
 
 /**
  * Fills a rendered body: resolves conditionals and `{{variables}}`. Segments wrapped in
  * `<!--repeat-->…<!--endrepeat-->` (containers with `repeatPerClient`) are rendered once per entry
  * of `clients`, each with `{ ...vars, ...client }` — or once with `vars` when `clients` is absent
- * (per-client emails). Each segment is interpolated on its own so values are never re-expanded.
+ * (per-client emails). Table rows wrapped in `<!--rowrepeat-->…<!--endrowrepeat-->` (TableBlock
+ * `repeatRows`) are repeated the same way, giving one table with a row per client; inside a repeated
+ * container they render once, with that container's client. Each segment is interpolated on its own
+ * so values are never re-expanded.
  */
 export function fillTemplateHtml(html: string, vars: Record<string, unknown>, clients?: Record<string, unknown>[]): string {
-  const fill = (segment: string, scope: Record<string, unknown>) => interpolate(applyConditionals(segment, scope), scope);
+  const fill = (segment: string, scope: Record<string, unknown>, rowClients?: Record<string, unknown>[]) => {
+    const resolved = applyConditionals(segment, scope);
+    let out = "";
+    let last = 0;
+    for (const match of resolved.matchAll(ROW_REPEAT_RE)) {
+      out += interpolate(resolved.slice(last, match.index), scope);
+      const inner = match[1];
+      out += rowClients ? rowClients.map((client) => interpolate(inner, { ...scope, ...client })).join("") : interpolate(inner, scope);
+      last = match.index + match[0].length;
+    }
+    return out + interpolate(resolved.slice(last), scope);
+  };
   let out = "";
   let last = 0;
   for (const match of html.matchAll(REPEAT_RE)) {
-    out += fill(html.slice(last, match.index), vars);
+    out += fill(html.slice(last, match.index), vars, clients);
     const inner = match[1];
     out += clients ? clients.map((client) => fill(inner, { ...vars, ...client })).join("") : fill(inner, vars);
     last = match.index + match[0].length;
   }
-  return out + fill(html.slice(last), vars);
+  return out + fill(html.slice(last), vars, clients);
 }
 
 /** Plain-text version of an HTML body (email `text` part). Keeps paragraph/line breaks. */

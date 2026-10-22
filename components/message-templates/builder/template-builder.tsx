@@ -451,6 +451,9 @@ export function TemplateBuilder({ template, canSave }: TemplateBuilderProps) {
             error={errors.attachments}
           />
           <DndContext
+            // Fixed id: dnd-kit's auto ids come from a global counter that differs between SSR and the
+            // browser, which breaks hydration of the aria-describedby attributes.
+            id="message-template-builder"
             sensors={sensors}
             collisionDetection={collisionDetection}
             onDragStart={onDragStart}

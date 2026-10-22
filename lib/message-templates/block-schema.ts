@@ -27,6 +27,7 @@ const tableBlock = z.object({
   props: z.object({
     hasHeader: z.boolean(),
     cells: z.array(z.array(z.string().max(2000)).min(1).max(10)).min(1).max(50),
+    repeatRows: z.array(z.number().int().min(0).max(49)).max(50).optional(),
     headerBgColor: z.string().optional(),
     borderColor: z.string().optional(),
   }),
