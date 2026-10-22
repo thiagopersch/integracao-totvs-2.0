@@ -61,5 +61,43 @@ export const updateDemandSchema = z
     path: ["endTime"],
   });
 
+const listChange = (label: string, required = true) =>
+  z
+    .object({ mode: z.enum(["add", "replace", "remove"]), ids: z.array(z.string().min(1)) })
+    .refine((c) => c.mode === "replace" ? !required || c.ids.length > 0 : c.ids.length > 0, { message: `Selecione ao menos um ${label}` })
+    .optional();
+
+/** Bulk edit: only the fields present are applied to each selected demand (lists as add/replace/remove). */
+export const bulkUpdateDemandSchema = z
+  .object({
+    name: nameSchema("Nome").optional(),
+    description: z.string().min(1, "Descrição é obrigatória").optional(),
+    notes: z.string().max(2000).optional(),
+    date: z.string().min(1, "Data é obrigatória").optional(),
+    startTime: z.string().regex(TIME_REGEX, "Hora de início inválida").optional(),
+    endTime: z.string().regex(TIME_REGEX, "Hora de término inválida").optional(),
+    priority: z.enum(PRIORITIES).optional(),
+    status: z.enum(STATUSES).optional(),
+    clientId: z.string().min(1, "Cliente é obrigatório").optional(),
+    analystIds: listChange("analista"),
+    requesterIds: listChange("solicitante"),
+    departmentIds: listChange("departamento"),
+    demandTypeIds: listChange("tipo"),
+    tagIds: listChange("tag", false),
+    /** "" clears the project (and its task). */
+    projectId: z.string().optional(),
+    projectTaskId: z.string().optional(),
+  })
+  .refine((d) => !d.clientId || (d.requesterIds?.mode === "replace" && d.departmentIds?.mode === "replace"), {
+    message: "Ao trocar o cliente, substitua também os solicitantes e departamentos",
+    path: ["clientId"],
+  })
+  .refine((d) => !d.projectTaskId || d.projectId !== undefined, { message: "Selecione o projeto da tarefa", path: ["projectTaskId"] })
+  .refine((d) => !d.startTime || !d.endTime || timeToMinutes(d.endTime) > timeToMinutes(d.startTime), {
+    message: "Hora de término deve ser depois da hora de início",
+    path: ["endTime"],
+  });
+
 export type CreateDemandInput = z.output<typeof createDemandSchema>;
 export type UpdateDemandInput = z.output<typeof updateDemandSchema>;
+export type BulkUpdateDemandInput = z.output<typeof bulkUpdateDemandSchema>;

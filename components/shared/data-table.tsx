@@ -136,6 +136,8 @@ interface DataTableProps<TData, TValue> {
   sortableColumns?: string[]
   /** Enables the "excluir selecionados" flow: red toolbar button, confirm dialog with loading, and blocked-row reporting. */
   bulkDelete?: BulkDeleteConfig<TData>
+  /** Extra buttons in the selection bar (e.g. bulk edit); `clearSelection` unselects every row. */
+  bulkActions?: (rows: TData[], clearSelection: () => void) => React.ReactNode
   /** Renders an accordion-style detail row below a given row (e.g. child records). */
   expandable?: ExpandableConfig<TData>
   /** Optional slot rendered below the table and above pagination (e.g. totals/summary). */
@@ -166,6 +168,7 @@ export function DataTable<TData, TValue>({
   onSortChange,
   sortableColumns,
   bulkDelete,
+  bulkActions,
   expandable,
   footer,
 }: DataTableProps<TData, TValue>) {
@@ -292,12 +295,17 @@ export function DataTable<TData, TValue>({
         onToggleFilters={() => setFiltersOpen((v) => !v)}
       />
       {filterPanel && filtersOpen && <div>{filterPanel}</div>}
-      {bulkDelete && selectedCount > 0 && (
+      {(bulkDelete || bulkActions) && selectedCount > 0 && (
         <div className="flex items-center justify-between rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2">
           <span className="text-sm text-muted-foreground">{selectedCount} registro(s) selecionado(s)</span>
-          <Button type="button" variant="destructive" size="sm" onClick={() => setBulkDeleteOpen(true)}>
-            <Trash2 className="h-4 w-4 mr-2" /> Excluir selecionados
-          </Button>
+          <div className="flex items-center gap-2">
+            {bulkActions?.(selectedRows.map((row) => row.original), () => setRowSelection({}))}
+            {bulkDelete && (
+              <Button type="button" variant="destructive" size="sm" onClick={() => setBulkDeleteOpen(true)}>
+                <Trash2 className="h-4 w-4 mr-2" /> Excluir selecionados
+              </Button>
+            )}
+          </div>
         </div>
       )}
       <PendingRegion pending={refreshing && !loading}>

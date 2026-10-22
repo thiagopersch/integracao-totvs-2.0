@@ -20,7 +20,7 @@ import { DateRangePicker } from "@/components/ui/date-range-picker"
 import { format, parse } from "date-fns"
 import type { DateRange } from "react-day-picker"
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu"
-import { Plus, Copy } from "lucide-react"
+import { Plus, Copy, Pencil } from "lucide-react"
 import { deleteDemand, duplicateDemand, bulkDeleteDemands, type getDemandFilterOptions } from "@/actions/demands"
 import { formatDateOnly } from "@/utils/format"
 import { TruncatedText } from "@/components/shared/truncated-text"
@@ -38,6 +38,7 @@ import type { PaginationMeta } from "@/types/common"
 import type { Period } from "@/lib/period"
 import Link from "next/link"
 import { DemandFormDialog, type DemandFormCatalogs, type DemandFormContext } from "@/components/demands/demand-form-dialog"
+import { DemandBulkEditDialog } from "@/components/demands/demand-bulk-edit-dialog"
 
 type DemandRow = {
   id: string
@@ -193,6 +194,7 @@ export function DemandTable({
   const canCreate = useHasPermission("demands", "create")
   const canUpdate = useHasPermission("demands", "update")
   const canDelete = useHasPermission("demands", "delete")
+  const [bulkEdit, setBulkEdit] = useState<{ open: boolean; rows: DemandRow[]; clearSelection?: () => void }>({ open: false, rows: [] })
   const [multiFilters, setMultiFilters] = useState<Record<MultiFilterKey, string[]>>(
     () =>
       Object.fromEntries(
@@ -503,11 +505,28 @@ export function DemandTable({
         onSortChange={onSortChange}
         sortableColumns={SORTABLE_COLUMNS}
         footer={<TotalsByClientSummary totals={totalsByClient} />}
+        bulkActions={!canUpdate ? undefined : (rows, clearSelection) => (
+          <Button type="button" variant="outline" size="sm" onClick={() => setBulkEdit({ open: true, rows, clearSelection })}>
+            <Pencil className="h-4 w-4 mr-2" /> Editar selecionados
+          </Button>
+        )}
         bulkDelete={!canDelete ? undefined : {
           getId: (row) => row.id,
           getRowLabel: (row) => row.name,
           action: bulkDeleteDemands,
           onSuccess: () => refresh(),
+        }}
+      />
+
+      <DemandBulkEditDialog
+        open={bulkEdit.open}
+        onOpenChange={(open) => setBulkEdit((prev) => ({ ...prev, open }))}
+        rows={bulkEdit.rows}
+        catalogs={{ analysts, clients, requesters, departments, demandTypes, tags }}
+        context={formContext}
+        onSaved={(allUpdated) => {
+          if (allUpdated) bulkEdit.clearSelection?.()
+          refresh()
         }}
       />
 

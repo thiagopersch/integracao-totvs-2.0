@@ -4,7 +4,7 @@ import { updateTag, cacheTag } from "next/cache";
 import { demandService, demandHasAnalyst } from "@/services/demand.service";
 import { contractUsageService } from "@/services/contract-usage.service";
 import { auditService } from "@/services/audit.service";
-import { createDemandSchema, updateDemandSchema } from "@/schemas/demand.schema";
+import { bulkUpdateDemandSchema, createDemandSchema, updateDemandSchema, type BulkUpdateDemandInput } from "@/schemas/demand.schema";
 import { requirePermission } from "@/lib/rbac";
 import { getRequestContext } from "@/lib/tenant";
 import { findLinkedAnalystId, getDemandAnalystScope } from "@/lib/demand-scope";
@@ -174,6 +174,43 @@ export async function deleteDemand(id: string) {
     await syncProjectHours(links);
     invalidateDemandTags();
     return { success: true };
+  } catch (error) {
+    return { success: false, error: (error as Error).message };
+  }
+}
+
+/** Applies the same changes to every selected demand; each one is validated and saved on its own. */
+export async function bulkUpdateDemands(ids: string[], input: BulkUpdateDemandInput) {
+  const ctx = await requirePermission("demands", "update");
+  const parsed = bulkUpdateDemandSchema.safeParse(input);
+  if (!parsed.success) {
+    return { success: false, error: parsed.error.issues[0]?.message ?? "Dados inválidos" };
+  }
+
+  try {
+    const scope = await getDemandAnalystScope(ctx);
+    const before = await demandService.projectLinks(ids, ctx.organizationId);
+    const result = await demandService.bulkUpdate(ids, parsed.data, ctx.organizationId, ctx.allowedClientIds, scope);
+    if (result.updated.length) {
+      await auditService.log({
+        action: "BULK_UPDATE",
+        entity: "Demand",
+        entityId: result.updated.map((d) => d.id).join(","),
+        organizationId: ctx.organizationId,
+        userId: ctx.userId,
+        newData: { count: result.updated.length, fields: Object.keys(parsed.data) },
+      });
+      await syncProjectHours({
+        projectIds: [...before.projectIds, ...result.updated.map((d) => d.projectId)],
+        taskIds: [...before.taskIds, ...result.updated.map((d) => d.projectTaskId)],
+      });
+      contractUsageService.scheduleCheck(
+        ctx.organizationId,
+        result.updated.map((d) => ({ clientId: d.clientId, date: d.date, trigger: "contract" as const, demandId: d.id })),
+      );
+      invalidateDemandTags();
+    }
+    return { success: true, updatedCount: result.updated.length, failed: result.failed };
   } catch (error) {
     return { success: false, error: (error as Error).message };
   }

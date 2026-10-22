@@ -3,7 +3,8 @@ import { Prisma } from "@/generated/prisma/client";
 import { BaseRepository } from "@/repositories/base.repository";
 import { assertClientAllowed } from "@/lib/client-access";
 import { departmentsForRequesters } from "@/lib/demand-cascade";
-import { timeToMinutes, type CreateDemandInput, type UpdateDemandInput } from "@/schemas/demand.schema";
+import { applyListChange, resolveBulkSchedule } from "@/lib/demand-bulk";
+import { timeToMinutes, type BulkUpdateDemandInput, type CreateDemandInput, type UpdateDemandInput } from "@/schemas/demand.schema";
 import type { Client, Demand, DemandStatus, Priority } from "@/generated/prisma/client";
 import type { ListParams } from "@/types/common";
 import { safeOrderBy } from "@/lib/sort";
@@ -604,6 +605,92 @@ export const demandService = {
 
   async restore(id: string, organizationId: string, allowedClientIds: string[]) {
     return demandRepository.restore(id, organizationId, { clientId: { in: allowedClientIds } });
+  },
+
+  /**
+   * Applies the bulk edit to each demand on its own (same validation as a single edit): list fields
+   * are resolved per demand (add/replace/remove) and the ones that fail are reported, not rolled back.
+   */
+  async bulkUpdate(ids: string[], input: BulkUpdateDemandInput, organizationId: string, allowedClientIds: string[], analystScope?: string) {
+    const demands = await prisma.demand.findMany({
+      where: { id: { in: ids }, organizationId, deletedAt: null, clientId: { in: allowedClientIds } },
+      select: {
+        id: true,
+        name: true,
+        clientId: true,
+        startTime: true,
+        endTime: true,
+        demandAnalysts: { select: { analystId: true } },
+        demandRequesters: { select: { requesterId: true } },
+        demandDepartments: { select: { departmentId: true } },
+        demandDemandTypes: { select: { demandTypeId: true } },
+        demandTags: { select: { tagId: true } },
+      },
+    });
+    const found = new Set(demands.map((d) => d.id));
+    const failed: { id: string; name: string; reason: string }[] = ids
+      .filter((id) => !found.has(id))
+      .map((id) => ({ id, name: id, reason: "Demanda não encontrada ou fora do seu escopo de acesso" }));
+    const updated: Awaited<ReturnType<typeof this.update>>[] = [];
+    const { analystIds, requesterIds, departmentIds, demandTypeIds, tagIds, date, startTime, endTime, projectId, projectTaskId, ...simple } = input;
+
+    for (const demand of demands) {
+      try {
+        const lists = {
+          analystIds: applyListChange(demand.demandAnalysts.map((l) => l.analystId), analystIds),
+          requesterIds: applyListChange(demand.demandRequesters.map((l) => l.requesterId), requesterIds),
+          departmentIds: applyListChange(demand.demandDepartments.map((l) => l.departmentId), departmentIds),
+          demandTypeIds: applyListChange(demand.demandDemandTypes.map((l) => l.demandTypeId), demandTypeIds),
+        };
+        const empty = (
+          [
+            ["analystIds", "analista"],
+            ["requesterIds", "solicitante"],
+            ["departmentIds", "departamento"],
+            ["demandTypeIds", "tipo"],
+          ] as const
+        ).find(([key]) => lists[key].length === 0);
+        if (empty) throw new Error(`A demanda ficaria sem ${empty[1]}`);
+        if (analystScope && (!demand.demandAnalysts.some((l) => l.analystId === analystScope) || !lists.analystIds.includes(analystScope))) {
+          throw new Error("Você só pode editar demandas em que é analista");
+        }
+
+        const clientChanged = !!simple.clientId && simple.clientId !== demand.clientId;
+        // A new client drops a project of the previous one unless a project was picked too.
+        const project =
+          projectId !== undefined
+            ? { projectId, projectTaskId: projectTaskId ?? "" }
+            : clientChanged
+              ? { projectId: "", projectTaskId: "" }
+              : {};
+
+        // The schema only compares the times when both were edited; here the other one comes from the demand.
+        const schedule = resolveBulkSchedule(demand, { date, startTime, endTime });
+        if (schedule.startTime && schedule.endTime && timeToMinutes(schedule.endTime) <= timeToMinutes(schedule.startTime)) {
+          throw new Error(`Hora de término (${schedule.endTime}) deve ser depois da hora de início (${schedule.startTime})`);
+        }
+
+        const entity = await this.update(
+          demand.id,
+          {
+            ...simple,
+            ...schedule,
+            ...project,
+            ...(analystIds ? { analystIds: lists.analystIds } : {}),
+            ...(requesterIds ? { requesterIds: lists.requesterIds } : {}),
+            ...(departmentIds ? { departmentIds: lists.departmentIds } : {}),
+            ...(demandTypeIds ? { demandTypeIds: lists.demandTypeIds } : {}),
+            tagIds: tagIds ? applyListChange(demand.demandTags.map((l) => l.tagId), tagIds) : undefined,
+          } as UpdateDemandInput,
+          organizationId,
+          allowedClientIds,
+        );
+        updated.push(entity);
+      } catch (error) {
+        failed.push({ id: demand.id, name: demand.name, reason: (error as Error).message });
+      }
+    }
+    return { updated, failed };
   },
 
   async bulkSoftDelete(ids: string[], organizationId: string, allowedClientIds: string[]) {
