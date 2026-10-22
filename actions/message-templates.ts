@@ -153,7 +153,9 @@ export async function sendTestMessageTemplate(id: string) {
   const { attachments, vars } = await demandReportService.buildTestAttachments(organizationId, allowedClientIds, template, exampleVars);
   // ALL_CLIENTS: the repeated containers are filled with the catalog's sample clients.
   const clients = template.scope === "ALL_CLIENTS" ? exampleClients() : undefined;
-  const rendered = renderEmailFromContent(template.subject, (template.content ?? []) as unknown as BlockTree, vars, clients);
+  const rendered = renderEmailFromContent(template.subject, (template.content ?? []) as unknown as BlockTree, vars, clients, {
+    emailWidth: template.emailWidth,
+  });
   const status = await sendEmail(organizationId, email, `[Teste] ${rendered.subject}`, rendered.text, userId, {
     html: rendered.html,
     attachments,

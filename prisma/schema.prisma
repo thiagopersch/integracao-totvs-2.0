@@ -945,6 +945,8 @@ model MessageTemplate {
   content        Json?
   bodyHtml       String               @default("") @map("body_html") @db.Text
   bodyText       String               @default("") @map("body_text") @db.Text
+  /// Max width (px) of the rendered email body (EMAIL only) — 600 is the classic safe width.
+  emailWidth     Int                  @default(600) @map("email_width")
   /// Generated files attached on send (EMAIL only) — e.g. the demands spreadsheet (see lib/message-templates/attachments.ts).
   attachments    Json?
   isActive       Boolean              @default(true) @map("is_active")

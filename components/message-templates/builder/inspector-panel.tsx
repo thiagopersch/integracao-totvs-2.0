@@ -222,7 +222,60 @@ function DividerInspector({ block, patch }: { block: DividerBlock; patch: Patch<
   )
 }
 
-function ColumnOrderItem({ id, label }: { id: string; label: string }) {
+/** Box width of a container/table: full width, px (up to the email width) or %. */
+function WidthField({
+  width,
+  widthUnit,
+  onChange,
+}: {
+  width?: number
+  widthUnit?: "px" | "%"
+  onChange: (props: { width?: number; widthUnit?: "px" | "%" }) => void
+}) {
+  const { emailWidth } = useBuilder()
+  const unit = widthUnit ?? "px"
+  return (
+    <>
+      <SegmentedField
+        label="Largura"
+        value={width ? unit : "full"}
+        onChange={(next) =>
+          next === "full"
+            ? onChange({ width: undefined, widthUnit: undefined })
+            : onChange({ widthUnit: next, width: next === "%" ? 100 : Math.round(emailWidth * 0.8) })
+        }
+        options={[
+          { value: "full", label: "Total" },
+          { value: "px", label: "px" },
+          { value: "%", label: "%" },
+        ]}
+      />
+      {width !== undefined && (
+        <NumberField
+          label="Tamanho"
+          value={width}
+          onChange={(w) => onChange({ width: Math.max(w, 1), widthUnit: unit })}
+          min={unit === "%" ? 10 : 100}
+          max={unit === "%" ? 100 : emailWidth}
+          step={unit === "%" ? 1 : 10}
+          suffix={unit}
+        />
+      )}
+    </>
+  )
+}
+
+function ColumnOrderItem({
+  id,
+  label,
+  width,
+  onWidthChange,
+}: {
+  id: string
+  label: string
+  width: number | null
+  onWidthChange: (width: number | null) => void
+}) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id })
   return (
     <div
@@ -233,14 +286,30 @@ function ColumnOrderItem({ id, label }: { id: string; label: string }) {
       <span {...attributes} {...listeners} className="cursor-grab touch-none text-muted-foreground hover:text-foreground" title="Arrastar para reordenar">
         <GripVertical className="h-3.5 w-3.5" />
       </span>
-      <span className="truncate">{label}</span>
+      <span className="min-w-0 flex-1 truncate">{label}</span>
+      <div className="relative w-16 shrink-0">
+        <Input
+          type="number"
+          min={1}
+          max={100}
+          value={width ?? ""}
+          placeholder="auto"
+          aria-label={`Largura da coluna ${label} (%)`}
+          onChange={(e) => {
+            const n = Number(e.target.value)
+            onWidthChange(e.target.value === "" || !n ? null : Math.min(Math.max(Math.round(n), 1), 100))
+          }}
+          className="h-6 pr-5 text-[11px]"
+        />
+        <span className="pointer-events-none absolute top-1/2 right-1.5 -translate-y-1/2 text-[10px] text-muted-foreground">%</span>
+      </div>
     </div>
   )
 }
 
 /** Drag-and-drop order of the table's columns — moving one moves that cell in every row. */
 function ColumnOrderList({ block, patch }: { block: TableBlock; patch: Patch<TableBlock> }) {
-  const { cells } = block.props
+  const { cells, columnWidths = [] } = block.props
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
@@ -258,8 +327,18 @@ function ColumnOrderList({ block, patch }: { block: TableBlock; patch: Patch<Tab
     const from = ids.indexOf(String(active.id))
     const to = ids.indexOf(String(over.id))
     setIds(arrayMove(ids, from, to))
-    patch({ cells: cells.map((row) => arrayMove(row, from, to)) })
+    const widths = ids.map((_, i) => columnWidths[i] ?? null)
+    patch({
+      cells: cells.map((row) => arrayMove(row, from, to)),
+      ...(columnWidths.length ? { columnWidths: arrayMove(widths, from, to) } : {}),
+    })
   }
+
+  const setWidth = (c: number, width: number | null) => {
+    const widths = ids.map((_, i) => (i === c ? width : (columnWidths[i] ?? null)))
+    patch({ columnWidths: widths.some((w) => w !== null) ? widths : undefined })
+  }
+  const total = columnWidths.reduce<number>((sum, w) => sum + (w ?? 0), 0)
 
   return (
     // Own context (fixed id, SSR-safe) nested in the builder's: dnd-kit keeps them isolated.
@@ -267,10 +346,17 @@ function ColumnOrderList({ block, patch }: { block: TableBlock; patch: Patch<Tab
       <SortableContext items={ids} strategy={verticalListSortingStrategy}>
         <div className="space-y-1">
           {ids.map((id, i) => (
-            <ColumnOrderItem key={id} id={id} label={labelRow?.[i]?.trim() || `Coluna ${i + 1}`} />
+            <ColumnOrderItem
+              key={id}
+              id={id}
+              label={labelRow?.[i]?.trim() || `Coluna ${i + 1}`}
+              width={columnWidths[i] ?? null}
+              onWidthChange={(w) => setWidth(i, w)}
+            />
           ))}
         </div>
       </SortableContext>
+      {total > 100 && <p className="mt-1 text-[11px] text-amber-600">As colunas somam {total}% — o ideal é até 100%.</p>}
     </DndContext>
   )
 }
@@ -317,7 +403,12 @@ function TableInspector({ block, patch }: { block: TableBlock; patch: Patch<Tabl
             variant="outline"
             size="sm"
             disabled={cols >= 10}
-            onClick={() => patch({ cells: cells.map((row) => [...row, ""]) })}
+            onClick={() =>
+              patch({
+                cells: cells.map((row) => [...row, ""]),
+                ...(block.props.columnWidths ? { columnWidths: [...block.props.columnWidths, null] } : {}),
+              })
+            }
           >
             <Plus className="mr-1 h-3 w-3" /> Coluna
           </Button>
@@ -335,7 +426,12 @@ function TableInspector({ block, patch }: { block: TableBlock; patch: Patch<Tabl
             variant="outline"
             size="sm"
             disabled={cols <= 1}
-            onClick={() => patch({ cells: cells.map((row) => row.slice(0, -1)) })}
+            onClick={() =>
+              patch({
+                cells: cells.map((row) => row.slice(0, -1)),
+                ...(block.props.columnWidths ? { columnWidths: block.props.columnWidths.slice(0, cols - 1) } : {}),
+              })
+            }
           >
             <Trash2 className="mr-1 h-3 w-3" /> Últ. coluna
           </Button>
@@ -343,7 +439,9 @@ function TableInspector({ block, patch }: { block: TableBlock; patch: Patch<Tabl
       </Section>
       {cols > 1 && (
         <Section title="Colunas">
-          <p className="text-[11px] text-muted-foreground">Arraste para mudar a ordem das colunas.</p>
+          <p className="text-[11px] text-muted-foreground">
+            Arraste para mudar a ordem. A % ao lado define a largura da coluna (vazio = automática).
+          </p>
           <ColumnOrderList key={block.id} block={block} patch={patch} />
         </Section>
       )}
@@ -385,6 +483,21 @@ function TableInspector({ block, patch }: { block: TableBlock; patch: Patch<Tabl
             ))}
           </div>
         ))}
+      </Section>
+      <Section title="Dimensões">
+        <WidthField width={block.props.width} widthUnit={block.props.widthUnit} onChange={patch} />
+        <NumberField
+          label="Tamanho da fonte"
+          value={block.props.fontSize ?? 14}
+          onChange={(fontSize) => patch({ fontSize: Math.min(Math.max(fontSize, 10), 24) })}
+          min={10}
+          max={24}
+        />
+        {block.props.columnWidths && (
+          <Button type="button" variant="outline" size="sm" className="w-full" onClick={() => patch({ columnWidths: undefined })}>
+            Distribuir colunas automaticamente
+          </Button>
+        )}
       </Section>
       <Section title="Estilo">
         <ColorField label="Fundo do cabeçalho" value={block.props.headerBgColor ?? "#f8fafc"} onChange={(headerBgColor) => patch({ headerBgColor })} />
@@ -451,6 +564,10 @@ function ContainerInspector({ block, patch }: { block: ContainerBlock; patch: Pa
           </p>
         </Section>
       )}
+      <Section title="Tamanho">
+        <WidthField width={p.width} widthUnit={p.widthUnit} onChange={patch} />
+        {p.width !== undefined && <AlignField value={p.align ?? "center"} onChange={(align) => patch({ align })} />}
+      </Section>
       <Section title="Aparência">
         <ColorField label="Cor de fundo" value={p.backgroundColor} onChange={(backgroundColor) => patch({ backgroundColor })} allowTransparent />
         <ColorField label="Cor da borda" value={p.borderColor ?? "transparent"} onChange={(borderColor) => patch({ borderColor })} allowTransparent />

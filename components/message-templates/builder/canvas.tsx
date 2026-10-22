@@ -352,30 +352,42 @@ const FLEX_JUSTIFY: Record<string, string> = {
 function ContainerView({ block }: { block: ContainerBlock }) {
   const p = block.props
   const flex = p.display === "flex"
+  const align = p.align ?? "center"
+  // Same box width/alignment as the email (renderContainer).
+  const sized = p.width
+    ? {
+        width: p.widthUnit === "%" ? `${Math.min(p.width, 100)}%` : p.width,
+        maxWidth: "100%",
+        marginLeft: align === "left" ? 0 : "auto",
+        marginRight: align === "right" ? 0 : "auto",
+      }
+    : undefined
   return (
     <div style={{ padding: `${p.marginY}px ${p.marginX}px` }}>
-      <ChildrenZone
-        id={`container:${block.id}`}
-        location={{ type: "container", containerId: block.id }}
-        items={block.children}
-        emptyLabel="Solte elementos dentro do contêiner"
-        horizontal={flex && (p.flexDirection ?? "row").startsWith("row")}
-        className={cn(flex && "flex flex-wrap [&>*]:my-1")}
-        style={{
-          padding: `${p.paddingY}px ${p.paddingX}px`,
-          backgroundColor: p.backgroundColor,
-          borderRadius: p.borderRadius ?? 0,
-          ...(p.borderColor && p.borderColor !== "transparent" ? { border: `1px solid ${p.borderColor}` } : {}),
-          ...(flex
-            ? {
-                flexDirection: p.flexDirection ?? "row",
-                justifyContent: FLEX_JUSTIFY[p.justifyContent ?? "flex-start"],
-                alignItems: p.alignItems ?? "stretch",
-                gap: p.gap ?? 0,
-              }
-            : {}),
-        }}
-      />
+      <div style={sized}>
+        <ChildrenZone
+          id={`container:${block.id}`}
+          location={{ type: "container", containerId: block.id }}
+          items={block.children}
+          emptyLabel="Solte elementos dentro do contêiner"
+          horizontal={flex && (p.flexDirection ?? "row").startsWith("row")}
+          className={cn(flex && "flex flex-wrap [&>*]:my-1")}
+          style={{
+            padding: `${p.paddingY}px ${p.paddingX}px`,
+            backgroundColor: p.backgroundColor,
+            borderRadius: p.borderRadius ?? 0,
+            ...(p.borderColor && p.borderColor !== "transparent" ? { border: `1px solid ${p.borderColor}` } : {}),
+            ...(flex
+              ? {
+                  flexDirection: p.flexDirection ?? "row",
+                  justifyContent: FLEX_JUSTIFY[p.justifyContent ?? "flex-start"],
+                  alignItems: p.alignItems ?? "stretch",
+                  gap: p.gap ?? 0,
+                }
+              : {}),
+          }}
+        />
+      </div>
     </div>
   )
 }
@@ -402,9 +414,9 @@ function TopLevelBlock({ block, index, siblings }: { block: Block; index: number
   )
 }
 
-/** The email canvas: a white 600px "paper" (like the real email) holding the draggable blocks. */
+/** The email canvas: a white "paper" as wide as the email body (`emailWidth`) holding the draggable blocks. */
 export function Canvas() {
-  const { tree, select, dropTarget } = useBuilder()
+  const { tree, select, dropTarget, emailWidth } = useBuilder()
   const { setNodeRef } = useDroppable({ id: "canvas" })
 
   return (
@@ -412,11 +424,14 @@ export function Canvas() {
       ref={setNodeRef}
       onClick={() => select(null)}
       className={cn(
-        "min-h-[520px] rounded-lg border border-dashed bg-muted/30 p-4 transition-colors md:p-8",
+        "min-h-[520px] overflow-x-auto rounded-lg border border-dashed bg-muted/30 p-4 transition-colors md:p-8",
         dropTarget?.location.type === "top" && "border-primary bg-primary/5"
       )}
     >
-      <div className="mx-auto max-w-[600px] rounded-md bg-white px-4 py-3 text-neutral-900 shadow-sm [font-family:Arial,Helvetica,sans-serif]">
+      <div
+        className="mx-auto rounded-md bg-white px-4 py-3 text-neutral-900 shadow-sm [font-family:Arial,Helvetica,sans-serif]"
+        style={{ maxWidth: emailWidth }}
+      >
         {tree.length === 0 ? (
           <p className="py-24 text-center text-sm text-neutral-500">
             Arraste elementos da paleta à esquerda para começar a montar o template.

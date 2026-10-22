@@ -116,7 +116,9 @@ function renderAllClientsDemandReport(
     ...vars,
     ...buildDemandReportVars({ client: g.client, period, demands: g.demands, usage: g.usage }),
   }));
-  const rendered = renderEmailFromContent(template.subject, (template.content ?? []) as unknown as BlockTree, vars, clients);
+  const rendered = renderEmailFromContent(template.subject, (template.content ?? []) as unknown as BlockTree, vars, clients, {
+    emailWidth: template.emailWidth,
+  });
   return { rendered, attachments };
 }
 
@@ -142,7 +144,9 @@ function renderAllClientsUsage(
   }
   vars.attachmentNames = attachments.map((a) => a.filename).join(", ");
   const clients = clientsVars.map((c) => ({ ...vars, ...c }));
-  const rendered = renderEmailFromContent(template.subject, (template.content ?? []) as unknown as BlockTree, vars, clients);
+  const rendered = renderEmailFromContent(template.subject, (template.content ?? []) as unknown as BlockTree, vars, clients, {
+    emailWidth: template.emailWidth,
+  });
   return { rendered, attachments };
 }
 
@@ -178,7 +182,9 @@ async function renderClientReport(
   };
   const attachments = buildAttachments(template, demands, vars);
   vars.attachmentNames = attachments.map((a) => a.filename).join(", ");
-  const rendered = renderEmailFromContent(template.subject, (template.content ?? []) as unknown as BlockTree, vars);
+  const rendered = renderEmailFromContent(template.subject, (template.content ?? []) as unknown as BlockTree, vars, undefined, {
+    emailWidth: template.emailWidth,
+  });
   return { rendered, attachments };
 }
 

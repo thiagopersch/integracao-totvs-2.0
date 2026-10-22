@@ -27,6 +27,8 @@ export interface BuilderApi {
   variableGroups: VariableGroup[]
   /** ALL_CLIENTS enables the "Repetir para cada cliente" container option. */
   scope: MessageTemplateScope
+  /** Body width (px) — the canvas "paper" matches it. */
+  emailWidth: number
   /** Current drag's landing spot (drop indicator line) — null when not dragging or over nothing valid. */
   dropTarget: DropTarget | null
 }

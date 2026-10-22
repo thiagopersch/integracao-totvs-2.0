@@ -65,6 +65,8 @@ import { InspectorPanel } from "./inspector-panel"
 import { PreviewDialog } from "./preview-dialog"
 import { WhatsAppEditor } from "./whatsapp-editor"
 import { AttachmentsEditor } from "./attachments-editor"
+import { EmailWidthField } from "./email-width-field"
+import { DEFAULT_EMAIL_WIDTH } from "@/lib/message-templates/render-email"
 import { WithTooltip } from "@/components/shared/with-tooltip"
 
 export interface TemplateBuilderValue {
@@ -77,6 +79,8 @@ export interface TemplateBuilderValue {
   attachments: TemplateAttachment[]
   bodyText: string
   isActive: boolean
+  /** Body width in px (MessageTemplate.emailWidth). */
+  emailWidth: number
 }
 
 interface TemplateBuilderProps {
@@ -100,6 +104,7 @@ function initialValue(template: TemplateBuilderProps["template"]): TemplateBuild
     attachments: [],
     bodyText: d.whatsapp,
     isActive: true,
+    emailWidth: DEFAULT_EMAIL_WIDTH,
   }
 }
 
@@ -202,6 +207,7 @@ export function TemplateBuilder({ template, canSave }: TemplateBuilderProps) {
       select: setSelectedId,
       variableGroups,
       scope: value.scope,
+      emailWidth: value.emailWidth,
       updateBlock: (id, updater) => setTree((t) => treeUtils.updateBlock(t, id, updater)),
       removeBlock: (id) => {
         setTree((t) => treeUtils.removeBlock(t, id))
@@ -219,7 +225,7 @@ export function TemplateBuilder({ template, canSave }: TemplateBuilderProps) {
       resizeColumn: (rowId, columnId, w) => setTree((t) => treeUtils.resizeColumn(t, rowId, columnId, w)),
       dropTarget,
     }),
-    [value.content, selectedId, variableGroups, value.scope, setTree, dropTarget]
+    [value.content, selectedId, variableGroups, value.scope, value.emailWidth, setTree, dropTarget]
   )
 
   function addFromPalette(type: PaletteBlockType) {
@@ -497,6 +503,8 @@ export function TemplateBuilder({ template, canSave }: TemplateBuilderProps) {
             scope={value.scope}
             error={errors.attachments}
           />
+          <EmailWidthField value={value.emailWidth} onChange={(emailWidth) => patch({ emailWidth })} />
+          {errors.emailWidth && <p className="text-xs text-destructive">{errors.emailWidth}</p>}
           <DndContext
             // Fixed id: dnd-kit's auto ids come from a global counter that differs between SSR and the
             // browser, which breaks hydration of the aria-describedby attributes.
@@ -557,6 +565,7 @@ export function TemplateBuilder({ template, canSave }: TemplateBuilderProps) {
         content={value.content}
         bodyText={value.bodyText}
         scope={value.scope}
+        emailWidth={value.emailWidth}
       />
       <ConfirmDialog
         open={leaveOpen}

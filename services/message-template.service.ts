@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { findBlockingReferences, formatBlockingReferences, type BlockingReference } from "@/lib/entity-relations";
-import { renderBlockTree } from "@/lib/message-templates/render-email";
+import { DEFAULT_EMAIL_WIDTH, renderBlockTree } from "@/lib/message-templates/render-email";
 import type { BlockTree } from "@/lib/message-templates/block-types";
 import type { MessageChannel, MessageTemplateEvent, Prisma } from "@/generated/prisma/client";
 import type { MessageTemplateInput } from "@/schemas/message-template.schema";
@@ -22,7 +22,8 @@ function toData(input: MessageTemplateInput) {
     subject: isEmail ? input.subject : "",
     content: isEmail ? (input.content as Prisma.InputJsonValue) : ([] as Prisma.InputJsonValue),
     attachments: (isEmail ? input.attachments : []) as unknown as Prisma.InputJsonValue,
-    bodyHtml: isEmail ? renderBlockTree(input.content as BlockTree) : "",
+    emailWidth: isEmail ? input.emailWidth : DEFAULT_EMAIL_WIDTH,
+    bodyHtml: isEmail ? renderBlockTree(input.content as BlockTree, { emailWidth: input.emailWidth }) : "",
     bodyText: isEmail ? "" : input.bodyText,
   };
 }

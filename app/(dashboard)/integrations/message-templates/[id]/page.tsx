@@ -35,6 +35,7 @@ async function EditMessageTemplateContent({ params }: { params: Promise<{ id: st
         attachments: parseTemplateAttachments(template.attachments),
         bodyText: template.bodyText,
         isActive: template.isActive,
+        emailWidth: template.emailWidth,
       }}
     />
   )

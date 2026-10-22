@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { applyConditionals, escapeHtml, extractVariableKeys, htmlToText, interpolate } from "./interpolate"
-import { renderBlockTree } from "./render-email"
+import { renderBlockTree, wrapEmailDocument } from "./render-email"
 import { blockTreeSchema } from "./block-schema"
 import {
   addColumnToRow,
@@ -41,6 +41,53 @@ describe("interpolate", () => {
     expect(htmlToText("<p>Linha 1</p><p>A &amp; B</p>")).toBe("Linha 1\nA & B")
     expect(extractVariableKeys("{{a}} {{b}} {{a}}")).toEqual(["a", "b"])
     expect(escapeHtml(`"'<>&`)).toBe("&quot;&#39;&lt;&gt;&amp;")
+  })
+})
+
+describe("email, container and table widths", () => {
+  const table = (props: Record<string, unknown>): BlockTree => [
+    { id: "t", type: "table", props: { hasHeader: true, cells: [["A", "B"], ["1", "2"]], ...props } } as BlockTree[number],
+  ]
+  const container = (props: Record<string, unknown>): BlockTree => [
+    {
+      id: "c",
+      type: "container",
+      props: { marginY: 0, marginX: 0, paddingY: 0, paddingX: 0, backgroundColor: "transparent", ...props },
+      children: [],
+    } as BlockTree[number],
+  ]
+
+  it("uses the template's email width (600 by default, clamped)", () => {
+    expect(renderBlockTree([], { emailWidth: 800 })).toContain("max-width:800px")
+    expect(wrapEmailDocument("", "", 800)).toContain("max-width:800px")
+    expect(wrapEmailDocument("")).toContain("max-width:600px")
+    expect(renderBlockTree([], { emailWidth: 5000 })).toContain("max-width:1000px")
+  })
+
+  it("sizes tables: width, font size and per-column widths on the first row", () => {
+    const html = renderBlockTree(table({ width: 90, widthUnit: "%", fontSize: 12, columnWidths: [25, null] }))
+    expect(html).toContain('width="90%"')
+    expect(html).toContain("width:90%;")
+    expect(html).toContain("font-size:12px")
+    expect(html.match(/width="25%"/g)).toHaveLength(1)
+    // sized columns wrap between words; auto ones may break long tokens
+    expect(html).toMatch(/<th width="25%" style="(?![^"]*overflow-wrap)/)
+    expect(html).toContain("overflow-wrap:anywhere")
+    expect(renderBlockTree(table({ width: 500, widthUnit: "px" }))).toContain('width="500"')
+  })
+
+  it("sizes and aligns containers", () => {
+    const html = renderBlockTree(container({ width: 400, widthUnit: "px", align: "left" }))
+    expect(html).toContain('align="left"')
+    expect(html).toContain('width="400"')
+    expect(renderBlockTree(container({ width: 80, widthUnit: "%" }))).toContain("width:80%;")
+    expect(renderBlockTree(container({}))).toContain('align="center"')
+  })
+
+  it("validates the new props", () => {
+    expect(blockTreeSchema.safeParse(table({ width: 90, widthUnit: "%", fontSize: 12, columnWidths: [25, null] })).success).toBe(true)
+    expect(blockTreeSchema.safeParse(table({ fontSize: 80 })).success).toBe(false)
+    expect(blockTreeSchema.safeParse(container({ width: 80, widthUnit: "%", align: "right" })).success).toBe(true)
   })
 })
 

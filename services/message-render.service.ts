@@ -17,17 +17,19 @@ export interface RenderedEmail {
 
 /**
  * Renders a subject + block tree with the given variables into a sendable email. `clients` (ALL_CLIENTS
- * templates) holds one variable set per client for the containers flagged `repeatPerClient`.
+ * templates) holds one variable set per client for the containers/table rows repeated per client;
+ * `emailWidth` is the template's body width (MessageTemplate.emailWidth).
  */
 export function renderEmailFromContent(
   subject: string,
   content: BlockTree,
   vars: TemplateVars,
-  clients?: TemplateVars[]
+  clients?: TemplateVars[],
+  options: { emailWidth?: number } = {}
 ): Omit<RenderedEmail, "templateId"> {
   const renderedSubject = interpolate(subject, vars, { escape: false }).replace(/\s+/g, " ").trim();
-  const body = fillTemplateHtml(renderBlockTree(content, { baseUrl: appUrl() }), vars, clients);
-  return { subject: renderedSubject, html: wrapEmailDocument(body, renderedSubject), text: htmlToText(body) };
+  const body = fillTemplateHtml(renderBlockTree(content, { baseUrl: appUrl(), emailWidth: options.emailWidth }), vars, clients);
+  return { subject: renderedSubject, html: wrapEmailDocument(body, renderedSubject, options.emailWidth), text: htmlToText(body) };
 }
 
 /** Variables every email has (general + organization) — event-specific vars override them. */
@@ -51,7 +53,10 @@ export const messageRenderService = {
     const vars = { ...(await baseVars(organizationId)), ...specificVars };
     const template = await messageTemplateService.findActive(organizationId, event, "EMAIL");
     if (template && Array.isArray(template.content) && template.content.length > 0) {
-      return { ...renderEmailFromContent(template.subject, template.content as unknown as BlockTree, vars), templateId: template.id };
+      return {
+        ...renderEmailFromContent(template.subject, template.content as unknown as BlockTree, vars, undefined, { emailWidth: template.emailWidth }),
+        templateId: template.id,
+      };
     }
     const fallback = defaultTemplate(event);
     return { ...renderEmailFromContent(fallback.subject, fallback.content, vars), templateId: null };

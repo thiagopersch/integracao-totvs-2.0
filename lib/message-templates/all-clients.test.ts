@@ -153,6 +153,14 @@ describe("ALL_CLIENTS templates", () => {
     expect(allowedAttachmentTypes("CONTRACT_USAGE", "PER_CLIENT")).toEqual([])
   })
 
+  it("validate the email width", () => {
+    const base = { name: "x", channel: "EMAIL", event: "GENERAL", subject: "s", content: defaultTemplate("GENERAL").content }
+    expect(messageTemplateSchema.parse(base).emailWidth).toBe(600)
+    expect(messageTemplateSchema.safeParse({ ...base, emailWidth: 800 }).success).toBe(true)
+    expect(messageTemplateSchema.safeParse({ ...base, emailWidth: 300 }).success).toBe(false)
+    expect(messageTemplateSchema.safeParse({ ...base, emailWidth: 2000 }).success).toBe(false)
+  })
+
   it("are only valid for the report events on email", () => {
     const base = { name: "x", channel: "EMAIL", subject: "s", content: defaultTemplate("GENERAL").content, scope: "ALL_CLIENTS" }
     expect(messageTemplateSchema.safeParse({ ...base, event: "BACKUP_FAILED" }).success).toBe(false)

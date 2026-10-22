@@ -7,7 +7,7 @@ import { Dialog, DialogBody, DialogContent, DialogHeader, DialogTitle } from "@/
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { cn } from "@/lib/utils"
-import { renderBlockTree, wrapPreviewDocument } from "@/lib/message-templates/render-email"
+import { DEFAULT_EMAIL_WIDTH, renderBlockTree, wrapPreviewDocument } from "@/lib/message-templates/render-email"
 import { fillTemplateHtml, interpolate } from "@/lib/message-templates/interpolate"
 import { exampleClients, exampleVariables } from "@/lib/message-templates/variable-catalog"
 import { whatsappToHtml } from "@/lib/message-templates/whatsapp"
@@ -22,11 +22,21 @@ interface PreviewDialogProps {
   content: BlockTree
   bodyText: string
   scope?: MessageTemplateScope
+  emailWidth?: number
 }
 
 /** Full preview: email in an iframe (desktop 600px / mobile 375px) or WhatsApp bubble — optionally
  *  filled with the catalog's example values, exactly as the send path renders it. */
-export function PreviewDialog({ open, onOpenChange, channel, subject, content, bodyText, scope = "PER_CLIENT" }: PreviewDialogProps) {
+export function PreviewDialog({
+  open,
+  onOpenChange,
+  channel,
+  subject,
+  content,
+  bodyText,
+  scope = "PER_CLIENT",
+  emailWidth = DEFAULT_EMAIL_WIDTH,
+}: PreviewDialogProps) {
   const [device, setDevice] = useState<"desktop" | "mobile">("desktop")
   const [withExamples, setWithExamples] = useState(true)
 
@@ -35,15 +45,18 @@ export function PreviewDialog({ open, onOpenChange, channel, subject, content, b
 
   const doc = useMemo(() => {
     if (channel !== "EMAIL") return ""
-    const html = renderBlockTree(content, { baseUrl: typeof window !== "undefined" ? window.location.origin : "" })
+    const html = renderBlockTree(content, { baseUrl: typeof window !== "undefined" ? window.location.origin : "", emailWidth })
     // ALL_CLIENTS: the repeated containers show the sample clients, one under the other.
     const clients = scope === "ALL_CLIENTS" ? exampleClients() : undefined
-    return wrapPreviewDocument(withExamples ? fillTemplateHtml(html, examples, clients) : html)
-  }, [channel, content, withExamples, examples, scope])
+    return wrapPreviewDocument(withExamples ? fillTemplateHtml(html, examples, clients) : html, emailWidth)
+  }, [channel, content, withExamples, examples, scope, emailWidth])
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="h-[90vh]! max-h-[90vh]! w-[min(960px,95vw)]! max-w-[95vw]!">
+      <DialogContent
+        className="h-[90vh]! max-h-[90vh]! max-w-[95vw]!"
+        style={{ width: `min(${Math.max(960, emailWidth + 160)}px, 95vw)` }}
+      >
         <DialogHeader>
           <DialogTitle>Pré-visualização — {channel === "EMAIL" ? "E-mail" : "WhatsApp"}</DialogTitle>
         </DialogHeader>
@@ -87,7 +100,7 @@ export function PreviewDialog({ open, onOpenChange, channel, subject, content, b
                   srcDoc={doc}
                   sandbox="allow-scripts"
                   className="h-full min-h-[480px] rounded-md border bg-white shadow-sm transition-[width]"
-                  style={{ width: device === "desktop" ? 680 : 375 }}
+                  style={{ width: device === "desktop" ? emailWidth + 80 : 375 }}
                 />
               </div>
             </>

@@ -26,6 +26,24 @@ import type {
 export interface RenderOptions {
   /** Prefix for relative image/link URLs (e.g. uploads served from /storage/...) — emails need absolute URLs. */
   baseUrl?: string;
+  /** Max width (px) of the email body — MessageTemplate.emailWidth. */
+  emailWidth?: number;
+}
+
+/** 600px is the classic width every email client handles; wider bodies suit many-column reports. */
+export const DEFAULT_EMAIL_WIDTH = 600;
+export const EMAIL_WIDTH_PRESETS = [600, 700, 800, 900];
+export const MIN_EMAIL_WIDTH = 480;
+export const MAX_EMAIL_WIDTH = 1000;
+
+const emailWidthOf = (width?: number) =>
+  Math.round(Math.min(Math.max(width || DEFAULT_EMAIL_WIDTH, MIN_EMAIL_WIDTH), MAX_EMAIL_WIDTH));
+
+/** Width of a table/box: the `width` attribute (px only — Outlook reads it) + the inline style. */
+function boxWidth(width: number | undefined, unit: "px" | "%" = "px") {
+  if (!width) return { attr: ` width="100%"`, style: "" };
+  const value = unit === "%" ? `${Math.min(width, 100)}%` : `${Math.round(width)}px`;
+  return { attr: ` width="${unit === "%" ? value : Math.round(width)}"`, style: `width:${value};max-width:100%;` };
 }
 
 const ALIGN: Record<BlockAlign, string> = { left: "left", center: "center", right: "right" };
@@ -145,21 +163,44 @@ function renderDivider(block: DividerBlock): string {
 }
 
 function renderTable(block: TableBlock): string {
-  const { cells, hasHeader, repeatRows = [], headerBgColor = "#f8fafc", borderColor = "#e2e8f0" } = block.props;
+  const {
+    cells,
+    hasHeader,
+    repeatRows = [],
+    headerBgColor = "#f8fafc",
+    borderColor = "#e2e8f0",
+    width,
+    widthUnit,
+    fontSize = 14,
+    columnWidths = [],
+  } = block.props;
+  const size = boxWidth(width, widthUnit);
+  const colWidth = (c: number) => {
+    const w = columnWidths[c];
+    return w ? Math.min(Math.round(w), 100) : null;
+  };
   const rows = cells
     .map((row, rowIndex) => {
       const header = hasHeader && rowIndex === 0;
       const tag = header ? "th" : "td";
-      // overflow-wrap:anywhere lets long unbroken content ({{tokens}}, e-mails, URLs) wrap instead of
-      // pushing a many-column table past the 600px body; word-break is the fallback for older clients.
-      const style = `border:1px solid ${attr(borderColor)};padding:8px;text-align:left;font-size:14px;overflow-wrap:anywhere;word-break:break-word;${
-        header ? `background-color:${attr(headerBgColor)};font-weight:600;` : ""
-      }`;
-      const html = `<tr>${row.map((cell) => `<${tag} style="${style}">${attr(cell)}</${tag}>`).join("")}</tr>`;
+      const cellsHtml = row.map((cell, c) => {
+        const w = colWidth(c);
+        // Columns without a set width may hold long unbroken content ({{tokens}}, e-mails, URLs):
+        // overflow-wrap:anywhere wraps it instead of pushing the table past the body (word-break is
+        // the fallback for older clients). Sized columns keep normal wrapping between words.
+        const wrap = w ? "" : "overflow-wrap:anywhere;word-break:break-word;";
+        const style = `border:1px solid ${attr(borderColor)};padding:8px;text-align:left;font-size:${fontSize}px;${wrap}${
+          header ? `background-color:${attr(headerBgColor)};font-weight:600;` : ""
+        }`;
+        // Column widths go on the first row's cells — the most portable way across email clients.
+        const widthAttr = rowIndex === 0 && w ? ` width="${w}%"` : "";
+        return `<${tag}${widthAttr} style="${style}">${attr(cell)}</${tag}>`;
+      });
+      const html = `<tr>${cellsHtml.join("")}</tr>`;
       return !header && repeatRows.includes(rowIndex) ? `<!--rowrepeat-->${html}<!--endrowrepeat-->` : html;
     })
     .join("");
-  return `<td style="padding:8px 0;"><table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">${rows}</table></td>`;
+  return `<td style="padding:8px 0;"><table role="presentation"${size.attr} border="0" cellpadding="0" cellspacing="0" style="border-collapse:collapse;${size.style}">${rows}</table></td>`;
 }
 
 export function renderLeafBlock(block: LeafBlock, options: RenderOptions = {}): string {
@@ -258,14 +299,18 @@ function renderContainer(block: ContainerBlock, options: RenderOptions): string 
     justifyContent = "flex-start",
     alignItems = "stretch",
     gap = 0,
+    width,
+    widthUnit,
+    align = "center",
   } = block.props;
+  const size = boxWidth(width, widthUnit);
   const inner =
     display === "flex"
       ? renderFlex(block.children, flexDirection, justifyContent, alignItems, gap, options)
       : stack(block.children, options);
   const border = borderColor && borderColor !== "transparent" ? `border:1px solid ${attr(borderColor)};` : "";
   // `margin` is unreliable on table cells in email clients, so the outer cell's padding simulates it.
-  const html = `<tr><td style="padding:${marginY}px ${marginX}px;"><table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0" style="border-collapse:separate;"><tr><td style="padding:${paddingY}px ${paddingX}px;background-color:${attr(backgroundColor)};border-radius:${borderRadius}px;${border}">${inner}</td></tr></table></td></tr>`;
+  const html = `<tr><td align="${ALIGN[align]}" style="padding:${marginY}px ${marginX}px;"><table role="presentation"${size.attr} border="0" cellpadding="0" cellspacing="0" style="border-collapse:separate;${size.style}"><tr><td style="padding:${paddingY}px ${paddingX}px;background-color:${attr(backgroundColor)};border-radius:${borderRadius}px;${border}">${inner}</td></tr></table></td></tr>`;
   const conditional = withCondition(html, visibleIf);
   return block.props.repeatPerClient ? `<!--repeat-->${conditional}<!--endrepeat-->` : conditional;
 }
@@ -276,23 +321,23 @@ function renderTopLevel(block: Block, options: RenderOptions): string {
   return `<tr>${renderLeafBlock(block, options)}</tr>`;
 }
 
-/** Renders the template body (a 600px centered table) — still containing `{{variables}}`. */
+/** Renders the template body (a centered table, `emailWidth` px max) — still containing `{{variables}}`. */
 export function renderBlockTree(tree: BlockTree, options: RenderOptions = {}): string {
-  return `<table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0" style="max-width:600px;margin:0 auto;font-family:Arial,Helvetica,sans-serif;font-size:15px;color:#1a1a1a;">${tree
+  return `<table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0" style="max-width:${emailWidthOf(options.emailWidth)}px;margin:0 auto;font-family:Arial,Helvetica,sans-serif;font-size:15px;color:#1a1a1a;">${tree
     .map((b) => renderTopLevel(b, options))
     .join("")}</table>`;
 }
 
 /** Full HTML document sent by email (light background, centered body). */
-export function wrapEmailDocument(bodyHtml: string, subject = ""): string {
+export function wrapEmailDocument(bodyHtml: string, subject = "", emailWidth?: number): string {
   return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="color-scheme" content="light"><title>${escapeHtml(
     subject
-  )}</title></head><body style="margin:0;padding:24px 12px;background-color:#f4f4f5;"><table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0"><tr><td align="center"><table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0" style="max-width:600px;background-color:#ffffff;border-radius:8px;"><tr><td style="padding:24px;">${bodyHtml}</td></tr></table></td></tr></table></body></html>`;
+  )}</title></head><body style="margin:0;padding:24px 12px;background-color:#f4f4f5;"><table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0"><tr><td align="center"><table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0" style="max-width:${emailWidthOf(emailWidth)}px;background-color:#ffffff;border-radius:8px;"><tr><td style="padding:24px;">${bodyHtml}</td></tr></table></td></tr></table></body></html>`;
 }
 
 /** Preview document for the builder iframes: same as the email, with link clicks disabled. */
-export function wrapPreviewDocument(bodyHtml: string): string {
-  return wrapEmailDocument(bodyHtml).replace(
+export function wrapPreviewDocument(bodyHtml: string, emailWidth?: number): string {
+  return wrapEmailDocument(bodyHtml, "", emailWidth).replace(
     "</body>",
     `<script>document.addEventListener("click",function(e){var a=e.target&&e.target.closest?e.target.closest("a"):null;if(a){e.preventDefault();}},true);</script></body>`
   );

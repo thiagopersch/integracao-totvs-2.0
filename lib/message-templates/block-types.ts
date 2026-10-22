@@ -67,6 +67,11 @@ export interface ContainerBlock extends BaseBlock {
     visibleIf?: string;
     /** ALL_CLIENTS templates: rendered once per client, with that client's variables. */
     repeatPerClient?: boolean;
+    /** Box width — absent means the full width available. */
+    width?: number;
+    widthUnit?: "px" | "%";
+    /** Horizontal position of a narrower box (default center). */
+    align?: BlockAlign;
     /** Absent means "block" (children stacked). */
     display?: "block" | "flex";
     flexDirection?: FlexDirection;
@@ -90,6 +95,13 @@ export interface TableBlock extends BaseBlock {
     cells: string[][];
     /** ALL_CLIENTS templates: indexes of the rows rendered once per client (one row per client). */
     repeatRows?: number[];
+    /** Table width — absent means 100%. */
+    width?: number;
+    widthUnit?: "px" | "%";
+    /** Cell font size in px (default 14). */
+    fontSize?: number;
+    /** Width (%) of each column, by index — null/absent lets the email client size it. */
+    columnWidths?: (number | null)[];
     headerBgColor?: string;
     borderColor?: string;
   };
