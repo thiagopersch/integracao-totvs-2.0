@@ -150,7 +150,9 @@ function renderTable(block: TableBlock): string {
     .map((row, rowIndex) => {
       const header = hasHeader && rowIndex === 0;
       const tag = header ? "th" : "td";
-      const style = `border:1px solid ${attr(borderColor)};padding:8px;text-align:left;font-size:14px;${
+      // overflow-wrap:anywhere lets long unbroken content ({{tokens}}, e-mails, URLs) wrap instead of
+      // pushing a many-column table past the 600px body; word-break is the fallback for older clients.
+      const style = `border:1px solid ${attr(borderColor)};padding:8px;text-align:left;font-size:14px;overflow-wrap:anywhere;word-break:break-word;${
         header ? `background-color:${attr(headerBgColor)};font-weight:600;` : ""
       }`;
       const html = `<tr>${row.map((cell) => `<${tag} style="${style}">${attr(cell)}</${tag}>`).join("")}</tr>`;

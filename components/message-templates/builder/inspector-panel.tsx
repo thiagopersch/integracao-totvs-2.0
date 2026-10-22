@@ -1,7 +1,10 @@
 "use client"
 
 import { useRef, useState } from "react"
-import { Loader2, MousePointerClick, Plus, Trash2, Upload } from "lucide-react"
+import { DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core"
+import { SortableContext, arrayMove, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable"
+import { CSS } from "@dnd-kit/utilities"
+import { GripVertical, Loader2, MousePointerClick, Plus, Trash2, Upload } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -219,6 +222,59 @@ function DividerInspector({ block, patch }: { block: DividerBlock; patch: Patch<
   )
 }
 
+function ColumnOrderItem({ id, label }: { id: string; label: string }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id })
+  return (
+    <div
+      ref={setNodeRef}
+      style={{ transform: CSS.Translate.toString(transform), transition }}
+      className={`flex items-center gap-2 rounded-md border bg-background px-2 py-1.5 text-xs ${isDragging ? "relative z-10 opacity-70 shadow" : ""}`}
+    >
+      <span {...attributes} {...listeners} className="cursor-grab touch-none text-muted-foreground hover:text-foreground" title="Arrastar para reordenar">
+        <GripVertical className="h-3.5 w-3.5" />
+      </span>
+      <span className="truncate">{label}</span>
+    </div>
+  )
+}
+
+/** Drag-and-drop order of the table's columns — moving one moves that cell in every row. */
+function ColumnOrderList({ block, patch }: { block: TableBlock; patch: Patch<TableBlock> }) {
+  const { cells } = block.props
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  )
+  // Header cells name the columns (or the first row's, without a header).
+  const labelRow = cells[0] ?? []
+  // Sortable ids must follow the columns when they move (index ids confuse dnd-kit after a drop), so
+  // they're kept in state, permuted with the cells, and reset when columns are added/removed.
+  const freshIds = (count: number) => Array.from({ length: count }, (_, i) => `col-${i}`)
+  const [ids, setIds] = useState(() => freshIds(labelRow.length))
+  if (ids.length !== labelRow.length) setIds(freshIds(labelRow.length))
+
+  const onDragEnd = ({ active, over }: DragEndEvent) => {
+    if (!over || active.id === over.id) return
+    const from = ids.indexOf(String(active.id))
+    const to = ids.indexOf(String(over.id))
+    setIds(arrayMove(ids, from, to))
+    patch({ cells: cells.map((row) => arrayMove(row, from, to)) })
+  }
+
+  return (
+    // Own context (fixed id, SSR-safe) nested in the builder's: dnd-kit keeps them isolated.
+    <DndContext id={`table-columns-${block.id}`} sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
+      <SortableContext items={ids} strategy={verticalListSortingStrategy}>
+        <div className="space-y-1">
+          {ids.map((id, i) => (
+            <ColumnOrderItem key={id} id={id} label={labelRow?.[i]?.trim() || `Coluna ${i + 1}`} />
+          ))}
+        </div>
+      </SortableContext>
+    </DndContext>
+  )
+}
+
 function TableInspector({ block, patch }: { block: TableBlock; patch: Patch<TableBlock> }) {
   const { variableGroups, scope, tree } = useBuilder()
   const { cells, hasHeader, repeatRows = [] } = block.props
@@ -285,6 +341,12 @@ function TableInspector({ block, patch }: { block: TableBlock; patch: Patch<Tabl
           </Button>
         </div>
       </Section>
+      {cols > 1 && (
+        <Section title="Colunas">
+          <p className="text-[11px] text-muted-foreground">Arraste para mudar a ordem das colunas.</p>
+          <ColumnOrderList key={block.id} block={block} patch={patch} />
+        </Section>
+      )}
       <Section title="Células">
         {canRepeatRows && (
           <p className="text-[11px] text-muted-foreground">

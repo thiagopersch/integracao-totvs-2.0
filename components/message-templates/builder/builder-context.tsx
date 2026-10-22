@@ -6,6 +6,12 @@ import type { BlockLocation } from "@/lib/message-templates/block-tree-utils"
 import type { VariableGroup } from "@/lib/message-templates/variable-catalog"
 import type { MessageTemplateScope } from "@/lib/message-templates/events"
 
+/** Where a dragged block / palette item would land: insertion `index` in the list at `location`. */
+export interface DropTarget {
+  location: BlockLocation
+  index: number
+}
+
 export interface BuilderApi {
   tree: BlockTree
   selectedId: string | null
@@ -21,6 +27,8 @@ export interface BuilderApi {
   variableGroups: VariableGroup[]
   /** ALL_CLIENTS enables the "Repetir para cada cliente" container option. */
   scope: MessageTemplateScope
+  /** Current drag's landing spot (drop indicator line) — null when not dragging or over nothing valid. */
+  dropTarget: DropTarget | null
 }
 
 export const BuilderContext = createContext<BuilderApi | null>(null)

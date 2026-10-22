@@ -202,6 +202,30 @@ export function moveBlockTo(tree: BlockTree, id: string, toIndex: number): Block
   });
 }
 
+export function sameLocation(a: BlockLocation, b: BlockLocation): boolean {
+  if (a.type === "top" || b.type === "top") return a.type === b.type;
+  if (a.type === "container" && b.type === "container") return a.containerId === b.containerId;
+  if (a.type === "column" && b.type === "column") return a.rowId === b.rowId && a.columnId === b.columnId;
+  return false;
+}
+
+/**
+ * Moves a block to `index` of the list at `location` — any list: top level, a row column or a
+ * container (drag and drop on the canvas). `index` is the insertion point in the destination list as
+ * it looks *before* the move, so moving down within the same list is adjusted. Rows/containers only
+ * live at the top level (max depth 2): any other destination is a no-op.
+ */
+export function moveBlockToLocation(tree: BlockTree, id: string, location: BlockLocation, index: number): BlockTree {
+  const found = findBlock(tree, id);
+  if (!found) return tree;
+  const { block } = found;
+  if (location.type !== "top" && (block.type === "row" || block.type === "container")) return tree;
+  const sameList = sameLocation(found.location, location);
+  const target = sameList && found.index < index ? index - 1 : index;
+  if (sameList && target === found.index) return tree;
+  return insertBlock(removeBlock(tree, id), block as Block, location, target);
+}
+
 export function duplicateBlock(tree: BlockTree, id: string): BlockTree {
   const found = findBlock(tree, id);
   if (!found) return tree;

@@ -2,9 +2,7 @@
 
 import { useSyncExternalStore } from "react"
 import DOMPurify from "dompurify"
-import { useDroppable } from "@dnd-kit/core"
-import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable"
-import { CSS } from "@dnd-kit/utilities"
+import { useDraggable, useDroppable } from "@dnd-kit/core"
 import { ArrowDown, ArrowUp, Copy, GripVertical, ImageIcon, Minus, Plus, Trash2 } from "lucide-react"
 import {
   DropdownMenu,
@@ -22,60 +20,96 @@ import {
   type LeafBlock,
   type RowBlock,
 } from "@/lib/message-templates/block-types"
-import type { BlockLocation } from "@/lib/message-templates/block-tree-utils"
+import { sameLocation, type BlockLocation } from "@/lib/message-templates/block-tree-utils"
 import { RichTextEditor, EMAIL_TYPOGRAPHY_CLASSES } from "../rich-text-editor"
 import { PALETTE_ITEMS } from "./block-palette"
 import { useBuilder } from "./builder-context"
 import { WithTooltip } from "@/components/shared/with-tooltip"
 
-type SortableHandle = ReturnType<typeof useSortable>
+/** Drop indicator: where the dragged block will land (between blocks — absolutely positioned in the
+ *  gap so showing it never shifts the layout under the pointer). Vertical in flex-row containers. */
+function DropLine({ edge, horizontal }: { edge: "before" | "after"; horizontal?: boolean }) {
+  return (
+    <div
+      aria-hidden
+      className={cn(
+        "pointer-events-none absolute z-20 rounded-full bg-primary shadow-[0_0_0_2px_rgba(255,255,255,0.9)]",
+        "before:absolute before:size-2 before:rounded-full before:bg-primary after:absolute after:size-2 after:rounded-full after:bg-primary",
+        horizontal
+          ? cn(
+              "inset-y-0 w-0.5 before:-top-1 before:-left-[3px] after:-bottom-1 after:-left-[3px]",
+              edge === "before" ? "-left-[7px]" : "-right-[7px]"
+            )
+          : cn(
+              "inset-x-0 h-0.5 before:-top-[3px] before:-left-1 after:-top-[3px] after:-right-1",
+              edge === "before" ? "-top-[8px]" : "-bottom-[8px]"
+            )
+      )}
+    />
+  )
+}
 
-/** Dashed outline + name tag + hover actions shared by every block on the canvas. */
+/** Dashed outline + name tag + hover actions shared by every block on the canvas. Every block can be
+ *  dragged (grip) anywhere valid, and is itself a drop target deciding "before / after" it. */
 function BlockFrame({
   block,
+  location,
   index,
   siblings,
-  sortable,
+  horizontal,
   children,
 }: {
   block: Block | LeafBlock
+  location: BlockLocation
   index: number
   siblings: number
-  sortable?: SortableHandle
+  /** Inside a flex-row container: siblings are side by side, so before/after is left/right. */
+  horizontal?: boolean
   children: React.ReactNode
 }) {
-  const { selectedId, select, moveBlock, duplicateBlock, removeBlock } = useBuilder()
+  const { selectedId, select, moveBlock, duplicateBlock, removeBlock, dropTarget } = useBuilder()
   const selected = selectedId === block.id
-  const style = sortable
-    ? { transform: CSS.Translate.toString(sortable.transform), transition: sortable.transition }
-    : undefined
+  const {
+    setNodeRef: setDragNodeRef,
+    setActivatorNodeRef,
+    attributes,
+    listeners,
+    isDragging,
+  } = useDraggable({ id: `drag:${block.id}`, data: { source: "block", blockId: block.id, blockType: block.type } })
+  const { setNodeRef: setDropNodeRef } = useDroppable({ id: `block:${block.id}`, data: { location, index, horizontal } })
+  const here = dropTarget && sameLocation(dropTarget.location, location)
+  const lineBefore = here && dropTarget.index === index
+  const lineAfter = here && index === siblings - 1 && dropTarget.index === siblings
 
   return (
     <div
-      ref={sortable?.setNodeRef}
-      style={style}
+      ref={(node) => {
+        setDragNodeRef(node)
+        setDropNodeRef(node)
+      }}
       onClick={(e) => {
         e.stopPropagation()
         select(block.id)
       }}
       className={cn(
-        "group/block relative my-3 rounded-md border border-dashed border-neutral-300 p-2 transition-colors",
+        "group/block relative my-3 rounded-md border border-dashed border-neutral-300 p-2 transition-[border-color,opacity] duration-150",
         "hover:border-primary/60",
         selected && "border-solid border-primary ring-2 ring-primary/25",
-        sortable?.isDragging && "z-10 opacity-60"
+        isDragging && "opacity-40"
       )}
     >
+      {lineBefore && <DropLine edge="before" horizontal={horizontal} />}
+      {lineAfter && <DropLine edge="after" horizontal={horizontal} />}
       <div className="absolute -top-2.5 left-2 z-10 flex items-center gap-0.5 rounded border border-neutral-300 bg-white px-1 text-[10px] leading-4 text-neutral-500">
-        {sortable && (
-          <span
-            {...sortable.attributes}
-            {...sortable.listeners}
-            className="-ml-0.5 cursor-grab touch-none text-neutral-400 hover:text-neutral-700"
-            title="Arrastar para reordenar"
-          >
-            <GripVertical className="h-3 w-3" />
-          </span>
-        )}
+        <span
+          ref={setActivatorNodeRef}
+          {...attributes}
+          {...listeners}
+          className="-ml-0.5 cursor-grab touch-none text-neutral-400 hover:text-neutral-700 active:cursor-grabbing"
+          title="Arrastar para mover (para dentro ou para fora de contêineres e colunas)"
+        >
+          <GripVertical className="h-3 w-3" />
+        </span>
         {block.name || BLOCK_TYPE_LABELS[block.type]}
       </div>
       <div
@@ -213,6 +247,7 @@ function ChildrenZone({
   className,
   style,
   emptyLabel,
+  horizontal,
 }: {
   id: string
   location: BlockLocation
@@ -220,22 +255,26 @@ function ChildrenZone({
   className?: string
   style?: React.CSSProperties
   emptyLabel: string
+  horizontal?: boolean
 }) {
-  const { setNodeRef, isOver, active } = useDroppable({ id, data: { location } })
-  const acceptsDrag = active?.data.current?.source === "palette" && (LEAF_BLOCK_TYPES as string[]).includes(active.data.current.blockType)
+  const { dropTarget } = useBuilder()
+  const { setNodeRef } = useDroppable({ id, data: { location, count: items.length } })
+  const isTarget = !!dropTarget && sameLocation(dropTarget.location, location)
   return (
     <div
       ref={setNodeRef}
       className={cn(
         "min-h-14 rounded-md border border-dashed border-neutral-200 p-1.5 transition-colors",
-        isOver && acceptsDrag && "border-primary bg-primary/5",
+        isTarget && "border-primary bg-primary/5",
         className
       )}
       style={style}
     >
-      {items.length === 0 && <p className="py-2 text-center text-[11px] text-neutral-400">{emptyLabel}</p>}
+      {items.length === 0 && (
+        <p className={cn("py-2 text-center text-[11px] text-neutral-400", isTarget && "text-primary")}>{emptyLabel}</p>
+      )}
       {items.map((child, i) => (
-        <BlockFrame key={child.id} block={child} index={i} siblings={items.length}>
+        <BlockFrame key={child.id} block={child} location={location} index={i} siblings={items.length} horizontal={horizontal}>
           <LeafView block={child} />
         </BlockFrame>
       ))}
@@ -320,6 +359,7 @@ function ContainerView({ block }: { block: ContainerBlock }) {
         location={{ type: "container", containerId: block.id }}
         items={block.children}
         emptyLabel="Solte elementos dentro do contêiner"
+        horizontal={flex && (p.flexDirection ?? "row").startsWith("row")}
         className={cn(flex && "flex flex-wrap [&>*]:my-1")}
         style={{
           padding: `${p.paddingY}px ${p.paddingX}px`,
@@ -340,10 +380,11 @@ function ContainerView({ block }: { block: ContainerBlock }) {
   )
 }
 
+const TOP: BlockLocation = { type: "top" }
+
 function TopLevelBlock({ block, index, siblings }: { block: Block; index: number; siblings: number }) {
-  const sortable = useSortable({ id: block.id, data: { source: "block" } })
   return (
-    <BlockFrame block={block} index={index} siblings={siblings} sortable={sortable}>
+    <BlockFrame block={block} location={TOP} index={index} siblings={siblings}>
       {block.type === "row" ? (
         <RowView block={block} />
       ) : block.type === "container" ? (
@@ -361,11 +402,10 @@ function TopLevelBlock({ block, index, siblings }: { block: Block; index: number
   )
 }
 
-/** The email canvas: a white 600px "paper" (like the real email) holding the sortable blocks. */
+/** The email canvas: a white 600px "paper" (like the real email) holding the draggable blocks. */
 export function Canvas() {
-  const { tree, select } = useBuilder()
-  const { setNodeRef, isOver, active } = useDroppable({ id: "canvas" })
-  const fromPalette = active?.data.current?.source === "palette"
+  const { tree, select, dropTarget } = useBuilder()
+  const { setNodeRef } = useDroppable({ id: "canvas" })
 
   return (
     <div
@@ -373,7 +413,7 @@ export function Canvas() {
       onClick={() => select(null)}
       className={cn(
         "min-h-[520px] rounded-lg border border-dashed bg-muted/30 p-4 transition-colors md:p-8",
-        isOver && fromPalette && "border-primary bg-primary/5"
+        dropTarget?.location.type === "top" && "border-primary bg-primary/5"
       )}
     >
       <div className="mx-auto max-w-[600px] rounded-md bg-white px-4 py-3 text-neutral-900 shadow-sm [font-family:Arial,Helvetica,sans-serif]">
@@ -382,11 +422,7 @@ export function Canvas() {
             Arraste elementos da paleta à esquerda para começar a montar o template.
           </p>
         ) : (
-          <SortableContext items={tree.map((b) => b.id)} strategy={verticalListSortingStrategy}>
-            {tree.map((block, i) => (
-              <TopLevelBlock key={block.id} block={block} index={i} siblings={tree.length} />
-            ))}
-          </SortableContext>
+          tree.map((block, i) => <TopLevelBlock key={block.id} block={block} index={i} siblings={tree.length} />)
         )}
       </div>
     </div>

@@ -17,7 +17,8 @@ export const PALETTE_ITEMS: { type: PaletteBlockType; icon: React.ComponentType<
   { type: "divider", icon: SeparatorHorizontal, hint: "Linha separadora" },
 ]
 
-export function BlockTypeCard({ type, dragging }: { type: PaletteBlockType; dragging?: boolean }) {
+/** Palette card — also the drag overlay; `name` shows which existing block is being moved. */
+export function BlockTypeCard({ type, dragging, name }: { type: PaletteBlockType; dragging?: boolean; name?: string }) {
   const item = PALETTE_ITEMS.find((i) => i.type === type)!
   const Icon = item.icon
   return (
@@ -28,7 +29,13 @@ export function BlockTypeCard({ type, dragging }: { type: PaletteBlockType; drag
       )}
     >
       <Icon className="h-4 w-4 text-muted-foreground" />
-      {BLOCK_TYPE_LABELS[type]}
+      {name ? (
+        <span>
+          {name} <span className="font-normal text-muted-foreground">· {BLOCK_TYPE_LABELS[type]}</span>
+        </span>
+      ) : (
+        BLOCK_TYPE_LABELS[type]
+      )}
     </div>
   )
 }

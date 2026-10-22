@@ -3,16 +3,18 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import {
-  closestCenter,
   DndContext,
   DragOverlay,
   PointerSensor,
   pointerWithin,
   useSensor,
   useSensors,
+  type Active,
   type CollisionDetection,
   type DragEndEvent,
+  type DragMoveEvent,
   type DragStartEvent,
+  type Over,
 } from "@dnd-kit/core"
 import { ArrowLeft, Eye, Loader2, Save, Send } from "lucide-react"
 import { toast } from "sonner"
@@ -35,7 +37,7 @@ import { createMessageTemplate, sendTestMessageTemplate, updateMessageTemplate }
 import { messageTemplateSchema } from "@/schemas/message-template.schema"
 import * as treeUtils from "@/lib/message-templates/block-tree-utils"
 import { defaultTemplate } from "@/lib/message-templates/defaults"
-import { isLeafType, type BlockTree, type LeafBlock } from "@/lib/message-templates/block-types"
+import { isLeafType, type BlockTree } from "@/lib/message-templates/block-types"
 import {
   MESSAGE_CHANNEL_LABELS,
   MESSAGE_CHANNELS,
@@ -57,7 +59,7 @@ import {
 } from "@/lib/message-templates/attachments"
 import { VariableInput } from "../variable-input"
 import { BlockPalette, BlockTypeCard, type PaletteBlockType } from "./block-palette"
-import { BuilderContext, type BuilderApi } from "./builder-context"
+import { BuilderContext, type BuilderApi, type DropTarget } from "./builder-context"
 import { Canvas } from "./canvas"
 import { InspectorPanel } from "./inspector-panel"
 import { PreviewDialog } from "./preview-dialog"
@@ -110,6 +112,28 @@ function defaultAttachments(event: MessageTemplateEvent, scope: MessageTemplateS
 
 const isNestedZone = (id: unknown) => typeof id === "string" && (id.startsWith("column:") || id.startsWith("container:"))
 
+/** What's being dragged: a palette item (new block) or an existing block of the canvas. */
+type ActiveDrag = { kind: "palette"; type: PaletteBlockType } | { kind: "block"; id: string; type: PaletteBlockType; name?: string }
+
+const dragInfo = (active: Active) => {
+  const data = active.data.current
+  const type = data?.blockType as PaletteBlockType | undefined
+  return { blockId: data?.source === "block" ? (data.blockId as string) : null, leaf: !!type && isLeafType(type), type }
+}
+
+/** Drop-target rank — the innermost wins: nested block > nested zone > top-level block > canvas. */
+function targetRank(id: string, location?: treeUtils.BlockLocation): number {
+  if (id.startsWith("block:")) return location && location.type !== "top" ? 0 : 2
+  if (isNestedZone(id)) return 1
+  return 3
+}
+
+/** Pointer position of a drag (the activator event's position + how far it moved). */
+function pointerOf(event: { activatorEvent: Event; delta: { x: number; y: number } }) {
+  const start = event.activatorEvent as PointerEvent
+  return { x: (start.clientX ?? 0) + event.delta.x, y: (start.clientY ?? 0) + event.delta.y }
+}
+
 export function TemplateBuilder({ template, canSave }: TemplateBuilderProps) {
   const router = useRouter()
   // One initial value for both (the built-in default gets fresh random block ids on every call).
@@ -117,7 +141,8 @@ export function TemplateBuilder({ template, canSave }: TemplateBuilderProps) {
   const [value, setValue] = useState<TemplateBuilderValue>(initial)
   const [savedSnapshot, setSavedSnapshot] = useState(() => JSON.stringify(initial))
   const [selectedId, setSelectedId] = useState<string | null>(null)
-  const [activeDrag, setActiveDrag] = useState<PaletteBlockType | null>(null)
+  const [activeDrag, setActiveDrag] = useState<ActiveDrag | null>(null)
+  const [dropTarget, setDropTarget] = useState<DropTarget | null>(null)
   const [previewOpen, setPreviewOpen] = useState(false)
   const [saving, setSaving] = useState(false)
   const [testing, setTesting] = useState(false)
@@ -192,8 +217,9 @@ export function TemplateBuilder({ template, canSave }: TemplateBuilderProps) {
       addColumn: (rowId) => setTree((t) => treeUtils.addColumnToRow(t, rowId)),
       removeColumn: (rowId, columnId) => setTree((t) => treeUtils.removeColumnFromRow(t, rowId, columnId)),
       resizeColumn: (rowId, columnId, w) => setTree((t) => treeUtils.resizeColumn(t, rowId, columnId, w)),
+      dropTarget,
     }),
-    [value.content, selectedId, variableGroups, value.scope, setTree]
+    [value.content, selectedId, variableGroups, value.scope, setTree, dropTarget]
   )
 
   function addFromPalette(type: PaletteBlockType) {
@@ -205,66 +231,87 @@ export function TemplateBuilder({ template, canSave }: TemplateBuilderProps) {
   // ---- drag & drop -------------------------------------------------------------------------
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }))
 
-  /** Palette leaves prefer the innermost column/container zone under the pointer; rows/containers
-   *  and top-level reordering only consider top-level targets. */
+  /**
+   * The innermost valid target under the pointer. Rows/containers (palette or existing) only go at the
+   * top level, so nested targets are ignored for them; a container being moved ignores its own zone
+   * and children (it can't be dropped into itself).
+   */
   const collisionDetection: CollisionDetection = useCallback((args) => {
-    const data = args.active.data.current
-    if (data?.source === "palette") {
-      const within = pointerWithin(args)
-      if (isLeafType(data.blockType)) {
-        const nested = within.find((c) => isNestedZone(c.id))
-        if (nested) return [nested]
-      }
-      const topLevel = within.filter((c) => !isNestedZone(c.id))
-      const block = topLevel.find((c) => c.id !== "canvas")
-      if (block) return [block]
-      if (topLevel.length) return topLevel
-      return []
-    }
-    return closestCenter({
-      ...args,
-      droppableContainers: args.droppableContainers.filter((c) => c.id !== "canvas" && !isNestedZone(c.id)),
+    const { blockId, leaf } = dragInfo(args.active)
+    const droppableContainers = args.droppableContainers.filter((c) => {
+      const id = String(c.id)
+      const location = c.data.current?.location as treeUtils.BlockLocation | undefined
+      const nested = isNestedZone(id) || (id.startsWith("block:") && location?.type !== "top")
+      if (nested && !leaf) return false
+      if (blockId && (id === `container:${blockId}` || (location?.type === "container" && location.containerId === blockId))) return false
+      return true
     })
+    const within = pointerWithin({ ...args, droppableContainers })
+    const rank = (c: (typeof within)[number]) =>
+      targetRank(String(c.id), args.droppableContainers.find((d) => d.id === c.id)?.data.current?.location)
+    const best = within.sort((a, b) => rank(a) - rank(b))[0]
+    return best ? [best] : []
   }, [])
 
+  /** Insertion point for `over` at the pointer — null when nothing valid or the drop wouldn't change anything. */
+  function resolveDropTarget(active: Active, over: Over | null, pointer: { x: number; y: number }): DropTarget | null {
+    if (!over) return null
+    const id = String(over.id)
+    const data = over.data.current
+    let target: DropTarget
+    if (id.startsWith("block:")) {
+      const { rect } = over
+      const after = data?.horizontal ? pointer.x > rect.left + rect.width / 2 : pointer.y > rect.top + rect.height / 2
+      target = { location: data?.location, index: (data?.index as number) + (after ? 1 : 0) }
+    } else if (isNestedZone(id)) {
+      target = { location: data?.location, index: data?.count ?? 0 }
+    } else {
+      target = { location: { type: "top" }, index: value.content.length }
+    }
+    const { blockId } = dragInfo(active)
+    if (blockId) {
+      // Right before or after itself: the block wouldn't move — no indicator.
+      const found = treeUtils.findBlock(value.content, blockId)
+      if (found && treeUtils.sameLocation(found.location, target.location) && (target.index === found.index || target.index === found.index + 1)) {
+        return null
+      }
+    }
+    return target
+  }
+
   function onDragStart(event: DragStartEvent) {
-    const data = event.active.data.current
-    setActiveDrag(data?.source === "palette" ? (data.blockType as PaletteBlockType) : null)
+    const { blockId, type } = dragInfo(event.active)
+    if (!type) return
+    const name = blockId ? treeUtils.findBlock(value.content, blockId)?.block.name : undefined
+    setActiveDrag(blockId ? { kind: "block", id: blockId, type, name } : { kind: "palette", type })
+  }
+
+  function onDragMove(event: DragMoveEvent) {
+    const next = resolveDropTarget(event.active, event.over, pointerOf(event))
+    // Only re-render the canvas when the landing spot actually changes, not on every pixel.
+    setDropTarget((current) => (JSON.stringify(current) === JSON.stringify(next) ? current : next))
+  }
+
+  function endDrag() {
+    setActiveDrag(null)
+    setDropTarget(null)
   }
 
   function onDragEnd(event: DragEndEvent) {
-    setActiveDrag(null)
-    const { active, over } = event
-    if (!over) return
-    const data = active.data.current
+    endDrag()
+    const target = resolveDropTarget(event.active, event.over, pointerOf(event))
+    if (!target) return
+    const { blockId, leaf, type } = dragInfo(event.active)
+    if (target.location.type !== "top" && !leaf) return
 
-    if (data?.source === "block") {
-      if (active.id === over.id) return
-      const toIndex = value.content.findIndex((b) => b.id === over.id)
-      if (toIndex >= 0) api.moveBlock(String(active.id), toIndex)
+    if (blockId) {
+      setTree((t) => treeUtils.moveBlockToLocation(t, blockId, target.location, target.index))
+      setSelectedId(blockId)
       return
     }
-    if (data?.source !== "palette") return
-
-    const type = data.blockType as PaletteBlockType
-    const overId = String(over.id)
-    if (isNestedZone(overId)) {
-      if (!isLeafType(type)) return
-      const location = over.data.current?.location as treeUtils.BlockLocation | undefined
-      if (location) api.addLeaf(location, type as LeafBlock["type"])
-      return
-    }
-
+    if (!type) return
     const block = treeUtils.createDefaultBlock(type, value.content)
-    let index: number | undefined
-    const overIndex = value.content.findIndex((b) => b.id === overId)
-    if (overIndex >= 0) {
-      // Before or after the hovered block, depending on which half the dragged card is over.
-      const dragged = active.rect.current.translated
-      const middle = over.rect.top + over.rect.height / 2
-      index = dragged && dragged.top + dragged.height / 2 > middle ? overIndex + 1 : overIndex
-    }
-    setTree((t) => treeUtils.insertBlock(t, block, { type: "top" }, index))
+    setTree((t) => treeUtils.insertBlock(t, block, target.location, target.index))
     setSelectedId(block.id)
   }
 
@@ -457,8 +504,9 @@ export function TemplateBuilder({ template, canSave }: TemplateBuilderProps) {
             sensors={sensors}
             collisionDetection={collisionDetection}
             onDragStart={onDragStart}
+            onDragMove={onDragMove}
             onDragEnd={onDragEnd}
-            onDragCancel={() => setActiveDrag(null)}
+            onDragCancel={endDrag}
           >
             {/* xl: elements | properties | canvas — the properties column only exists while a block is
                 selected, so the canvas takes the space back otherwise. Below xl the elements become a bar on top. */}
@@ -483,7 +531,13 @@ export function TemplateBuilder({ template, canSave }: TemplateBuilderProps) {
                 {errors.content && <p className="mt-1 text-xs text-destructive">{errors.content}</p>}
               </div>
             </div>
-            <DragOverlay dropAnimation={null}>{activeDrag ? <BlockTypeCard type={activeDrag} dragging /> : null}</DragOverlay>
+            <DragOverlay dropAnimation={{ duration: 150, easing: "ease-out" }}>
+              {activeDrag ? (
+                <div className="w-max max-w-64">
+                  <BlockTypeCard type={activeDrag.type} name={activeDrag.kind === "block" ? activeDrag.name : undefined} dragging />
+                </div>
+              ) : null}
+            </DragOverlay>
           </DndContext>
         </BuilderContext.Provider>
       ) : (

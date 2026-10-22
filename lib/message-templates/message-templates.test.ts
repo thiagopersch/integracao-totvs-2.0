@@ -9,6 +9,7 @@ import {
   findBlock,
   insertBlock,
   moveBlockTo,
+  moveBlockToLocation,
   removeBlock,
   removeColumnFromRow,
   resizeColumn,
@@ -142,6 +143,39 @@ describe("block tree utils", () => {
 
     tree = removeBlock(tree, child.id)
     expect((tree[0] as RowBlock).children[0].children).toHaveLength(1)
+  })
+
+  it("moves blocks in and out of containers and between columns", () => {
+    const container = createDefaultBlock("container", [])
+    const row = createDefaultBlock("row", []) as RowBlock
+    const [a, b, c] = (["text", "table", "button"] as const).map((t) => createDefaultBlock(t, []))
+    let tree: BlockTree = [a, container, b, row, c]
+    const inContainer = { type: "container" as const, containerId: container.id }
+    const col = (i: number) => ({ type: "column" as const, rowId: row.id, columnId: row.children[i].id })
+    const children = () => (tree.find((x) => x.id === container.id) as ContainerBlock).children.map((x) => x.id)
+
+    // top → container (append, then before the first child)
+    tree = moveBlockToLocation(tree, b.id, inContainer, 0)
+    tree = moveBlockToLocation(tree, a.id, inContainer, 0)
+    expect(children()).toEqual([a.id, b.id])
+    expect(tree.map((x) => x.id)).toEqual([container.id, row.id, c.id])
+
+    // reorder inside the container (index is "before the move": after b = 2)
+    tree = moveBlockToLocation(tree, a.id, inContainer, 2)
+    expect(children()).toEqual([b.id, a.id])
+
+    // container → top, between row and c
+    tree = moveBlockToLocation(tree, a.id, { type: "top" }, 2)
+    expect(tree.map((x) => x.id)).toEqual([container.id, row.id, a.id, c.id])
+
+    // between row columns
+    tree = moveBlockToLocation(tree, c.id, col(0), 0)
+    tree = moveBlockToLocation(tree, c.id, col(1), 0)
+    expect(findBlock(tree, c.id)?.location).toEqual(col(1))
+
+    // rows/containers never nest; dropping at its own place is a no-op
+    expect(moveBlockToLocation(tree, row.id, inContainer, 0)).toBe(tree)
+    expect(moveBlockToLocation(tree, container.id, { type: "top" }, 1)).toBe(tree)
   })
 
   it("adds, removes and resizes columns keeping 100%", () => {
