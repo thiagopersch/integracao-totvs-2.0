@@ -341,8 +341,8 @@ model Client {
   mapeadorProjetos MapeadorProjeto[]
   usageAlerts      ContractUsageAlert[]
   projects         Project[]
-  requesters       Requester[]
-  departments      Department[]
+  requesters        Requester[]
+  departmentClients DepartmentClient[]
 
   @@unique([organizationId, linkCrm])
   @@map("clients")
@@ -990,19 +990,29 @@ model Department {
   name           String
   description    String?   @db.Text
   color          String    @default("#f59e0b")
-  /// Cliente ao qual o departamento (setor) pertence (nulo só em registros legados).
-  clientId       String?   @map("client_id")
   createdAt      DateTime  @default(now()) @map("created_at")
   updatedAt      DateTime  @updatedAt @map("updated_at")
   deletedAt      DateTime? @map("deleted_at")
 
   organization         Organization          @relation(fields: [organizationId], references: [id])
-  client               Client?               @relation(fields: [clientId], references: [id])
+  departmentClients    DepartmentClient[]
   demandDepartments    DemandDepartment[]
   departmentRequesters DepartmentRequester[]
 
-  @@index([clientId])
   @@map("departments")
+}
+
+/// Clientes aos quais um departamento (setor) se aplica — o mesmo setor pode valer para vários clientes.
+model DepartmentClient {
+  departmentId String @map("department_id")
+  clientId     String @map("client_id")
+
+  department Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  client     Client     @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@id([departmentId, clientId])
+  @@index([clientId])
+  @@map("department_clients")
 }
 
 /// Solicitantes que pertencem a um departamento (setor) do cliente.

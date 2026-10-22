@@ -24,7 +24,7 @@ async function DepartmentsContent({ searchParams }: { searchParams: Promise<Reco
     pageSize: Number(params.pageSize) || 10,
     search: params.search,
     sort: params.sort ? { field: params.sort.split(":")[0], direction: params.sort.split(":")[1] as "asc" | "desc" } : undefined,
-  }, organizationId), listAllClients(), listAllRequesters()])
+  }, organizationId, params.clientId ? params.clientId.split(",") : []), listAllClients(), listAllRequesters()])
 
   return <DepartmentTable data={data} meta={meta} clients={clients} requesters={requesters} />
 }

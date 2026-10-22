@@ -1,11 +1,12 @@
 /**
  * Cliente → Solicitantes → Departamentos cascade of the demand form: a requester belongs to one client
- * and a department is linked to one or more requesters (DepartmentRequester). Pure so the form, the
+ * and a department applies to one or more clients (DepartmentClient) and is linked to one or more
+ * requesters (DepartmentRequester). Pure so the form, the
  * server-side validation and the tests share the same rules.
  */
 
 export type CascadeRequester = { id: string; clientId: string | null };
-export type CascadeDepartment = { id: string; requesterIds: string[] };
+export type CascadeDepartment = { id: string; clientIds: string[]; requesterIds: string[] };
 
 /** Requesters selectable for the client; `keepIds` (already saved on the demand) stay listed even if legacy/unlinked. */
 export function requestersForClient<T extends CascadeRequester>(requesters: T[], clientId: string, keepIds: string[] = []): T[] {
@@ -13,10 +14,17 @@ export function requestersForClient<T extends CascadeRequester>(requesters: T[],
   return requesters.filter((r) => r.clientId === clientId || keepIds.includes(r.id));
 }
 
-/** Departments linked to any of the selected requesters (union); `keepIds` stay listed as above. */
-export function departmentsForRequesters<T extends CascadeDepartment>(departments: T[], requesterIds: string[], keepIds: string[] = []): T[] {
+/** Departments of the client linked to any of the selected requesters (union); `keepIds` stay listed as above. */
+export function departmentsForRequesters<T extends CascadeDepartment>(
+  departments: T[],
+  clientId: string,
+  requesterIds: string[],
+  keepIds: string[] = [],
+): T[] {
   const selected = new Set(requesterIds);
-  return departments.filter((d) => d.requesterIds.some((id) => selected.has(id)) || keepIds.includes(d.id));
+  return departments.filter(
+    (d) => (d.clientIds.includes(clientId) && d.requesterIds.some((id) => selected.has(id))) || keepIds.includes(d.id),
+  );
 }
 
 /** Drops selected ids that are no longer among the options. */

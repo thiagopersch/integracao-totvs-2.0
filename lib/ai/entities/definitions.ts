@@ -197,7 +197,7 @@ const department: AiEntityDef = {
   titleField: "name",
   fields: [
     { key: "name", label: "Nome", kind: "text", required: true },
-    { key: "clientId", label: "Cliente", kind: "ref", ref: "clients", required: true },
+    { key: "clientId", label: "Cliente", kind: "ref", ref: "clients", required: true, hint: "mais clientes podem ser vinculados depois no cadastro" },
     { key: "requesterId", label: "Solicitante", kind: "ref", ref: "requesters", parentField: "clientId", required: true, hint: "solicitante do cliente escolhido; mais solicitantes podem ser vinculados depois no cadastro" },
     color("aleatória"),
     { key: "description", label: "Descrição", kind: "textarea", wide: true },
@@ -205,7 +205,7 @@ const department: AiEntityDef = {
   schema: createDepartmentSchema,
   toInput: (v) => ({
     name: v.name,
-    clientId: v.clientId,
+    clientIds: v.clientId ? [v.clientId] : [],
     requesterIds: v.requesterId ? [v.requesterId] : [],
     description: opt$(v.description),
     color: v.color || randomColor(),

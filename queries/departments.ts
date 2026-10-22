@@ -7,8 +7,8 @@ import { cacheTag } from "next/cache";
 import { departmentService } from "@/services/department.service";
 import type { ListParams } from "@/types/common";
 
-export async function listDepartments(params: ListParams, organizationId: string) {
+export async function listDepartments(params: ListParams, organizationId: string, clientIds: string[] = []) {
   "use cache";
   cacheTag("departments");
-  return departmentService.list(params, organizationId);
+  return departmentService.list(params, organizationId, clientIds);
 }

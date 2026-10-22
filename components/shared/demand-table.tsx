@@ -343,7 +343,22 @@ export function DemandTable({
     </>
   )
 
+  /** Department filter options: all of them, or only those applying to one of the picked clients. */
+  function departmentsForClientFilter(clientIds: string[]) {
+    if (!clientIds.length) return filterOptions.departments
+    const selected = new Set(clientIds)
+    return filterOptions.departments.filter((d) => d.clientIds.some((id) => selected.has(id)))
+  }
+
   function setMultiFilter(key: MultiFilterKey) {
+    if (key === "clientId") {
+      // Picking clients narrows the department filter: drop departments that apply to none of them.
+      return (value: string[]) =>
+        setMultiFilters((prev) => {
+          const allowed = new Set(departmentsForClientFilter(value).map((d) => d.id))
+          return { ...prev, clientId: value, departmentId: prev.departmentId.filter((id) => allowed.has(id)) }
+        })
+    }
     return (value: string[]) => setMultiFilters((prev) => ({ ...prev, [key]: value }))
   }
 
@@ -385,7 +400,11 @@ export function DemandTable({
     },
     { key: "analystId", label: "Analista", items: filterOptions.analysts.map((a) => ({ value: a.id, label: a.name, color: a.color })) },
     { key: "requesterId", label: "Solicitante", items: filterOptions.requesters.map((r) => ({ value: r.id, label: r.name, color: r.color })) },
-    { key: "departmentId", label: "Departamento", items: filterOptions.departments.map((d) => ({ value: d.id, label: d.name, color: d.color })) },
+    {
+      key: "departmentId",
+      label: "Departamento",
+      items: departmentsForClientFilter(multiFilters.clientId).map((d) => ({ value: d.id, label: d.name, color: d.color })),
+    },
     { key: "demandTypeId", label: "Tipo", items: filterOptions.demandTypes.map((t) => ({ value: t.id, label: t.name, color: t.color })) },
     {
       key: "priority",

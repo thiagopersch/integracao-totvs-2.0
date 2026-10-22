@@ -3,6 +3,7 @@ import { BaseRepository } from "@/repositories/base.repository";
 import type { CreateClientInput, UpdateClientInput } from "@/schemas/client.schema";
 import type { Client } from "@/generated/prisma/client";
 import type { ListParams } from "@/types/common";
+import { ENTITY_LABELS, type BlockingReference } from "@/lib/entity-labels";
 
 class ClientRepository extends BaseRepository<Client> {
   constructor() {
@@ -19,6 +20,16 @@ class ClientRepository extends BaseRepository<Client> {
 
   protected defaultOrderBy() {
     return [{ favorite: "desc" as const }, { name: "asc" as const }];
+  }
+
+  // Department links are checked below so a soft-deleted department doesn't keep blocking.
+  protected override ownedModels() {
+    return ["DepartmentClient"];
+  }
+
+  protected override async extraBlockingReferences(id: string): Promise<BlockingReference[]> {
+    const count = await prisma.departmentClient.count({ where: { clientId: id, department: { deletedAt: null } } });
+    return count > 0 ? [{ model: "DepartmentClient", label: ENTITY_LABELS.DepartmentClient, field: "clientId", count }] : [];
   }
 }
 

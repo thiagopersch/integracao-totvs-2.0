@@ -83,7 +83,7 @@ export type DemandFormCatalogs = {
   clients: Client[]
   /** `clientId` + `departmentIds`/`requesterIds` drive the Cliente → Solicitantes → Departamentos cascade. */
   requesters: (Requester & { departmentIds?: string[] })[]
-  departments: (Department & { requesterIds: string[] })[]
+  departments: (Department & { clientIds: string[]; requesterIds: string[] })[]
   demandTypes: DemandType[]
   tags: Tag[]
 }
@@ -228,7 +228,7 @@ function DemandFormBody({ onOpenChange, catalogs, context, demand, defaults = {}
   // A new demand opened with its client already set (e.g. from a project) gets the same single-option fill.
   if (!demand && initial.clientId) {
     initial.requesterIds = autoPickSingle([], requestersForClient(requesters, initial.clientId))
-    initial.departmentIds = autoPickSingle([], departmentsForRequesters(departments, initial.requesterIds))
+    initial.departmentIds = autoPickSingle([], departmentsForRequesters(departments, initial.clientId, initial.requesterIds))
   }
   const [tasks, setTasks] = useState<{ projectId: string; items: TaskOption[] }>(() => ({
     projectId: initial.projectId ?? "",
@@ -283,18 +283,18 @@ function DemandFormBody({ onOpenChange, catalogs, context, demand, defaults = {}
     void loadTasks(nextProjectId)
   }
 
-  // Cascade: the client narrows the requesters, the requesters narrow the departments. Values already
+  // Cascade: the client narrows the requesters, the client + requesters narrow the departments. Values already
   // saved on the demand stay listed while its client is unchanged, so legacy (unlinked) links don't vanish.
   const clientId = form.watch("clientId") || ""
   const requesterIds = form.watch("requesterIds") || []
   const keepSaved = !!demand && clientId === initial.clientId
   const requesterOptions = requestersForClient(requesters, clientId, keepSaved ? initial.requesterIds : [])
-  const departmentOptions = departmentsForRequesters(departments, requesterIds, keepSaved ? initial.departmentIds : [])
+  const departmentOptions = departmentsForRequesters(departments, clientId, requesterIds, keepSaved ? initial.departmentIds : [])
 
   function selectRequesters(nextIds: string[]) {
     form.setValue("requesterIds", nextIds, { shouldValidate: true })
     const keep = keepSaved ? initial.departmentIds : []
-    const options = departmentsForRequesters(departments, nextIds, keep)
+    const options = departmentsForRequesters(departments, form.getValues("clientId") || "", nextIds, keep)
     const nextDepartmentIds = autoPickSingle(pruneSelection(form.getValues("departmentIds") || [], options), options)
     form.setValue("departmentIds", nextDepartmentIds, { shouldValidate: form.formState.isSubmitted })
   }
@@ -306,7 +306,7 @@ function DemandFormBody({ onOpenChange, catalogs, context, demand, defaults = {}
     // A single requester/department option is filled in; with more than one the user picks.
     const nextRequesterIds = autoPickSingle(pruneSelection(form.getValues("requesterIds") || [], options), options)
     form.setValue("requesterIds", nextRequesterIds, { shouldValidate: form.formState.isSubmitted })
-    const departmentOpts = departmentsForRequesters(departments, nextRequesterIds, keep ? initial.departmentIds : [])
+    const departmentOpts = departmentsForRequesters(departments, nextClientId, nextRequesterIds, keep ? initial.departmentIds : [])
     const nextDepartmentIds = autoPickSingle(pruneSelection(form.getValues("departmentIds") || [], departmentOpts), departmentOpts)
     form.setValue("departmentIds", nextDepartmentIds, { shouldValidate: form.formState.isSubmitted })
   }

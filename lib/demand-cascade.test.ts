@@ -8,10 +8,11 @@ const requesters = [
   { id: "L", clientId: null },
 ];
 const departments = [
-  { id: "dB", requesterIds: ["A"] },
-  { id: "dD", requesterIds: ["B"] },
-  { id: "dY", requesterIds: ["C"] },
-  { id: "dShared", requesterIds: ["A", "B"] },
+  { id: "dB", clientIds: ["X"], requesterIds: ["A"] },
+  { id: "dD", clientIds: ["X"], requesterIds: ["B"] },
+  { id: "dY", clientIds: ["Y"], requesterIds: ["C"] },
+  { id: "dShared", clientIds: ["X"], requesterIds: ["A", "B"] },
+  { id: "dMulti", clientIds: ["X", "Y"], requesterIds: ["B", "C"] },
 ];
 
 describe("requestersForClient", () => {
@@ -31,15 +32,28 @@ describe("requestersForClient", () => {
 
 describe("departmentsForRequesters", () => {
   it("lists the departments of one requester", () => {
-    expect(departmentsForRequesters(departments, ["A"]).map((d) => d.id)).toEqual(["dB", "dShared"]);
+    expect(departmentsForRequesters(departments, "X", ["A"]).map((d) => d.id)).toEqual(["dB", "dShared"]);
   });
 
   it("unions the departments of several requesters", () => {
-    expect(departmentsForRequesters(departments, ["A", "B"]).map((d) => d.id)).toEqual(["dB", "dD", "dShared"]);
+    expect(departmentsForRequesters(departments, "X", ["A", "B"]).map((d) => d.id)).toEqual(["dB", "dD", "dShared", "dMulti"]);
+  });
+
+  it("lists a department shared by several clients for each of them", () => {
+    expect(departmentsForRequesters(departments, "Y", ["C"]).map((d) => d.id)).toEqual(["dY", "dMulti"]);
+  });
+
+  it("skips a requester's department that doesn't apply to the demand's client", () => {
+    expect(departmentsForRequesters(departments, "Y", ["B"]).map((d) => d.id)).toEqual(["dMulti"]);
+    expect(departmentsForRequesters(departments, "Z", ["B"])).toEqual([]);
+  });
+
+  it("keeps an already-saved department listed", () => {
+    expect(departmentsForRequesters(departments, "Z", [], ["dB"]).map((d) => d.id)).toEqual(["dB"]);
   });
 
   it("lists nothing without requesters", () => {
-    expect(departmentsForRequesters(departments, [])).toEqual([]);
+    expect(departmentsForRequesters(departments, "X", [])).toEqual([]);
   });
 });
 

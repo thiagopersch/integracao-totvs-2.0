@@ -80,9 +80,9 @@ export const requesterService = {
     const current = await requesterRepository.findById(id, organizationId);
     if (!current) throw new Error("Solicitante não encontrado");
     return prisma.$transaction(async (tx) => {
-      // Moving to another client: drop department links that belong to the previous one.
+      // Moving to another client: drop links to departments that do not apply to the new one.
       if (current.clientId !== input.clientId) {
-        await tx.departmentRequester.deleteMany({ where: { requesterId: id, department: { clientId: { not: input.clientId } } } });
+        await tx.departmentRequester.deleteMany({ where: { requesterId: id, department: { departmentClients: { none: { clientId: input.clientId } } } } });
       }
       return tx.requester.update({ where: { id, organizationId }, data: input });
     });

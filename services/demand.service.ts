@@ -232,7 +232,7 @@ async function assertProjectLink(organizationId: string, allowedClientIds: strin
 
 /**
  * Cliente → Solicitantes → Departamentos (lib/demand-cascade.ts): requesters must be of the demand's client
- * and departments linked to one of the chosen requesters. Links the demand already had are accepted as-is,
+ * and departments must apply to that client and be linked to one of the chosen requesters. Links the demand already had are accepted as-is,
  * so editing a demand saved before the cascade existed doesn't fail on its legacy requesters/departments.
  */
 async function assertPeopleLinks(
@@ -249,7 +249,12 @@ async function assertPeopleLinks(
     departmentIds.length
       ? prisma.department.findMany({
           where: { id: { in: departmentIds }, organizationId, deletedAt: null },
-          select: { id: true, name: true, departmentRequesters: { select: { requesterId: true } } },
+          select: {
+            id: true,
+            name: true,
+            departmentClients: { select: { clientId: true } },
+            departmentRequesters: { select: { requesterId: true } },
+          },
         })
       : [],
   ]);
@@ -258,13 +263,18 @@ async function assertPeopleLinks(
     throw new Error(`Solicitante(s) não vinculado(s) ao cliente da demanda: ${wrongRequesters.map((r) => r.name).join(", ")}`);
   }
   const options = departmentsForRequesters(
-    departments.map((d) => ({ id: d.id, requesterIds: d.departmentRequesters.map((dr) => dr.requesterId) })),
+    departments.map((d) => ({
+      id: d.id,
+      clientIds: d.departmentClients.map((dc) => dc.clientId),
+      requesterIds: d.departmentRequesters.map((dr) => dr.requesterId),
+    })),
+    clientId,
     requesterIds,
     saved.departmentIds,
   );
   const wrongDepartments = departments.filter((d) => !options.some((o) => o.id === d.id));
   if (wrongDepartments.length) {
-    throw new Error(`Departamento(s) não vinculado(s) aos solicitantes da demanda: ${wrongDepartments.map((d) => d.name).join(", ")}`);
+    throw new Error(`Departamento(s) não vinculado(s) ao cliente/solicitantes da demanda: ${wrongDepartments.map((d) => d.name).join(", ")}`);
   }
 }
 
@@ -341,7 +351,7 @@ export const demandService = {
       clients: [] as Client[],
       analysts: [] as { id: string; name: string; color: string }[],
       requesters: [] as { id: string; name: string; color: string }[],
-      departments: [] as { id: string; name: string; color: string }[],
+      departments: [] as { id: string; name: string; color: string; clientIds: string[] }[],
       demandTypes: [] as { id: string; name: string; color: string }[],
       tags: [] as { id: string; name: string; color: string }[],
       priorities: [] as Priority[],
@@ -388,7 +398,13 @@ export const demandService = {
         ? prisma.requester.findMany({ where: { id: { in: requesterIds } }, select: { id: true, name: true, color: true }, ...byName })
         : [],
       departmentIds.length
-        ? prisma.department.findMany({ where: { id: { in: departmentIds } }, select: { id: true, name: true, color: true }, ...byName })
+        ? prisma.department
+            .findMany({
+              where: { id: { in: departmentIds } },
+              select: { id: true, name: true, color: true, departmentClients: { select: { clientId: true } } },
+              ...byName,
+            })
+            .then((rows) => rows.map(({ departmentClients, ...d }) => ({ ...d, clientIds: departmentClients.map((dc) => dc.clientId) })))
         : [],
       demandTypeIds.length
         ? prisma.demandType.findMany({ where: { id: { in: demandTypeIds } }, select: { id: true, name: true, color: true }, ...byName })

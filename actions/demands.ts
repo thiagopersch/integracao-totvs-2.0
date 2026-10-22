@@ -43,7 +43,8 @@ async function getCachedDemandFilterOptions(
   period: Period | null
 ) {
   "use cache";
-  cacheTag("demands");
+  // Departments: the options carry each department's clients, edited on the departments page.
+  cacheTag("demands", "departments");
   return demandService.getFilterOptions(organizationId, allowedClientIds, analystScope, periodToDateRange(period));
 }
 

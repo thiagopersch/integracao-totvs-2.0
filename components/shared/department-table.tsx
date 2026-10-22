@@ -5,6 +5,7 @@ import type { ColumnDef } from "@tanstack/react-table"
 import { useForm, type Resolver } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { DataTable } from "@/components/shared/data-table"
+import { DataTableFilterPanel } from "@/components/shared/data-table-filter-panel"
 import { PageHeader } from "@/components/shared/page-header"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
 import { EntityActionsCell } from "@/components/shared/entity-actions-cell"
@@ -14,6 +15,7 @@ import { ColorBadge } from "@/components/shared/color-badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
+import { Label } from "@/components/ui/label"
 import { Field, FieldLabel, FieldError } from "@/components/ui/field"
 import {
   Dialog,
@@ -32,7 +34,7 @@ import { useCrudTable } from "@/hooks/use-crud-table"
 import { useHasPermission } from "@/hooks/use-permissions"
 import type { DepartmentWithLinks } from "@/services/department.service"
 import type { RequesterOption } from "@/services/requester.service"
-import { ClientSelect, type ClientSelectOption } from "@/components/shared/client-select"
+import type { ClientSelectOption } from "@/components/shared/client-select"
 import { MultiSelect } from "@/components/ui/multi-select"
 import { randomColor } from "@/lib/colors"
 import type { PaginationMeta } from "@/types/common"
@@ -46,10 +48,11 @@ interface DepartmentTableProps {
   requesters: RequesterOption[]
 }
 
-const SORTABLE_COLUMNS = ["name", "client", "description"]
+const SORTABLE_COLUMNS = ["name", "description"]
 
 export function DepartmentTable({ data, meta, clients, requesters }: DepartmentTableProps) {
   const {
+    searchParams,
     deleteDialog,
     setDeleteDialog,
     editDialog,
@@ -70,6 +73,7 @@ export function DepartmentTable({ data, meta, clients, requesters }: DepartmentT
   const canDelete = useHasPermission("departments", "delete")
   const [loading, setLoading] = useState(false)
   const [newColor, setNewColor] = useState(randomColor)
+  const [clientFilter, setClientFilter] = useState<string[]>(() => (searchParams.get("clientId") || "").split(",").filter(Boolean))
 
   const form = useForm<CreateDepartmentInput>({
     mode: "onChange",
@@ -79,20 +83,27 @@ export function DepartmentTable({ data, meta, clients, requesters }: DepartmentT
           name: editDialog.entity.name,
           description: editDialog.entity.description || "",
           color: editDialog.entity.color,
-          clientId: editDialog.entity.clientId || "",
+          clientIds: editDialog.entity.departmentClients.map((dc) => dc.client.id),
           requesterIds: editDialog.entity.departmentRequesters.map((dr) => dr.requester.id),
         }
-      : { name: "", description: "", color: newColor, clientId: "", requesterIds: [] },
+      : { name: "", description: "", color: newColor, clientIds: [], requesterIds: [] },
   })
-  const clientId = form.watch("clientId") || ""
-  const clientRequesters = useMemo(() => requesters.filter((r) => r.clientId === clientId), [requesters, clientId])
+  const clientIds = form.watch("clientIds") || []
+  const selectedClients = new Set(clientIds)
+  const clientRequesters = requesters.filter((r) => r.clientId && selectedClients.has(r.clientId))
 
-  function handleClientChange(value: string) {
-    form.setValue("clientId", value, { shouldValidate: true })
-    // Requesters belong to one client: keep only those of the newly picked one.
-    const allowed = new Set(requesters.filter((r) => r.clientId === value).map((r) => r.id))
+  function handleClientsChange(values: string[]) {
+    const previousFirst = form.getValues("clientIds")?.[0]
+    form.setValue("clientIds", values, { shouldValidate: true })
+    // Each requester belongs to one client: keep only those of the clients still picked.
+    const selected = new Set(values)
+    const allowed = new Set(requesters.filter((r) => r.clientId && selected.has(r.clientId)).map((r) => r.id))
     const current = form.getValues("requesterIds") || []
     form.setValue("requesterIds", current.filter((id) => allowed.has(id)), { shouldValidate: form.formState.isSubmitted })
+    // Starts from the first client's color (only when that one changes, so adding more clients keeps it);
+    // the color field stays editable.
+    const first = clients.find((c) => c.id === values[0])
+    if (first && first.id !== previousFirst) form.setValue("color", first.color, { shouldDirty: true })
   }
 
   async function onSubmit(data: CreateDepartmentInput) {
@@ -130,7 +141,16 @@ export function DepartmentTable({ data, meta, clients, requesters }: DepartmentT
     {
       id: "client",
       header: "Cliente",
-      cell: ({ row }) => (row.original.client ? <ColorBadge label={row.original.client.name} color={row.original.client.color} /> : "-"),
+      cell: ({ row }) =>
+        row.original.departmentClients.length ? (
+          <div className="flex flex-wrap gap-1">
+            {row.original.departmentClients.map(({ client }) => (
+              <ColorBadge key={client.id} label={client.name} color={client.color} />
+            ))}
+          </div>
+        ) : (
+          "-"
+        ),
     },
     {
       id: "requesters",
@@ -181,9 +201,17 @@ export function DepartmentTable({ data, meta, clients, requesters }: DepartmentT
             <FieldError errors={[form.formState.errors.name]} />
           </Field>
           <Field>
-            <FieldLabel htmlFor="clientId">Cliente</FieldLabel>
-            <ClientSelect clients={clients} value={clientId} onValueChange={handleClientChange} invalid={!!form.formState.errors.clientId} />
-            <FieldError errors={[form.formState.errors.clientId]} />
+            <FieldLabel htmlFor="clientIds">Clientes</FieldLabel>
+            <MultiSelect
+              items={clients.map((c) => ({ value: c.id, label: c.name, color: c.color }))}
+              value={clientIds}
+              onValueChange={handleClientsChange}
+              placeholder="Selecione os clientes"
+              searchPlaceholder="Buscar cliente..."
+              emptyText="Nenhum cliente encontrado."
+              className={form.formState.errors.clientIds ? "border-destructive" : undefined}
+            />
+            <FieldError errors={[form.formState.errors.clientIds]} />
           </Field>
           <Field>
             <FieldLabel htmlFor="requesterIds">Solicitantes</FieldLabel>
@@ -191,10 +219,10 @@ export function DepartmentTable({ data, meta, clients, requesters }: DepartmentT
               items={clientRequesters.map((r) => ({ value: r.id, label: r.name, color: r.color }))}
               value={form.watch("requesterIds") || []}
               onValueChange={(v) => form.setValue("requesterIds", v, { shouldValidate: true })}
-              placeholder={clientId ? "Selecione os solicitantes" : "Selecione um cliente primeiro"}
+              placeholder={clientIds.length ? "Selecione os solicitantes" : "Selecione um cliente primeiro"}
               searchPlaceholder="Buscar solicitante..."
-              emptyText="Nenhum solicitante deste cliente."
-              disabled={!clientId}
+              emptyText="Nenhum solicitante destes clientes."
+              disabled={!clientIds.length}
               className={form.formState.errors.requesterIds ? "border-destructive" : undefined}
             />
             <FieldError errors={[form.formState.errors.requesterIds]} />
@@ -221,6 +249,27 @@ export function DepartmentTable({ data, meta, clients, requesters }: DepartmentT
     </Dialog>
   )
 
+  const filterPanel = (
+    <DataTableFilterPanel
+      onApply={() => pushParams({ clientId: clientFilter.length ? clientFilter.join(",") : undefined, page: 1 })}
+      onClear={() => {
+        setClientFilter([])
+        pushParams({ clientId: undefined, page: 1 })
+      }}
+    >
+      <div className="space-y-2">
+        <Label>Clientes</Label>
+        <MultiSelect
+          items={clients.map((c) => ({ value: c.id, label: c.name, color: c.color }))}
+          value={clientFilter}
+          onValueChange={setClientFilter}
+          placeholder="Todos"
+          searchPlaceholder="Buscar cliente..."
+        />
+      </div>
+    </DataTableFilterPanel>
+  )
+
   return (
     <>
       <PageHeader title="Departamentos" description="Gerenciar departamentos" />
@@ -238,6 +287,7 @@ export function DepartmentTable({ data, meta, clients, requesters }: DepartmentT
         searchPlaceholder="Buscar por nome..."
         onSearch={(v) => pushParams({ search: v || undefined, page: 1 })}
         toolbarActions={canCreate ? newDialog : undefined}
+        filterPanel={filterPanel}
         sort={sort}
         onSortChange={onSortChange}
         sortableColumns={SORTABLE_COLUMNS}

@@ -18,7 +18,7 @@ export async function createDepartment(formData: FormData) {
     name: formData.get("name") as string,
     description: (formData.get("description") as string) || undefined,
     color: (formData.get("color") as string) || "#f59e0b",
-    clientId: (formData.get("clientId") as string) || "",
+    clientIds: formData.getAll("clientIds").map(String).filter(Boolean),
     requesterIds: formData.getAll("requesterIds").map(String).filter(Boolean),
   };
 
@@ -43,7 +43,7 @@ export async function updateDepartment(id: string, formData: FormData) {
     name: formData.get("name") as string,
     description: (formData.get("description") as string) || undefined,
     color: (formData.get("color") as string) || undefined,
-    clientId: (formData.get("clientId") as string) || "",
+    clientIds: formData.getAll("clientIds").map(String).filter(Boolean),
     requesterIds: formData.getAll("requesterIds").map(String).filter(Boolean),
   };
 

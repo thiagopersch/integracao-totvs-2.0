@@ -34,6 +34,7 @@ export const ENTITY_LABELS: Record<string, string> = {
   DemandDepartment: "Demandas",
   DemandDemandType: "Demandas",
   DepartmentRequester: "Departamentos",
+  DepartmentClient: "Departamentos",
   Comment: "Comentários",
   Attachment: "Anexos",
   Notification: "Notificações",

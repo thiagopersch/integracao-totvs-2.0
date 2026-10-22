@@ -176,7 +176,12 @@ export function RequesterTable({ data, meta, clients }: RequesterTableProps) {
             <ClientSelect
               clients={clients}
               value={form.watch("clientId") || ""}
-              onValueChange={(v) => form.setValue("clientId", v, { shouldValidate: true })}
+              onValueChange={(v) => {
+                form.setValue("clientId", v, { shouldValidate: true })
+                // Starts from the client's color; the color field below stays editable.
+                const client = clients.find((c) => c.id === v)
+                if (client) form.setValue("color", client.color, { shouldDirty: true })
+              }}
               invalid={!!form.formState.errors.clientId}
             />
             <FieldError errors={[form.formState.errors.clientId]} />
