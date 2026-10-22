@@ -32,6 +32,8 @@ const tableBlock = z.object({
     widthUnit: z.enum(["px", "%"]).optional(),
     fontSize: z.number().min(10).max(24).optional(),
     columnWidths: z.array(z.number().min(1).max(100).nullable()).max(10).optional(),
+    mobileLayout: z.enum(["cards", "scroll"]).optional(),
+    wrapCells: z.boolean().optional(),
     headerBgColor: z.string().optional(),
     borderColor: z.string().optional(),
   }),

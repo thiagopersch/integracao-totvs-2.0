@@ -4,11 +4,11 @@ import { useState } from "react"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { cn } from "@/lib/utils"
-import { EMAIL_WIDTH_PRESETS, MAX_EMAIL_WIDTH, MIN_EMAIL_WIDTH } from "@/lib/message-templates/render-email"
+import { EMAIL_WIDTH_PRESETS, MIN_EMAIL_WIDTH } from "@/lib/message-templates/render-email"
 
-const clamp = (n: number) => Math.round(Math.min(Math.max(n, MIN_EMAIL_WIDTH), MAX_EMAIL_WIDTH))
+const atLeastMin = (n: number) => Math.round(Math.max(n, MIN_EMAIL_WIDTH))
 
-/** Template-level body width (MessageTemplate.emailWidth): presets + a free value, clamped on blur. */
+/** Template-level body width (MessageTemplate.emailWidth): presets + any value from the minimum up. */
 export function EmailWidthField({ value, onChange }: { value: number; onChange: (value: number) => void }) {
   const [draft, setDraft] = useState<string | null>(null)
   return (
@@ -35,16 +35,15 @@ export function EmailWidthField({ value, onChange }: { value: number; onChange: 
             id="email-width"
             type="number"
             min={MIN_EMAIL_WIDTH}
-            max={MAX_EMAIL_WIDTH}
             step={10}
             value={draft ?? value}
             onChange={(e) => {
               setDraft(e.target.value)
               const n = Number(e.target.value)
-              if (n >= MIN_EMAIL_WIDTH && n <= MAX_EMAIL_WIDTH) onChange(Math.round(n))
+              if (n >= MIN_EMAIL_WIDTH) onChange(Math.round(n))
             }}
             onBlur={() => {
-              if (draft !== null) onChange(clamp(Number(draft) || value))
+              if (draft !== null) onChange(atLeastMin(Number(draft) || value))
               setDraft(null)
             }}
             className="h-8 pr-8 text-xs"
@@ -53,8 +52,8 @@ export function EmailWidthField({ value, onChange }: { value: number; onChange: 
         </div>
       </div>
       <p className="text-xs text-muted-foreground">
-        600px funciona em qualquer cliente de e-mail. Larguras maiores ajudam tabelas com muitas colunas; no celular alguns
-        clientes reduzem o zoom.
+        Largura máxima no computador. No celular o e-mail se ajusta à tela e as tabelas viram cartões (veja o Preview em
+        &quot;Celular&quot;).
       </p>
     </div>
   )

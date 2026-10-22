@@ -2,7 +2,7 @@ import { z } from "zod";
 import { blockTreeSchema } from "@/lib/message-templates/block-schema";
 import { allowedAttachmentTypes, TEMPLATE_ATTACHMENT_LABELS, templateAttachmentsSchema } from "@/lib/message-templates/attachments";
 import { supportsAllClients } from "@/lib/message-templates/events";
-import { DEFAULT_EMAIL_WIDTH, MAX_EMAIL_WIDTH, MIN_EMAIL_WIDTH } from "@/lib/message-templates/render-email";
+import { DEFAULT_EMAIL_WIDTH, MIN_EMAIL_WIDTH } from "@/lib/message-templates/render-email";
 
 export const messageTemplateSchema = z
   .object({
@@ -16,8 +16,9 @@ export const messageTemplateSchema = z
     emailWidth: z
       .number()
       .int()
-      .min(MIN_EMAIL_WIDTH, `A largura do e-mail deve ser de ${MIN_EMAIL_WIDTH} a ${MAX_EMAIL_WIDTH}px`)
-      .max(MAX_EMAIL_WIDTH, `A largura do e-mail deve ser de ${MIN_EMAIL_WIDTH} a ${MAX_EMAIL_WIDTH}px`)
+      .min(MIN_EMAIL_WIDTH, `A largura do e-mail deve ser de pelo menos ${MIN_EMAIL_WIDTH}px`)
+      // Only the database column's (int4) bound — no product limit.
+      .max(2_147_483_647, "Largura do e-mail inválida")
       .default(DEFAULT_EMAIL_WIDTH),
     bodyText: z.string().max(4096, "A mensagem do WhatsApp deve ter no máximo 4096 caracteres").default(""),
     isActive: z.boolean().default(true),

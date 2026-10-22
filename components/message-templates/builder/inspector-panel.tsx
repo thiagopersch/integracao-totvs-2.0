@@ -493,6 +493,25 @@ function TableInspector({ block, patch }: { block: TableBlock; patch: Patch<Tabl
           min={10}
           max={24}
         />
+        {hasHeader ? (
+          <SegmentedField
+            label="No celular"
+            value={block.props.mobileLayout ?? "cards"}
+            onChange={(mobileLayout) => patch({ mobileLayout })}
+            options={[
+              { value: "cards", label: "Cartões", title: "Cada linha vira um cartão com o cabeçalho como rótulo" },
+              { value: "scroll", label: "Rolar para o lado", title: "Mantém as colunas e rola horizontalmente" },
+            ]}
+          />
+        ) : (
+          <p className="text-[11px] text-muted-foreground">No celular a tabela rola para o lado (os cartões precisam do cabeçalho).</p>
+        )}
+        <div className="flex items-center justify-between gap-2">
+          <Label htmlFor={`wrap-${block.id}`} className="text-xs">
+            Permitir quebra de linha nas células
+          </Label>
+          <Switch id={`wrap-${block.id}`} checked={!!block.props.wrapCells} onCheckedChange={(wrapCells) => patch({ wrapCells })} />
+        </div>
         {block.props.columnWidths && (
           <Button type="button" variant="outline" size="sm" className="w-full" onClick={() => patch({ columnWidths: undefined })}>
             Distribuir colunas automaticamente

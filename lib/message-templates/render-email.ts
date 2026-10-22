@@ -33,11 +33,10 @@ export interface RenderOptions {
 /** 600px is the classic width every email client handles; wider bodies suit many-column reports. */
 export const DEFAULT_EMAIL_WIDTH = 600;
 export const EMAIL_WIDTH_PRESETS = [600, 700, 800, 900];
-export const MIN_EMAIL_WIDTH = 480;
-export const MAX_EMAIL_WIDTH = 1000;
+/** Smallest useful body — no maximum: on phones the body is fluid anyway (see EMAIL_RESPONSIVE_CSS). */
+export const MIN_EMAIL_WIDTH = 320;
 
-const emailWidthOf = (width?: number) =>
-  Math.round(Math.min(Math.max(width || DEFAULT_EMAIL_WIDTH, MIN_EMAIL_WIDTH), MAX_EMAIL_WIDTH));
+const emailWidthOf = (width?: number) => Math.round(Math.max(width || DEFAULT_EMAIL_WIDTH, MIN_EMAIL_WIDTH));
 
 /** Width of a table/box: the `width` attribute (px only — Outlook reads it) + the inline style. */
 function boxWidth(width: number | undefined, unit: "px" | "%" = "px") {
@@ -162,6 +161,13 @@ function renderDivider(block: DividerBlock): string {
   return `<td style="padding:0;"><hr style="border:none;border-top:${thickness}px solid ${attr(color)};margin:${marginY}px 0;"></td>`;
 }
 
+/**
+ * Tables never break words: cells stay on one line (`wrapCells` allows wrapping between words) and
+ * the table sits in a horizontal-scroll box, so a wide table keeps its columns aligned instead of
+ * squeezing. On phones (EMAIL_RESPONSIVE_CSS) a table with a header turns each row into a card: the
+ * first column is the title and every other cell shows its header as a label ("Horas ... 30h") —
+ * the labels are hidden spans in the cell, the most portable technique (no ::before/attr()).
+ */
 function renderTable(block: TableBlock): string {
   const {
     cells,
@@ -173,8 +179,12 @@ function renderTable(block: TableBlock): string {
     widthUnit,
     fontSize = 14,
     columnWidths = [],
+    mobileLayout = "cards",
+    wrapCells = false,
   } = block.props;
   const size = boxWidth(width, widthUnit);
+  const cards = hasHeader && mobileLayout === "cards";
+  const labels = cards ? (cells[0] ?? []) : [];
   const colWidth = (c: number) => {
     const w = columnWidths[c];
     return w ? Math.min(Math.round(w), 100) : null;
@@ -185,22 +195,26 @@ function renderTable(block: TableBlock): string {
       const tag = header ? "th" : "td";
       const cellsHtml = row.map((cell, c) => {
         const w = colWidth(c);
-        // Columns without a set width may hold long unbroken content ({{tokens}}, e-mails, URLs):
-        // overflow-wrap:anywhere wraps it instead of pushing the table past the body (word-break is
-        // the fallback for older clients). Sized columns keep normal wrapping between words.
-        const wrap = w ? "" : "overflow-wrap:anywhere;word-break:break-word;";
-        const style = `border:1px solid ${attr(borderColor)};padding:8px;text-align:left;font-size:${fontSize}px;${wrap}${
-          header ? `background-color:${attr(headerBgColor)};font-weight:600;` : ""
-        }`;
+        const style = `border:1px solid ${attr(borderColor)};padding:8px;text-align:left;font-size:${fontSize}px;${
+          wrapCells ? "" : "white-space:nowrap;"
+        }${header ? `background-color:${attr(headerBgColor)};font-weight:600;` : ""}`;
         // Column widths go on the first row's cells — the most portable way across email clients.
         const widthAttr = rowIndex === 0 && w ? ` width="${w}%"` : "";
-        return `<${tag}${widthAttr} style="${style}">${attr(cell)}</${tag}>`;
+        const title = cards && !header && c === 0;
+        const className = title ? ` class="mt-title"` : "";
+        const label =
+          cards && !header && c > 0 && labels[c]?.trim()
+            ? `<span class="mt-label" style="display:none;mso-hide:all;">${attr(labels[c])}</span>`
+            : "";
+        return `<${tag}${widthAttr}${className} style="${style}">${label}${attr(cell)}</${tag}>`;
       });
-      const html = `<tr>${cellsHtml.join("")}</tr>`;
+      const html = `<tr${header && cards ? ` class="mt-head"` : ""}>${cellsHtml.join("")}</tr>`;
       return !header && repeatRows.includes(rowIndex) ? `<!--rowrepeat-->${html}<!--endrowrepeat-->` : html;
     })
     .join("");
-  return `<td style="padding:8px 0;"><table role="presentation"${size.attr} border="0" cellpadding="0" cellspacing="0" style="border-collapse:collapse;${size.style}">${rows}</table></td>`;
+  const classes = [cards && "mt-cards", cards && wrapCells && "mt-wrap", width && widthUnit !== "%" && "mt-fluid"].filter(Boolean).join(" ");
+  const table = `<table role="presentation"${classes ? ` class="${classes}"` : ""}${size.attr} border="0" cellpadding="0" cellspacing="0" style="border-collapse:collapse;${size.style}">${rows}</table>`;
+  return `<td style="padding:8px 0;"><div class="mt-scroll" style="overflow-x:auto;max-width:100%;">${table}</div></td>`;
 }
 
 export function renderLeafBlock(block: LeafBlock, options: RenderOptions = {}): string {
@@ -310,7 +324,7 @@ function renderContainer(block: ContainerBlock, options: RenderOptions): string 
       : stack(block.children, options);
   const border = borderColor && borderColor !== "transparent" ? `border:1px solid ${attr(borderColor)};` : "";
   // `margin` is unreliable on table cells in email clients, so the outer cell's padding simulates it.
-  const html = `<tr><td align="${ALIGN[align]}" style="padding:${marginY}px ${marginX}px;"><table role="presentation"${size.attr} border="0" cellpadding="0" cellspacing="0" style="border-collapse:separate;${size.style}"><tr><td style="padding:${paddingY}px ${paddingX}px;background-color:${attr(backgroundColor)};border-radius:${borderRadius}px;${border}">${inner}</td></tr></table></td></tr>`;
+  const html = `<tr><td align="${ALIGN[align]}" style="padding:${marginY}px ${marginX}px;"><table role="presentation"${width && widthUnit !== "%" ? ` class="mt-fluid"` : ""}${size.attr} border="0" cellpadding="0" cellspacing="0" style="border-collapse:separate;${size.style}"><tr><td style="padding:${paddingY}px ${paddingX}px;background-color:${attr(backgroundColor)};border-radius:${borderRadius}px;${border}">${inner}</td></tr></table></td></tr>`;
   const conditional = withCondition(html, visibleIf);
   return block.props.repeatPerClient ? `<!--repeat-->${conditional}<!--endrepeat-->` : conditional;
 }
@@ -328,11 +342,32 @@ export function renderBlockTree(tree: BlockTree, options: RenderOptions = {}): s
     .join("")}</table>`;
 }
 
+/**
+ * Phone layout (clients that honor <style> media queries — Apple Mail, iOS/Android Gmail with Google
+ * accounts, Outlook mobile…): the body becomes fluid with smaller paddings, fixed-width boxes shrink
+ * to the screen and tables with a header turn into one card per row (see renderTable). `!important`
+ * is needed to win over the inline styles. Clients without media queries keep the desktop layout,
+ * where wide tables scroll sideways instead of squeezing.
+ */
+export const EMAIL_RESPONSIVE_CSS = `@media only screen and (max-width:600px){
+.mt-outer{padding:12px 6px !important}
+.mt-pad{padding:16px !important}
+.mt-fluid{width:100% !important;max-width:100% !important}
+.mt-scroll{overflow:visible !important}
+table.mt-cards,table.mt-cards tbody,table.mt-cards tr,table.mt-cards td{display:block !important;width:100% !important;box-sizing:border-box !important}
+table.mt-cards tr.mt-head{display:none !important}
+table.mt-cards tr{border:1px solid #e2e8f0 !important;border-radius:8px !important;margin:0 0 12px 0 !important;overflow:hidden !important}
+table.mt-cards td{border:0 !important;border-top:1px solid #eef2f6 !important;padding:9px 12px !important;text-align:right !important;white-space:nowrap !important;overflow:hidden !important}
+table.mt-cards.mt-wrap td{white-space:normal !important}
+table.mt-cards td.mt-title{border-top:0 !important;text-align:left !important;font-weight:700 !important;background-color:#f8fafc !important}
+table.mt-cards .mt-label{display:inline !important;float:left !important;margin-right:16px !important;font-weight:600 !important;color:#475569 !important;text-align:left !important}
+}`;
+
 /** Full HTML document sent by email (light background, centered body). */
 export function wrapEmailDocument(bodyHtml: string, subject = "", emailWidth?: number): string {
   return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="color-scheme" content="light"><title>${escapeHtml(
     subject
-  )}</title></head><body style="margin:0;padding:24px 12px;background-color:#f4f4f5;"><table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0"><tr><td align="center"><table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0" style="max-width:${emailWidthOf(emailWidth)}px;background-color:#ffffff;border-radius:8px;"><tr><td style="padding:24px;">${bodyHtml}</td></tr></table></td></tr></table></body></html>`;
+  )}</title><style>${EMAIL_RESPONSIVE_CSS}</style></head><body style="margin:0;padding:0;background-color:#f4f4f5;"><table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0"><tr><td class="mt-outer" align="center" style="padding:24px 12px;"><table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0" style="max-width:${emailWidthOf(emailWidth)}px;background-color:#ffffff;border-radius:8px;"><tr><td class="mt-pad" style="padding:24px;">${bodyHtml}</td></tr></table></td></tr></table></body></html>`;
 }
 
 /** Preview document for the builder iframes: same as the email, with link clicks disabled. */

@@ -80,7 +80,9 @@ describe("repeated table rows", () => {
     expect(html.indexOf(">B<")).toBeLessThan(html.indexOf("10h"))
     // header + one row per client + total, all in the same table
     const dataTable = html.slice(html.lastIndexOf("<table", html.indexOf(">Cliente<")), html.indexOf("</table>", html.indexOf("10h")))
-    expect(dataTable.match(/<tr>/g)).toHaveLength(4)
+    expect(dataTable.match(/<tr[ >]/g)).toHaveLength(4)
+    // on phones each client row is a card with the header as labels
+    expect(dataTable.match(/class="mt-label"[^>]*>Horas</g)).toHaveLength(3)
     // the repeated container next to it still works
     expect(html).toContain("[A 4h]")
     expect(html).toContain("[B 6h]")
@@ -158,7 +160,7 @@ describe("ALL_CLIENTS templates", () => {
     expect(messageTemplateSchema.parse(base).emailWidth).toBe(600)
     expect(messageTemplateSchema.safeParse({ ...base, emailWidth: 800 }).success).toBe(true)
     expect(messageTemplateSchema.safeParse({ ...base, emailWidth: 300 }).success).toBe(false)
-    expect(messageTemplateSchema.safeParse({ ...base, emailWidth: 2000 }).success).toBe(false)
+    expect(messageTemplateSchema.safeParse({ ...base, emailWidth: 2000 }).success).toBe(true)
   })
 
   it("are only valid for the report events on email", () => {

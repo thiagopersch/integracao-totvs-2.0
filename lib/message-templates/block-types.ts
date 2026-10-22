@@ -102,6 +102,10 @@ export interface TableBlock extends BaseBlock {
     fontSize?: number;
     /** Width (%) of each column, by index — null/absent lets the email client size it. */
     columnWidths?: (number | null)[];
+    /** Phones: one card per row (needs the header, default) or keep the columns and scroll sideways. */
+    mobileLayout?: "cards" | "scroll";
+    /** Allow line breaks (between words) inside cells — off by default: cells stay on one line. */
+    wrapCells?: boolean;
     headerBgColor?: string;
     borderColor?: string;
   };

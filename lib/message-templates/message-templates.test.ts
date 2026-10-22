@@ -57,11 +57,36 @@ describe("email, container and table widths", () => {
     } as BlockTree[number],
   ]
 
-  it("uses the template's email width (600 by default, clamped)", () => {
+  it("uses the template's email width (600 by default, no maximum) with a responsive shell", () => {
     expect(renderBlockTree([], { emailWidth: 800 })).toContain("max-width:800px")
-    expect(wrapEmailDocument("", "", 800)).toContain("max-width:800px")
+    expect(wrapEmailDocument("", "", 1600)).toContain("max-width:1600px")
     expect(wrapEmailDocument("")).toContain("max-width:600px")
-    expect(renderBlockTree([], { emailWidth: 5000 })).toContain("max-width:1000px")
+    expect(renderBlockTree([], { emailWidth: 100 })).toContain("max-width:320px")
+    const doc = wrapEmailDocument("")
+    expect(doc).toContain("@media only screen and (max-width:600px)")
+    expect(doc).toContain('class="mt-pad"')
+  })
+
+  it("turns tables with a header into mobile cards, never breaking cell text", () => {
+    const html = renderBlockTree(table({ cells: [["Cliente", "Horas executadas"], ["ITE - Toledo", "30h"]] }))
+    expect(html).toContain('class="mt-cards"')
+    expect(html).toContain('<tr class="mt-head">')
+    expect(html).toContain('class="mt-title"')
+    expect(html).toContain('<span class="mt-label" style="display:none;mso-hide:all;">Horas executadas</span>30h')
+    expect(html).toContain("white-space:nowrap")
+    expect(html).toContain('class="mt-scroll"')
+    expect(html).not.toContain("overflow-wrap:anywhere")
+
+    const scroll = renderBlockTree(table({ mobileLayout: "scroll", wrapCells: true }))
+    expect(scroll).not.toContain("mt-cards")
+    expect(scroll).not.toContain("mt-label")
+    expect(scroll).not.toContain("white-space:nowrap")
+    expect(renderBlockTree(table({ hasHeader: false }))).not.toContain("mt-cards")
+  })
+
+  it("keeps card labels out of the plain-text version", () => {
+    const html = renderBlockTree(table({ cells: [["Cliente", "Horas"], ["A", "30h"]] }))
+    expect(htmlToText(html).match(/Horas/g)).toHaveLength(1)
   })
 
   it("sizes tables: width, font size and per-column widths on the first row", () => {
@@ -70,9 +95,6 @@ describe("email, container and table widths", () => {
     expect(html).toContain("width:90%;")
     expect(html).toContain("font-size:12px")
     expect(html.match(/width="25%"/g)).toHaveLength(1)
-    // sized columns wrap between words; auto ones may break long tokens
-    expect(html).toMatch(/<th width="25%" style="(?![^"]*overflow-wrap)/)
-    expect(html).toContain("overflow-wrap:anywhere")
     expect(renderBlockTree(table({ width: 500, widthUnit: "px" }))).toContain('width="500"')
   })
 

@@ -77,6 +77,8 @@ export function fillTemplateHtml(html: string, vars: Record<string, unknown>, cl
 export function htmlToText(html: string): string {
   return html
     .replace(/<style[\s\S]*?<\/style>/gi, "")
+    // Mobile card labels (render-email renderTable) repeat the table header — not text content.
+    .replace(/<span class="mt-label"[^>]*>[\s\S]*?<\/span>/g, "")
     .replace(/<script[\s\S]*?<\/script>/gi, "")
     .replace(/<br\s*\/?>/gi, "\n")
     .replace(/<\/(p|h[1-6]|li|tr|div|table)>/gi, "\n")
