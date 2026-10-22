@@ -21,7 +21,7 @@ vi.mock("@google/genai", async (importOriginal) => {
 const { geminiToolCall } = await import("./gemini")
 const { ApiError } = await import("@google/genai")
 
-const config = { provider: "GEMINI" as const, model: "gemini-2.5-flash", apiKey: "k" }
+const config = { provider: "GEMINI" as const, model: "gemini-2.5-flash", apiKey: "k", timeoutSeconds: 120 }
 const tool = { name: "propose_demands", description: "d", parameters: { type: "object", properties: {} } }
 
 describe("geminiToolCall", () => {

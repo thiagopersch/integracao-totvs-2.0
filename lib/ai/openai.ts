@@ -6,7 +6,8 @@ export async function openaiToolCall(
   config: AiClientConfig,
   system: string,
   messages: AiChatMessage[],
-  tool: AiToolDefinition
+  tool: AiToolDefinition,
+  signal?: AbortSignal
 ): Promise<AiToolCallResult> {
   const client = new OpenAI({ apiKey: config.apiKey });
   try {
@@ -20,7 +21,7 @@ export async function openaiToolCall(
         },
       ],
       tool_choice: "auto",
-    });
+    }, { signal });
     const choice = response.choices[0];
     if (!choice) throw new Error("A OpenAI não retornou resposta");
     if (choice.finish_reason === "length") {
@@ -40,6 +41,7 @@ export async function openaiToolCall(
     }
     return { toolInput, text: (choice.message.content ?? "").trim() };
   } catch (error) {
+    if (error instanceof OpenAI.APIUserAbortError) throw error;
     if (error instanceof OpenAI.AuthenticationError) throw new Error("Chave de API da OpenAI inválida");
     if (error instanceof OpenAI.NotFoundError) throw new Error(`Modelo "${config.model}" não encontrado na OpenAI`);
     if (error instanceof OpenAI.RateLimitError) throw new Error("Limite de uso da API da OpenAI atingido — tente novamente em instantes");

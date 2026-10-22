@@ -14,7 +14,15 @@ import { PasswordInput } from "@/components/ui/password-input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { saveAiSettings, testAiSettings } from "@/actions/integrations/ai-settings"
-import { AI_DEFAULT_MODEL, AI_MODEL_SUGGESTIONS, AI_PROVIDER_LABELS, type AiProviderId } from "@/lib/ai/types"
+import {
+  AI_DEFAULT_MODEL,
+  AI_MODEL_SUGGESTIONS,
+  AI_PROVIDER_LABELS,
+  AI_TIMEOUT_DEFAULT_SECONDS,
+  AI_TIMEOUT_MAX_SECONDS,
+  AI_TIMEOUT_MIN_SECONDS,
+  type AiProviderId,
+} from "@/lib/ai/types"
 
 interface AiSettingsClientProps {
   initialSettings: {
@@ -22,6 +30,7 @@ interface AiSettingsClientProps {
     model: string
     enabled: boolean
     instructions: string | null
+    timeoutSeconds: number
     hasApiKey: boolean
   } | null
 }
@@ -35,6 +44,7 @@ export function AiSettingsClient({ initialSettings }: AiSettingsClientProps) {
   const [apiKey, setApiKey] = useState("")
   const [enabled, setEnabled] = useState(initialSettings?.enabled ?? true)
   const [instructions, setInstructions] = useState(initialSettings?.instructions ?? "")
+  const [timeoutSeconds, setTimeoutSeconds] = useState(String(initialSettings?.timeoutSeconds ?? AI_TIMEOUT_DEFAULT_SECONDS))
   const [saving, setSaving] = useState(false)
   const [testing, setTesting] = useState(false)
 
@@ -48,7 +58,7 @@ export function AiSettingsClient({ initialSettings }: AiSettingsClientProps) {
   async function handleSave(e: React.FormEvent) {
     e.preventDefault()
     setSaving(true)
-    const result = await saveAiSettings({ provider, model, apiKey, enabled, instructions })
+    const result = await saveAiSettings({ provider, model, apiKey, enabled, instructions, timeoutSeconds })
     setSaving(false)
     if (result.success) {
       toast.success("Configuração de IA salva")
@@ -122,6 +132,24 @@ export function AiSettingsClient({ initialSettings }: AiSettingsClientProps) {
                 placeholder={keyStoredForProvider ? "Deixe em branco para manter a chave atual" : "Cole a chave de API do provedor"}
               />
               <FieldDescription>Armazenada criptografada; nunca é exibida novamente.</FieldDescription>
+            </Field>
+
+            <Field className="md:max-w-xs">
+              <FieldLabel htmlFor="ai-timeout">Tempo limite da IA (segundos)</FieldLabel>
+              <Input
+                id="ai-timeout"
+                type="number"
+                inputMode="numeric"
+                min={AI_TIMEOUT_MIN_SECONDS}
+                max={AI_TIMEOUT_MAX_SECONDS}
+                step={1}
+                value={timeoutSeconds}
+                onChange={(e) => setTimeoutSeconds(e.target.value)}
+              />
+              <FieldDescription>
+                Quanto tempo esperar a resposta. Lotes grandes (20+ demandas) podem levar mais de 1 minuto. De {AI_TIMEOUT_MIN_SECONDS} a{" "}
+                {AI_TIMEOUT_MAX_SECONDS} s.
+              </FieldDescription>
             </Field>
 
             <Field>

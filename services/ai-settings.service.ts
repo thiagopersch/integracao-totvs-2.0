@@ -1,6 +1,6 @@
 import { decryptSecret, encryptSecret } from "@/lib/secret-box";
 import { prisma } from "@/lib/prisma";
-import type { AiClientConfig, AiProviderId } from "@/lib/ai/types";
+import { AI_TIMEOUT_MAX_SECONDS, AI_TIMEOUT_MIN_SECONDS, type AiClientConfig, type AiProviderId } from "@/lib/ai/types";
 
 export interface AiSettingsInput {
   provider: AiProviderId;
@@ -9,6 +9,7 @@ export interface AiSettingsInput {
   apiKey?: string;
   enabled: boolean;
   instructions: string | null;
+  timeoutSeconds: number;
 }
 
 export const aiSettingsService = {
@@ -20,7 +21,14 @@ export const aiSettingsService = {
   async getClientConfig(organizationId: string): Promise<(AiClientConfig & { instructions: string | null }) | null> {
     const settings = await this.get(organizationId);
     if (!settings || !settings.enabled) return null;
-    return { provider: settings.provider, model: settings.model, apiKey: decryptSecret(settings.apiKey), instructions: settings.instructions };
+    return {
+      provider: settings.provider,
+      model: settings.model,
+      apiKey: decryptSecret(settings.apiKey),
+      instructions: settings.instructions,
+      // Past the route's maxDuration the platform would cut the request before our own message.
+      timeoutSeconds: Math.min(Math.max(settings.timeoutSeconds, AI_TIMEOUT_MIN_SECONDS), AI_TIMEOUT_MAX_SECONDS),
+    };
   },
 
   async save(organizationId: string, input: AiSettingsInput) {
@@ -34,6 +42,7 @@ export const aiSettingsService = {
       model: input.model,
       enabled: input.enabled,
       instructions: input.instructions,
+      timeoutSeconds: input.timeoutSeconds,
     };
     return prisma.aiSettings.upsert({
       where: { organizationId },

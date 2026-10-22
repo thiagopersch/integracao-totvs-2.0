@@ -8,7 +8,7 @@ import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "
 import { Textarea } from "@/components/ui/textarea"
 import { cn } from "@/lib/utils"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
-import { getAiAssistantData, getAiConversation, proposeRecordsWithAi, saveAiConversation } from "@/actions/ai-assistant"
+import { getAiAssistantData, getAiConversation, saveAiConversation, type proposeRecordsWithAi } from "@/actions/ai-assistant"
 import {
   AI_ENTITIES,
   orderForCreation,
@@ -23,6 +23,31 @@ import type { AiChatMessage } from "@/lib/ai/types"
 import { createRecord } from "./create-record"
 import { ProposalCard, type ProposalState } from "./proposal-card"
 import { ConversationHistory } from "./conversation-history"
+
+type ProposeResult = Awaited<ReturnType<typeof proposeRecordsWithAi>>
+
+/** Calls the assistant route (not a Server Action: a large batch outlives the page's action timeout).
+ *  Never throws — network failures and gateway timeouts come back as an error result. */
+async function requestProposals(messages: AiChatMessage[]): Promise<ProposeResult> {
+  try {
+    const response = await fetch("/api/ai-assistant/propose", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ messages }),
+    })
+    const data = (await response.json().catch(() => null)) as ProposeResult | null
+    if (data) return data
+    return {
+      success: false,
+      error:
+        response.status === 504
+          ? "A IA demorou demais para responder. Tente pedir menos registros por vez."
+          : `Erro ao falar com o assistente (${response.status})`,
+    }
+  } catch {
+    return { success: false, error: "Falha de conexão com o assistente — tente novamente" }
+  }
+}
 
 interface AiAssistantProps {
   onCreated: () => void
@@ -169,7 +194,7 @@ export function AiAssistant({ onCreated }: AiAssistantProps) {
     setThinking(true)
     const request = ++requestRef.current
     const history: AiChatMessage[] = nextChat.map((m) => ({ role: m.role, content: m.content }))
-    const result = await proposeRecordsWithAi(history)
+    const result = await requestProposals(history)
     // The user left (or started another conversation) while it was thinking: drop the answer.
     if (request !== requestRef.current) return
     setThinking(false)

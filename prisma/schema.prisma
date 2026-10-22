@@ -1338,6 +1338,8 @@ model AiSettings {
   enabled        Boolean    @default(true)
   /// Extra instructions appended to the assistant's system prompt (house rules, defaults...).
   instructions   String?    @db.Text
+  /// Seconds to wait for the provider before giving up (capped by the route's maxDuration).
+  timeoutSeconds Int        @default(120) @map("timeout_seconds")
   createdAt      DateTime   @default(now()) @map("created_at")
   updatedAt      DateTime   @updatedAt @map("updated_at")
 

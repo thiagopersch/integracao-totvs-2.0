@@ -5,6 +5,7 @@ import { requirePermission } from "@/lib/rbac";
 import { auditService } from "@/services/audit.service";
 import { aiSettingsService } from "@/services/ai-settings.service";
 import { runAiToolCall } from "@/lib/ai";
+import { AI_TIMEOUT_MAX_SECONDS, AI_TIMEOUT_MIN_SECONDS } from "@/lib/ai/types";
 
 const aiSettingsSchema = z.object({
   provider: z.enum(["ANTHROPIC", "OPENAI", "GEMINI"]),
@@ -17,6 +18,11 @@ const aiSettingsSchema = z.object({
     .max(4000, "Instruções devem ter no máximo 4000 caracteres")
     .nullable()
     .transform((v) => v || null),
+  timeoutSeconds: z.coerce
+    .number({ message: "Informe o tempo limite" })
+    .int("Tempo limite deve ser um número inteiro de segundos")
+    .min(AI_TIMEOUT_MIN_SECONDS, `Tempo limite mínimo de ${AI_TIMEOUT_MIN_SECONDS} s`)
+    .max(AI_TIMEOUT_MAX_SECONDS, `Tempo limite máximo de ${AI_TIMEOUT_MAX_SECONDS} s (limite da plataforma)`),
 });
 
 export async function getAiSettings() {
@@ -29,6 +35,7 @@ export async function getAiSettings() {
     model: settings.model,
     enabled: settings.enabled,
     instructions: settings.instructions,
+    timeoutSeconds: settings.timeoutSeconds,
     hasApiKey: !!settings.apiKey,
   };
 }
@@ -46,7 +53,7 @@ export async function saveAiSettings(input: unknown) {
       entityId: organizationId,
       organizationId,
       userId,
-      newData: { provider: rest.provider, model: rest.model, enabled: rest.enabled, apiKeyChanged: !!apiKey },
+      newData: { provider: rest.provider, model: rest.model, enabled: rest.enabled, timeoutSeconds: rest.timeoutSeconds, apiKeyChanged: !!apiKey },
     });
     return { success: true };
   } catch (error) {

@@ -39,8 +39,16 @@ export interface AiToolCallResult {
   text: string;
 }
 
+/** How long a call may wait for the provider (Integrações > Assistente IA). The max stays 20 s under
+ *  the `maxDuration` (300, Vercel Hobby) of app/api/ai-assistant/propose/route.ts, leaving time to load
+ *  the catalogs and answer before the platform cuts the request — change both together. */
+export const AI_TIMEOUT_MIN_SECONDS = 10;
+export const AI_TIMEOUT_MAX_SECONDS = 280;
+export const AI_TIMEOUT_DEFAULT_SECONDS = 120;
+
 export interface AiClientConfig {
   provider: AiProviderId;
   model: string;
   apiKey: string;
+  timeoutSeconds: number;
 }

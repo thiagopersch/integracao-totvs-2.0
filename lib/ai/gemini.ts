@@ -7,7 +7,8 @@ export async function geminiToolCall(
   config: AiClientConfig,
   system: string,
   messages: AiChatMessage[],
-  tool: AiToolDefinition
+  tool: AiToolDefinition,
+  signal?: AbortSignal
 ): Promise<AiToolCallResult> {
   const ai = new GoogleGenAI({ apiKey: config.apiKey })
   try {
@@ -18,6 +19,7 @@ export async function geminiToolCall(
         parts: [{ text: m.content }],
       })),
       config: {
+        abortSignal: signal,
         systemInstruction: system,
         tools: [
           {

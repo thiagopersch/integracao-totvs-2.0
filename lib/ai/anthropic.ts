@@ -10,7 +10,8 @@ export async function anthropicToolCall(
   config: AiClientConfig,
   system: string,
   messages: AiChatMessage[],
-  tool: AiToolDefinition
+  tool: AiToolDefinition,
+  signal?: AbortSignal
 ): Promise<AiToolCallResult> {
   const client = new Anthropic({ apiKey: config.apiKey });
   try {
@@ -30,7 +31,7 @@ export async function anthropicToolCall(
         },
       ],
       tool_choice: { type: "auto" },
-    });
+    }, { signal });
 
     if (response.stop_reason === "refusal") {
       throw new Error("O modelo recusou a solicitação. Reformule o pedido.");
@@ -47,6 +48,7 @@ export async function anthropicToolCall(
     }
     return { toolInput, text: texts.join("\n").trim() };
   } catch (error) {
+    if (error instanceof Anthropic.APIUserAbortError) throw error;
     if (error instanceof Anthropic.AuthenticationError) throw new Error("Chave de API da Anthropic inválida");
     if (error instanceof Anthropic.NotFoundError) throw new Error(`Modelo "${config.model}" não encontrado na Anthropic`);
     if (error instanceof Anthropic.RateLimitError) throw new Error("Limite de uso da API da Anthropic atingido — tente novamente em instantes");
