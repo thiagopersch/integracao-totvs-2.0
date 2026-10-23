@@ -16,6 +16,18 @@ export interface ExportRow {
   Cliente: string;
 }
 
+/** ExportRow keys in column order — the header when there are no rows. */
+export const EXPORT_COLUMNS: (keyof ExportRow)[] = [
+  "Data",
+  "Nome do analista",
+  "Horas executadas",
+  "Nome da demanda",
+  "Descrição da demanda",
+  "Solicitante",
+  "Setor",
+  "Cliente",
+];
+
 /** Decodes SQL Server `FOR XML PATH` / SharePoint style escape codes (e.g. `_x000D_` for carriage
  *  return) that leak into imported text as literal characters instead of real control characters,
  *  then normalizes the resulting line breaks so the text reads cleanly once exported. */

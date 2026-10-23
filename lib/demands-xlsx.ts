@@ -50,12 +50,11 @@ const round2 = (n: number) => Math.round(n * 100) / 100;
 const percentOf = (usedHours: number, contractedHours: number) => (contractedHours > 0 ? round2((usedHours / contractedHours) * 100) : "");
 
 /**
- * ALL_CLIENTS demands report: a "Resumo" sheet (per client: demands, executed/scheduled hours,
- * contract + extra hours and consumption %, plus a total row) and one sheet per client. "Horas
- * extras" only shows up when some client has extra hours launched for the month.
+ * "Resumo" rows of the ALL_CLIENTS demands report (also written to Google Sheets): per client,
+ * demands, executed/scheduled hours, contract + extra hours and consumption %, plus a total row.
+ * "Horas extras" only shows up when some client has extra hours launched for the month.
  */
-export function demandsByClientXlsxBuffer(groups: ClientDemandsGroup[]): Buffer {
-  const workbook = XLSX.utils.book_new();
+export function demandsSummaryRows(groups: ClientDemandsGroup[]) {
   const withExtras = groups.some((g) => (g.usage?.extraHours ?? 0) > 0);
   const summaryRow = (
     clientName: string,
@@ -95,6 +94,13 @@ export function demandsByClientXlsxBuffer(groups: ClientDemandsGroup[]): Buffer 
     total["Consumo (%)"] = percentOf(contractedExecuted, totalUsage.contractedHours);
   }
   summary.push(total);
+  return summary;
+}
+
+/** ALL_CLIENTS demands report: the "Resumo" sheet (demandsSummaryRows) and one sheet per client. */
+export function demandsByClientXlsxBuffer(groups: ClientDemandsGroup[]): Buffer {
+  const workbook = XLSX.utils.book_new();
+  const summary = demandsSummaryRows(groups);
   const used = new Set(["resumo"]);
   XLSX.utils.book_append_sheet(workbook, autoSizedSheet(summary, Object.keys(summary[0])), "Resumo");
   for (const group of groups) {

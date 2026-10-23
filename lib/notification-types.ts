@@ -17,6 +17,7 @@ export const NOTIFICATION_TYPES = {
   PROJECT_TASK_DUE_SOON: "projects.task.due_soon",
   PROJECT_TASK_OVERDUE: "projects.task.overdue",
   PROJECT_TASK_DUE_DIGEST: "projects.task.due_digest",
+  SHEET_SYNC_FAILED: "integrations.sheet_sync.failed",
 } as const;
 
 export type NotificationType = (typeof NOTIFICATION_TYPES)[keyof typeof NOTIFICATION_TYPES];
@@ -132,6 +133,31 @@ export function buildIntegrationTestFailedNotification(params: {
       href: `/integrations/${params.integration.toLowerCase()}`,
       source: "api",
       sourceLabel: `Integração (API) — ${params.integration}`,
+      errorMessage: params.errorMessage,
+      errorKind: params.errorKind,
+      url: params.url,
+    },
+  };
+}
+
+export function buildSheetSyncFailedNotification(params: {
+  syncName: string;
+  errorMessage: string;
+  errorKind?: ErrorKind;
+  url?: string;
+  clientId?: string;
+  clientName?: string;
+}): BuiltNotification {
+  return {
+    type: NOTIFICATION_TYPES.SHEET_SYNC_FAILED,
+    title: `Falha ao atualizar planilha — ${params.syncName}`,
+    body: `A atualização da planilha Google "${params.syncName}" falhou: ${params.errorMessage}`,
+    data: {
+      href: "/integrations/sheet-syncs",
+      source: "api",
+      sourceLabel: "Integração (API) — Google Sheets",
+      clientId: params.clientId,
+      clientName: params.clientName,
       errorMessage: params.errorMessage,
       errorKind: params.errorKind,
       url: params.url,

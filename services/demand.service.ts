@@ -599,6 +599,12 @@ export const demandService = {
     };
   },
 
+  /** Clients of the demands — read before an edit that may move them to another client. */
+  async clientIdsOf(ids: string[], organizationId: string) {
+    const rows = await prisma.demand.findMany({ where: { id: { in: ids }, organizationId }, select: { clientId: true } });
+    return [...new Set(rows.map((r) => r.clientId))];
+  },
+
   async softDelete(id: string, organizationId: string, allowedClientIds: string[]) {
     return demandRepository.softDelete(id, organizationId, { clientId: { in: allowedClientIds } });
   },

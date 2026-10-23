@@ -8,5 +8,7 @@ export async function register() {
     startProjectDeadlineScheduler();
     const { startDemandReportScheduler } = await import("@/lib/demand-report-scheduler");
     startDemandReportScheduler();
+    const { startDemandSheetSyncScheduler } = await import("@/lib/demand-sheet-sync-scheduler");
+    startDemandSheetSyncScheduler();
   }
 }

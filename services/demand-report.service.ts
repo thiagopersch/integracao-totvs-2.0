@@ -61,7 +61,7 @@ export function reportMode(template: Pick<MessageTemplate, "event" | "scope">): 
 const usageMonth = (period: ResolvedReportPeriod) => ({ year: period.gte.getUTCFullYear(), month: period.gte.getUTCMonth() + 1 });
 
 /** Demands of several clients in the period, grouped by client (same order as getClientDemands). */
-async function getDemandsByClient(organizationId: string, clientIds: string[], period: { gte: Date; lt: Date }) {
+export async function getDemandsByClient(organizationId: string, clientIds: string[], period: { gte: Date; lt: Date }) {
   const demands = await prisma.demand.findMany({
     where: { organizationId, clientId: { in: clientIds }, deletedAt: null, date: { gte: period.gte, lt: period.lt } },
     orderBy: { date: "asc" },
@@ -73,7 +73,7 @@ async function getDemandsByClient(organizationId: string, clientIds: string[], p
 }
 
 /** Monthly allowance (contract + extras) of each client for the report's reference month, by client id. */
-async function getUsageByClient(organizationId: string, clientIds: string[], period: ResolvedReportPeriod) {
+export async function getUsageByClient(organizationId: string, clientIds: string[], period: ResolvedReportPeriod) {
   if (clientIds.length === 0) return new Map<string, ClientMonthlyUsage>();
   const usage = await contractUsageService.getMonthlyUsage(organizationId, usageMonth(period), clientIds);
   return new Map(usage.map((u) => [u.clientId, u]));

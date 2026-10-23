@@ -3,6 +3,7 @@
 import { updateTag, cacheTag } from "next/cache";
 import { demandService, demandHasAnalyst } from "@/services/demand.service";
 import { contractUsageService } from "@/services/contract-usage.service";
+import { demandSheetSyncService } from "@/services/demand-sheet-sync.service";
 import { auditService } from "@/services/audit.service";
 import { bulkUpdateDemandSchema, createDemandSchema, updateDemandSchema, type BulkUpdateDemandInput } from "@/schemas/demand.schema";
 import { requirePermission } from "@/lib/rbac";
@@ -113,6 +114,7 @@ export async function createDemand(formData: FormData) {
     await syncProjectHours({ projectIds: [entity.projectId], taskIds: [entity.projectTaskId] });
     // A new demand always re-sends the consumption email once the month is at 80%+.
     contractUsageService.scheduleCheck(ctx.organizationId, [{ clientId: entity.clientId, date: entity.date, trigger: "demand", demandId: entity.id }]);
+    demandSheetSyncService.scheduleDemandsChanged(ctx.organizationId, { clientIds: [entity.clientId] });
     invalidateDemandTags();
     return { success: true, data: entity };
   } catch (error) {
@@ -134,6 +136,7 @@ export async function updateDemand(id: string, formData: FormData) {
 
   try {
     const before = await demandService.projectLinks([id], ctx.organizationId);
+    const clientsBefore = await demandService.clientIdsOf([id], ctx.organizationId);
     const entity = await demandService.update(id, parsed.data, ctx.organizationId, ctx.allowedClientIds);
     await auditService.log({ action: "UPDATE", entity: "Demand", entityId: id, newData: { name: entity.name } });
     await syncProjectHours({
@@ -141,6 +144,8 @@ export async function updateDemand(id: string, formData: FormData) {
       taskIds: [...before.taskIds, entity.projectTaskId],
     });
     contractUsageService.scheduleCheck(ctx.organizationId, [{ clientId: entity.clientId, date: entity.date, trigger: "contract", demandId: entity.id }]);
+    // A demand moved to another client changes both clients' spreadsheets.
+    demandSheetSyncService.scheduleDemandsChanged(ctx.organizationId, { clientIds: [...clientsBefore, entity.clientId] });
     invalidateDemandTags();
     return { success: true, data: entity };
   } catch (error) {
@@ -158,6 +163,7 @@ export async function duplicateDemand(id: string) {
     await syncProjectHours({ projectIds: [entity.projectId], taskIds: [entity.projectTaskId] });
     // The copy adds hours to the contract just like a new demand.
     contractUsageService.scheduleCheck(ctx.organizationId, [{ clientId: entity.clientId, date: entity.date, trigger: "demand", demandId: entity.id }]);
+    demandSheetSyncService.scheduleDemandsChanged(ctx.organizationId, { clientIds: [entity.clientId] });
     invalidateDemandTags();
     return { success: true, data: entity };
   } catch (error) {
@@ -171,6 +177,7 @@ export async function deleteDemand(id: string) {
     const links = await demandService.projectLinks([id], organizationId);
     await demandService.softDelete(id, organizationId, allowedClientIds);
     await auditService.log({ action: "DELETE", entity: "Demand", entityId: id });
+    demandSheetSyncService.scheduleDemandsChanged(organizationId, { demandIds: [id] });
     await syncProjectHours(links);
     invalidateDemandTags();
     return { success: true };
@@ -190,6 +197,7 @@ export async function bulkUpdateDemands(ids: string[], input: BulkUpdateDemandIn
   try {
     const scope = await getDemandAnalystScope(ctx);
     const before = await demandService.projectLinks(ids, ctx.organizationId);
+    const clientsBefore = await demandService.clientIdsOf(ids, ctx.organizationId);
     const result = await demandService.bulkUpdate(ids, parsed.data, ctx.organizationId, ctx.allowedClientIds, scope);
     if (result.updated.length) {
       await auditService.log({
@@ -208,6 +216,9 @@ export async function bulkUpdateDemands(ids: string[], input: BulkUpdateDemandIn
         ctx.organizationId,
         result.updated.map((d) => ({ clientId: d.clientId, date: d.date, trigger: "contract" as const, demandId: d.id })),
       );
+      demandSheetSyncService.scheduleDemandsChanged(ctx.organizationId, {
+        clientIds: [...clientsBefore, ...result.updated.map((d) => d.clientId)],
+      });
       invalidateDemandTags();
     }
     return { success: true, updatedCount: result.updated.length, failed: result.failed };
@@ -223,6 +234,7 @@ export async function bulkDeleteDemands(ids: string[]) {
     const result = await demandService.bulkSoftDelete(ids, organizationId, allowedClientIds);
     await syncProjectHours(links);
     if (result.deletedIds.length) {
+      demandSheetSyncService.scheduleDemandsChanged(organizationId, { demandIds: result.deletedIds });
       await auditService.log({
         action: "BULK_DELETE",
         entity: "Demand",

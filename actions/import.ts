@@ -10,6 +10,7 @@ import { listAllDemandTypes } from "@/actions/demand-types";
 import { auditService } from "@/services/audit.service";
 import { importService, ImportPartialFailure, type ImportCandidates } from "@/services/import.service";
 import { contractUsageService } from "@/services/contract-usage.service";
+import { demandSheetSyncService } from "@/services/demand-sheet-sync.service";
 import { commitDemandImportSchema } from "@/schemas/demand-import.schema";
 import type { ParsedDemandRow } from "@/schemas/demand-import.schema";
 
@@ -86,6 +87,7 @@ export async function commitDemandImport(
     ctx.organizationId,
     parsed.data.rows.map((row) => ({ clientId: row.clientId, date: new Date(row.date), trigger: "demand" as const }))
   );
+  demandSheetSyncService.scheduleDemandsChanged(ctx.organizationId, { clientIds: parsed.data.rows.map((row) => row.clientId) });
 
   try {
     const result = await importService.bulkCreate(parsed.data.rows, ctx.organizationId, ctx.allowedClientIds);

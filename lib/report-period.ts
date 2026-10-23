@@ -16,6 +16,9 @@ export const REPORT_PERIOD_LABELS: Record<ReportPeriodKind, string> = {
   last30days: "Últimos 30 dias",
 };
 
+/** Google Sheets syncs fill the tab of one month ("Outubro26"), so only month periods apply. */
+export const SHEET_SYNC_PERIODS = ["currentMonth", "previousMonth"] as const satisfies readonly ReportPeriodKind[];
+
 export function isReportPeriodKind(value: unknown): value is ReportPeriodKind {
   return typeof value === "string" && (REPORT_PERIOD_KINDS as string[]).includes(value);
 }

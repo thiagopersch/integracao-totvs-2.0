@@ -148,6 +148,9 @@ export const navGroups: NavGroup[] = [
     items: [
       { href: "/integrations/tpi", label: "TPI TOTVS", icon: "Landmark", resource: "integrations", action: "execute" },
       { href: "/integrations/cielo", label: "Cielo", icon: "CreditCard", resource: "integrations", action: "execute" },
+      { href: "/integrations/report-schedules", label: "Envio de Relatórios", icon: "CalendarClock", resource: "report_schedules", action: "read" },
+      { href: "/integrations/sheet-syncs", label: "Planilhas Google", icon: "FileSpreadsheet", resource: "sheet_syncs", action: "read" },
+      { href: "/integrations/ai", label: "Assistente IA", icon: "Sparkles", resource: "integrations", action: "execute" },
     ],
   },
   {
@@ -157,8 +160,6 @@ export const navGroups: NavGroup[] = [
     items: [
       { href: "/integrations/email", label: "E-mail (SMTP)", icon: "Mail", resource: "integrations", action: "execute" },
       { href: "/integrations/message-templates", label: "Templates de Mensagem", icon: "MessageSquareText", resource: "message_templates", action: "read" },
-      { href: "/integrations/report-schedules", label: "Envio de Relatórios", icon: "CalendarClock", resource: "report_schedules", action: "read" },
-      { href: "/integrations/ai", label: "Assistente IA", icon: "Sparkles", resource: "integrations", action: "execute" },
     ],
   },
 

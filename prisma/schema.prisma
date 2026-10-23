@@ -172,6 +172,8 @@ model Organization {
   aiSettings             AiSettings?
   aiConversations        AiConversation[]
   demandReportSchedules  DemandReportSchedule[]
+  googleSettings         GoogleSettings?
+  demandSheetSyncs       DemandSheetSync[]
   usageAlerts            ContractUsageAlert[]
   messageTemplates       MessageTemplate[]
   fichaAutomationRuns    FichaAutomationRun[]
@@ -1805,4 +1807,61 @@ model ProjectPhase {
 
   @@index([projectId, deletedAt, position])
   @@map("project_phases")
+}
+
+/// Google Service Account used to write the demand spreadsheets (Integrações > Planilhas Google).
+model GoogleSettings {
+  id                  String   @id @default(uuid())
+  organizationId      String   @unique @map("organization_id")
+  /// Service account key JSON — encrypted (lib/secret-box.ts).
+  serviceAccountJson  String   @map("service_account_json") @db.Text
+  /// `client_email` of the key: the address each spreadsheet must be shared with (Editor).
+  serviceAccountEmail String   @map("service_account_email")
+  enabled             Boolean  @default(true)
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@map("google_settings")
+}
+
+/// Keeps a Google Sheets spreadsheet updated with the demands (and hours summary) of the period.
+model DemandSheetSync {
+  id                 String         @id @default(uuid())
+  organizationId     String         @map("organization_id")
+  name               String
+  spreadsheetUrl     String         @map("spreadsheet_url")
+  spreadsheetId      String         @map("spreadsheet_id")
+  /// Reference period, relative to the sync date — see lib/report-period.ts.
+  period             String         @default("currentMonth")
+  /// Empty = every client (of the organization) with demands in the period.
+  clientIds          String[]       @default([]) @map("client_ids")
+  /// Obsolete (kept to avoid a destructive migration): the sync always fills the month tab ("Outubro26").
+  layout             String         @default("tabs")
+  /// Empty = every analyst. Used to keep a per-analyst timesheet to that analyst's demands.
+  analystIds         String[]       @default([]) @map("analyst_ids")
+  schedule           BackupSchedule @default(NONE)
+  scheduleTime       String?        @map("schedule_time")
+  /// MONTHLY only: day of the month (1-31); null = last day of the month.
+  dayOfMonth         Int?           @map("day_of_month")
+  /// Also syncs shortly after a demand of a covered client is created/edited/removed.
+  syncOnDemandChange Boolean        @default(true) @map("sync_on_demand_change")
+  /// Debounced sync requested by a demand change — the scheduler runs it once this passes.
+  pendingSyncAt      DateTime?      @map("pending_sync_at")
+  isActive           Boolean        @default(true) @map("is_active")
+  nextRunAt          DateTime?      @map("next_run_at")
+  lastRunAt          DateTime?      @map("last_run_at")
+  lastRunStatus      String?        @map("last_run_status")
+  lastRunMessage     String?        @map("last_run_message") @db.Text
+  createdAt          DateTime       @default(now()) @map("created_at")
+  updatedAt          DateTime       @updatedAt @map("updated_at")
+  deletedAt          DateTime?      @map("deleted_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId, deletedAt])
+  @@index([isActive, nextRunAt])
+  @@index([isActive, pendingSyncAt])
+  @@map("demand_sheet_syncs")
 }

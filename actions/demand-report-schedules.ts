@@ -2,26 +2,11 @@
 
 import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/rbac";
-import { assertClientAllowed } from "@/lib/client-access";
-import type { RequestContext } from "@/lib/tenant";
+import { assertClientListScope } from "@/lib/client-scope";
 import { auditService } from "@/services/audit.service";
 import { demandReportService } from "@/services/demand-report.service";
 import { messageTemplateService } from "@/services/message-template.service";
-import { demandReportScheduleSchema, type DemandReportScheduleInput } from "@/schemas/demand-report-schedule.schema";
-
-/** The schedule sends with no user in context, so its clients must fit the creator's scope: "every
- *  client" (empty list) is only allowed to users who can see every client of the organization. */
-async function assertClientScope(input: DemandReportScheduleInput, ctx: RequestContext) {
-  if (input.clientIds.length) {
-    input.clientIds.forEach((id) => assertClientAllowed(id, ctx.allowedClientIds));
-    return;
-  }
-  const total = await prisma.client.count({ where: { organizationId: ctx.organizationId, deletedAt: null } });
-  const visible = await prisma.client.count({
-    where: { organizationId: ctx.organizationId, deletedAt: null, id: { in: ctx.allowedClientIds } },
-  });
-  if (visible < total) throw new Error("Selecione os clientes do relatório (você não tem acesso a todos os clientes)");
-}
+import { demandReportScheduleSchema } from "@/schemas/demand-report-schedule.schema";
 
 function parse(input: unknown) {
   const parsed = demandReportScheduleSchema.safeParse(input);
@@ -49,7 +34,7 @@ export async function createReportSchedule(input: unknown) {
   const { data, error } = parse(input);
   if (!data) return { success: false, error };
   try {
-    await assertClientScope(data, ctx);
+    await assertClientListScope(data.clientIds, ctx);
     const entity = await demandReportService.create(data, ctx.organizationId);
     await auditService.log({
       action: "CREATE",
@@ -68,7 +53,7 @@ export async function updateReportSchedule(id: string, input: unknown) {
   const { data, error } = parse(input);
   if (!data) return { success: false, error };
   try {
-    await assertClientScope(data, ctx);
+    await assertClientListScope(data.clientIds, ctx);
     const entity = await demandReportService.update(id, data, ctx.organizationId);
     await auditService.log({
       action: "UPDATE",

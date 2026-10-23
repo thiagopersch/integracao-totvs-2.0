@@ -52,6 +52,14 @@ export const PERMISSIONS: PermissionDef[] = [
     description: "Enviar agora o relatório de demandas (e-mail com planilha XLSX) de uma regra de envio",
     module: "integrations",
   },
+  ...crud("sheet_syncs", "Planilhas Google", "integrations"),
+  {
+    resource: "sheet_syncs",
+    action: "execute",
+    name: "Sincronizar Planilha Google",
+    description: "Atualizar agora a planilha do Google Sheets com as demandas e horas do período",
+    module: "integrations",
+  },
   { resource: "soap", action: "execute", name: "Executar SOAP", description: "Executar chamadas SOAP", module: "soap" },
   { resource: "soap", action: "history", name: "Visualizar Histórico", description: "Visualizar histórico SOAP", module: "soap" },
   {
@@ -140,7 +148,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<"ADMIN" | "MANAGER" | "USER", stri
         ? p.action === "read"
         : ["soap", "integrations", "tbc_reports", "ps_docs", "ps_ficha_test", "ps_field_search", "dashboard", "notifications", "reports", "deletion_logs", "activity_logs"].includes(p.resource)
           ? true
-          : ["analysts", "contracts", "requesters", "departments", "demand_types", "tags", "demands", "mapeador_projetos", "mapeador_temas", "message_templates", "report_schedules", "projects", "project_tasks", "project_custom_fields"].includes(p.resource)
+          : ["analysts", "contracts", "requesters", "departments", "demand_types", "tags", "demands", "mapeador_projetos", "mapeador_temas", "message_templates", "report_schedules", "sheet_syncs", "projects", "project_tasks", "project_custom_fields"].includes(p.resource)
             ? p.action !== "delete"
             : false
   ).map(toKey),
