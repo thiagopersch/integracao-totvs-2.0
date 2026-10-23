@@ -12,6 +12,7 @@ import { EntityActionsCell } from "@/components/shared/entity-actions-cell"
 import { createSelectColumn } from "@/components/shared/select-column"
 import { TruncatedText } from "@/components/shared/truncated-text"
 import { ColorBadge } from "@/components/shared/color-badge"
+import { BadgeList } from "@/components/shared/badge-list"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -65,7 +66,7 @@ export function DepartmentTable({ data, meta, clients, requesters }: DepartmentT
     isPending,
   } = useCrudTable<Department>({
     deleteAction: deleteDepartment,
-    deleteSuccessMessage: "Departamento excluído com sucesso",
+    deleteSuccessMessage: "Setor excluído com sucesso",
     defaultSort: { field: "name", direction: "asc" },
   })
   const canCreate = useHasPermission("departments", "create")
@@ -89,8 +90,14 @@ export function DepartmentTable({ data, meta, clients, requesters }: DepartmentT
       : { name: "", description: "", color: newColor, clientIds: [], requesterIds: [] },
   })
   const clientIds = form.watch("clientIds") || []
+  const requesterIds = form.watch("requesterIds") || []
   const selectedClients = new Set(clientIds)
   const clientRequesters = requesters.filter((r) => r.clientId && selectedClients.has(r.clientId))
+  const clientNames = new Map(clients.map((c) => [c.id, c.name]))
+  // Listed under their client, both A→Z, so a long selection reads as one block per client.
+  const requesterItems = clientRequesters
+    .map((r) => ({ value: r.id, label: r.name, color: r.color, group: clientNames.get(r.clientId ?? "") }))
+    .sort((a, b) => (a.group ?? "").localeCompare(b.group ?? "") || a.label.localeCompare(b.label))
 
   function handleClientsChange(values: string[]) {
     const previousFirst = form.getValues("clientIds")?.[0]
@@ -119,7 +126,7 @@ export function DepartmentTable({ data, meta, clients, requesters }: DepartmentT
       : await createDepartment(formData)
 
     if (result.success) {
-      toast.success(editDialog.entity ? "Departamento atualizado" : "Departamento criado")
+      toast.success(editDialog.entity ? "Setor atualizado" : "Setor criado")
       form.reset()
       setEditDialog({ open: false })
       refresh()
@@ -140,31 +147,13 @@ export function DepartmentTable({ data, meta, clients, requesters }: DepartmentT
     { accessorKey: "name", header: "Nome", cell: ({ row }) => <ColorBadge label={row.original.name} color={row.original.color} /> },
     {
       id: "client",
-      header: "Cliente",
-      cell: ({ row }) =>
-        row.original.departmentClients.length ? (
-          <div className="flex flex-wrap gap-1">
-            {row.original.departmentClients.map(({ client }) => (
-              <ColorBadge key={client.id} label={client.name} color={client.color} />
-            ))}
-          </div>
-        ) : (
-          "-"
-        ),
+      header: "Clientes",
+      cell: ({ row }) => <BadgeList items={row.original.departmentClients.map(({ client }) => client)} max={3} />,
     },
     {
       id: "requesters",
       header: "Solicitantes",
-      cell: ({ row }) =>
-        row.original.departmentRequesters.length ? (
-          <div className="flex flex-wrap gap-1">
-            {row.original.departmentRequesters.map(({ requester }) => (
-              <ColorBadge key={requester.id} label={requester.name} color={requester.color} />
-            ))}
-          </div>
-        ) : (
-          "-"
-        ),
+      cell: ({ row }) => <BadgeList items={row.original.departmentRequesters.map(({ requester }) => requester)} max={3} />,
     },
     {
       accessorKey: "description",
@@ -188,20 +177,20 @@ export function DepartmentTable({ data, meta, clients, requesters }: DepartmentT
 
   const newDialog = (
     <Dialog open={editDialog.open} onOpenChange={(open) => { setEditDialog({ open, entity: open ? editDialog.entity : undefined }); if (open && !editDialog.entity) setNewColor(randomColor()); if (!open) form.reset() }}>
-      <DialogTrigger render={<Button><Plus className="h-4 w-4 mr-2" /> Novo Departamento</Button>} />
-      <DialogContent className="h-auto max-h-[85vh] sm:max-w-lg">
+      <DialogTrigger render={<Button><Plus className="h-4 w-4 mr-2" /> Novo Setor</Button>} />
+      <DialogContent className="h-auto max-h-[85vh] sm:max-w-2xl">
         <DialogHeader>
-          <DialogTitle>{editDialog.entity ? "Editar Departamento" : "Novo Departamento"}</DialogTitle>
+          <DialogTitle>{editDialog.entity ? "Editar Setor" : "Novo Setor"}</DialogTitle>
         </DialogHeader>
         <form onSubmit={form.handleSubmit(onSubmit)} className="flex min-h-0 flex-1 flex-col overflow-hidden">
         <DialogBody>
           <Field>
             <FieldLabel htmlFor="name">Nome</FieldLabel>
-            <Input id="name" {...form.register("name")} placeholder="Nome do departamento" aria-invalid={!!form.formState.errors.name} />
+            <Input id="name" {...form.register("name")} placeholder="Nome do setor" aria-invalid={!!form.formState.errors.name} />
             <FieldError errors={[form.formState.errors.name]} />
           </Field>
           <Field>
-            <FieldLabel htmlFor="clientIds">Clientes</FieldLabel>
+            <FieldLabel htmlFor="clientIds">Clientes{clientIds.length > 0 && <span className="text-muted-foreground font-normal">({clientIds.length})</span>}</FieldLabel>
             <MultiSelect
               items={clients.map((c) => ({ value: c.id, label: c.name, color: c.color }))}
               value={clientIds}
@@ -214,10 +203,11 @@ export function DepartmentTable({ data, meta, clients, requesters }: DepartmentT
             <FieldError errors={[form.formState.errors.clientIds]} />
           </Field>
           <Field>
-            <FieldLabel htmlFor="requesterIds">Solicitantes</FieldLabel>
+            <FieldLabel htmlFor="requesterIds">Solicitantes{requesterIds.length > 0 && <span className="text-muted-foreground font-normal">({requesterIds.length})</span>}</FieldLabel>
             <MultiSelect
-              items={clientRequesters.map((r) => ({ value: r.id, label: r.name, color: r.color }))}
-              value={form.watch("requesterIds") || []}
+              items={requesterItems}
+              maxVisible={8}
+              value={requesterIds}
               onValueChange={(v) => form.setValue("requesterIds", v, { shouldValidate: true })}
               placeholder={clientIds.length ? "Selecione os solicitantes" : "Selecione um cliente primeiro"}
               searchPlaceholder="Buscar solicitante..."
@@ -272,7 +262,7 @@ export function DepartmentTable({ data, meta, clients, requesters }: DepartmentT
 
   return (
     <>
-      <PageHeader title="Departamentos" description="Gerenciar departamentos" />
+      <PageHeader title="Setores" description="Gerenciar setores" />
 
       <DataTable
         refreshing={isPending}
@@ -302,8 +292,8 @@ export function DepartmentTable({ data, meta, clients, requesters }: DepartmentT
       <ConfirmDialog
         open={deleteDialog.open}
         onOpenChange={(open) => setDeleteDialog({ open, id: deleteDialog.id })}
-        title="Excluir Departamento"
-        description="Tem certeza que deseja excluir este departamento? Esta ação pode ser revertida posteriormente."
+        title="Excluir Setor"
+        description="Tem certeza que deseja excluir este setor? Esta ação pode ser revertida posteriormente."
         confirmLabel="Excluir"
         variant="destructive"
         onConfirm={() => deleteDialog.id && handleDelete(deleteDialog.id)}

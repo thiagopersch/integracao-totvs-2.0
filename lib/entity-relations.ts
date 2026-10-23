@@ -13,6 +13,18 @@ function findReferencingFields(targetModelName: string) {
   return SCHEMA_RELATIONS.filter((relation) => relation.targetModel === targetModelName);
 }
 
+/**
+ * Link tables whose parent row is soft-deleted: a link to a deleted parent (e.g. a deleted demand's
+ * analysts) no longer counts as "in use", so the deleted demand stops blocking its analyst/tag/etc.
+ */
+const SOFT_DELETED_PARENT: Record<string, string> = {
+  DemandTag: "demand",
+  DemandAnalyst: "demand",
+  DemandRequester: "demand",
+  DemandDepartment: "demand",
+  DemandDemandType: "demand",
+};
+
 type CountDelegate = { count(args: { where: Record<string, unknown> }): Promise<number> };
 
 /**
@@ -36,6 +48,8 @@ export async function findBlockingReferences(
 
     const where: Record<string, unknown> = { [ref.fkField]: id };
     if (ref.hasDeletedAt) where.deletedAt = null;
+    const parent = SOFT_DELETED_PARENT[ref.modelName];
+    if (parent) where[parent] = { deletedAt: null };
 
     const count = await delegate.count({ where });
     if (count > 0) {

@@ -93,6 +93,8 @@ export interface BulkDeleteConfig<TData> {
   getRowLabel?: (row: TData) => string
   confirmTitle?: string
   confirmDescription?: (count: number) => string
+  /** Extra content inside the confirm dialog (e.g. what the selected rows are linked to). */
+  confirmContent?: (rows: TData[]) => React.ReactNode
   /** Called after the delete call settles (success or partial), e.g. router.refresh(). */
   onSuccess?: () => void
 }
@@ -549,7 +551,9 @@ export function DataTable<TData, TValue>({
           variant="destructive"
           loading={bulkDeleting}
           onConfirm={handleBulkDelete}
-        />
+        >
+          {bulkDeleteOpen && bulkDelete.confirmContent?.(selectedRows.map((row) => row.original))}
+        </ConfirmDialog>
       )}
     </div>
   )

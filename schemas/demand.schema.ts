@@ -23,7 +23,7 @@ export const createDemandSchema = z
     analystIds: z.array(z.string().min(1)).min(1, "Selecione ao menos um analista"),
     clientId: z.string().min(1, "Cliente é obrigatório"),
     requesterIds: z.array(z.string().min(1)).min(1, "Selecione ao menos um solicitante"),
-    departmentIds: z.array(z.string().min(1)).min(1, "Selecione ao menos um departamento"),
+    departmentIds: z.array(z.string().min(1)).min(1, "Selecione ao menos um setor"),
     demandTypeIds: z.array(z.string().min(1)).min(1, "Selecione ao menos um tipo"),
     tagIds: z.array(z.string()).default([]),
     /** Gestão de Projetos: project (must be of the same client) and, optionally, one of its tasks. */
@@ -49,7 +49,7 @@ export const updateDemandSchema = z
     analystIds: z.array(z.string().min(1)).min(1, "Selecione ao menos um analista").optional(),
     clientId: z.string().min(1, "Cliente é obrigatório").optional(),
     requesterIds: z.array(z.string().min(1)).min(1, "Selecione ao menos um solicitante").optional(),
-    departmentIds: z.array(z.string().min(1)).min(1, "Selecione ao menos um departamento").optional(),
+    departmentIds: z.array(z.string().min(1)).min(1, "Selecione ao menos um setor").optional(),
     demandTypeIds: z.array(z.string().min(1)).min(1, "Selecione ao menos um tipo").optional(),
     tagIds: z.array(z.string()).default([]),
     /** "" clears the link; undefined keeps it. */
@@ -81,7 +81,7 @@ export const bulkUpdateDemandSchema = z
     clientId: z.string().min(1, "Cliente é obrigatório").optional(),
     analystIds: listChange("analista"),
     requesterIds: listChange("solicitante"),
-    departmentIds: listChange("departamento"),
+    departmentIds: listChange("setor"),
     demandTypeIds: listChange("tipo"),
     tagIds: listChange("tag", false),
     /** "" clears the project (and its task). */
@@ -89,7 +89,7 @@ export const bulkUpdateDemandSchema = z
     projectTaskId: z.string().optional(),
   })
   .refine((d) => !d.clientId || (d.requesterIds?.mode === "replace" && d.departmentIds?.mode === "replace"), {
-    message: "Ao trocar o cliente, substitua também os solicitantes e departamentos",
+    message: "Ao trocar o cliente, substitua também os solicitantes e setores",
     path: ["clientId"],
   })
   .refine((d) => !d.projectTaskId || d.projectId !== undefined, { message: "Selecione o projeto da tarefa", path: ["projectTaskId"] })

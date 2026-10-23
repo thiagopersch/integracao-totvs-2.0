@@ -25,6 +25,10 @@ class RequesterRepository extends BaseRepository<Requester> {
     return super.orderByFor(sort);
   }
 
+  protected override defaultOrderBy() {
+    return [{ client: { name: "asc" as const } }, { name: "asc" as const }];
+  }
+
   protected override listInclude() {
     return listInclude;
   }

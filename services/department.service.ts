@@ -5,7 +5,7 @@ import type { Department, Prisma } from "@/generated/prisma/client";
 
 const listInclude = {
   departmentClients: { select: { client: { select: { id: true, name: true, color: true } } }, orderBy: { client: { name: "asc" } } },
-  departmentRequesters: { select: { requester: { select: { id: true, name: true, color: true } } } },
+  departmentRequesters: { select: { requester: { select: { id: true, name: true, color: true } } }, orderBy: { requester: { name: "asc" } } },
 } satisfies Prisma.DepartmentInclude;
 
 export type DepartmentWithLinks = Prisma.DepartmentGetPayload<{ include: typeof listInclude }>;
@@ -20,6 +20,10 @@ class DepartmentRepository extends BaseRepository<Department> {
 
   protected override listInclude() {
     return listInclude;
+  }
+
+  protected override defaultOrderBy() {
+    return { name: "asc" as const };
   }
 
   // Its client/requester links are part of the department itself, never a reason to block deleting it.
@@ -89,7 +93,7 @@ export const departmentService = {
     const { clientIds: _clientIds, requesterIds: _ids, ...data } = input;
     const { clientIds, requesterIds } = await assertLinks(input, organizationId);
     const current = await departmentRepository.findById(id, organizationId);
-    if (!current) throw new Error("Departamento não encontrado");
+    if (!current) throw new Error("Setor não encontrado");
     return prisma.department.update({
       where: { id, organizationId },
       data: {

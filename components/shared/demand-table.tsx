@@ -7,13 +7,13 @@ import { DataTableFilterPanel } from "@/components/shared/data-table-filter-pane
 import { DateCell } from "@/components/shared/date-cell"
 import { PageHeader } from "@/components/shared/page-header"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
+import { DemandDeleteImpact } from "@/components/demands/demand-delete-impact"
 import { EntityActionsCell } from "@/components/shared/entity-actions-cell"
 import { createSelectColumn } from "@/components/shared/select-column"
 import { ColorBadge } from "@/components/shared/color-badge"
-import { Badge } from "@/components/ui/badge"
+import { BadgeList } from "@/components/shared/badge-list"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
-import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip"
 import { MultiSelect, type MultiSelectItem } from "@/components/ui/multi-select"
 import { Slider } from "@/components/ui/slider"
 import { DateRangePicker } from "@/components/ui/date-range-picker"
@@ -122,39 +122,6 @@ const MIN_DURATION_FLOOR_MAX = 8 * 60
 
 function parseDayParam(value: string | null): Date | undefined {
   return value ? parse(value, "yyyy-MM-dd", new Date()) : undefined
-}
-const VISIBLE_TAGS = 2
-
-/** First `VISIBLE_TAGS` colored badges inline, the rest behind a "+N" tooltip (tags, analysts, requesters, departments). */
-function BadgeList({ items }: { items: { id: string; name: string; color: string }[] }) {
-  if (items.length === 0) return "-"
-  const visible = items.slice(0, VISIBLE_TAGS)
-  const hidden = items.slice(VISIBLE_TAGS)
-  return (
-    <div className="flex items-center gap-1">
-      {visible.map((item) => (
-        <ColorBadge key={item.id} label={item.name} color={item.color} />
-      ))}
-      {hidden.length > 0 && (
-        <Tooltip>
-          <TooltipTrigger
-            render={
-              <Badge variant="secondary" className="cursor-default">
-                +{hidden.length}
-              </Badge>
-            }
-          />
-          <TooltipContent variant="surface">
-            <div className="flex flex-col gap-1">
-              {hidden.map((item) => (
-                <ColorBadge key={item.id} label={item.name} color={item.color} />
-              ))}
-            </div>
-          </TooltipContent>
-        </Tooltip>
-      )}
-    </div>
-  )
 }
 
 export function DemandTable({
@@ -279,7 +246,7 @@ export function DemandTable({
       cell: ({ row }) => <BadgeList items={demandAnalysts(row.original)} />,
     },
     { id: "requester", header: "Solicitante", cell: ({ row }) => <BadgeList items={demandRequesters(row.original)} /> },
-    { id: "department", header: "Departamento", cell: ({ row }) => <BadgeList items={demandDepartments(row.original)} /> },
+    { id: "department", header: "Setor", cell: ({ row }) => <BadgeList items={demandDepartments(row.original)} /> },
     {
       id: "demandType",
       header: "Tipo",
@@ -404,7 +371,7 @@ export function DemandTable({
     { key: "requesterId", label: "Solicitante", items: filterOptions.requesters.map((r) => ({ value: r.id, label: r.name, color: r.color })) },
     {
       key: "departmentId",
-      label: "Departamento",
+      label: "Setor",
       items: departmentsForClientFilter(multiFilters.clientId).map((d) => ({ value: d.id, label: d.name, color: d.color })),
     },
     { key: "demandTypeId", label: "Tipo", items: filterOptions.demandTypes.map((t) => ({ value: t.id, label: t.name, color: t.color })) },
@@ -514,6 +481,10 @@ export function DemandTable({
           getId: (row) => row.id,
           getRowLabel: (row) => row.name,
           action: bulkDeleteDemands,
+          confirmTitle: "Excluir demandas selecionadas",
+          confirmDescription: (count) =>
+            `Tem certeza que deseja excluir ${count} demanda(s)? Elas deixarão de aparecer em todos os vínculos abaixo e podem ser restauradas depois.`,
+          confirmContent: (rows) => <DemandDeleteImpact ids={rows.map((row) => row.id)} />,
           onSuccess: () => refresh(),
         }}
       />
@@ -534,11 +505,13 @@ export function DemandTable({
         open={deleteDialog.open}
         onOpenChange={(open) => setDeleteDialog({ open, id: deleteDialog.id })}
         title="Excluir Demanda"
-        description="Tem certeza que deseja excluir esta demanda? Esta ação pode ser revertida posteriormente."
+        description="Tem certeza que deseja excluir esta demanda? Ela deixará de aparecer em todos os vínculos abaixo e pode ser restaurada depois."
         confirmLabel="Excluir"
         variant="destructive"
         onConfirm={() => deleteDialog.id && handleDelete(deleteDialog.id)}
-      />
+      >
+        {deleteDialog.open && deleteDialog.id && <DemandDeleteImpact ids={[deleteDialog.id]} />}
+      </ConfirmDialog>
     </>
   )
 }

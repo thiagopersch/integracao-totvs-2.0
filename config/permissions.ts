@@ -34,7 +34,7 @@ export const PERMISSIONS: PermissionDef[] = [
   ...crud("analysts", "Analistas", "demands"),
   ...crud("contracts", "Contratos", "demands"),
   ...crud("requesters", "Solicitantes", "demands"),
-  ...crud("departments", "Departamentos", "demands"),
+  ...crud("departments", "Setores", "demands"),
   ...crud("demand_types", "Tipos de Demanda", "demands"),
   ...crud("tags", "Tags", "demands"),
   ...crud("demands", "Demandas", "demands"),

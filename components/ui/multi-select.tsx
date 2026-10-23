@@ -26,6 +26,8 @@ export interface MultiSelectItem {
   render?: React.ReactNode
   /** Tints the dropdown item and the selected chip like `ColorBadge` (e.g. a tag's color). Ignored when `render` is set. */
   color?: string
+  /** Dropdown section heading the item is listed under (e.g. a requester's client); items without one go in an untitled section. */
+  group?: string
 }
 
 function colorBadgeStyle(color: string, isDarkTheme: boolean): React.CSSProperties {
@@ -41,6 +43,8 @@ interface MultiSelectProps {
   emptyText?: string
   disabled?: boolean
   className?: string
+  /** Selected chips shown in the trigger before collapsing the rest into a "+N" chip; all shown when unset. */
+  maxVisible?: number
 }
 
 export function MultiSelect({
@@ -52,11 +56,22 @@ export function MultiSelect({
   emptyText = "Nenhum resultado encontrado.",
   disabled,
   className,
+  maxVisible,
 }: MultiSelectProps) {
   const { resolvedTheme } = useTheme()
   const isDarkTheme = resolvedTheme === "dark"
   const [open, setOpen] = React.useState(false)
   const selected = items.filter((item) => value.includes(item.value))
+  const visibleSelected = maxVisible === undefined ? selected : selected.slice(0, maxVisible)
+  const hiddenCount = selected.length - visibleSelected.length
+  const groups = React.useMemo(() => {
+    const byGroup = new Map<string, MultiSelectItem[]>()
+    for (const item of items) {
+      const key = item.group ?? ""
+      byGroup.set(key, [...(byGroup.get(key) ?? []), item])
+    }
+    return [...byGroup]
+  }, [items])
 
   function toggle(itemValue: string) {
     onValueChange(
@@ -82,7 +97,7 @@ export function MultiSelect({
           {selected.length === 0 ? (
             <span className="text-muted-foreground">{placeholder}</span>
           ) : (
-            selected.map((item) => (
+            visibleSelected.map((item) => (
               <Badge
                 key={item.value}
                 variant={item.color ? "outline" : "secondary"}
@@ -98,6 +113,7 @@ export function MultiSelect({
               </Badge>
             ))
           )}
+          {hiddenCount > 0 && <Badge variant="secondary">+{hiddenCount}</Badge>}
         </div>
         <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
       </PopoverTrigger>
@@ -106,21 +122,23 @@ export function MultiSelect({
           <CommandInput placeholder={searchPlaceholder} />
           <CommandList>
             <CommandEmpty>{emptyText}</CommandEmpty>
-            <CommandGroup>
-              {items.map((item) => {
-                const isSelected = value.includes(item.value)
-                return (
-                  <CommandItem
-                    key={item.value}
-                    value={item.label}
-                    onSelect={() => toggle(item.value)}
-                  >
-                    <Checkbox checked={isSelected} className="pointer-events-none mr-2" />
-                    {item.render ?? (item.color ? <Badge variant="outline" style={colorBadgeStyle(item.color, isDarkTheme)}>{item.label}</Badge> : item.label)}
-                  </CommandItem>
-                )
-              })}
-            </CommandGroup>
+            {groups.map(([group, groupItems]) => (
+              <CommandGroup key={group} heading={group || undefined}>
+                {groupItems.map((item) => {
+                  const isSelected = value.includes(item.value)
+                  return (
+                    <CommandItem
+                      key={item.value}
+                      value={`${item.label} ${item.group ?? ""}`}
+                      onSelect={() => toggle(item.value)}
+                    >
+                      <Checkbox checked={isSelected} className="pointer-events-none mr-2" />
+                      {item.render ?? (item.color ? <Badge variant="outline" style={colorBadgeStyle(item.color, isDarkTheme)}>{item.label}</Badge> : item.label)}
+                    </CommandItem>
+                  )
+                })}
+              </CommandGroup>
+            ))}
           </CommandList>
         </Command>
       </PopoverContent>

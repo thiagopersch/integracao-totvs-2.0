@@ -67,7 +67,7 @@ export const navGroups: NavGroup[] = [
     items: [
       { href: "/analysts", label: "Analistas", icon: "UserCog", resource: "analysts" },
       { href: "/requesters", label: "Solicitantes", icon: "UserPlus", resource: "requesters" },
-      { href: "/departments", label: "Departamentos", icon: "Building", resource: "departments" },
+      { href: "/departments", label: "Setores", icon: "Building", resource: "departments" },
     ],
   },
   {

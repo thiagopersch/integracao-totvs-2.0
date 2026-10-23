@@ -19,9 +19,30 @@ class DemandRepository extends BaseRepository<Demand> {
   constructor() {
     super(prisma.demand, ["name", "description"], "demands", "Demand");
   }
+
+  // Everything pointing at a demand is part of it (hidden with it on delete), never a reason to block deleting it.
+  protected override ownedModels() {
+    return ["Attachment", "Comment", "DemandTag", "DemandAnalyst", "DemandRequester", "DemandDepartment", "DemandDemandType"];
+  }
 }
 
 export const demandRepository = new DemandRepository();
+
+type ImpactItem = { id: string; name: string; color: string };
+
+export interface DemandDeleteImpact {
+  demandCount: number;
+  clients: ImpactItem[];
+  projects: ImpactItem[];
+  projectTasks: ImpactItem[];
+  analysts: ImpactItem[];
+  requesters: ImpactItem[];
+  departments: ImpactItem[];
+  demandTypes: ImpactItem[];
+  tags: ImpactItem[];
+  commentCount: number;
+  attachmentCount: number;
+}
 
 const DEMAND_STATUS_LABELS: Record<DemandStatus, string> = {
   PENDING: "Pendente",
@@ -232,7 +253,7 @@ async function assertProjectLink(organizationId: string, allowedClientIds: strin
 }
 
 /**
- * Cliente → Solicitantes → Departamentos (lib/demand-cascade.ts): requesters must be of the demand's client
+ * Cliente → Solicitantes → Setores (lib/demand-cascade.ts): requesters must be of the demand's client
  * and departments must apply to that client and be linked to one of the chosen requesters. Links the demand already had are accepted as-is,
  * so editing a demand saved before the cascade existed doesn't fail on its legacy requesters/departments.
  */
@@ -275,7 +296,7 @@ async function assertPeopleLinks(
   );
   const wrongDepartments = departments.filter((d) => !options.some((o) => o.id === d.id));
   if (wrongDepartments.length) {
-    throw new Error(`Departamento(s) não vinculado(s) ao cliente/solicitantes da demanda: ${wrongDepartments.map((d) => d.name).join(", ")}`);
+    throw new Error(`Setor(es) não vinculado(s) ao cliente/solicitantes da demanda: ${wrongDepartments.map((d) => d.name).join(", ")}`);
   }
 }
 
@@ -605,6 +626,39 @@ export const demandService = {
     return [...new Set(rows.map((r) => r.clientId))];
   },
 
+  /** What the demands are linked to — listed in the delete dialog, where it all disappears with them. */
+  async deleteImpact(ids: string[], organizationId: string, allowedClientIds: string[]): Promise<DemandDeleteImpact> {
+    const badge = { select: { id: true, name: true, color: true } } as const;
+    const rows = await prisma.demand.findMany({
+      where: { id: { in: ids }, organizationId, deletedAt: null, clientId: { in: allowedClientIds } },
+      select: {
+        client: badge,
+        project: badge,
+        projectTask: { select: { id: true, title: true } },
+        demandAnalysts: { select: { analyst: badge } },
+        demandRequesters: { select: { requester: badge } },
+        demandDepartments: { select: { department: badge } },
+        demandDemandTypes: { select: { demandType: badge } },
+        demandTags: { select: { tag: badge } },
+        _count: { select: { comments: true, attachments: true } },
+      },
+    });
+    const distinct = (items: ImpactItem[]) => [...new Map(items.map((i) => [i.id, i])).values()];
+    return {
+      demandCount: rows.length,
+      clients: distinct(rows.map((r) => r.client)),
+      projects: distinct(rows.flatMap((r) => (r.project ? [r.project] : []))),
+      projectTasks: distinct(rows.flatMap((r) => (r.projectTask ? [{ id: r.projectTask.id, name: r.projectTask.title, color: "#64748b" }] : []))),
+      analysts: distinct(rows.flatMap((r) => r.demandAnalysts.map((l) => l.analyst))),
+      requesters: distinct(rows.flatMap((r) => r.demandRequesters.map((l) => l.requester))),
+      departments: distinct(rows.flatMap((r) => r.demandDepartments.map((l) => l.department))),
+      demandTypes: distinct(rows.flatMap((r) => r.demandDemandTypes.map((l) => l.demandType))),
+      tags: distinct(rows.flatMap((r) => r.demandTags.map((l) => l.tag))),
+      commentCount: rows.reduce((sum, r) => sum + r._count.comments, 0),
+      attachmentCount: rows.reduce((sum, r) => sum + r._count.attachments, 0),
+    };
+  },
+
   async softDelete(id: string, organizationId: string, allowedClientIds: string[]) {
     return demandRepository.softDelete(id, organizationId, { clientId: { in: allowedClientIds } });
   },
@@ -652,7 +706,7 @@ export const demandService = {
           [
             ["analystIds", "analista"],
             ["requesterIds", "solicitante"],
-            ["departmentIds", "departamento"],
+            ["departmentIds", "setor"],
             ["demandTypeIds", "tipo"],
           ] as const
         ).find(([key]) => lists[key].length === 0);

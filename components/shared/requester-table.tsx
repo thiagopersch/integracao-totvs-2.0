@@ -67,7 +67,7 @@ export function RequesterTable({ data, meta, clients }: RequesterTableProps) {
     deleteAction: deleteRequester,
     setStatusAction: setRequesterStatus,
     deleteSuccessMessage: "Solicitante excluído com sucesso",
-    defaultSort: { field: "name", direction: "asc" },
+    defaultSort: { field: "client", direction: "asc" },
   })
   const canCreate = useHasPermission("requesters", "create")
   const canUpdate = useHasPermission("requesters", "update")

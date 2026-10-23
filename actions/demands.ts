@@ -171,6 +171,16 @@ export async function duplicateDemand(id: string) {
   }
 }
 
+/** Links shown in the delete dialog before the user confirms. */
+export async function getDemandDeleteImpact(ids: string[]) {
+  const { organizationId, allowedClientIds } = await requirePermission("demands", "delete");
+  try {
+    return { success: true as const, data: await demandService.deleteImpact(ids, organizationId, allowedClientIds) };
+  } catch (error) {
+    return { success: false as const, error: (error as Error).message };
+  }
+}
+
 export async function deleteDemand(id: string) {
   const { organizationId, allowedClientIds } = await requirePermission("demands", "delete");
   try {

@@ -53,7 +53,7 @@ const FIELD_LABELS: Record<string, string> = {
   analystIds: "Analistas",
   clientId: "Cliente",
   requesterIds: "Solicitantes",
-  departmentIds: "Departamentos",
+  departmentIds: "Setores",
   demandTypeIds: "Tipos",
   projectId: "Projeto",
   projectTaskId: "Tarefa",
@@ -81,7 +81,7 @@ const FIELD_TAB: Record<string, string> = {
 export type DemandFormCatalogs = {
   analysts: Analyst[]
   clients: Client[]
-  /** `clientId` + `departmentIds`/`requesterIds` drive the Cliente → Solicitantes → Departamentos cascade. */
+  /** `clientId` + `departmentIds`/`requesterIds` drive the Cliente → Solicitantes → Setores cascade. */
   requesters: (Requester & { departmentIds?: string[] })[]
   departments: (Department & { clientIds: string[]; requesterIds: string[] })[]
   demandTypes: DemandType[]
@@ -468,14 +468,14 @@ function DemandFormBody({ onOpenChange, catalogs, context, demand, defaults = {}
 
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <Field>
-                <FieldLabel htmlFor="departmentIds">Departamentos</FieldLabel>
+                <FieldLabel htmlFor="departmentIds">Setores</FieldLabel>
                 <MultiSelect
                   items={departmentOptions.map((d) => ({ value: d.id, label: d.name, color: d.color }))}
                   value={form.watch("departmentIds") || []}
                   onValueChange={(v) => form.setValue("departmentIds", v, { shouldValidate: true })}
-                  placeholder={requesterIds.length ? "Selecione os departamentos" : "Selecione um solicitante primeiro"}
-                  searchPlaceholder="Buscar departamento..."
-                  emptyText="Nenhum departamento vinculado aos solicitantes."
+                  placeholder={requesterIds.length ? "Selecione os setores" : "Selecione um solicitante primeiro"}
+                  searchPlaceholder="Buscar setor..."
+                  emptyText="Nenhum setor vinculado aos solicitantes."
                   disabled={!requesterIds.length}
                   className={errors.departmentIds ? "border-destructive" : undefined}
                 />

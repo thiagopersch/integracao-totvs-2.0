@@ -138,7 +138,7 @@ export const VARIABLE_CATALOG: VariableGroup[] = [
       { key: "demandStatus", label: "Status", example: "Concluída" },
       { key: "demandPriority", label: "Prioridade", example: "Alta" },
       { key: "demandType", label: "Tipo de demanda", example: "Suporte" },
-      { key: "demandDepartment", label: "Departamento", example: "Secretaria Acadêmica" },
+      { key: "demandDepartment", label: "Setor", example: "Secretaria Acadêmica" },
       { key: "demandAnalystName", label: "Analista", example: "João Silva" },
       { key: "demandAnalystEmail", label: "E-mail do analista", example: "joao@perschtech.com.br" },
       { key: "demandRequesterName", label: "Solicitante", example: "Ana Pereira" },

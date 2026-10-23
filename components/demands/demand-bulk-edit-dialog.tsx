@@ -246,7 +246,7 @@ function DemandBulkEditBody({ onOpenChange, rows, catalogs, context, onSaved }: 
 
         <BulkField label="Cliente" checked={!!enabled.clientId} onCheckedChange={(on) => toggle("clientId", on)}>
           <ClientSelect clients={clients} value={values.clientId} onValueChange={selectClient} />
-          <FieldDescription>Ao trocar o cliente, solicitantes e departamentos são substituídos e o projeto de outro cliente é removido.</FieldDescription>
+          <FieldDescription>Ao trocar o cliente, solicitantes e setores são substituídos e o projeto de outro cliente é removido.</FieldDescription>
         </BulkField>
         {listField(
           "requesterIds",
@@ -256,7 +256,7 @@ function DemandBulkEditBody({ onOpenChange, rows, catalogs, context, onSaved }: 
         )}
         {listField(
           "departmentIds",
-          "Departamentos",
+          "Setores",
           departmentOptions.map((d) => ({ value: d.id, label: d.name, color: d.color })),
           { disabledReason: noClientReason, modes: peopleLocked ? ["replace"] : undefined },
         )}

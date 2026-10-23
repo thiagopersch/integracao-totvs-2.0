@@ -1,5 +1,5 @@
 /**
- * Cliente → Solicitantes → Departamentos cascade of the demand form: a requester belongs to one client
+ * Cliente → Solicitantes → Setores cascade of the demand form: a requester belongs to one client
  * and a department applies to one or more clients (DepartmentClient) and is linked to one or more
  * requesters (DepartmentRequester). Pure so the form, the
  * server-side validation and the tests share the same rules.
