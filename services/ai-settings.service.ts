@@ -21,10 +21,19 @@ export const aiSettingsService = {
   async getClientConfig(organizationId: string): Promise<(AiClientConfig & { instructions: string | null }) | null> {
     const settings = await this.get(organizationId);
     if (!settings || !settings.enabled) return null;
+    let apiKey: string;
+    try {
+      apiKey = decryptSecret(settings.apiKey);
+    } catch {
+      // Usually the encryption key changed since the key was saved — re-saving re-encrypts it.
+      throw new Error(
+        "Não foi possível ler a chave de API salva (CREDENTIALS_ENCRYPTION_KEY mudou?) — informe a chave novamente e salve."
+      );
+    }
     return {
       provider: settings.provider,
       model: settings.model,
-      apiKey: decryptSecret(settings.apiKey),
+      apiKey,
       instructions: settings.instructions,
       // Past the route's maxDuration the platform would cut the request before our own message.
       timeoutSeconds: Math.min(Math.max(settings.timeoutSeconds, AI_TIMEOUT_MIN_SECONDS), AI_TIMEOUT_MAX_SECONDS),

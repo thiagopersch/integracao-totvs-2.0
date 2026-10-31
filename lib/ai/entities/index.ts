@@ -1,5 +1,5 @@
 import { AI_ENTITIES } from "./definitions";
-import { isRef, type AiCatalogs, type AiEntityDef, type AiEntityKey, type AiRecordProposal } from "./types";
+import { belongsToParent, isRef, type AiCatalogs, type AiEntityDef, type AiEntityKey, type AiRecordProposal } from "./types";
 
 export * from "./types";
 export { AI_ENTITIES, parseOptionLabels } from "./definitions";
@@ -40,7 +40,7 @@ export function validateRecord(entity: AiEntityKey, values: Record<string, strin
     }
     // A contract must be of the chosen client, a stage of the chosen project...
     const parentValue = field.parentField ? values[field.parentField] : "";
-    if (item && parentValue && !isRef(parentValue) && item.parentId && item.parentId !== parentValue) {
+    if (item && parentValue && !isRef(parentValue) && item.parentId && !belongsToParent(item, parentValue)) {
       errors[field.key] = `${field.label} não pertence ao ${def.fields.find((f) => f.key === field.parentField)?.label.toLowerCase()} escolhido`;
     }
     if (item && parentValue && isRef(parentValue)) errors[field.key] = `${field.label} não pertence ao registro novo escolhido`;

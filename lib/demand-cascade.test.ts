@@ -2,10 +2,11 @@ import { describe, expect, it } from "vitest";
 import { autoPickSingle, departmentsForRequesters, pruneSelection, requestersForClient } from "./demand-cascade";
 
 const requesters = [
-  { id: "A", clientId: "X" },
-  { id: "B", clientId: "X" },
-  { id: "C", clientId: "Y" },
-  { id: "L", clientId: null },
+  { id: "A", clientIds: ["X"] },
+  { id: "B", clientIds: ["X"] },
+  { id: "C", clientIds: ["Y"] },
+  { id: "L", clientIds: [] },
+  { id: "M", clientIds: ["X", "Y"] },
 ];
 const departments = [
   { id: "dB", clientIds: ["X"], requesterIds: ["A"] },
@@ -17,7 +18,11 @@ const departments = [
 
 describe("requestersForClient", () => {
   it("lists only the client's requesters", () => {
-    expect(requestersForClient(requesters, "X").map((r) => r.id)).toEqual(["A", "B"]);
+    expect(requestersForClient(requesters, "X").map((r) => r.id)).toEqual(["A", "B", "M"]);
+  });
+
+  it("lists a requester under every client it belongs to", () => {
+    expect(requestersForClient(requesters, "Y").map((r) => r.id)).toEqual(["C", "M"]);
   });
 
   it("lists nothing without a client, except kept ids", () => {
@@ -26,7 +31,7 @@ describe("requestersForClient", () => {
   });
 
   it("keeps an already-saved legacy requester listed", () => {
-    expect(requestersForClient(requesters, "X", ["L"]).map((r) => r.id)).toEqual(["A", "B", "L"]);
+    expect(requestersForClient(requesters, "X", ["L"]).map((r) => r.id)).toEqual(["A", "B", "L", "M"]);
   });
 });
 

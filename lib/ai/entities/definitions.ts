@@ -180,13 +180,13 @@ const requester: AiEntityDef = {
   titleField: "name",
   fields: [
     { key: "name", label: "Nome", kind: "text", required: true },
-    { key: "clientId", label: "Cliente", kind: "ref", ref: "clients", required: true },
+    { key: "clientId", label: "Cliente", kind: "ref", ref: "clients", required: true, hint: "mais clientes podem ser vinculados depois no cadastro" },
     { key: "email", label: "E-mail", kind: "text" },
     { key: "phone", label: "Telefone", kind: "text" },
     color("aleatória"),
   ],
   schema: createRequesterSchema,
-  toInput: (v) => ({ name: v.name, clientId: v.clientId, email: v.email ?? "", phone: v.phone ?? "", status: true, color: v.color || randomColor() }),
+  toInput: (v) => ({ name: v.name, clientIds: v.clientId ? [v.clientId] : [], email: v.email ?? "", phone: v.phone ?? "", status: true, color: v.color || randomColor() }),
 };
 
 const department: AiEntityDef = {

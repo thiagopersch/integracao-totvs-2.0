@@ -343,7 +343,7 @@ model Client {
   mapeadorProjetos MapeadorProjeto[]
   usageAlerts      ContractUsageAlert[]
   projects         Project[]
-  requesters        Requester[]
+  requesterClients  RequesterClient[]
   departmentClients DepartmentClient[]
 
   @@unique([organizationId, linkCrm])
@@ -971,19 +971,29 @@ model Requester {
   phone          String?
   status         Boolean   @default(true)
   color          String    @default("#0ea5e9")
-  /// Cliente ao qual o solicitante pertence (nulo só em registros legados).
-  clientId       String?   @map("client_id")
   createdAt      DateTime  @default(now()) @map("created_at")
   updatedAt      DateTime  @updatedAt @map("updated_at")
   deletedAt      DateTime? @map("deleted_at")
 
   organization         Organization          @relation(fields: [organizationId], references: [id])
-  client               Client?               @relation(fields: [clientId], references: [id])
+  /// Clientes aos quais o solicitante pertence.
+  requesterClients     RequesterClient[]
   demandRequesters     DemandRequester[]
   departmentRequesters DepartmentRequester[]
 
-  @@index([clientId])
   @@map("requesters")
+}
+
+model RequesterClient {
+  requesterId String @map("requester_id")
+  clientId    String @map("client_id")
+
+  requester Requester @relation(fields: [requesterId], references: [id], onDelete: Cascade)
+  client    Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@id([requesterId, clientId])
+  @@index([clientId])
+  @@map("requester_clients")
 }
 
 model Department {

@@ -33,9 +33,13 @@ export type AiCatalogKey =
 export interface AiCatalogItem {
   id: string;
   name: string;
-  /** Owner of the item when the list is nested: contract → client, stage → project, project → client. */
-  parentId?: string | null;
+  /** Owner(s) of the item when the list is nested: contract → client, stage → project, requester → clients. */
+  parentId?: string | string[] | null;
 }
+
+/** Whether a catalog item belongs to the given owner (an item with several owners matches any of them). */
+export const belongsToParent = (item: AiCatalogItem, parent: string) =>
+  Array.isArray(item.parentId) ? item.parentId.includes(parent) : item.parentId === parent;
 
 export type AiCatalogs = Partial<Record<AiCatalogKey, AiCatalogItem[]>>;
 

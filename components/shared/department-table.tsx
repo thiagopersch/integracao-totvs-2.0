@@ -92,19 +92,20 @@ export function DepartmentTable({ data, meta, clients, requesters }: DepartmentT
   const clientIds = form.watch("clientIds") || []
   const requesterIds = form.watch("requesterIds") || []
   const selectedClients = new Set(clientIds)
-  const clientRequesters = requesters.filter((r) => r.clientId && selectedClients.has(r.clientId))
+  const clientRequesters = requesters.filter((r) => r.clientIds.some((id) => selectedClients.has(id)))
   const clientNames = new Map(clients.map((c) => [c.id, c.name]))
-  // Listed under their client, both A→Z, so a long selection reads as one block per client.
+  // Listed under their client (the first picked one they belong to), both A→Z, so a long selection
+  // reads as one block per client.
   const requesterItems = clientRequesters
-    .map((r) => ({ value: r.id, label: r.name, color: r.color, group: clientNames.get(r.clientId ?? "") }))
+    .map((r) => ({ value: r.id, label: r.name, color: r.color, group: clientNames.get(clientIds.find((id) => r.clientIds.includes(id)) ?? "") }))
     .sort((a, b) => (a.group ?? "").localeCompare(b.group ?? "") || a.label.localeCompare(b.label))
 
   function handleClientsChange(values: string[]) {
     const previousFirst = form.getValues("clientIds")?.[0]
     form.setValue("clientIds", values, { shouldValidate: true })
-    // Each requester belongs to one client: keep only those of the clients still picked.
+    // Keep only requesters of at least one of the clients still picked.
     const selected = new Set(values)
-    const allowed = new Set(requesters.filter((r) => r.clientId && selected.has(r.clientId)).map((r) => r.id))
+    const allowed = new Set(requesters.filter((r) => r.clientIds.some((id) => selected.has(id))).map((r) => r.id))
     const current = form.getValues("requesterIds") || []
     form.setValue("requesterIds", current.filter((id) => allowed.has(id)), { shouldValidate: form.formState.isSubmitted })
     // Starts from the first client's color (only when that one changes, so adding more clients keeps it);

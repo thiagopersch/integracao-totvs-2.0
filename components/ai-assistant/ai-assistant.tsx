@@ -317,7 +317,12 @@ export function AiAssistant({ onCreated }: AiAssistantProps) {
     const def = AI_ENTITIES[proposal.entity]
     let nextCatalogs = catalogsRef.current
     if (def.catalog && result.id) {
-      const parentId = proposal.entity === "contract" || proposal.entity === "project" ? proposal.values.clientId || null : undefined
+      const parentId =
+        proposal.entity === "contract" || proposal.entity === "project"
+          ? proposal.values.clientId || null
+          : proposal.entity === "requester" && proposal.values.clientId
+            ? [proposal.values.clientId]
+            : undefined
       nextCatalogs = {
         ...nextCatalogs,
         [def.catalog]: [...(nextCatalogs[def.catalog] ?? []), { id: result.id, name: recordTitle(proposal.entity, proposal.values), parentId }],

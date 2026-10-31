@@ -266,7 +266,7 @@ async function assertPeopleLinks(
 ) {
   const [requesters, departments] = await Promise.all([
     requesterIds.length
-      ? prisma.requester.findMany({ where: { id: { in: requesterIds }, organizationId, deletedAt: null }, select: { id: true, name: true, clientId: true } })
+      ? prisma.requester.findMany({ where: { id: { in: requesterIds }, organizationId, deletedAt: null }, select: { id: true, name: true, requesterClients: { select: { clientId: true } } } })
       : [],
     departmentIds.length
       ? prisma.department.findMany({
@@ -280,7 +280,7 @@ async function assertPeopleLinks(
         })
       : [],
   ]);
-  const wrongRequesters = requesters.filter((r) => r.clientId !== clientId && !saved.requesterIds.includes(r.id));
+  const wrongRequesters = requesters.filter((r) => !r.requesterClients.some((rc) => rc.clientId === clientId) && !saved.requesterIds.includes(r.id));
   if (wrongRequesters.length) {
     throw new Error(`Solicitante(s) não vinculado(s) ao cliente da demanda: ${wrongRequesters.map((r) => r.name).join(", ")}`);
   }

@@ -34,12 +34,14 @@ import { formatPhone } from "@/lib/masks"
 import { toast } from "sonner"
 import { useCrudTable } from "@/hooks/use-crud-table"
 import { useHasPermission } from "@/hooks/use-permissions"
-import type { RequesterWithClient } from "@/services/requester.service"
-import { ClientSelect, type ClientSelectOption } from "@/components/shared/client-select"
+import type { RequesterWithClients } from "@/services/requester.service"
+import type { ClientSelectOption } from "@/components/shared/client-select"
+import { MultiSelect } from "@/components/ui/multi-select"
+import { BadgeList } from "@/components/shared/badge-list"
 import { randomColor } from "@/lib/colors"
 import type { PaginationMeta } from "@/types/common"
 
-type Requester = RequesterWithClient
+type Requester = RequesterWithClients
 
 interface RequesterTableProps {
   data: Requester[]
@@ -47,7 +49,7 @@ interface RequesterTableProps {
   clients: ClientSelectOption[]
 }
 
-const SORTABLE_COLUMNS = ["name", "client", "email", "phone", "status"]
+const SORTABLE_COLUMNS = ["name", "email", "phone", "status"]
 
 export function RequesterTable({ data, meta, clients }: RequesterTableProps) {
   const {
@@ -67,7 +69,7 @@ export function RequesterTable({ data, meta, clients }: RequesterTableProps) {
     deleteAction: deleteRequester,
     setStatusAction: setRequesterStatus,
     deleteSuccessMessage: "Solicitante excluído com sucesso",
-    defaultSort: { field: "client", direction: "asc" },
+    defaultSort: { field: "name", direction: "asc" },
   })
   const canCreate = useHasPermission("requesters", "create")
   const canUpdate = useHasPermission("requesters", "update")
@@ -80,15 +82,26 @@ export function RequesterTable({ data, meta, clients }: RequesterTableProps) {
     mode: "onChange",
     resolver: zodResolver(editDialog.entity ? updateRequesterSchema : createRequesterSchema) as Resolver<CreateRequesterInput>,
     values: editDialog.entity
-      ? { name: editDialog.entity.name, email: editDialog.entity.email || "", phone: formatPhone(editDialog.entity.phone), status: editDialog.entity.status, color: editDialog.entity.color, clientId: editDialog.entity.clientId || "" }
-      : { name: "", email: "", phone: "", status: true, color: newColor, clientId: "" },
+      ? { name: editDialog.entity.name, email: editDialog.entity.email || "", phone: formatPhone(editDialog.entity.phone), status: editDialog.entity.status, color: editDialog.entity.color, clientIds: editDialog.entity.requesterClients.map((rc) => rc.client.id) }
+      : { name: "", email: "", phone: "", status: true, color: newColor, clientIds: [] },
   })
+  const clientIds = form.watch("clientIds") || []
+
+  function handleClientsChange(values: string[]) {
+    const previousFirst = form.getValues("clientIds")?.[0]
+    form.setValue("clientIds", values, { shouldValidate: true })
+    // Starts from the first client's color (only when that one changes, so adding more clients keeps it);
+    // the color field stays editable.
+    const first = clients.find((c) => c.id === values[0])
+    if (first && first.id !== previousFirst) form.setValue("color", first.color, { shouldDirty: true })
+  }
 
   async function onSubmit(data: CreateRequesterInput) {
     setLoading(true)
     const formData = new FormData()
     Object.entries(data).forEach(([key, value]) => {
-      if (value !== undefined) formData.append(key, String(value))
+      if (Array.isArray(value)) value.forEach((v) => formData.append(key, v))
+      else if (value !== undefined) formData.append(key, String(value))
     })
 
     const result = editDialog.entity
@@ -125,8 +138,8 @@ export function RequesterTable({ data, meta, clients }: RequesterTableProps) {
     { accessorKey: "name", header: "Nome", cell: ({ row }) => <ColorBadge label={row.original.name} color={row.original.color} /> },
     {
       id: "client",
-      header: "Cliente",
-      cell: ({ row }) => (row.original.client ? <ColorBadge label={row.original.client.name} color={row.original.client.color} /> : "-"),
+      header: "Clientes",
+      cell: ({ row }) => <BadgeList items={row.original.requesterClients.map(({ client }) => client)} max={3} />,
     },
     { accessorKey: "email", header: "E-mail", cell: ({ row }) => row.getValue("email") || "-" },
     { accessorKey: "phone", header: "Telefone", cell: ({ row }) => row.getValue("phone") || "-" },
@@ -172,19 +185,17 @@ export function RequesterTable({ data, meta, clients }: RequesterTableProps) {
             <FieldError errors={[form.formState.errors.name]} />
           </Field>
           <Field>
-            <FieldLabel htmlFor="clientId">Cliente</FieldLabel>
-            <ClientSelect
-              clients={clients}
-              value={form.watch("clientId") || ""}
-              onValueChange={(v) => {
-                form.setValue("clientId", v, { shouldValidate: true })
-                // Starts from the client's color; the color field below stays editable.
-                const client = clients.find((c) => c.id === v)
-                if (client) form.setValue("color", client.color, { shouldDirty: true })
-              }}
-              invalid={!!form.formState.errors.clientId}
+            <FieldLabel htmlFor="clientIds">Clientes{clientIds.length > 0 && <span className="text-muted-foreground font-normal">({clientIds.length})</span>}</FieldLabel>
+            <MultiSelect
+              items={clients.map((c) => ({ value: c.id, label: c.name, color: c.color }))}
+              value={clientIds}
+              onValueChange={handleClientsChange}
+              placeholder="Selecione os clientes"
+              searchPlaceholder="Buscar cliente..."
+              emptyText="Nenhum cliente encontrado."
+              className={form.formState.errors.clientIds ? "border-destructive" : undefined}
             />
-            <FieldError errors={[form.formState.errors.clientId]} />
+            <FieldError errors={[form.formState.errors.clientIds]} />
           </Field>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field>

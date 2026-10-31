@@ -64,9 +64,9 @@ export async function saveAiSettings(input: unknown) {
 /** Round-trip with the saved settings to validate key + model. */
 export async function testAiSettings() {
   const { organizationId } = await requirePermission("integrations", "execute");
-  const config = await aiSettingsService.getClientConfig(organizationId);
-  if (!config) return { success: false, error: "Salve e ative a configuração antes de testar" };
   try {
+    const config = await aiSettingsService.getClientConfig(organizationId);
+    if (!config) return { success: false, error: "Salve e ative a configuração antes de testar" };
     const result = await runAiToolCall(
       config,
       "Você é um verificador de conexão. Chame a ferramenta ping com ok=true.",

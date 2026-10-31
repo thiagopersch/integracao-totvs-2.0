@@ -41,7 +41,7 @@ async function assertLinks(input: { clientIds: string[]; requesterIds: string[] 
   if (clientCount !== clientIds.length) throw new Error("Cliente não encontrado");
   const requesterIds = [...new Set(input.requesterIds)];
   const count = await prisma.requester.count({
-    where: { id: { in: requesterIds }, organizationId, clientId: { in: clientIds }, deletedAt: null },
+    where: { id: { in: requesterIds }, organizationId, requesterClients: { some: { clientId: { in: clientIds } } }, deletedAt: null },
   });
   if (count !== requesterIds.length) throw new Error("Há solicitantes que não pertencem aos clientes selecionados");
   return { clientIds, requesterIds };

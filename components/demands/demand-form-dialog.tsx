@@ -82,7 +82,7 @@ export type DemandFormCatalogs = {
   analysts: Analyst[]
   clients: Client[]
   /** `clientId` + `departmentIds`/`requesterIds` drive the Cliente → Solicitantes → Setores cascade. */
-  requesters: (Requester & { departmentIds?: string[] })[]
+  requesters: (Requester & { clientIds: string[]; departmentIds?: string[] })[]
   departments: (Department & { clientIds: string[]; requesterIds: string[] })[]
   demandTypes: DemandType[]
   tags: Tag[]

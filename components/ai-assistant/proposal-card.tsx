@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
 import { cn } from "@/lib/utils"
-import { AI_ENTITIES, isRef, recordTitle, type AiCatalogs, type AiFieldDef, type AiRecordProposal } from "@/lib/ai/entities"
+import { AI_ENTITIES, belongsToParent, isRef, recordTitle, type AiCatalogs, type AiFieldDef, type AiRecordProposal } from "@/lib/ai/entities"
 
 export type ProposalState = AiRecordProposal & { key: string; created?: boolean; saving?: boolean; reported?: boolean; createdId?: string }
 
@@ -105,7 +105,7 @@ function FieldShell({ field, error, children }: { field: AiFieldDef; error?: str
 export function refItems(field: AiFieldDef, values: Record<string, string>, catalogs: AiCatalogs, batch: ProposalState[]) {
   const parent = field.parentField ? values[field.parentField] ?? "" : ""
   const fromCatalog = (catalogs[field.ref!] ?? [])
-    .filter((i) => !parent || i.parentId === undefined || (!isRef(parent) && i.parentId === parent))
+    .filter((i) => !parent || i.parentId === undefined || (!isRef(parent) && belongsToParent(i, parent)))
     .map((i) => ({ value: i.id, label: i.name }))
   const fromBatch = batch
     .filter((b) => !b.created && AI_ENTITIES[b.entity].catalog === field.ref)

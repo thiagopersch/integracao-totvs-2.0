@@ -4,38 +4,33 @@ import type { CreateRequesterInput, UpdateRequesterInput } from "@/schemas/reque
 import type { Prisma, Requester } from "@/generated/prisma/client";
 import type { BlockingReference } from "@/lib/entity-labels";
 import { ENTITY_LABELS } from "@/lib/entity-labels";
-import type { SortParams } from "@/types/common";
 
 const listInclude = {
-  client: { select: { id: true, name: true, color: true } },
+  requesterClients: { select: { client: { select: { id: true, name: true, color: true } } }, orderBy: { client: { name: "asc" } } },
 } satisfies Prisma.RequesterInclude;
 
-export type RequesterWithClient = Prisma.RequesterGetPayload<{ include: typeof listInclude }>;
+export type RequesterWithClients = Prisma.RequesterGetPayload<{ include: typeof listInclude }>;
 
-/** Requester as used by the demand form cascade: its client and the departments it belongs to. */
-export type RequesterOption = Requester & { departmentIds: string[] };
+/** Requester as used by the demand form cascade: its clients and the departments it belongs to. */
+export type RequesterOption = Requester & { clientIds: string[]; departmentIds: string[] };
 
 class RequesterRepository extends BaseRepository<Requester> {
   constructor() {
     super(prisma.requester, ["name", "email"], "requesters", "Requester");
   }
 
-  protected override orderByFor(sort: SortParams) {
-    if (sort.field === "client") return { client: { name: sort.direction } };
-    return super.orderByFor(sort);
-  }
-
   protected override defaultOrderBy() {
-    return [{ client: { name: "asc" as const } }, { name: "asc" as const }];
+    return { name: "asc" as const };
   }
 
   protected override listInclude() {
     return listInclude;
   }
 
-  // Department links are checked below so a soft-deleted department doesn't keep blocking.
+  // Client links are part of the requester itself; department links are checked below so a
+  // soft-deleted department doesn't keep blocking.
   protected override ownedModels() {
-    return ["DepartmentRequester"];
+    return ["RequesterClient", "DepartmentRequester"];
   }
 
   protected override async extraBlockingReferences(id: string): Promise<BlockingReference[]> {
@@ -48,15 +43,18 @@ class RequesterRepository extends BaseRepository<Requester> {
 
 export const requesterRepository = new RequesterRepository();
 
-async function assertClientInOrganization(clientId: string, organizationId: string) {
-  const client = await prisma.client.findFirst({ where: { id: clientId, organizationId, deletedAt: null }, select: { id: true } });
-  if (!client) throw new Error("Cliente não encontrado");
+/** Every client must be in the organization; returns the de-duplicated ids. */
+async function assertClientsInOrganization(ids: string[], organizationId: string) {
+  const clientIds = [...new Set(ids)];
+  const count = await prisma.client.count({ where: { id: { in: clientIds }, organizationId, deletedAt: null } });
+  if (count !== clientIds.length) throw new Error("Cliente não encontrado");
+  return clientIds;
 }
 
 export const requesterService = {
   async list(params: Parameters<typeof requesterRepository.findAll>[0], organizationId: string) {
     return requesterRepository.findAll(params, organizationId) as Promise<{
-      data: RequesterWithClient[];
+      data: RequesterWithClients[];
       meta: Awaited<ReturnType<typeof requesterRepository.findAll>>["meta"];
     }>;
   },
@@ -65,9 +63,13 @@ export const requesterService = {
     const rows = await prisma.requester.findMany({
       where: { organizationId, deletedAt: null },
       orderBy: { name: "asc" },
-      include: { departmentRequesters: { select: { departmentId: true } } },
+      include: { requesterClients: { select: { clientId: true } }, departmentRequesters: { select: { departmentId: true } } },
     });
-    return rows.map(({ departmentRequesters, ...r }) => ({ ...r, departmentIds: departmentRequesters.map((d) => d.departmentId) }));
+    return rows.map(({ requesterClients, departmentRequesters, ...r }) => ({
+      ...r,
+      clientIds: requesterClients.map((c) => c.clientId),
+      departmentIds: departmentRequesters.map((d) => d.departmentId),
+    }));
   },
 
   async getById(id: string, organizationId: string) {
@@ -75,20 +77,27 @@ export const requesterService = {
   },
 
   async create(input: CreateRequesterInput, organizationId: string) {
-    await assertClientInOrganization(input.clientId, organizationId);
-    return requesterRepository.create({ ...input, organizationId });
+    const { clientIds: ids, ...data } = input;
+    const clientIds = await assertClientsInOrganization(ids, organizationId);
+    return prisma.requester.create({
+      data: { ...data, organizationId, requesterClients: { create: clientIds.map((clientId) => ({ clientId })) } },
+    });
   },
 
   async update(id: string, input: UpdateRequesterInput, organizationId: string) {
-    await assertClientInOrganization(input.clientId, organizationId);
+    const { clientIds: ids, ...data } = input;
+    const clientIds = await assertClientsInOrganization(ids, organizationId);
     const current = await requesterRepository.findById(id, organizationId);
     if (!current) throw new Error("Solicitante não encontrado");
     return prisma.$transaction(async (tx) => {
-      // Moving to another client: drop links to departments that do not apply to the new one.
-      if (current.clientId !== input.clientId) {
-        await tx.departmentRequester.deleteMany({ where: { requesterId: id, department: { departmentClients: { none: { clientId: input.clientId } } } } });
-      }
-      return tx.requester.update({ where: { id, organizationId }, data: input });
+      // A removed client: drop links to departments that apply to none of the remaining ones.
+      await tx.departmentRequester.deleteMany({
+        where: { requesterId: id, department: { departmentClients: { none: { clientId: { in: clientIds } } } } },
+      });
+      return tx.requester.update({
+        where: { id, organizationId },
+        data: { ...data, requesterClients: { deleteMany: {}, create: clientIds.map((clientId) => ({ clientId })) } },
+      });
     });
   },
 
