@@ -1,0 +1,20 @@
+{
+  "source": "Parcial: só as colunas que as consultas RB.PS.VALIDA.1-4 provam existir. Substituir pelo export do dicionário do RM (ALL_TAB_COLUMNS / INFORMATION_SCHEMA.COLUMNS, TABLE_NAME LIKE 'SPS%').",
+  "complete": false,
+  "tables": {
+    "SPSPARAMETROPS": [
+      "CODCOLIGADA",
+      "IDPS",
+      "TIPOARQUIVO",
+      "LOGINCPF",
+      "LOGINRG",
+      "LOGINCODUSUARIO",
+      "LOGINEMAIL",
+      "DIRETORIOARQUIVO",
+      "USACAMPUSPOLOMATRICULANAINSC",
+      "USADADOSRESPFIN",
+      "BLOQRESPMENORINSC",
+      "USAINTEGRACAORUBEUS"
+    ]
+  }
+}

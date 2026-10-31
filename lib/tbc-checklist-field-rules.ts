@@ -1,13 +1,13 @@
 import type { ChecklistFieldRow } from "@/actions/integrations/tbc-checklist"
 import { formatChecklistValue } from "@/lib/tbc-checklist-values"
 
-const INTEGER_TYPES = new Set(["short", "int", "integer", "long", "byte", "unsignedbyte", "unsignedshort", "unsignedint"])
+export const INTEGER_TYPES = new Set(["short", "int", "integer", "long", "byte", "unsignedbyte", "unsignedshort", "unsignedint"])
 
 /**
  * Integer fields whose 0 is a real option of the TOTVS screen (an enumeration), not "nothing
  * configured" — kept visible even when zero.
  */
-const ZERO_IS_MEANINGFUL = new Set([
+export const ZERO_IS_MEANINGFUL = new Set([
   "TIPOCONTABILLAN",
   "PAGPROF_TIPOCONTABILLAN",
   "TIPOCONTROLEVAGAS",

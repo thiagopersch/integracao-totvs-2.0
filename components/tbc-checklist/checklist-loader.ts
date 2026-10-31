@@ -6,6 +6,7 @@ import {
   type ChecklistTableMeta,
   type ChecklistTableResult,
 } from "@/actions/integrations/tbc-checklist"
+import type { LinkFilter } from "@/lib/tbc-checklist-filtro"
 import { assembleMainTable, buildTableResult, type ChecklistMainRecord } from "@/lib/tbc-checklist-records"
 
 /** Primary keys sent per `fetchChecklistMainRecords` call — each call is one progress step. */
@@ -33,7 +34,7 @@ const CANCELLED = { success: false as const, error: "Carregamento cancelado.", p
  * remaining batches once the caller no longer needs the result (another processo was picked).
  */
 export async function loadMainTable(
-  input: { tbcId: string; dataserverCode: string; pkValues: Record<string, string>; context: ChecklistContext },
+  input: { tbcId: string; dataserverCode: string; pkValues: Record<string, string>; links?: LinkFilter[]; context: ChecklistContext },
   onRecords: (done: number, total: number) => void,
   isCurrent: () => boolean
 ): Promise<MainTableLoad> {

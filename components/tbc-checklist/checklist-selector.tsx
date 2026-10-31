@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { Import, Loader2, Pencil, Plus, Trash2 } from "lucide-react"
+import { FileCode, Import, Loader2, Pencil, Plus, Trash2 } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Combobox } from "@/components/ui/combobox"
@@ -11,7 +11,9 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
 import { ImportChecklistDialog } from "@/components/tbc-checklist/import-checklist-dialog"
+import { ChecklistSqlDialog } from "@/components/tbc-checklist/checklist-sql-dialog"
 import { createTbcChecklist, deleteTbcChecklist, renameTbcChecklist } from "@/actions/integrations/tbc-checklist-templates"
+import type { ChecklistContext } from "@/actions/integrations/tbc-checklist"
 import type { TbcChecklistImportSource, TbcChecklistView } from "@/services/tbc-checklist.service"
 
 interface ChecklistSelectorProps {
@@ -26,6 +28,8 @@ interface ChecklistSelectorProps {
   onImported: (checklist: TbcChecklistView, source: TbcChecklistImportSource) => void
   /** Bumped by the parent to open the "Novo checklist" dialog from elsewhere (empty state). */
   createRequest: number
+  /** Contexto the "Gerar SQL" dialog reads the Data Servers' schema with. */
+  sqlContext?: ChecklistContext
 }
 
 type NameDialog = { kind: "create" } | { kind: "rename"; checklist: TbcChecklistView }
@@ -39,6 +43,7 @@ export function ChecklistSelector({
   onDeleted,
   onImported,
   createRequest,
+  sqlContext,
 }: ChecklistSelectorProps) {
   const [nameDialog, setNameDialog] = useState<NameDialog | null>(null)
   const [name, setName] = useState("")
@@ -46,6 +51,7 @@ export function ChecklistSelector({
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [importOpen, setImportOpen] = useState(false)
+  const [sqlOpen, setSqlOpen] = useState(false)
   const [handledCreateRequest, setHandledCreateRequest] = useState(createRequest)
 
   const active = checklists.find((c) => c.id === activeId) ?? null
@@ -118,6 +124,17 @@ export function ChecklistSelector({
           }
         />
         <TooltipContent>Importar a estrutura de outro checklist para este</TooltipContent>
+      </Tooltip>
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <Button type="button" variant="outline" disabled={!active?.dataservers.length} onClick={() => setSqlOpen(true)}>
+              <FileCode className="mr-2 h-4 w-4" />
+              Gerar SQL
+            </Button>
+          }
+        />
+        <TooltipContent>Gerar as consultas SQL (Oracle e SQL Server) dos campos deste checklist</TooltipContent>
       </Tooltip>
       <Tooltip>
         <TooltipTrigger
@@ -198,6 +215,10 @@ export function ChecklistSelector({
             onImported(checklist, source)
           }}
         />
+      )}
+
+      {sqlOpen && active && (
+        <ChecklistSqlDialog tbcId={tbcId} checklist={active} context={sqlContext} onOpenChange={setSqlOpen} />
       )}
 
       <ConfirmDialog

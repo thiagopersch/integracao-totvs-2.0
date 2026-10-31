@@ -16,6 +16,7 @@ import {
   removeTbcChecklistDataserver,
   removeTbcChecklistProcesso,
   saveTbcChecklistDataserverFields,
+  saveTbcChecklistDataserverLinks,
   saveTbcChecklistListing,
 } from "@/actions/integrations/tbc-checklist-templates"
 import {
@@ -24,6 +25,7 @@ import {
   type ProcessoSeletivo,
 } from "@/components/tbc-checklist/processo-seletivo-sidebar"
 import { DataserverFieldsDialog, type DataserverFieldsDialogMode } from "@/components/tbc-checklist/dataserver-fields-dialog"
+import { DataserverLinksDialog } from "@/components/tbc-checklist/dataserver-links-dialog"
 import { ChecklistSelector } from "@/components/tbc-checklist/checklist-selector"
 import { ChecklistContent } from "@/components/tbc-checklist/checklist-content"
 import { loadMainTable } from "@/components/tbc-checklist/checklist-loader"
@@ -36,9 +38,11 @@ import {
   type ChecklistContextForm,
 } from "@/lib/tbc-checklist-dataservers"
 import { checklistSelection, type ChecklistSelection } from "@/lib/tbc-checklist-selection"
+import type { LinkFilter } from "@/lib/tbc-checklist-filtro"
+import { linkTuples, type LinkFieldPair } from "@/lib/tbc-checklist-links"
 import { isFinished, type DataserverLoadProgress } from "@/lib/tbc-checklist-progress"
 import type { ProcessoSeletivoOption } from "@/lib/tbc-checklist-processos"
-import type { TbcChecklistField } from "@/schemas/tbc-checklist.schema"
+import type { TbcChecklistField, TbcChecklistLink } from "@/schemas/tbc-checklist.schema"
 import type { TbcChecklistImportSource, TbcChecklistView } from "@/services/tbc-checklist.service"
 import type { TbcRow } from "@/services/tbc.service"
 import type { Dataserver } from "@/generated/prisma/client"
@@ -51,6 +55,14 @@ export type TableLoadState =
   | { status: "loading" }
   | { status: "error"; error: string; permissionDenied?: boolean }
   | { status: "loaded"; result: ChecklistTableResult }
+
+/** One parent a linked Data Server was filtered by — shown above its fields. */
+export type LinkedBy = {
+  parentName: string
+  fields: LinkFieldPair[]
+  /** The parent had more rows than it loaded — only the loaded ones filtered this Data Server. */
+  parentTruncated: boolean
+}
 
 export type AddedDataserver = {
   /** Unique per load — guards late responses from a Data Server that was since removed/reloaded. */
@@ -70,6 +82,8 @@ export type AddedDataserver = {
   relatedStates: Record<string, Record<string, TableLoadState>>
   /** Fields the active checklist validates for this Data Server — the only ones shown. */
   selection: ChecklistSelection
+  /** Its links' parents, when it was filtered by them instead of the processo's keys. */
+  linkedBy: LinkedBy[]
 }
 
 interface TbcChecklistClientProps {
@@ -89,6 +103,10 @@ type LoadOutcome =
   | { kind: "cancelled" }
 
 type CachedProcesso = { added: AddedDataserver[]; denied: DeniedDataserver[] }
+
+type ChecklistEntry = TbcChecklistView["dataservers"][number]
+
+const isLoaded = (outcome: LoadOutcome): outcome is Extract<LoadOutcome, { kind: "loaded" }> => outcome.kind === "loaded"
 
 /** How long the finished progress bar stays on screen before it goes away. */
 const PROGRESS_HIDE_DELAY_MS = 1000
@@ -137,6 +155,10 @@ export function TbcChecklistClient({ tbc, dataservers, checklists: initialCheckl
   // Remounts the dialog on every open, so it always starts from the checklist's saved state.
   const [fieldsDialogKey, setFieldsDialogKey] = useState(0)
   const [savingFields, setSavingFields] = useState(false)
+  // Code of the Data Server whose links are being edited (same remount-per-open as the fields dialog).
+  const [linksCode, setLinksCode] = useState<string | null>(null)
+  const [linksDialogKey, setLinksDialogKey] = useState(0)
+  const [savingLinks, setSavingLinks] = useState(false)
   const [removingCode, setRemovingCode] = useState<string | null>(null)
   const [removing, setRemoving] = useState(false)
   const selectionRef = useRef(0)
@@ -212,18 +234,25 @@ export function TbcChecklistClient({ tbc, dataservers, checklists: initialCheckl
     }
   }
 
+  /** Progress entry of a Data Server about to load — a linked one says which ones it waits for. */
+  function waitingProgress(entry: ChecklistEntry): DataserverLoadProgress {
+    const waitingFor = entry.links.map((l) => nameOf(l.parentCode)).join(", ")
+    return { code: entry.dataserverCode, name: nameOf(entry.dataserverCode), phase: "waiting", done: 0, total: 0, ...(waitingFor ? { waitingFor } : {}) }
+  }
+
   /** Loads one Data Server's main table (view, then its records in batches), reporting every step
-   *  to the progress bar. */
+   *  to the progress bar. A linked one gets `linked`: its parents' values as filtro. */
   async function loadDataserver(
     code: string,
     context: ChecklistContext,
     pkValues: Record<string, string>,
     fields: TbcChecklistField[],
-    selectionId: number
+    selectionId: number,
+    linked?: { filters: LinkFilter[]; linkedBy: LinkedBy[] }
   ): Promise<LoadOutcome> {
     updateProgress(selectionId, code, { phase: "view" })
     const result = await loadMainTable(
-      { tbcId: tbc.id, dataserverCode: code, pkValues, context },
+      { tbcId: tbc.id, dataserverCode: code, pkValues, links: linked?.filters, context },
       (done, total) => updateProgress(selectionId, code, { phase: "records", done, total }),
       isCurrent(selectionId)
     )
@@ -248,6 +277,7 @@ export function TbcChecklistClient({ tbc, dataservers, checklists: initialCheckl
       truncated: result.truncated,
       relatedStates: {},
       selection: checklistSelection(fields, result.tables),
+      linkedBy: linked?.linkedBy ?? [],
     }
     return { kind: "loaded", dataserver }
   }
@@ -271,25 +301,71 @@ export function TbcChecklistClient({ tbc, dataservers, checklists: initialCheckl
   }
 
   /**
-   * The first Data Server of the checklist (the processo seletivo one) is loaded on its own and
-   * shown as soon as it returns; only then the others start, side by side, each shown as it
-   * arrives. A failure in one never stops the rest.
+   * The first Data Server of the checklist without links (the processo seletivo one) is loaded on
+   * its own and shown as soon as it returns; only then the other unlinked ones start, side by side,
+   * each shown as it arrives. A linked one waits for every parent and is filtered by their loaded
+   * rows; a parent outside `entries` is taken from `onScreen`. A failure in one never stops the
+   * rest — only what is linked to it.
    */
   async function loadDataservers(
-    entries: TbcChecklistView["dataservers"],
+    entries: ChecklistEntry[],
     processo: ProcessoSeletivo,
     order: string[],
-    selectionId: number
+    selectionId: number,
+    onScreen: AddedDataserver[] = []
   ) {
-    const run = async (entry: TbcChecklistView["dataservers"][number]) => {
-      const outcome = await loadDataserver(entry.dataserverCode, processo.context, processo.pkValues, entry.fields, selectionId)
-      publish(outcome, entry.dataserverCode, order, selectionId)
+    const runs = new Map<string, Promise<LoadOutcome>>()
+    const lead = entries.find((e) => !e.links.length)
+    const cancelled: LoadOutcome = { kind: "cancelled" }
+
+    const start = (entry: ChecklistEntry): Promise<LoadOutcome> => {
+      let run = runs.get(entry.dataserverCode)
+      if (!run) {
+        // Deferred, so the run is registered before it (or a dependent) asks for it again.
+        run = Promise.resolve()
+          .then(() => runEntry(entry))
+          .then((outcome) => {
+            publish(outcome, entry.dataserverCode, order, selectionId)
+            return outcome
+          })
+        runs.set(entry.dataserverCode, run)
+      }
+      return run
     }
-    const [first, ...rest] = entries
-    if (!first) return
-    await run(first)
-    if (selectionRef.current !== selectionId) return
-    await Promise.all(rest.map(run))
+
+    const parentOutcome = (code: string): Promise<LoadOutcome> => {
+      const entry = entries.find((e) => e.dataserverCode === code)
+      if (entry) return start(entry)
+      const loaded = onScreen.find((d) => d.code === code)
+      return Promise.resolve<LoadOutcome>(loaded ? { kind: "loaded", dataserver: loaded } : { kind: "failed" })
+    }
+
+    async function runEntry(entry: ChecklistEntry): Promise<LoadOutcome> {
+      const code = entry.dataserverCode
+      if (!entry.links.length) {
+        if (lead && entry !== lead) await start(lead)
+        if (selectionRef.current !== selectionId) return cancelled
+        return loadDataserver(code, processo.context, processo.pkValues, entry.fields, selectionId)
+      }
+      const parents = await Promise.all(entry.links.map(async (link) => ({ link, outcome: await parentOutcome(link.parentCode) })))
+      if (selectionRef.current !== selectionId || parents.some((p) => p.outcome.kind === "cancelled")) return cancelled
+      const missing = parents.filter((p) => !isLoaded(p.outcome)).map((p) => `"${nameOf(p.link.parentCode)}"`)
+      if (missing.length) {
+        updateProgress(selectionId, code, { phase: "failed" })
+        toast.error(`"${nameOf(code)}" não foi carregado: está vinculado a ${missing.join(", ")}, que não carregou.`)
+        return { kind: "failed" }
+      }
+      const loadedParents = parents.flatMap(({ link, outcome }) => (isLoaded(outcome) ? [{ link, parent: outcome.dataserver }] : []))
+      return loadDataserver(code, processo.context, processo.pkValues, entry.fields, selectionId, {
+        filters: loadedParents.map(({ link, parent }) => ({
+          fields: link.fields.map((f) => f.child),
+          tuples: linkTuples(parent.mainResult, link.fields.map((f) => f.parent)),
+        })),
+        linkedBy: loadedParents.map(({ link, parent }) => ({ parentName: parent.name, fields: link.fields, parentTruncated: parent.truncated })),
+      })
+    }
+
+    await Promise.all(entries.map(start))
   }
 
   /** Selecting a processo loads every Data Server of the checklist (the active one unless given —
@@ -319,9 +395,7 @@ export function TbcChecklistClient({ tbc, dataservers, checklists: initialCheckl
       setLoadProgress(null)
       return
     }
-    setLoadProgress(
-      checklist.dataservers.map((d) => ({ code: d.dataserverCode, name: nameOf(d.dataserverCode), phase: "waiting", done: 0, total: 0 }))
-    )
+    setLoadProgress(checklist.dataservers.map(waitingProgress))
     const order = checklist.dataservers.map((d) => d.dataserverCode)
     await loadDataservers(checklist.dataservers, processo, order, selectionId)
   }
@@ -413,11 +487,8 @@ export function TbcChecklistClient({ tbc, dataservers, checklists: initialCheckl
       const selectionId = selectionRef.current
       const entry = saved.dataservers.find((d) => d.dataserverCode === code)
       if (!entry) return
-      setLoadProgress([
-        ...(progressRef.current ?? []).filter((p) => p.code !== code),
-        { code, name: nameOf(code), phase: "waiting", done: 0, total: 0 },
-      ])
-      await loadDataservers([entry], selectedProcesso, saved.dataservers.map((d) => d.dataserverCode), selectionId)
+      setLoadProgress([...(progressRef.current ?? []).filter((p) => p.code !== code), waitingProgress(entry)])
+      await loadDataservers([entry], selectedProcesso, saved.dataservers.map((d) => d.dataserverCode), selectionId, addedDataservers)
     }
   }
 
@@ -443,6 +514,29 @@ export function TbcChecklistClient({ tbc, dataservers, checklists: initialCheckl
       return checklist
     }
     return result.data
+  }
+
+  function openLinksDialog(code: string) {
+    setLinksDialogKey((k) => k + 1)
+    setLinksCode(code)
+  }
+
+  /** Links change what every dependent Data Server loads: cached processos are dropped and the one
+   *  on screen is fetched again. */
+  async function handleSaveLinks(code: string, links: TbcChecklistLink[]) {
+    if (!active) return
+    setSavingLinks(true)
+    const result = await saveTbcChecklistDataserverLinks(active.id, { dataserverCode: code, links })
+    setSavingLinks(false)
+    if (!result.success) {
+      toast.error(result.error)
+      return
+    }
+    replaceChecklist(result.data)
+    clearCache()
+    setLinksCode(null)
+    toast.success(links.length ? "Vínculos salvos" : "Vínculos removidos")
+    if (selectedProcesso) void handleSelectProcesso(selectedProcesso, result.data, { force: true })
   }
 
   async function handleRemoveDataserver() {
@@ -573,6 +667,7 @@ export function TbcChecklistClient({ tbc, dataservers, checklists: initialCheckl
           syncChecklistParam(remaining[0]?.id ?? null)
         }}
         createRequest={createRequest}
+        sqlContext={toChecklistContext(dialogContext) ?? undefined}
       />
 
       {!active ? (
@@ -623,6 +718,7 @@ export function TbcChecklistClient({ tbc, dataservers, checklists: initialCheckl
             onEditFields={(code) =>
               openFieldsDialog({ kind: "edit", code, fields: active.dataservers.find((d) => d.dataserverCode === code)?.fields ?? [] })
             }
+            onEditLinks={openLinksDialog}
             onOpenAddDialog={() => openFieldsDialog({ kind: "add" })}
             onRefreshProcesso={() => selectedProcesso && handleRefreshProcesso(selectedProcesso)}
             onLoadTables={handleLoadTables}
@@ -643,6 +739,22 @@ export function TbcChecklistClient({ tbc, dataservers, checklists: initialCheckl
           saving={savingFields}
           tbcUser={tbc.user}
           onConfirm={(code, fields, context) => void handleSaveFields(code, fields, context)}
+        />
+      )}
+
+      {linksCode && active && (
+        <DataserverLinksDialog
+          key={linksDialogKey}
+          tbcId={tbc.id}
+          open
+          onOpenChange={(open) => !open && setLinksCode(null)}
+          checklist={active}
+          code={linksCode}
+          dataserverName={nameOf}
+          initialContext={dialogContext}
+          saving={savingLinks}
+          tbcUser={tbc.user}
+          onConfirm={(links) => void handleSaveLinks(linksCode, links)}
         />
       )}
 

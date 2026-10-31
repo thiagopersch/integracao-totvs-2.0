@@ -1,7 +1,7 @@
 "use client"
 
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react"
-import { AlertTriangle, ListPlus, Loader2, Plus, RefreshCw, Trash2 } from "lucide-react"
+import { AlertTriangle, Link2, ListPlus, Loader2, Plus, RefreshCw, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { ScrollableTabsList, Tabs, TabsContent, TabsTrigger } from "@/components/ui/tabs"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
@@ -20,6 +20,7 @@ import { ChecklistLoadProgress } from "@/components/tbc-checklist/checklist-load
 import { WithTooltip } from "@/components/shared/with-tooltip"
 import { cn } from "@/lib/utils"
 import { describeStep, isFinished, type DataserverLoadProgress } from "@/lib/tbc-checklist-progress"
+import { linkFieldsLabel } from "@/lib/tbc-checklist-links"
 
 type LoadTables = (dataserver: AddedDataserver, tables: string[], parentKeys?: string[]) => void
 
@@ -38,6 +39,8 @@ interface ChecklistContentProps {
   /** Asks to remove the Data Server from the checklist (the caller confirms). */
   onRemoveDataserver: (code: string) => void
   onEditFields: (code: string) => void
+  /** Opens the links of one Data Server (to other Data Servers of the checklist). */
+  onEditLinks: (code: string) => void
   onOpenAddDialog: () => void
   onLoadTables: LoadTables
   /** Fetches the selected processo's Data Servers again from TOTVS. */
@@ -419,14 +422,29 @@ function NoSelectedFields() {
   )
 }
 
-/** Edit-fields / remove buttons of one Data Server of the checklist. */
-function DataserverActions({ code, onEditFields, onRemove }: { code: string; onEditFields: (code: string) => void; onRemove: (code: string) => void }) {
+type DataserverActionsProps = {
+  code: string
+  /** Links it has now — shown on the button. */
+  linkCount: number
+  onEditFields: (code: string) => void
+  onEditLinks: (code: string) => void
+  onRemove: (code: string) => void
+}
+
+/** Edit-fields / links / remove buttons of one Data Server of the checklist. */
+function DataserverActions({ code, linkCount, onEditFields, onEditLinks, onRemove }: DataserverActionsProps) {
   return (
     <div className="flex items-center gap-1">
       <Button type="button" variant="outline" size="sm" onClick={() => onEditFields(code)}>
         <ListPlus className="mr-2 h-4 w-4" />
         Editar campos
       </Button>
+      <WithTooltip label="Vincular a outros Data Servers do checklist pelos campos-chave — só os registros que casam com os deles são carregados">
+        <Button type="button" variant="outline" size="sm" onClick={() => onEditLinks(code)}>
+          <Link2 className="mr-2 h-4 w-4" />
+          Vínculos{linkCount > 0 && ` (${linkCount})`}
+        </Button>
+      </WithTooltip>
       <Tooltip>
         <TooltipTrigger
           render={
@@ -441,12 +459,49 @@ function DataserverActions({ code, onEditFields, onRemove }: { code: string; onE
   )
 }
 
+/** "Área Ofertada (CODCOLIGADA, IDAREAINTERESSE)" per link — the structure list's summary. */
+function LinksSummary({ links, dataserverName }: { links: TbcChecklistView["dataservers"][number]["links"]; dataserverName: (code: string) => string }) {
+  if (!links.length) return null
+  return (
+    <p className="flex items-start gap-1 text-xs text-muted-foreground">
+      <Link2 className="mt-0.5 h-3 w-3 shrink-0" />
+      <span className="break-words">
+        Vinculado a {links.map((l) => `${dataserverName(l.parentCode)} (${linkFieldsLabel(l.fields)})`).join(" e ")}
+      </span>
+    </p>
+  )
+}
+
+/** What a linked Data Server was filtered by, and when a parent's own list was cut short. */
+function LinkedNotice({ dataserver }: { dataserver: AddedDataserver }) {
+  if (!dataserver.linkedBy.length) return null
+  const truncated = dataserver.linkedBy.filter((l) => l.parentTruncated)
+  return (
+    <>
+      <p className="flex items-start gap-2 text-xs text-muted-foreground">
+        <Link2 className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+        <span className="break-words">
+          Só os registros vinculados a {dataserver.linkedBy.map((l) => `${l.parentName} (${linkFieldsLabel(l.fields)})`).join(" e ")}.
+        </span>
+      </p>
+      {truncated.length > 0 && (
+        <p className="flex items-center gap-2 text-xs text-amber-700 dark:text-amber-400">
+          <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+          {truncated.map((l) => l.parentName).join(", ")} tem mais registros do que os carregados — só os carregados filtraram este Data
+          Server.
+        </p>
+      )}
+    </>
+  )
+}
+
 /** Layout view when the Data Server has a screen mapping, generic per-table tabs otherwise. */
 function DataserverView({ dataserver, onLoadTables }: { dataserver: AddedDataserver; onLoadTables: LoadTables }) {
   const layout = CHECKLIST_LAYOUTS[dataserver.code]
   return (
     <SelectionContext.Provider value={dataserver.selection}>
       <div className="flex flex-col gap-2">
+        <LinkedNotice dataserver={dataserver} />
         {dataserver.truncated && (
           <p className="flex items-center gap-2 text-xs text-amber-700 dark:text-amber-400">
             <AlertTriangle className="h-3.5 w-3.5" />
@@ -470,8 +525,9 @@ function ChecklistStructure({
   checklist,
   dataserverName,
   onEditFields,
+  onEditLinks,
   onRemoveDataserver,
-}: Pick<ChecklistContentProps, "checklist" | "dataserverName" | "onEditFields" | "onRemoveDataserver">) {
+}: Pick<ChecklistContentProps, "checklist" | "dataserverName" | "onEditFields" | "onEditLinks" | "onRemoveDataserver">) {
   // Empty: the hint above the structure already says what to do.
   if (!checklist.dataservers.length) return null
   return (
@@ -483,8 +539,15 @@ function ChecklistStructure({
             <p className="text-xs text-muted-foreground">
               {d.dataserverCode} · {d.fields.length} {d.fields.length === 1 ? "campo" : "campos"}
             </p>
+            <LinksSummary links={d.links} dataserverName={dataserverName} />
           </div>
-          <DataserverActions code={d.dataserverCode} onEditFields={onEditFields} onRemove={onRemoveDataserver} />
+          <DataserverActions
+            code={d.dataserverCode}
+            linkCount={d.links.length}
+            onEditFields={onEditFields}
+            onEditLinks={onEditLinks}
+            onRemove={onRemoveDataserver}
+          />
         </li>
       ))}
     </ul>
@@ -514,6 +577,7 @@ export function ChecklistContent({
   loadProgress,
   onRemoveDataserver,
   onEditFields,
+  onEditLinks,
   onOpenAddDialog,
   onLoadTables,
   onRefreshProcesso,
@@ -533,6 +597,15 @@ export function ChecklistContent({
     return index === -1 ? order.length : index
   }
   const pending = (loadProgress ?? []).filter((p) => !isFinished(p))
+  const actionsOf = (code: string) => (
+    <DataserverActions
+      code={code}
+      linkCount={checklist.dataservers.find((d) => d.dataserverCode === code)?.links.length ?? 0}
+      onEditFields={onEditFields}
+      onEditLinks={onEditLinks}
+      onRemove={onRemoveDataserver}
+    />
+  )
   const entries: DataserverEntry[] = Array.from(new Set([...addedDataservers.map((d) => d.code), ...pending.map((p) => p.code)]))
     .sort((a, b) => rank(a) - rank(b))
     .map((code) => {
@@ -557,6 +630,7 @@ export function ChecklistContent({
           checklist={checklist}
           dataserverName={dataserverName}
           onEditFields={onEditFields}
+          onEditLinks={onEditLinks}
           onRemoveDataserver={onRemoveDataserver}
         />
       </div>
@@ -594,7 +668,7 @@ export function ChecklistContent({
           <div className="flex flex-col gap-2">
             <div className="flex items-center justify-between">
               <p className="text-sm font-medium">{entries[0].name}</p>
-              <DataserverActions code={entries[0].code} onEditFields={onEditFields} onRemove={onRemoveDataserver} />
+              {actionsOf(entries[0].code)}
             </div>
             <EntryView entry={entries[0]} onLoadTables={onLoadTables} />
           </div>
@@ -614,7 +688,7 @@ export function ChecklistContent({
               <TabsContent key={entry.code} value={entry.code}>
                 <div className="flex flex-col gap-2">
                   <div className="flex justify-end">
-                    <DataserverActions code={entry.code} onEditFields={onEditFields} onRemove={onRemoveDataserver} />
+                    {actionsOf(entry.code)}
                   </div>
                   <EntryView entry={entry} onLoadTables={onLoadTables} />
                 </div>

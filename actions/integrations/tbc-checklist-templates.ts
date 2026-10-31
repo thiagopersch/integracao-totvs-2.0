@@ -10,6 +10,7 @@ import {
 import {
   tbcChecklistAddProcessosSchema,
   tbcChecklistDataserverFieldsSchema,
+  tbcChecklistDataserverLinksSchema,
   tbcChecklistImportSchema,
   tbcChecklistListingSchema,
   tbcChecklistNameSchema,
@@ -84,6 +85,20 @@ export async function saveTbcChecklistDataserverFields(id: string, input: unknow
       entity: "TbcChecklist",
       entityId: c.id,
       newData: { dataserverCode: parsed.data.dataserverCode, fieldCount: parsed.data.fields.length },
+    })
+  )
+}
+
+export async function saveTbcChecklistDataserverLinks(id: string, input: unknown): Promise<ChecklistResult> {
+  const parsed = tbcChecklistDataserverLinksSchema.safeParse(input)
+  if (!parsed.success) return invalid(parsed.error)
+  return mutate(
+    (ctx) => tbcChecklistService.saveLinks(id, parsed.data, ctx.organizationId, ctx.allowedClientIds),
+    (c) => ({
+      action: "UPDATE",
+      entity: "TbcChecklist",
+      entityId: c.id,
+      newData: { dataserverCode: parsed.data.dataserverCode, links: parsed.data.links },
     })
   )
 }

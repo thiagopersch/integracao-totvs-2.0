@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { buildSaveRecordXml, parseDataServerRootName, type SchemaTable } from "./soap-schema"
+import { buildSaveRecordXml, parseDataServerRelations, parseDataServerRootName, type SchemaTable } from "./soap-schema"
 
 const field = (name: string, isPrimaryKey = false) => ({
   name,
@@ -62,5 +62,63 @@ describe("parseDataServerRootName", () => {
 
   it("falls back to NewDataSet", () => {
     expect(parseDataServerRootName("<xs:schema xmlns:xs=\"x\"></xs:schema>")).toBe("NewDataSet")
+  })
+})
+
+describe("parseDataServerRelations", () => {
+  // Trimmed from EduPSAreaOfertadaData's live GetSchema: keyrefs name their parent's xs:unique.
+  const xsd = `<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xs:element name="EduPSAreaOfertada" msdata:IsDataSet="true">
+      <xs:unique name="Constraint1" msdata:PrimaryKey="true">
+        <xs:selector xpath=".//SPSAreaOfertada" /><xs:field xpath="CODCOLIGADA" /><xs:field xpath="IDPS" /><xs:field xpath="IDAREAINTERESSE" />
+      </xs:unique>
+      <xs:unique name="SPSEtapaAreaOfertada_Constraint1" msdata:ConstraintName="Constraint1" msdata:PrimaryKey="true">
+        <xs:selector xpath=".//mstns:SPSEtapaAreaOfertada" /><xs:field xpath="mstns:CODCOLIGADA" /><xs:field xpath="mstns:IDETAPA" />
+      </xs:unique>
+      <xs:keyref name="FK_SPSAreaOfertada_SPSEtapaAreaOfertada" refer="Constraint1">
+        <xs:selector xpath=".//SPSEtapaAreaOfertada" /><xs:field xpath="CODCOLIGADA" /><xs:field xpath="IDPS" /><xs:field xpath="IDAREAINTERESSE" />
+      </xs:keyref>
+      <xs:keyref name="FK_Etapa_Horario" refer="mstns:SPSEtapaAreaOfertada_Constraint1">
+        <xs:selector xpath=".//SPSHorarioEtapaAreaOfertada" /><xs:field xpath="CODCOLIGADA" /><xs:field xpath="ETAPA" />
+      </xs:keyref>
+      <xs:annotation><xs:appinfo>
+        <msdata:Relationship name="Area_Idioma" msdata:parent="SPSAreaOfertada" msdata:child="SPSIdiomaAreaOfertada" msdata:parentkey="CODCOLIGADA IDPS" msdata:childkey="CODCOLIGADA IDPS" />
+      </xs:appinfo></xs:annotation>
+    </xs:element>
+  </xs:schema>`
+
+  it("resolves each keyref's parent through the constraint it refers to", () => {
+    const relations = parseDataServerRelations(xsd)
+    expect(relations).toContainEqual({
+      name: "FK_SPSAreaOfertada_SPSEtapaAreaOfertada",
+      parent: "SPSAreaOfertada",
+      child: "SPSEtapaAreaOfertada",
+      fields: [
+        { parent: "CODCOLIGADA", child: "CODCOLIGADA" },
+        { parent: "IDPS", child: "IDPS" },
+        { parent: "IDAREAINTERESSE", child: "IDAREAINTERESSE" },
+      ],
+    })
+    expect(relations.find((r) => r.child === "SPSHorarioEtapaAreaOfertada")).toMatchObject({
+      parent: "SPSEtapaAreaOfertada",
+      fields: [
+        { parent: "CODCOLIGADA", child: "CODCOLIGADA" },
+        { parent: "IDETAPA", child: "ETAPA" },
+      ],
+    })
+  })
+
+  it("reads msdata:Relationship annotations too", () => {
+    expect(parseDataServerRelations(xsd).find((r) => r.child === "SPSIdiomaAreaOfertada")).toMatchObject({
+      parent: "SPSAreaOfertada",
+      fields: [
+        { parent: "CODCOLIGADA", child: "CODCOLIGADA" },
+        { parent: "IDPS", child: "IDPS" },
+      ],
+    })
+  })
+
+  it("is empty for a schema without relations", () => {
+    expect(parseDataServerRelations("<xs:schema xmlns:xs=\"x\"></xs:schema>")).toEqual([])
   })
 })

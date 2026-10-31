@@ -26,6 +26,26 @@ export const tbcChecklistDataserverFieldsSchema = z.object({
   fields: z.array(tbcChecklistFieldSchema).min(1, "Selecione ao menos um campo").max(5000),
 });
 
+/** One link of a checklist Data Server to another of the same checklist (`parentCode`): pairs of
+ *  main-table columns, the parent's ↔ this one's. */
+export const tbcChecklistLinkSchema = z.object({
+  parentCode: z.string().trim().min(1, "Data Server vinculado é obrigatório"),
+  fields: z
+    .array(
+      z.object({
+        parent: z.string().trim().min(1, "Campo do Data Server vinculado é obrigatório"),
+        child: z.string().trim().min(1, "Campo deste Data Server é obrigatório"),
+      })
+    )
+    .min(1, "Escolha ao menos um par de campos para cada vínculo")
+    .max(10),
+});
+
+export const tbcChecklistDataserverLinksSchema = z.object({
+  dataserverCode: z.string().trim().min(1, "Data Server é obrigatório"),
+  links: z.array(tbcChecklistLinkSchema).max(10, "No máximo 10 vínculos por Data Server"),
+});
+
 /** A processo seletivo saved in the checklist — coligada + IDPS identify it, filial + nível de
  *  ensino complete the Contexto it is loaded with. */
 export const tbcChecklistProcessoSchema = z.object({
@@ -49,6 +69,8 @@ export const tbcChecklistImportSchema = z.object({
 export type TbcChecklistListingInput = z.output<typeof tbcChecklistListingSchema>;
 export type TbcChecklistField = z.output<typeof tbcChecklistFieldSchema>;
 export type TbcChecklistDataserverFieldsInput = z.output<typeof tbcChecklistDataserverFieldsSchema>;
+export type TbcChecklistLink = z.output<typeof tbcChecklistLinkSchema>;
+export type TbcChecklistDataserverLinksInput = z.output<typeof tbcChecklistDataserverLinksSchema>;
 export type TbcChecklistProcessoInput = z.output<typeof tbcChecklistProcessoSchema>;
 export type TbcChecklistAddProcessosInput = z.output<typeof tbcChecklistAddProcessosSchema>;
 export type TbcChecklistImportInput = z.output<typeof tbcChecklistImportSchema>;

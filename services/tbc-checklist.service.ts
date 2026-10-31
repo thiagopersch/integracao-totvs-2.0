@@ -1,9 +1,12 @@
 import { prisma } from "@/lib/prisma";
+import { descendantsOf } from "@/lib/tbc-checklist-links";
 import type {
   TbcChecklistAddProcessosInput,
   TbcChecklistDataserverFieldsInput,
+  TbcChecklistDataserverLinksInput,
   TbcChecklistField,
   TbcChecklistImportInput,
+  TbcChecklistLink,
   TbcChecklistListingInput,
 } from "@/schemas/tbc-checklist.schema";
 
@@ -19,7 +22,13 @@ export type TbcChecklistView = {
   listingIdFields: string[];
   listingLabelField: string | null;
   updatedAt: Date;
-  dataservers: { id: string; dataserverCode: string; position: number; fields: TbcChecklistField[] }[];
+  dataservers: {
+    id: string;
+    dataserverCode: string;
+    position: number;
+    fields: TbcChecklistField[];
+    links: TbcChecklistLink[];
+  }[];
   processos: TbcChecklistProcessoView[];
 };
 
@@ -49,6 +58,19 @@ function toFields(value: unknown): TbcChecklistField[] {
   );
 }
 
+const isRecord = (value: unknown): value is Record<string, unknown> => !!value && typeof value === "object";
+
+function toLinks(value: unknown): TbcChecklistLink[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((link) => {
+    if (!isRecord(link) || typeof link.parentCode !== "string" || !Array.isArray(link.fields)) return [];
+    const fields = link.fields.flatMap((f) =>
+      isRecord(f) && typeof f.parent === "string" && typeof f.child === "string" ? [{ parent: f.parent, child: f.child }] : []
+    );
+    return fields.length ? [{ parentCode: link.parentCode, fields }] : [];
+  });
+}
+
 function toView(checklist: ChecklistWithDataservers): TbcChecklistView {
   return {
     id: checklist.id,
@@ -66,6 +88,7 @@ function toView(checklist: ChecklistWithDataservers): TbcChecklistView {
       dataserverCode: d.dataserverCode,
       position: d.position,
       fields: toFields(d.fields),
+      links: toLinks(d.links),
     })),
     processos: checklist.processos.map((p) => ({
       id: p.id,
@@ -182,6 +205,29 @@ export const tbcChecklistService = {
     return toView(await prisma.tbcChecklist.update({ where: { id }, data: { updatedAt: new Date() }, include }));
   },
 
+  /** Replaces the links of one of the checklist's Data Servers — every parent must be another
+   *  Data Server of the checklist (once), and none may depend on this one already (no cycles). */
+  async saveLinks(id: string, input: TbcChecklistDataserverLinksInput, organizationId: string, allowedClientIds: string[]) {
+    const checklist = await requireChecklist(id, organizationId, allowedClientIds);
+    const entry = checklist.dataservers.find((d) => d.dataserverCode === input.dataserverCode);
+    if (!entry) throw new Error("Data Server não faz parte deste checklist");
+    const parentCodes = input.links.map((l) => l.parentCode);
+    if (new Set(parentCodes).size !== parentCodes.length) throw new Error("O mesmo Data Server foi vinculado mais de uma vez");
+    if (parentCodes.includes(input.dataserverCode)) throw new Error("Um Data Server não pode ser vinculado a ele mesmo");
+    const missing = parentCodes.filter((code) => !checklist.dataservers.some((d) => d.dataserverCode === code));
+    if (missing.length) throw new Error(`Data Server vinculado fora deste checklist: ${missing.join(", ")}`);
+    const dependents = descendantsOf(
+      checklist.dataservers.map((d) => ({ dataserverCode: d.dataserverCode, links: toLinks(d.links) })),
+      input.dataserverCode
+    );
+    const cyclic = parentCodes.filter((code) => dependents.has(code));
+    if (cyclic.length) {
+      throw new Error(`${cyclic.join(", ")} já depende deste Data Server — o vínculo fecharia um ciclo`);
+    }
+    await prisma.tbcChecklistDataserver.update({ where: { id: entry.id }, data: { links: input.links } });
+    return toView(await prisma.tbcChecklist.update({ where: { id }, data: { updatedAt: new Date() }, include }));
+  },
+
   /** Saves the picked processos seletivos — one already in the checklist (same coligada + IDPS)
    *  is skipped. */
   async addProcessos(id: string, input: TbcChecklistAddProcessosInput, organizationId: string, allowedClientIds: string[]) {
@@ -226,8 +272,9 @@ export const tbcChecklistService = {
 
   /**
    * Copies the Data Servers/fields of `input.sourceId` into `targetId`: "replace" swaps the whole
-   * structure for the source's; "merge" adds missing Data Servers and joins the fields of shared
-   * ones. The source's Contexto/listing setup is only copied when the target has none yet. Its
+   * structure for the source's (links included); "merge" adds missing Data Servers — with their
+   * links to Data Servers the result has — and joins the fields of shared ones, which keep their own
+   * links (only new Data Servers get links, so no cycle can form). The source's Contexto/listing setup is only copied when the target has none yet. Its
    * processos seletivos are never copied — they belong to the source TBC's base.
    */
   async importStructure(targetId: string, input: TbcChecklistImportInput, organizationId: string, allowedClientIds: string[]) {
@@ -259,9 +306,11 @@ export const tbcChecklistService = {
             dataserverCode: d.dataserverCode,
             position,
             fields: dedupeFields(toFields(d.fields)),
+            links: toLinks(d.links),
           })),
         });
       } else {
+        const resultCodes = new Set([...target.dataservers, ...source.dataservers].map((d) => d.dataserverCode));
         let nextPosition = target.dataservers.reduce((max, d) => Math.max(max, d.position + 1), 0);
         for (const sourceDataserver of source.dataservers) {
           const sourceFields = toFields(sourceDataserver.fields);
@@ -278,6 +327,7 @@ export const tbcChecklistService = {
                 dataserverCode: sourceDataserver.dataserverCode,
                 position: nextPosition++,
                 fields: dedupeFields(sourceFields),
+                links: toLinks(sourceDataserver.links).filter((l) => resultCodes.has(l.parentCode)),
               },
             });
           }
@@ -292,6 +342,12 @@ export const tbcChecklistService = {
     const checklist = await requireChecklist(id, organizationId, allowedClientIds);
     if (!checklist.dataservers.some((d) => d.dataserverCode === dataserverCode)) {
       throw new Error("Data Server não faz parte deste checklist");
+    }
+    const linked = checklist.dataservers.filter((d) => toLinks(d.links).some((l) => l.parentCode === dataserverCode));
+    if (linked.length) {
+      throw new Error(
+        `Não é possível remover: ${linked.map((d) => d.dataserverCode).join(", ")} ${linked.length === 1 ? "está vinculado" : "estão vinculados"} a este Data Server. Remova o vínculo primeiro.`
+      );
     }
     await prisma.tbcChecklistDataserver.delete({ where: { checklistId_dataserverCode: { checklistId: id, dataserverCode } } });
     return toView(await prisma.tbcChecklist.update({ where: { id }, data: { updatedAt: new Date() }, include }));

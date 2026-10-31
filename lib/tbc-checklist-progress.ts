@@ -1,5 +1,6 @@
-/** Where one Data Server is in its load: queued behind the first one, running GetSchema +
- *  ReadView ("view"), fetching its records in batches ("records"), or finished. */
+/** Where one Data Server is in its load: queued behind the first one (or the Data Servers it is
+ *  linked to), running GetSchema + ReadView ("view"), fetching its records in batches ("records"),
+ *  or finished. */
 export type DataserverLoadPhase = "waiting" | "view" | "records" | "done" | "failed"
 
 export type DataserverLoadProgress = {
@@ -9,6 +10,8 @@ export type DataserverLoadProgress = {
   /** Records fetched so far / to fetch (known once the view returned). */
   done: number
   total: number
+  /** Names of the Data Servers a linked one waits for — its filtro comes from their rows. */
+  waitingFor?: string
 }
 
 /** Share of a Data Server's load the view step stands for — the records take the rest. */
@@ -43,7 +46,7 @@ export function isFinished(item: DataserverLoadProgress): boolean {
 export function describeStep(item: DataserverLoadProgress): string {
   switch (item.phase) {
     case "waiting":
-      return "Aguardando o primeiro Data Server…"
+      return item.waitingFor ? `Aguardando ${item.waitingFor}…` : "Aguardando o primeiro Data Server…"
     case "view":
       return "Consultando o TOTVS…"
     case "records":

@@ -422,13 +422,17 @@ model TbcChecklistProcesso {
 }
 
 /// One Data Server of a TbcChecklist and the fields picked for validation — `fields` is
-/// `{ table: string; name: string }[]` (tables as GetSchema names them).
+/// `{ table: string; name: string }[]` (tables as GetSchema names them). `links` ties it to other
+/// Data Servers of the same checklist — `{ parentCode: string; fields: { parent: string; child:
+/// string }[] }[]`, main-table columns of the parent ↔ of this one: its rows are only the ones
+/// matching every parent's loaded rows, and the generated SQL joins through them.
 model TbcChecklistDataserver {
   id             String   @id @default(uuid())
   checklistId    String   @map("checklist_id")
   dataserverCode String   @map("dataserver_code")
   position       Int      @default(0)
   fields         Json
+  links          Json     @default("[]")
   createdAt      DateTime @default(now()) @map("created_at")
   updatedAt      DateTime @updatedAt @map("updated_at")
 

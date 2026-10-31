@@ -113,6 +113,20 @@ function stripNsPrefix(type: string): string {
   return type.includes(":") ? type.slice(type.indexOf(":") + 1) : type
 }
 
+/** Table an `xs:unique`/`xs:key`/`xs:keyref` applies to. xpath values are namespace-qualified live
+ *  (e.g. `.//mstns:TableName`, `mstns:FIELD`) even though element/field names never carry that
+ *  prefix — stripped so the two sides actually match. */
+function constraintTable(constraint: unknown): string {
+  const selectorPath = getAttr(childByLocalName(constraint, "selector"), "xpath")
+  return stripNsPrefix(selectorPath.replace(/^\.\/\//, "").replace(/^\.\//, ""))
+}
+
+function constraintFields(constraint: unknown): string[] {
+  return asArray(childByLocalName(constraint, "field"))
+    .map((f) => stripNsPrefix(getAttr(f, "xpath")))
+    .filter(Boolean)
+}
+
 /**
  * Parses the ADO.NET DataSet-shaped XSD that `wsDataServer.GetSchema` returns (confirmed against
  * TOTVS's own TDN docs: `xs:element`/`xs:complexType`/`xs:sequence` per table, `msdata:Caption` or
@@ -168,15 +182,9 @@ export function parseDataServerSchema(xml: string): SchemaTable[] {
     const pkFieldsByTable = new Map<string, Set<string>>()
     for (const constraint of [...findAllByLocalName(schema, "unique"), ...findAllByLocalName(schema, "key")]) {
       if (getAttr(constraint, "PrimaryKey").toLowerCase() !== "true") continue
-      const selectorPath = getAttr(childByLocalName(constraint, "selector"), "xpath")
-      // xpath values are namespace-qualified live (e.g. `.//mstns:TableName`, `mstns:FIELD`) even
-      // though the element/field names collected above never carry that prefix — strip it so the
-      // two sides actually match.
-      const tableName = stripNsPrefix(selectorPath.replace(/^\.\/\//, "").replace(/^\.\//, ""))
+      const tableName = constraintTable(constraint)
       if (!tableName) continue
-      const fieldNames = asArray(childByLocalName(constraint, "field"))
-        .map((f) => stripNsPrefix(getAttr(f, "xpath")))
-        .filter(Boolean)
+      const fieldNames = constraintFields(constraint)
       const set = pkFieldsByTable.get(tableName) ?? new Set<string>()
       fieldNames.forEach((f) => set.add(f))
       pkFieldsByTable.set(tableName, set)
@@ -193,6 +201,62 @@ export function parseDataServerSchema(xml: string): SchemaTable[] {
     }
 
     return tables
+  } catch {
+    return []
+  }
+}
+
+/** A parent → child link between two tables of a DataSet: `child` rows point at their `parent` row
+ *  through `fields` (child column ↔ parent column, paired by position). */
+export type SchemaRelation = {
+  name: string
+  parent: string
+  child: string
+  fields: { parent: string; child: string }[]
+}
+
+/**
+ * The DataSet's table relationships, as the GetSchema XSD declares them: an `xs:keyref` whose
+ * `refer` names the parent's `xs:unique`/`xs:key` (confirmed live — e.g. SPSHorarioEtapaAreaOfertada
+ * → SPSEtapaAreaOfertada by CODCOLIGADA/IDPS/IDAREAINTERESSE/IDETAPA), or — ADO.NET's shape for a
+ * relation without a constraint — an `msdata:Relationship` annotation with space-separated keys.
+ */
+export function parseDataServerRelations(xml: string): SchemaRelation[] {
+  try {
+    const json = schemaParser.parse(xml) as Record<string, unknown>
+    const schema = findFirstByLocalName(json, "schema")
+    if (!isRecord(schema)) return []
+
+    const keys = new Map<string, { table: string; fields: string[] }>()
+    for (const constraint of [...findAllByLocalName(schema, "unique"), ...findAllByLocalName(schema, "key")]) {
+      const name = getAttr(constraint, "name")
+      if (name) keys.set(name, { table: constraintTable(constraint), fields: constraintFields(constraint) })
+    }
+
+    const fromKeyrefs = findAllByLocalName(schema, "keyref").flatMap((keyref): SchemaRelation[] => {
+      const key = keys.get(stripNsPrefix(getAttr(keyref, "refer")))
+      const child = constraintTable(keyref)
+      const childFields = constraintFields(keyref)
+      if (!key?.table || !child || !childFields.length || childFields.length !== key.fields.length) return []
+      return [{ name: getAttr(keyref, "name"), parent: key.table, child, fields: childFields.map((c, i) => ({ parent: key.fields[i], child: c })) }]
+    })
+
+    const fromAnnotations = findAllByLocalName(schema, "Relationship").flatMap((rel): SchemaRelation[] => {
+      const parentKeys = getAttr(rel, "parentkey").split(/\s+/).filter(Boolean)
+      const childKeys = getAttr(rel, "childkey").split(/\s+/).filter(Boolean)
+      const parent = getAttr(rel, "parent")
+      const child = getAttr(rel, "child")
+      if (!parent || !child || !childKeys.length || childKeys.length !== parentKeys.length) return []
+      return [{ name: getAttr(rel, "name"), parent, child, fields: childKeys.map((c, i) => ({ parent: parentKeys[i], child: c })) }]
+    })
+
+    const seen = new Set<string>()
+    return [...fromKeyrefs, ...fromAnnotations].filter((r) => {
+      const key = `${r.parent}>${r.child}`.toLowerCase()
+      if (seen.has(key)) return false
+      seen.add(key)
+      return true
+    })
   } catch {
     return []
   }

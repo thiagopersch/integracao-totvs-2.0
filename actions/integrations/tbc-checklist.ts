@@ -5,11 +5,14 @@ import { soapService, SoapPermissionDeniedError } from "@/services/soap.service"
 import { soapEndpointService } from "@/services/soap-endpoint.service"
 import { requirePermission } from "@/lib/rbac"
 import { escapeXml, type SoapContext } from "@/utils/soap-envelope"
-import { parseDataServerSchema, parseReadViewResult } from "@/utils/soap-schema"
+import { parseDataServerRelations, parseDataServerSchema, parseReadViewResult } from "@/utils/soap-schema"
 import type { WsName } from "@/lib/ws-names"
-import { buildPkFiltro, pickKnownPkValues } from "@/lib/tbc-checklist-filtro"
+import { buildLinkFiltro, buildPkFiltro, pickKnownPkValues, type LinkFilter } from "@/lib/tbc-checklist-filtro"
+import { MAX_LINK_TUPLES } from "@/lib/tbc-checklist-links"
 import { buildTableResult, rowsForTable, rowValue, toFieldMeta, type ChecklistMainRecord } from "@/lib/tbc-checklist-records"
 import { findNameField, toProcessoOptions } from "@/lib/tbc-checklist-processos"
+import { buildChecklistSql, type ChecklistSqlDataserver } from "@/lib/tbc-checklist-sql"
+import { tbcChecklistService } from "@/services/tbc-checklist.service"
 
 export type ChecklistFieldRow = {
   table: string
@@ -106,7 +109,7 @@ const MAX_PARENTS = 50
 
 /** Resolves the TBC credentials, the Data Server web service and the Contexto once, then runs
  *  any number of Data Server operations through the same auth-then-execute path. */
-async function openDataserverSession(tbcId: string, context: ChecklistContext) {
+async function openDataserverSession(tbcId: string, context?: ChecklistContext) {
   const { organizationId, allowedClientIds, userId } = await requirePermission("tbcs", "read")
   const credentials = await tbcService.getCredentialsForRequest(tbcId, organizationId, allowedClientIds)
   const dataserverType = await soapEndpointService.getActiveTypeByKey("dataserver")
@@ -175,6 +178,24 @@ export async function fetchDataserverSchema(input: { tbcId: string; dataserverCo
   }
 }
 
+/** Most links one Data Server is filtered by (same cap as the saved checklist). */
+const MAX_LINKS = 10
+
+/** Rejects a malformed `links` input (this is a public endpoint): too many links/tuples, a tuple
+ *  whose size differs from its fields, or an oversized value. */
+function invalidLinks(links: LinkFilter[] | undefined): string | null {
+  if (!links) return null
+  if (links.length > MAX_LINKS) return `No máximo ${MAX_LINKS} vínculos por Data Server.`
+  for (const link of links) {
+    if (!link.fields.length || link.fields.length > MAX_LINKS) return "Vínculo com campos inválidos."
+    if (link.tuples.length > MAX_LINK_TUPLES) return `No máximo ${MAX_LINK_TUPLES} valores por vínculo.`
+    if (link.tuples.some((t) => t.length !== link.fields.length || t.some((v) => typeof v !== "string" || v.length > 100))) {
+      return "Vínculo com valores inválidos."
+    }
+  }
+  return null
+}
+
 /**
  * Step 1 of loading a Data Server's MAIN table (the client then asks for the records in batches,
  * so it can show progress): GetSchema + ReadView, scoped by known values — `pkValues` may carry
@@ -182,6 +203,10 @@ export async function fetchDataserverSchema(input: { tbcId: string; dataserverCo
  * (case-insensitive) and non-empty become the filtro (`TABLE.FIELD = 'value' AND ...`). `context`
  * (coligada/filial/tipo de curso) is always sent, mirroring the SOAP Builder — TOTVS RM uses it to
  * resolve the base before applying the filtro.
+ *
+ * A Data Server linked to others gets `links` instead: the value tuples of its parents' loaded rows
+ * (`buildLinkFiltro` — e.g. `IDAREAINTERESSE IN (...)`), and the processo's `pkValues` don't apply.
+ * A link with no tuple (its parent has no row) means no row here either — no ReadView runs.
  *
  * ReadView only finds WHICH rows match: it returns just the columns of the Data Server's view
  * (13 of the 117 SPSProcessoSeletivo columns, for instance), so every other field would look "não
@@ -193,9 +218,12 @@ export async function fetchChecklistMainView(input: {
   tbcId: string
   dataserverCode: string
   pkValues: Record<string, string>
+  links?: LinkFilter[]
   context: ChecklistContext
 }) {
   try {
+    const linkError = invalidLinks(input.links)
+    if (linkError) return { success: false as const, error: linkError, permissionDenied: false }
     const session = await openDataserverSession(input.tbcId, input.context)
     const tables = parseDataServerSchema(await session.getSchema(input.dataserverCode)).map(toFieldMeta)
     const mainTable = tables[0]
@@ -204,13 +232,19 @@ export async function fetchChecklistMainView(input: {
     }
 
     const pkFieldNames = mainTable.fields.filter((f) => f.isPrimaryKey).map((f) => f.name)
+    const mainFieldNames = mainTable.fields.map((f) => f.name)
+    const links = input.links ?? []
     // Matched against every main-table column (not only the PK), so e.g. the áreas ofertadas of a
     // processo are found by CODCOLIGADA + IDPS whether or not IDPS is part of that table's own key.
-    const appliedFilter = Object.fromEntries(
-      Object.entries(pickKnownPkValues(mainTable.fields.map((f) => f.name), input.pkValues)).filter(([, v]) => v.trim() !== "")
-    )
-    const filtro = buildPkFiltro(mainTable.name, appliedFilter)
-    const allViewRows = rowsForTable(parseReadViewResult(await session.readView(input.dataserverCode, filtro)), mainTable.name)
+    const appliedFilter = links.length
+      ? {}
+      : Object.fromEntries(Object.entries(pickKnownPkValues(mainFieldNames, input.pkValues)).filter(([, v]) => v.trim() !== ""))
+    let allViewRows: Record<string, string>[] = []
+    // A link whose parent has no row leaves nothing to load here.
+    if (!links.some((l) => !l.tuples.length)) {
+      const filtro = links.length ? buildLinkFiltro(mainTable.name, mainFieldNames, links) : buildPkFiltro(mainTable.name, appliedFilter)
+      allViewRows = rowsForTable(parseReadViewResult(await session.readView(input.dataserverCode, filtro)), mainTable.name)
+    }
     const viewRows = allViewRows.slice(0, MAX_PARENTS)
     const primaryKeys = pkFieldNames.length ? viewRows.map((row) => pkFieldNames.map((name) => row[name] ?? "").join(";")) : []
 
@@ -353,6 +387,38 @@ export async function searchProcessosSeletivos(input: {
     })
     const rows = rowsForTable(parseReadViewResult(await session.readView(input.dataserverCode, filtro)), mainTable.name)
     return { success: true as const, processos: toProcessoOptions(rows, findNameField(mainTable.fields), input.context) }
+  } catch (error) {
+    return failure(error)
+  }
+}
+
+/**
+ * The RB.PS.VALIDA.1–4 Consultas SQL (Oracle and SQL Server) of a saved checklist: each Data
+ * Server's GetSchema — tables, primary keys and XSD relations — plus its picked fields, turned into
+ * SQL by `buildChecklistSql`. Only GetSchema runs: the SQL depends on the structure, not on data.
+ */
+export async function generateChecklistSql(input: { tbcId: string; checklistId: string; context?: ChecklistContext }) {
+  try {
+    const { organizationId, allowedClientIds } = await requirePermission("tbcs", "read")
+    const checklist = await tbcChecklistService.getById(input.checklistId, organizationId, allowedClientIds)
+    if (!checklist || checklist.tbcId !== input.tbcId) {
+      return { success: false as const, error: "Checklist não encontrado ou fora do seu escopo de acesso.", permissionDenied: false }
+    }
+    if (!checklist.dataservers.length) {
+      return { success: false as const, error: "Adicione ao menos um Data Server ao checklist para gerar a SQL.", permissionDenied: false }
+    }
+    const session = await openDataserverSession(input.tbcId, input.context)
+    const dataservers: ChecklistSqlDataserver[] = await mapWithLimit(checklist.dataservers, 4, async (d) => {
+      const xml = await session.getSchema(d.dataserverCode)
+      return {
+        code: d.dataserverCode,
+        fields: d.fields,
+        links: d.links,
+        tables: parseDataServerSchema(xml),
+        relations: parseDataServerRelations(xml),
+      }
+    })
+    return { success: true as const, ...buildChecklistSql({ checklistName: checklist.name, dataservers }) }
   } catch (error) {
     return failure(error)
   }
