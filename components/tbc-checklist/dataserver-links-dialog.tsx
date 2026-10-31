@@ -172,7 +172,7 @@ export function DataserverLinksDialog({
         <DialogHeader>
           <DialogTitle>Vínculos — {dataserverName(code)}</DialogTitle>
         </DialogHeader>
-        <DialogBody className="flex flex-col gap-4">
+        <DialogBody className="flex min-w-0 flex-col gap-4 overflow-x-hidden">
           <p className="text-xs text-muted-foreground">
             Com vínculos, este Data Server só carrega os registros cujos campos casam com os registros carregados de{" "}
             <b>todos</b> os Data Servers vinculados (no lugar do CODCOLIGADA/IDPS do processo seletivo). Os campos são os da tabela
@@ -209,10 +209,10 @@ export function DataserverLinksDialog({
               .filter((c) => c === link.parentCode || !usedParents.includes(c))
               .map((c) => ({ value: c, label: `${dataserverName(c)} (${c})` }))
             return (
-              <div key={link.id} className="flex flex-col gap-3 rounded-lg border p-3">
+              <div key={link.id} className="flex min-w-0 flex-col gap-3 rounded-lg border p-3">
                 <div className="flex flex-wrap items-center gap-2">
                   <Link2 className="h-4 w-4 shrink-0 text-muted-foreground" />
-                  <div className="min-w-48 flex-1">
+                  <div className="min-w-0 flex-1 basis-48">
                     <Combobox
                       items={parentItems}
                       value={link.parentCode}
@@ -261,19 +261,19 @@ export function DataserverLinksDialog({
                     )
                   ) : (
                     ownMain && (
-                      <div className="flex flex-col gap-2">
-                        <div className="hidden grid-cols-[1fr_auto_1fr_auto] gap-2 sm:grid">
-                          <FieldLabel className="text-xs">
+                      <div className="flex min-w-0 flex-col gap-2">
+                        <div className="hidden grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)_auto] gap-2 sm:grid">
+                          <FieldLabel className="min-w-0 truncate text-xs">
                             {dataserverName(link.parentCode)} · {parentState.main.name}
                           </FieldLabel>
                           <span />
-                          <FieldLabel className="text-xs">
+                          <FieldLabel className="min-w-0 truncate text-xs">
                             {dataserverName(code)} · {ownMain.name}
                           </FieldLabel>
                           <span />
                         </div>
                         {link.fields.map((pair, index) => (
-                          <div key={index} className="flex flex-col gap-2 sm:grid sm:grid-cols-[1fr_auto_1fr_auto] sm:items-center">
+                          <div key={index} className="flex flex-col gap-2 sm:grid sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)_auto] sm:items-center">
                             <Combobox
                               items={fieldItems(parentState.main, [pair.parent])}
                               value={pair.parent}
