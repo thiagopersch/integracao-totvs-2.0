@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useRef, useState } from "react"
-import { Link2, Loader2, Plus, Sparkles, Trash2, X } from "lucide-react"
+import { AlertTriangle, Link2, Loader2, Plus, Sparkles, Trash2, X } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Combobox } from "@/components/ui/combobox"
@@ -164,7 +164,9 @@ export function DataserverLinksDialog({
   }
 
   const complete = links.every((l) => l.parentCode && l.fields.length > 0 && l.fields.every((f) => f.parent && f.child))
-  const canConfirm = complete && !saving
+  // A link saved before the order rule may point to a Data Server below this one — it must go.
+  const misplaced = links.some((l) => l.parentCode && !allowed.includes(l.parentCode))
+  const canConfirm = complete && !misplaced && !saving
 
   return (
     <Dialog open={open} onOpenChange={(next) => !saving && onOpenChange(next)}>
@@ -175,8 +177,9 @@ export function DataserverLinksDialog({
         <DialogBody className="flex min-w-0 flex-col gap-4 overflow-x-hidden">
           <p className="text-xs text-muted-foreground">
             Com vínculos, este Data Server só carrega os registros cujos campos casam com os registros carregados de{" "}
-            <b>todos</b> os Data Servers vinculados (no lugar do CODCOLIGADA/IDPS do processo seletivo). Os campos são os da tabela
-            principal de cada um, e a SQL gerada liga as tabelas por eles.
+            <b>todos</b> os Data Servers vinculados (além do CODCOLIGADA/IDPS do processo seletivo). Os campos são os da tabela
+            principal de cada um, e a SQL gerada liga as tabelas por eles. Só os Data Servers acima deste na lista podem filtrá-lo —
+            arraste-os na lista do checklist para mudar a ordem.
           </p>
 
           <ChecklistContextFields value={contextForm} onChange={setContextForm} />
@@ -205,9 +208,11 @@ export function DataserverLinksDialog({
           {links.map((link) => {
             const parentState = link.parentCode ? schemaOf(link.parentCode) : undefined
             const parentMain = parentState?.status === "loaded" ? parentState.main : undefined
-            const parentItems = allowed
-              .filter((c) => c === link.parentCode || !usedParents.includes(c))
-              .map((c) => ({ value: c, label: `${dataserverName(c)} (${c})` }))
+            const below = !!link.parentCode && !allowed.includes(link.parentCode)
+            const parentItems = [
+              ...allowed.filter((c) => c === link.parentCode || !usedParents.includes(c)),
+              ...(below ? [link.parentCode] : []),
+            ].map((c) => ({ value: c, label: `${dataserverName(c)} (${c})${c === link.parentCode && below ? " — abaixo deste" : ""}` }))
             return (
               <div key={link.id} className="flex min-w-0 flex-col gap-3 rounded-lg border p-3">
                 <div className="flex flex-wrap items-center gap-2">
@@ -217,7 +222,7 @@ export function DataserverLinksDialog({
                       items={parentItems}
                       value={link.parentCode}
                       onValueChange={(value) => handleSelectParent(link, value)}
-                      placeholder="Vincular a..."
+                      placeholder="Filtrado por..."
                       searchPlaceholder="Buscar Data Server..."
                       emptyText="Nenhum Data Server disponível."
                     />
@@ -246,6 +251,16 @@ export function DataserverLinksDialog({
                     </Button>
                   </WithTooltip>
                 </div>
+
+                {below && (
+                  <p className="flex items-start gap-2 text-xs text-amber-700 dark:text-amber-400">
+                    <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                    <span className="break-words">
+                      {dataserverName(link.parentCode)} está abaixo deste Data Server na lista — só um Data Server acima pode filtrá-lo.
+                      Escolha outro ou remova o vínculo; para mantê-lo, arraste {dataserverName(link.parentCode)} para cima na lista.
+                    </span>
+                  </p>
+                )}
 
                 {link.parentCode &&
                   (!parentState || parentState.status === "loading" ? (
@@ -326,7 +341,7 @@ export function DataserverLinksDialog({
 
           <div>
             <WithTooltip
-              label={canAddLink ? "Vincular a mais um Data Server" : "Não há outro Data Server do checklist que possa ser vinculado sem fechar um ciclo"}
+              label={canAddLink ? "Filtrar por mais um Data Server" : "Não há outro Data Server acima deste na lista para filtrá-lo"}
               disabledSafe
             >
               <Button

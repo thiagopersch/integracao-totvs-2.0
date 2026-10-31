@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   POSITION_STEP,
+  autoTaskProgress,
   buildTaskTree,
   descendantIds,
   insertAfter,
@@ -127,5 +128,19 @@ describe("sameRankNeighbours", () => {
 
   it("returns no neighbours when the card isn't in the list", () => {
     expect(sameRankNeighbours(["u1"], "m", of)).toEqual({ beforeId: null, afterId: null });
+  });
+});
+
+describe("autoTaskProgress", () => {
+  it("is manual (null) without checklist or subtasks", () => {
+    expect(autoTaskProgress([], [])).toBeNull();
+    expect(autoTaskProgress([], [{ status: "CANCELLED" }])).toBeNull();
+  });
+
+  it("counts done checklist items and DONE subtasks as equal units", () => {
+    const checklist = [{ done: true }, { done: true }, { done: false }, { done: false }, { done: false }];
+    expect(autoTaskProgress(checklist, [])).toBe(40);
+    expect(autoTaskProgress(checklist, [{ status: "DONE" }])).toBe(50);
+    expect(autoTaskProgress([], [{ status: "DONE" }, { status: "IN_PROGRESS" }, { status: "CANCELLED" }])).toBe(50);
   });
 });

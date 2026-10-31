@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { descendantsOf } from "@/lib/tbc-checklist-links";
+import { newOrderProblems, orderProblems } from "@/lib/tbc-checklist-links";
 import type {
   TbcChecklistAddProcessosInput,
   TbcChecklistDataserverFieldsInput,
@@ -8,6 +8,7 @@ import type {
   TbcChecklistImportInput,
   TbcChecklistLink,
   TbcChecklistListingInput,
+  TbcChecklistReorderInput,
 } from "@/schemas/tbc-checklist.schema";
 
 /** A checklist as the checklist screen consumes it — `fields` narrowed from Prisma's `Json`. */
@@ -206,7 +207,7 @@ export const tbcChecklistService = {
   },
 
   /** Replaces the links of one of the checklist's Data Servers — every parent must be another
-   *  Data Server of the checklist (once), and none may depend on this one already (no cycles). */
+   *  Data Server of the checklist (once), above this one in the order (so no cycle can form). */
   async saveLinks(id: string, input: TbcChecklistDataserverLinksInput, organizationId: string, allowedClientIds: string[]) {
     const checklist = await requireChecklist(id, organizationId, allowedClientIds);
     const entry = checklist.dataservers.find((d) => d.dataserverCode === input.dataserverCode);
@@ -216,13 +217,12 @@ export const tbcChecklistService = {
     if (parentCodes.includes(input.dataserverCode)) throw new Error("Um Data Server não pode ser vinculado a ele mesmo");
     const missing = parentCodes.filter((code) => !checklist.dataservers.some((d) => d.dataserverCode === code));
     if (missing.length) throw new Error(`Data Server vinculado fora deste checklist: ${missing.join(", ")}`);
-    const dependents = descendantsOf(
-      checklist.dataservers.map((d) => ({ dataserverCode: d.dataserverCode, links: toLinks(d.links) })),
-      input.dataserverCode
-    );
-    const cyclic = parentCodes.filter((code) => dependents.has(code));
-    if (cyclic.length) {
-      throw new Error(`${cyclic.join(", ")} já depende deste Data Server — o vínculo fecharia um ciclo`);
+    // A parent sits above its child — which also rules out cycles.
+    const below = orderProblems(
+      checklist.dataservers.map((d) => ({ dataserverCode: d.dataserverCode, links: d === entry ? input.links : [] }))
+    ).map((p) => p.parent);
+    if (below.length) {
+      throw new Error(`${below.join(", ")} está abaixo deste Data Server — só um Data Server acima na lista pode filtrá-lo`);
     }
     await prisma.tbcChecklistDataserver.update({ where: { id: entry.id }, data: { links: input.links } });
     return toView(await prisma.tbcChecklist.update({ where: { id }, data: { updatedAt: new Date() }, include }));
@@ -338,6 +338,23 @@ export const tbcChecklistService = {
     return toView(checklist);
   },
 
+  /** Saves the Data Servers' order (every code of the checklist, once). A move can't put a Data
+   *  Server above one that filters it; a link already out of order (from before) doesn't block. */
+  async reorderDataservers(id: string, input: TbcChecklistReorderInput, organizationId: string, allowedClientIds: string[]) {
+    const checklist = await requireChecklist(id, organizationId, allowedClientIds);
+    const codes = input.dataserverCodes;
+    const current = checklist.dataservers.map((d) => ({ id: d.id, dataserverCode: d.dataserverCode, links: toLinks(d.links) }));
+    if (new Set(codes).size !== codes.length || codes.length !== current.length || current.some((d) => !codes.includes(d.dataserverCode))) {
+      throw new Error("A nova ordem precisa ter todos os Data Servers do checklist, uma vez cada");
+    }
+    const next = codes.map((code) => current.find((d) => d.dataserverCode === code)!);
+    const broken = newOrderProblems(current, next)[0];
+    if (broken) throw new Error(`${broken.child} é filtrado por ${broken.parent} e precisa ficar abaixo dele`);
+    await prisma.$transaction(
+      next.map((d, position) => prisma.tbcChecklistDataserver.update({ where: { id: d.id }, data: { position } }))
+    );
+    return toView(await prisma.tbcChecklist.update({ where: { id }, data: { updatedAt: new Date() }, include }));
+  },
   async removeDataserver(id: string, dataserverCode: string, organizationId: string, allowedClientIds: string[]) {
     const checklist = await requireChecklist(id, organizationId, allowedClientIds);
     if (!checklist.dataservers.some((d) => d.dataserverCode === dataserverCode)) {

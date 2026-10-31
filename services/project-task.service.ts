@@ -4,6 +4,7 @@ import { findBlockingReferences, formatBlockingReferences } from "@/lib/entity-r
 import { getTodayDateOnly } from "@/lib/export-period";
 import { buildCustomFieldWhere, parseCustomFieldValues, type CustomFieldDef } from "@/lib/custom-fields";
 import {
+  autoTaskProgress,
   descendantIds,
   insertAfter,
   needsRebalance,
@@ -134,6 +135,28 @@ async function endOfColumn(tx: Tx, projectId: string, stageId: string, excludeId
     _max: { boardPosition: true },
   });
   return (last._max.boardPosition ?? 0) + POSITION_STEP;
+}
+
+/**
+ * Recomputes `progress` of tasks that have a checklist and/or subtasks (`autoTaskProgress`). DONE
+ * tasks stay at 100 and tasks with neither keep their manual value. Only the subtasks' status
+ * counts, so this never needs to cascade further up the tree.
+ */
+async function syncTaskProgress(tx: Tx, taskIds: (string | null | undefined)[]) {
+  for (const id of new Set(taskIds.filter((x): x is string => !!x))) {
+    const task = await tx.projectTask.findFirst({
+      where: { id, deletedAt: null },
+      select: {
+        status: true,
+        progress: true,
+        checklistItems: { select: { done: true } },
+        children: { where: { deletedAt: null }, select: { status: true } },
+      },
+    });
+    if (!task || task.status === "DONE") continue;
+    const progress = autoTaskProgress(task.checklistItems, task.children);
+    if (progress !== null && progress !== task.progress) await tx.projectTask.update({ where: { id }, data: { progress } });
+  }
 }
 
 async function endOfSiblings(tx: Tx, projectId: string, parentId: string | null) {
@@ -385,6 +408,7 @@ export const projectTaskService = {
             ...effects,
           },
         });
+        await syncTaskProgress(tx, [parentId]);
         await projectService.recomputeProgress(tx, projectId);
         return created;
       })(),
@@ -421,6 +445,7 @@ export const projectTaskService = {
             ...effects,
           },
         });
+        await syncTaskProgress(tx, [parentId]);
         await projectService.recomputeProgress(tx, projectId);
         return created;
       })(),
@@ -483,6 +508,8 @@ export const projectTaskService = {
           ...stageData,
         },
       });
+      // The task itself (a manual value is overridden when it has checklist/subtasks) and its parents.
+      await syncTaskProgress(tx, [taskId, old.parentId, parentId]);
       await projectService.recomputeProgress(tx, projectId);
       return updated;
     });
@@ -569,7 +596,10 @@ export const projectTaskService = {
         where: { id: taskId },
         data: { stageId: stage.id, status: stage.category, boardPosition, ...statusSideEffects(old.status, stage.category, new Date()) },
       });
-      if (old.status !== stage.category) await projectService.recomputeProgress(tx, projectId);
+      if (old.status !== stage.category) {
+        await syncTaskProgress(tx, [taskId, old.parentId]);
+        await projectService.recomputeProgress(tx, projectId);
+      }
       return updated;
     });
     return { task, old, stage, warning: await this.predecessorWarning(taskId, old.status, task.status) };
@@ -615,6 +645,7 @@ export const projectTaskService = {
       await tx.projectTaskDependency.deleteMany({ where: { OR: [{ predecessorId: taskId }, { successorId: taskId }] } });
       await tx.projectTaskDueAlert.deleteMany({ where: { taskId } });
       await tx.projectTask.update({ where: { id: taskId }, data: { deletedAt: new Date() } });
+      await syncTaskProgress(tx, [task.parentId]);
       await projectService.recomputeProgress(tx, projectId);
     });
     return task;
@@ -678,22 +709,38 @@ export const projectTaskService = {
   async addChecklistItem(taskId: string, projectId: string, title: string, ctx: ProjectCtx) {
     await this.loadTask(taskId, projectId, ctx);
     const last = await prisma.projectTaskChecklistItem.aggregate({ where: { taskId }, _max: { position: true } });
-    return prisma.projectTaskChecklistItem.create({ data: { taskId, title, position: (last._max.position ?? 0) + POSITION_STEP } });
+    return prisma.$transaction(async (tx) => {
+      const item = await tx.projectTaskChecklistItem.create({ data: { taskId, title, position: (last._max.position ?? 0) + POSITION_STEP } });
+      await this.syncChecklistProgress(tx, taskId, projectId);
+      return item;
+    });
   },
 
   async updateChecklistItem(itemId: string, projectId: string, data: { done?: boolean; title?: string }, ctx: ProjectCtx) {
     const item = await prisma.projectTaskChecklistItem.findFirst({ where: { id: itemId, task: { projectId, deletedAt: null } } });
     if (!item) throw new Error("Item não encontrado");
     await this.loadTask(item.taskId, projectId, ctx);
-    return prisma.projectTaskChecklistItem.update({ where: { id: itemId }, data });
+    return prisma.$transaction(async (tx) => {
+      const updated = await tx.projectTaskChecklistItem.update({ where: { id: itemId }, data });
+      if (data.done !== undefined && data.done !== item.done) await this.syncChecklistProgress(tx, item.taskId, projectId);
+      return updated;
+    });
   },
 
   async deleteChecklistItem(itemId: string, projectId: string, ctx: ProjectCtx) {
     const item = await prisma.projectTaskChecklistItem.findFirst({ where: { id: itemId, task: { projectId, deletedAt: null } } });
     if (!item) throw new Error("Item não encontrado");
     await this.loadTask(item.taskId, projectId, ctx);
-    await prisma.projectTaskChecklistItem.delete({ where: { id: itemId } });
+    await prisma.$transaction(async (tx) => {
+      await tx.projectTaskChecklistItem.delete({ where: { id: itemId } });
+      await this.syncChecklistProgress(tx, item.taskId, projectId);
+    });
     return item;
+  },
+
+  async syncChecklistProgress(tx: Tx, taskId: string, projectId: string) {
+    await syncTaskProgress(tx, [taskId]);
+    await projectService.recomputeProgress(tx, projectId);
   },
 
   // ── Comments ───────────────────────────────────────────────────────────────

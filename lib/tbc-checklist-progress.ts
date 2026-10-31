@@ -46,7 +46,7 @@ export function isFinished(item: DataserverLoadProgress): boolean {
 export function describeStep(item: DataserverLoadProgress): string {
   switch (item.phase) {
     case "waiting":
-      return item.waitingFor ? `Aguardando ${item.waitingFor}…` : "Aguardando o primeiro Data Server…"
+      return item.waitingFor ? `Aguardando ${item.waitingFor}…` : "Na fila…"
     case "view":
       return "Consultando o TOTVS…"
     case "records":

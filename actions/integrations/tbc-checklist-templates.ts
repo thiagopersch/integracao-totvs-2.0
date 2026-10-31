@@ -14,6 +14,7 @@ import {
   tbcChecklistImportSchema,
   tbcChecklistListingSchema,
   tbcChecklistNameSchema,
+  tbcChecklistReorderSchema,
 } from "@/schemas/tbc-checklist.schema"
 import { requirePermission } from "@/lib/rbac"
 
@@ -100,6 +101,15 @@ export async function saveTbcChecklistDataserverLinks(id: string, input: unknown
       entityId: c.id,
       newData: { dataserverCode: parsed.data.dataserverCode, links: parsed.data.links },
     })
+  )
+}
+
+export async function reorderTbcChecklistDataservers(id: string, input: unknown): Promise<ChecklistResult> {
+  const parsed = tbcChecklistReorderSchema.safeParse(input)
+  if (!parsed.success) return invalid(parsed.error)
+  return mutate(
+    (ctx) => tbcChecklistService.reorderDataservers(id, parsed.data, ctx.organizationId, ctx.allowedClientIds),
+    (c) => ({ action: "UPDATE", entity: "TbcChecklist", entityId: c.id, newData: { order: parsed.data.dataserverCodes } })
   )
 }
 

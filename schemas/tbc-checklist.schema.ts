@@ -46,6 +46,11 @@ export const tbcChecklistDataserverLinksSchema = z.object({
   links: z.array(tbcChecklistLinkSchema).max(10, "No máximo 10 vínculos por Data Server"),
 });
 
+/** The checklist's Data Servers in their new order (every code, once). */
+export const tbcChecklistReorderSchema = z.object({
+  dataserverCodes: z.array(z.string().trim().min(1)).min(1).max(200),
+});
+
 /** A processo seletivo saved in the checklist — coligada + IDPS identify it, filial + nível de
  *  ensino complete the Contexto it is loaded with. */
 export const tbcChecklistProcessoSchema = z.object({
@@ -71,6 +76,7 @@ export type TbcChecklistField = z.output<typeof tbcChecklistFieldSchema>;
 export type TbcChecklistDataserverFieldsInput = z.output<typeof tbcChecklistDataserverFieldsSchema>;
 export type TbcChecklistLink = z.output<typeof tbcChecklistLinkSchema>;
 export type TbcChecklistDataserverLinksInput = z.output<typeof tbcChecklistDataserverLinksSchema>;
+export type TbcChecklistReorderInput = z.output<typeof tbcChecklistReorderSchema>;
 export type TbcChecklistProcessoInput = z.output<typeof tbcChecklistProcessoSchema>;
 export type TbcChecklistAddProcessosInput = z.output<typeof tbcChecklistAddProcessosSchema>;
 export type TbcChecklistImportInput = z.output<typeof tbcChecklistImportSchema>;

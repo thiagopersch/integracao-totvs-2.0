@@ -68,3 +68,23 @@ export function buildLinkFiltro(tableName: string, mainFieldNames: string[], lin
 export function pickKnownPkValues(fieldNames: string[], knownValues: Record<string, string>): Record<string, string> {
   return Object.fromEntries(fieldNames.map((name) => [name, lookupKnownValue(knownValues, name) ?? ""]))
 }
+
+/**
+ * Filtro of a checklist Data Server's main table: the processo's known values (e.g. CODCOLIGADA +
+ * IDPS — only the non-empty ones naming a main-table column) AND its links' values. Returns the
+ * applied processo values too. An empty filtro means the whole table; `null`, that a link has no
+ * value (its parent has no row) — nothing to load.
+ */
+export function buildChecklistFiltro(
+  tableName: string,
+  mainFieldNames: string[],
+  knownValues: Record<string, string>,
+  links: LinkFilter[]
+): { filtro: string | null; appliedFilter: Record<string, string> } {
+  const appliedFilter = Object.fromEntries(Object.entries(pickKnownPkValues(mainFieldNames, knownValues)).filter(([, v]) => v.trim() !== ""))
+  if (links.some((l) => !l.tuples.length)) return { filtro: null, appliedFilter }
+  const filtro = [buildPkFiltro(tableName, appliedFilter), links.length ? buildLinkFiltro(tableName, mainFieldNames, links) : ""]
+    .filter(Boolean)
+    .join(" AND ")
+  return { filtro, appliedFilter }
+}

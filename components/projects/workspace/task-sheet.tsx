@@ -38,6 +38,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
 import { MarkdownEditor, MarkdownView } from "@/components/shared/markdown-editor"
 import { ColorBadge } from "@/components/shared/color-badge"
+import { autoTaskProgress } from "@/lib/project-tasks"
 import { WithTooltip } from "@/components/shared/with-tooltip"
 import { PendingRegion } from "@/components/shared/pending-region"
 import { OptionSelect } from "@/components/projects/option-select"
@@ -308,6 +309,8 @@ export function TaskSheet({
   // Denormalized total — `demands` is capped at the latest 200.
   const loggedMinutes = task?.loggedMinutes ?? 0
   const checklistDone = task?.checklistItems.filter((i) => i.done).length ?? 0
+  // With a checklist and/or subtasks the server derives the progress — the field is read-only then.
+  const autoProgress = !!task && autoTaskProgress(task.checklistItems, task.children) !== null
   const predecessorIds = new Set(task?.predecessors.map((p) => p.predecessorId))
   const predecessorOptions = options.tasks
     .filter((t) => task && t.id !== task.id && !predecessorIds.has(t.id))
@@ -496,12 +499,13 @@ export function TaskSheet({
                           min={0}
                           max={100}
                           step={5}
-                          disabled={readOnly}
+                          disabled={readOnly || autoProgress}
                           onSave={(progress) => void patch({ progress: progress ?? 0 })}
                         />
                         <div className="w-40">
                           <ProgressCell value={task.status === "DONE" ? 100 : task.progress} />
                         </div>
+                        {autoProgress && <span className="text-xs text-muted-foreground">Automático (checklist e subtarefas)</span>}
                       </div>
                     </Property>
                     <Property icon={Diamond} label="Marco">

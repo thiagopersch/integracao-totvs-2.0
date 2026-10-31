@@ -1,7 +1,16 @@
 import { describe, expect, it } from "vitest"
 import type { ChecklistTableResult } from "@/actions/integrations/tbc-checklist"
-import { buildLinkFiltro } from "./tbc-checklist-filtro"
-import { descendantsOf, linkableParents, linkFieldsLabel, linkTuples, suggestLinkFields } from "./tbc-checklist-links"
+import { buildChecklistFiltro, buildLinkFiltro } from "./tbc-checklist-filtro"
+import {
+  contextValues,
+  linkableParents,
+  linkFieldsLabel,
+  linkTuples,
+  loadOrder,
+  newOrderProblems,
+  orderProblems,
+  suggestLinkFields,
+} from "./tbc-checklist-links"
 
 const col = (name: string, isPrimaryKey = false) => ({ name, isPrimaryKey })
 
@@ -22,22 +31,51 @@ describe("suggestLinkFields", () => {
   })
 })
 
-describe("cycles", () => {
+describe("order", () => {
+  const link = (parentCode: string) => ({ parentCode, fields: [{ parent: "ID", child: "ID" }] })
   const graph = [
     { dataserverCode: "PS", links: [] },
-    { dataserverCode: "AO", links: [{ parentCode: "PS", fields: [{ parent: "IDPS", child: "IDPS" }] }] },
-    { dataserverCode: "AI", links: [{ parentCode: "AO", fields: [{ parent: "IDAREAINTERESSE", child: "IDAREAINTERESSE" }] }] },
+    { dataserverCode: "AO", links: [link("PS")] },
+    { dataserverCode: "AI", links: [link("AO")] },
     { dataserverCode: "DOC", links: [] },
   ]
+  const reorder = (codes: string[]) => codes.map((c) => graph.find((d) => d.dataserverCode === c)!)
 
-  it("finds every Data Server that depends on one, directly or not", () => {
-    expect([...descendantsOf(graph, "PS")].sort()).toEqual(["AI", "AO"])
-    expect(descendantsOf(graph, "AI").size).toBe(0)
+  it("only offers the Data Servers above as parents", () => {
+    expect(linkableParents(graph, "PS")).toEqual([])
+    expect(linkableParents(graph, "AI")).toEqual(["PS", "AO"])
+    expect(linkableParents(graph, "DOC")).toEqual(["PS", "AO", "AI"])
   })
 
-  it("never offers itself or a dependent as parent", () => {
-    expect(linkableParents(graph, "PS")).toEqual(["DOC"])
-    expect(linkableParents(graph, "AI")).toEqual(["PS", "AO", "DOC"])
+  it("finds the links whose parent sits below the child", () => {
+    expect(orderProblems(graph)).toEqual([])
+    expect(orderProblems(reorder(["AO", "PS", "DOC", "AI"]))).toEqual([{ child: "AO", parent: "PS" }])
+  })
+
+  it("only blames a reorder for the problems it creates", () => {
+    const legacy = reorder(["AO", "PS", "AI", "DOC"])
+    expect(newOrderProblems(legacy, reorder(["AO", "PS", "DOC", "AI"]))).toEqual([])
+    expect(newOrderProblems(legacy, reorder(["AI", "AO", "PS", "DOC"]))).toEqual([{ child: "AI", parent: "AO" }])
+  })
+
+  it("loads in the checklist's order, but never before a parent", () => {
+    expect(loadOrder(graph).map((d) => d.dataserverCode)).toEqual(["PS", "AO", "AI", "DOC"])
+    expect(loadOrder(reorder(["AI", "DOC", "AO", "PS"])).map((d) => d.dataserverCode)).toEqual(["DOC", "PS", "AO", "AI"])
+    // A parent outside the entries (already on screen) doesn't hold anything back.
+    expect(loadOrder(reorder(["AI"])).map((d) => d.dataserverCode)).toEqual(["AI"])
+  })
+})
+
+describe("contextValues", () => {
+  const pkValues = { CODCOLIGADA: "3", IDPS: "1152" }
+
+  it("keeps the processo's values a same-named link pair also fills", () => {
+    expect(contextValues(pkValues, [{ parentCode: "PS", fields: [{ parent: "CODCOLIGADA", child: "codcoligada" }] }])).toEqual(pkValues)
+  })
+
+  it("drops a column a link fills from a differently named parent column", () => {
+    const links = [{ parentCode: "AI", fields: [{ parent: "CODCOLIGADAHABFILIAL", child: "CODCOLIGADA" }] }]
+    expect(contextValues(pkValues, links)).toEqual({ IDPS: "1152" })
   })
 })
 
@@ -109,5 +147,36 @@ describe("buildLinkFiltro", () => {
 
   it("fails on a field the main table no longer has", () => {
     expect(() => buildLinkFiltro("T", fields, [{ fields: ["IDPS"], tuples: [["1"]] }])).toThrow("O campo de vínculo IDPS não existe mais em T.")
+  })
+})
+
+describe("buildChecklistFiltro", () => {
+  const fields = ["CODCOLIGADA", "IDPS", "IDAREAINTERESSE", "NOME"]
+  const processo = { CODCOLIGADA: "3", IDPS: "1152" }
+  const areas = { fields: ["IDAREAINTERESSE"], tuples: [["10"], ["11"]] }
+
+  it("filters by the processo's values the table has", () => {
+    expect(buildChecklistFiltro("T", ["CODCOLIGADA", "NOME"], processo, [])).toEqual({
+      filtro: "T.CODCOLIGADA = '3'",
+      appliedFilter: { CODCOLIGADA: "3" },
+    })
+  })
+
+  it("filters by the links when the table has none of the processo's columns", () => {
+    expect(buildChecklistFiltro("T", ["IDAREAINTERESSE"], processo, [areas]).filtro).toBe("T.IDAREAINTERESSE IN ('10', '11')")
+  })
+
+  it("adds the links to the processo's values", () => {
+    expect(buildChecklistFiltro("T", fields, processo, [areas]).filtro).toBe(
+      "T.CODCOLIGADA = '3' AND T.IDPS = '1152' AND T.IDAREAINTERESSE IN ('10', '11')"
+    )
+  })
+
+  it("is empty with nothing to filter, and null when a link has no value", () => {
+    expect(buildChecklistFiltro("T", ["NOME"], processo, []).filtro).toBe("")
+    expect(buildChecklistFiltro("T", fields, processo, [{ fields: ["IDAREAINTERESSE"], tuples: [] }])).toEqual({
+      filtro: null,
+      appliedFilter: processo,
+    })
   })
 })

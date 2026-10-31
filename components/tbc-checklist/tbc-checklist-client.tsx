@@ -15,6 +15,7 @@ import {
   addTbcChecklistProcessos,
   removeTbcChecklistDataserver,
   removeTbcChecklistProcesso,
+  reorderTbcChecklistDataservers,
   saveTbcChecklistDataserverFields,
   saveTbcChecklistDataserverLinks,
   saveTbcChecklistListing,
@@ -39,7 +40,7 @@ import {
 } from "@/lib/tbc-checklist-dataservers"
 import { checklistSelection, type ChecklistSelection } from "@/lib/tbc-checklist-selection"
 import type { LinkFilter } from "@/lib/tbc-checklist-filtro"
-import { linkTuples, type LinkFieldPair } from "@/lib/tbc-checklist-links"
+import { contextValues, linkTuples, loadOrder, type LinkFieldPair } from "@/lib/tbc-checklist-links"
 import { isFinished, type DataserverLoadProgress } from "@/lib/tbc-checklist-progress"
 import type { ProcessoSeletivoOption } from "@/lib/tbc-checklist-processos"
 import type { TbcChecklistField, TbcChecklistLink } from "@/schemas/tbc-checklist.schema"
@@ -159,6 +160,7 @@ export function TbcChecklistClient({ tbc, dataservers, checklists: initialCheckl
   const [linksCode, setLinksCode] = useState<string | null>(null)
   const [linksDialogKey, setLinksDialogKey] = useState(0)
   const [savingLinks, setSavingLinks] = useState(false)
+  const [reordering, setReordering] = useState(false)
   const [removingCode, setRemovingCode] = useState<string | null>(null)
   const [removing, setRemoving] = useState(false)
   const selectionRef = useRef(0)
@@ -301,11 +303,10 @@ export function TbcChecklistClient({ tbc, dataservers, checklists: initialCheckl
   }
 
   /**
-   * The first Data Server of the checklist without links (the processo seletivo one) is loaded on
-   * its own and shown as soon as it returns; only then the other unlinked ones start, side by side,
-   * each shown as it arrives. A linked one waits for every parent and is filtered by their loaded
-   * rows; a parent outside `entries` is taken from `onScreen`. A failure in one never stops the
-   * rest — only what is linked to it.
+   * Loads `entries` one after another, in the checklist's order — a linked one only after its
+   * parents (`loadOrder`), filtered by their loaded rows on top of the processo's CODCOLIGADA/IDPS
+   * (`contextValues`); a parent outside `entries` is taken from `onScreen`. Each is shown as soon as
+   * it returns. A failure in one never stops the rest — only what is linked to it.
    */
   async function loadDataservers(
     entries: ChecklistEntry[],
@@ -314,41 +315,13 @@ export function TbcChecklistClient({ tbc, dataservers, checklists: initialCheckl
     selectionId: number,
     onScreen: AddedDataserver[] = []
   ) {
-    const runs = new Map<string, Promise<LoadOutcome>>()
-    const lead = entries.find((e) => !e.links.length)
-    const cancelled: LoadOutcome = { kind: "cancelled" }
-
-    const start = (entry: ChecklistEntry): Promise<LoadOutcome> => {
-      let run = runs.get(entry.dataserverCode)
-      if (!run) {
-        // Deferred, so the run is registered before it (or a dependent) asks for it again.
-        run = Promise.resolve()
-          .then(() => runEntry(entry))
-          .then((outcome) => {
-            publish(outcome, entry.dataserverCode, order, selectionId)
-            return outcome
-          })
-        runs.set(entry.dataserverCode, run)
-      }
-      return run
-    }
-
-    const parentOutcome = (code: string): Promise<LoadOutcome> => {
-      const entry = entries.find((e) => e.dataserverCode === code)
-      if (entry) return start(entry)
-      const loaded = onScreen.find((d) => d.code === code)
-      return Promise.resolve<LoadOutcome>(loaded ? { kind: "loaded", dataserver: loaded } : { kind: "failed" })
-    }
+    const outcomes = new Map<string, LoadOutcome>(onScreen.map((d) => [d.code, { kind: "loaded", dataserver: d }]))
 
     async function runEntry(entry: ChecklistEntry): Promise<LoadOutcome> {
       const code = entry.dataserverCode
-      if (!entry.links.length) {
-        if (lead && entry !== lead) await start(lead)
-        if (selectionRef.current !== selectionId) return cancelled
-        return loadDataserver(code, processo.context, processo.pkValues, entry.fields, selectionId)
-      }
-      const parents = await Promise.all(entry.links.map(async (link) => ({ link, outcome: await parentOutcome(link.parentCode) })))
-      if (selectionRef.current !== selectionId || parents.some((p) => p.outcome.kind === "cancelled")) return cancelled
+      const pkValues = contextValues(processo.pkValues, entry.links)
+      if (!entry.links.length) return loadDataserver(code, processo.context, pkValues, entry.fields, selectionId)
+      const parents = entry.links.map((link) => ({ link, outcome: outcomes.get(link.parentCode) ?? { kind: "failed" as const } }))
       const missing = parents.filter((p) => !isLoaded(p.outcome)).map((p) => `"${nameOf(p.link.parentCode)}"`)
       if (missing.length) {
         updateProgress(selectionId, code, { phase: "failed" })
@@ -356,7 +329,7 @@ export function TbcChecklistClient({ tbc, dataservers, checklists: initialCheckl
         return { kind: "failed" }
       }
       const loadedParents = parents.flatMap(({ link, outcome }) => (isLoaded(outcome) ? [{ link, parent: outcome.dataserver }] : []))
-      return loadDataserver(code, processo.context, processo.pkValues, entry.fields, selectionId, {
+      return loadDataserver(code, processo.context, pkValues, entry.fields, selectionId, {
         filters: loadedParents.map(({ link, parent }) => ({
           fields: link.fields.map((f) => f.child),
           tuples: linkTuples(parent.mainResult, link.fields.map((f) => f.parent)),
@@ -365,7 +338,12 @@ export function TbcChecklistClient({ tbc, dataservers, checklists: initialCheckl
       })
     }
 
-    await Promise.all(entries.map(start))
+    for (const entry of loadOrder(entries)) {
+      if (selectionRef.current !== selectionId) return
+      const outcome = await runEntry(entry)
+      outcomes.set(entry.dataserverCode, outcome)
+      publish(outcome, entry.dataserverCode, order, selectionId)
+    }
   }
 
   /** Selecting a processo loads every Data Server of the checklist (the active one unless given —
@@ -537,6 +515,27 @@ export function TbcChecklistClient({ tbc, dataservers, checklists: initialCheckl
     setLinksCode(null)
     toast.success(links.length ? "Vínculos salvos" : "Vínculos removidos")
     if (selectedProcesso) void handleSelectProcesso(selectedProcesso, result.data, { force: true })
+  }
+
+  /** Saves the order the structure list was dragged to — shown right away, undone if refused. The
+   *  order changes no data (only the loading sequence and the tabs), so nothing is reloaded. */
+  async function handleReorder(codes: string[]) {
+    if (!active) return
+    const previous = active
+    const dataservers = codes.flatMap((code, position) => {
+      const entry = active.dataservers.find((d) => d.dataserverCode === code)
+      return entry ? [{ ...entry, position }] : []
+    })
+    replaceChecklist({ ...active, dataservers })
+    setReordering(true)
+    const result = await reorderTbcChecklistDataservers(active.id, { dataserverCodes: codes })
+    setReordering(false)
+    if (!result.success) {
+      replaceChecklist(previous)
+      toast.error(result.error)
+      return
+    }
+    replaceChecklist(result.data)
   }
 
   async function handleRemoveDataserver() {
@@ -719,6 +718,8 @@ export function TbcChecklistClient({ tbc, dataservers, checklists: initialCheckl
               openFieldsDialog({ kind: "edit", code, fields: active.dataservers.find((d) => d.dataserverCode === code)?.fields ?? [] })
             }
             onEditLinks={openLinksDialog}
+            onReorder={handleReorder}
+            reordering={reordering}
             onOpenAddDialog={() => openFieldsDialog({ kind: "add" })}
             onRefreshProcesso={() => selectedProcesso && handleRefreshProcesso(selectedProcesso)}
             onLoadTables={handleLoadTables}

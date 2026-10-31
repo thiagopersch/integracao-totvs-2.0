@@ -156,6 +156,18 @@ export function statusSideEffects(
 }
 
 /**
+ * Progress derived from the checklist (items done) and subtasks (status DONE; cancelled ones don't
+ * count), each one unit. Null when the task has neither — its progress stays manual.
+ */
+export function autoTaskProgress(checklist: { done: boolean }[], children: { status: TaskStatus }[]): number | null {
+  const live = children.filter((c) => c.status !== "CANCELLED");
+  const total = checklist.length + live.length;
+  if (total === 0) return null;
+  const done = checklist.filter((i) => i.done).length + live.filter((c) => c.status === "DONE").length;
+  return Math.round((done / total) * 100);
+}
+
+/**
  * Default assignee of a new task: the project's only possible assignee (manager ∪ active members,
  * deduplicated — the manager is normally a member too), or null when there are zero or several.
  */

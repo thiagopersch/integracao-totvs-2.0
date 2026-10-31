@@ -1,7 +1,11 @@
 "use client"
 
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react"
-import { AlertTriangle, Link2, ListPlus, Loader2, Plus, RefreshCw, Trash2 } from "lucide-react"
+import { DndContext, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core"
+import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable"
+import { CSS } from "@dnd-kit/utilities"
+import { AlertTriangle, GripVertical, Link2, ListPlus, Loader2, Plus, RefreshCw, Trash2 } from "lucide-react"
+import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { ScrollableTabsList, Tabs, TabsContent, TabsTrigger } from "@/components/ui/tabs"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
@@ -20,7 +24,7 @@ import { ChecklistLoadProgress } from "@/components/tbc-checklist/checklist-load
 import { WithTooltip } from "@/components/shared/with-tooltip"
 import { cn } from "@/lib/utils"
 import { describeStep, isFinished, type DataserverLoadProgress } from "@/lib/tbc-checklist-progress"
-import { linkFieldsLabel } from "@/lib/tbc-checklist-links"
+import { linkFieldsLabel, newOrderProblems, orderProblems } from "@/lib/tbc-checklist-links"
 
 type LoadTables = (dataserver: AddedDataserver, tables: string[], parentKeys?: string[]) => void
 
@@ -41,6 +45,10 @@ interface ChecklistContentProps {
   onEditFields: (code: string) => void
   /** Opens the links of one Data Server (to other Data Servers of the checklist). */
   onEditLinks: (code: string) => void
+  /** Saves a new order of the checklist's Data Servers (every code), dragged in the structure list. */
+  onReorder: (codes: string[]) => void
+  /** A new order is being saved — dragging waits. */
+  reordering: boolean
   onOpenAddDialog: () => void
   onLoadTables: LoadTables
   /** Fetches the selected processo's Data Servers again from TOTVS. */
@@ -439,7 +447,7 @@ function DataserverActions({ code, linkCount, onEditFields, onEditLinks, onRemov
         <ListPlus className="mr-2 h-4 w-4" />
         Editar campos
       </Button>
-      <WithTooltip label="Vincular a outros Data Servers do checklist pelos campos-chave — só os registros que casam com os deles são carregados">
+      <WithTooltip label="Filtrar pelos Data Servers acima na lista, pelos campos-chave — só os registros que casam com os deles são carregados">
         <Button type="button" variant="outline" size="sm" onClick={() => onEditLinks(code)}>
           <Link2 className="mr-2 h-4 w-4" />
           Vínculos{linkCount > 0 && ` (${linkCount})`}
@@ -459,16 +467,37 @@ function DataserverActions({ code, linkCount, onEditFields, onEditLinks, onRemov
   )
 }
 
-/** "Área Ofertada (CODCOLIGADA, IDAREAINTERESSE)" per link — the structure list's summary. */
-function LinksSummary({ links, dataserverName }: { links: TbcChecklistView["dataservers"][number]["links"]; dataserverName: (code: string) => string }) {
+/** "Filtrado por Área Ofertada (CODCOLIGADA, IDAREAINTERESSE)" per link — the structure list's
+ *  summary — and a warning for a parent left below it (a link saved before the order rule). */
+function LinksSummary({
+  links,
+  below,
+  dataserverName,
+}: {
+  links: TbcChecklistView["dataservers"][number]["links"]
+  /** Parent codes that sit below this Data Server. */
+  below: string[]
+  dataserverName: (code: string) => string
+}) {
   if (!links.length) return null
   return (
-    <p className="flex items-start gap-1 text-xs text-muted-foreground">
-      <Link2 className="mt-0.5 h-3 w-3 shrink-0" />
-      <span className="break-words">
-        Vinculado a {links.map((l) => `${dataserverName(l.parentCode)} (${linkFieldsLabel(l.fields)})`).join(" e ")}
-      </span>
-    </p>
+    <>
+      <p className="flex items-start gap-1 text-xs text-muted-foreground">
+        <Link2 className="mt-0.5 h-3 w-3 shrink-0" />
+        <span className="break-words">
+          Filtrado por {links.map((l) => `${dataserverName(l.parentCode)} (${linkFieldsLabel(l.fields)})`).join(" e ")}
+        </span>
+      </p>
+      {below.length > 0 && (
+        <p className="flex items-start gap-1 text-xs text-amber-700 dark:text-amber-400">
+          <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" />
+          <span className="break-words">
+            {below.map(dataserverName).join(", ")} {below.length === 1 ? "está" : "estão"} abaixo — arraste para cima deste Data
+            Server ou refaça o vínculo.
+          </span>
+        </p>
+      )}
+    </>
   )
 }
 
@@ -519,38 +548,91 @@ function DataserverView({ dataserver, onLoadTables }: { dataserver: AddedDataser
   )
 }
 
+/** One row of the structure list, dragged by its handle to change the checklist's order. */
+function SortableStructureRow({ id, disabled, children }: { id: string; disabled: boolean; children: ReactNode }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id, disabled })
+  return (
+    <li
+      ref={setNodeRef}
+      style={{ transform: CSS.Translate.toString(transform), transition }}
+      className={cn("flex items-center gap-2 bg-background p-3", isDragging && "relative z-10 shadow-md")}
+    >
+      <button
+        type="button"
+        className="shrink-0 cursor-grab touch-none text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50"
+        aria-label="Arrastar para reordenar"
+        disabled={disabled}
+        {...attributes}
+        {...listeners}
+      >
+        <GripVertical className="h-4 w-4" />
+      </button>
+      <div className="flex min-w-0 flex-1 flex-wrap items-center justify-between gap-2">{children}</div>
+    </li>
+  )
+}
+
 /** The checklist's Data Servers and how many fields each validates — shown while no processo is
- *  selected, where the structure is managed. */
+ *  selected, where the structure is managed. Dragging sets the order they are loaded in; a Data
+ *  Server can't be dropped above one that filters it. */
 function ChecklistStructure({
   checklist,
   dataserverName,
   onEditFields,
   onEditLinks,
   onRemoveDataserver,
-}: Pick<ChecklistContentProps, "checklist" | "dataserverName" | "onEditFields" | "onEditLinks" | "onRemoveDataserver">) {
+  onReorder,
+  reordering,
+}: Pick<
+  ChecklistContentProps,
+  "checklist" | "dataserverName" | "onEditFields" | "onEditLinks" | "onRemoveDataserver" | "onReorder" | "reordering"
+>) {
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }))
   // Empty: the hint above the structure already says what to do.
   if (!checklist.dataservers.length) return null
+  const codes = checklist.dataservers.map((d) => d.dataserverCode)
+  const problems = orderProblems(checklist.dataservers)
+
+  function handleDragEnd({ active, over }: DragEndEvent) {
+    if (!over || active.id === over.id) return
+    const next = arrayMove(checklist.dataservers, codes.indexOf(String(active.id)), codes.indexOf(String(over.id)))
+    const broken = newOrderProblems(checklist.dataservers, next)[0]
+    if (broken) {
+      toast.error(`"${dataserverName(broken.child)}" é filtrado por "${dataserverName(broken.parent)}" e precisa ficar abaixo dele.`)
+      return
+    }
+    onReorder(next.map((d) => d.dataserverCode))
+  }
+
   return (
-    <ul className="flex flex-col divide-y rounded-md border">
-      {checklist.dataservers.map((d) => (
-        <li key={d.dataserverCode} className="flex flex-wrap items-center justify-between gap-2 p-3">
-          <div className="min-w-0">
-            <p className="text-sm font-medium break-words">{dataserverName(d.dataserverCode)}</p>
-            <p className="text-xs text-muted-foreground">
-              {d.dataserverCode} · {d.fields.length} {d.fields.length === 1 ? "campo" : "campos"}
-            </p>
-            <LinksSummary links={d.links} dataserverName={dataserverName} />
-          </div>
-          <DataserverActions
-            code={d.dataserverCode}
-            linkCount={d.links.length}
-            onEditFields={onEditFields}
-            onEditLinks={onEditLinks}
-            onRemove={onRemoveDataserver}
-          />
-        </li>
-      ))}
-    </ul>
+    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+      <SortableContext items={codes} strategy={verticalListSortingStrategy}>
+        <ul className="flex flex-col divide-y rounded-md border">
+          {checklist.dataservers.map((d) => (
+            <SortableStructureRow key={d.dataserverCode} id={d.dataserverCode} disabled={reordering}>
+              <div className="min-w-0">
+                <p className="text-sm font-medium break-words">{dataserverName(d.dataserverCode)}</p>
+                <p className="text-xs text-muted-foreground">
+                  {d.dataserverCode} · {d.fields.length} {d.fields.length === 1 ? "campo" : "campos"}
+                </p>
+                <LinksSummary
+                  links={d.links}
+                  below={problems.filter((p) => p.child === d.dataserverCode).map((p) => p.parent)}
+                  dataserverName={dataserverName}
+                />
+              </div>
+              <DataserverActions
+                code={d.dataserverCode}
+                linkCount={d.links.length}
+                onEditFields={onEditFields}
+                onEditLinks={onEditLinks}
+                onRemove={onRemoveDataserver}
+              />
+            </SortableStructureRow>
+          ))}
+        </ul>
+      </SortableContext>
+    </DndContext>
   )
 }
 
@@ -578,6 +660,8 @@ export function ChecklistContent({
   onRemoveDataserver,
   onEditFields,
   onEditLinks,
+  onReorder,
+  reordering,
   onOpenAddDialog,
   onLoadTables,
   onRefreshProcesso,
@@ -623,7 +707,7 @@ export function ChecklistContent({
         </div>
         <p className="text-xs text-muted-foreground">
           {checklist.dataservers.length
-            ? "Selecione um processo seletivo ao lado para validar no TOTVS os campos escolhidos abaixo."
+            ? "Selecione um processo seletivo ao lado para validar no TOTVS os campos escolhidos abaixo. Arraste os Data Servers para mudar a ordem em que são buscados — um Data Server fica sempre abaixo dos que o filtram."
             : "Adicione um Data Server e escolha os campos que devem ser validados. Depois disso, a busca de processos seletivos aparece ao lado."}
         </p>
         <ChecklistStructure
@@ -632,6 +716,8 @@ export function ChecklistContent({
           onEditFields={onEditFields}
           onEditLinks={onEditLinks}
           onRemoveDataserver={onRemoveDataserver}
+          onReorder={onReorder}
+          reordering={reordering}
         />
       </div>
     )

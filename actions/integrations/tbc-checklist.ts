@@ -7,7 +7,7 @@ import { requirePermission } from "@/lib/rbac"
 import { escapeXml, type SoapContext } from "@/utils/soap-envelope"
 import { parseDataServerRelations, parseDataServerSchema, parseReadViewResult } from "@/utils/soap-schema"
 import type { WsName } from "@/lib/ws-names"
-import { buildLinkFiltro, buildPkFiltro, pickKnownPkValues, type LinkFilter } from "@/lib/tbc-checklist-filtro"
+import { buildChecklistFiltro, buildPkFiltro, type LinkFilter } from "@/lib/tbc-checklist-filtro"
 import { MAX_LINK_TUPLES } from "@/lib/tbc-checklist-links"
 import { buildTableResult, rowsForTable, rowValue, toFieldMeta, type ChecklistMainRecord } from "@/lib/tbc-checklist-records"
 import { findNameField, toProcessoOptions } from "@/lib/tbc-checklist-processos"
@@ -204,9 +204,9 @@ function invalidLinks(links: LinkFilter[] | undefined): string | null {
  * (coligada/filial/tipo de curso) is always sent, mirroring the SOAP Builder — TOTVS RM uses it to
  * resolve the base before applying the filtro.
  *
- * A Data Server linked to others gets `links` instead: the value tuples of its parents' loaded rows
- * (`buildLinkFiltro` — e.g. `IDAREAINTERESSE IN (...)`), and the processo's `pkValues` don't apply.
- * A link with no tuple (its parent has no row) means no row here either — no ReadView runs.
+ * A Data Server linked to others also gets `links`: the value tuples of its parents' loaded rows
+ * (`buildLinkFiltro` — e.g. `IDAREAINTERESSE IN (...)`), ANDed with the processo's `pkValues`. A
+ * link with no tuple (its parent has no row) means no row here either — no ReadView runs.
  *
  * ReadView only finds WHICH rows match: it returns just the columns of the Data Server's view
  * (13 of the 117 SPSProcessoSeletivo columns, for instance), so every other field would look "não
@@ -236,15 +236,10 @@ export async function fetchChecklistMainView(input: {
     const links = input.links ?? []
     // Matched against every main-table column (not only the PK), so e.g. the áreas ofertadas of a
     // processo are found by CODCOLIGADA + IDPS whether or not IDPS is part of that table's own key.
-    const appliedFilter = links.length
-      ? {}
-      : Object.fromEntries(Object.entries(pickKnownPkValues(mainFieldNames, input.pkValues)).filter(([, v]) => v.trim() !== ""))
-    let allViewRows: Record<string, string>[] = []
-    // A link whose parent has no row leaves nothing to load here.
-    if (!links.some((l) => !l.tuples.length)) {
-      const filtro = links.length ? buildLinkFiltro(mainTable.name, mainFieldNames, links) : buildPkFiltro(mainTable.name, appliedFilter)
-      allViewRows = rowsForTable(parseReadViewResult(await session.readView(input.dataserverCode, filtro)), mainTable.name)
-    }
+    const { filtro, appliedFilter } = buildChecklistFiltro(mainTable.name, mainFieldNames, input.pkValues, links)
+    // A link whose parent has no row (`null` filtro) leaves nothing to load here.
+    const allViewRows =
+      filtro === null ? [] : rowsForTable(parseReadViewResult(await session.readView(input.dataserverCode, filtro)), mainTable.name)
     const viewRows = allViewRows.slice(0, MAX_PARENTS)
     const primaryKeys = pkFieldNames.length ? viewRows.map((row) => pkFieldNames.map((name) => row[name] ?? "").join(";")) : []
 
