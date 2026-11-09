@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useDeferredValue, useMemo, useState } from "react"
 import type { ColumnDef } from "@tanstack/react-table"
 import { DataTable } from "@/components/shared/data-table"
 import { DataTableFilterPanel } from "@/components/shared/data-table-filter-panel"
@@ -120,11 +120,12 @@ export function UsersTable({ data, meta, clients }: UsersTableProps) {
     setClientsDialog({ open: true, userId: user.id, userName: user.name, selected: new Set(user.allowedClients.map((c) => c.id)) })
   }
 
+  const deferredClientSearch = useDeferredValue(clientSearch)
   const filteredClients = useMemo(() => {
-    const term = normalizeSearch(clientSearch)
+    const term = normalizeSearch(deferredClientSearch)
     if (!term) return clients
     return clients.filter((client) => normalizeSearch(client.name).includes(term))
-  }, [clients, clientSearch])
+  }, [clients, deferredClientSearch])
 
   function toggleClient(clientId: string) {
     setClientsDialog((prev) => {

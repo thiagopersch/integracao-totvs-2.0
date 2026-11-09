@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useDeferredValue, useMemo, useState } from "react"
 import { ChevronDown, ChevronsDownUp, ChevronsUpDown, KeyRound, Search } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -42,7 +42,8 @@ export function DataserverFieldPicker({ dataserverCode, tables, value, onChange 
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
   const tabs = useMemo(() => buildPickerTabs(dataserverCode, tables), [dataserverCode, tables])
 
-  const term = search.trim().toLowerCase()
+  // Typing stays responsive; the field list re-filters at lower priority.
+  const term = useDeferredValue(search).trim().toLowerCase()
   const visibleTabs: PickerTab[] = tabs
     .map((tab) => ({
       ...tab,

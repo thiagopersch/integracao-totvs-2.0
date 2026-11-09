@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useDeferredValue, useMemo, useState } from "react"
 import { Search } from "lucide-react"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import { Badge } from "@/components/ui/badge"
@@ -35,7 +35,8 @@ function matches(field: FieldItem, query: string): boolean {
 function FieldGroups({ groups }: { groups: FieldGroup[] }) {
   const [search, setSearch] = useState("")
   const [open, setOpen] = useState<string[]>([])
-  const query = search.trim().toLowerCase()
+  // Typing stays responsive; the field list re-filters at lower priority.
+  const query = useDeferredValue(search).trim().toLowerCase()
 
   const visibleGroups = useMemo(() => {
     if (!query) return groups
