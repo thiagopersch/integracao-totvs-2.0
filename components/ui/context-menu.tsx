@@ -7,7 +7,8 @@ import { cn } from "@/lib/utils"
 import { MenuContext, DropdownMenuItem, DropdownMenuCheckboxItem, DropdownMenuSeparator, DropdownMenuLabel } from "@/components/ui/dropdown-menu"
 import { renderTrigger, useOpenState, type TriggerProps } from "@/components/ui/slot"
 
-type Ctx = { open: boolean; setOpen: (open: boolean) => void; position: { top: number; left: number } | null; setPosition: (p: { top: number; left: number } | null) => void }
+type OpenDetails = { cancel: () => void }
+type Ctx = { open: boolean; setOpen: (open: boolean) => void; requestOpen: () => boolean; position: { top: number; left: number } | null; setPosition: (p: { top: number; left: number } | null) => void }
 const ContextMenuContext = React.createContext<Ctx | null>(null)
 function useContextMenu() {
   const ctx = React.useContext(ContextMenuContext)
@@ -15,15 +16,24 @@ function useContextMenu() {
   return ctx
 }
 
-function ContextMenu({ open, onOpenChange, children }: { open?: boolean; onOpenChange?: (open: boolean) => void; children?: React.ReactNode }) {
-  const [isOpen, setOpen] = useOpenState(open, false, onOpenChange)
+function ContextMenu({ open, onOpenChange, children }: { open?: boolean; onOpenChange?: (open: boolean, details: OpenDetails) => void; children?: React.ReactNode }) {
+  const notify = React.useCallback((next: boolean) => onOpenChange?.(next, { cancel: () => {} }), [onOpenChange])
+  const [isOpen, setOpen] = useOpenState(open, false, notify)
+  // Lets onOpenChange(true, details) veto opening with details.cancel(), like Base UI.
+  const requestOpen = React.useCallback(() => {
+    let canceled = false
+    onOpenChange?.(true, { cancel: () => { canceled = true } })
+    if (canceled) return false
+    if (open === undefined) setOpen(true)
+    return true
+  }, [onOpenChange, open, setOpen])
   const [position, setPosition] = React.useState<{ top: number; left: number } | null>(null)
-  const value = React.useMemo(() => ({ open: isOpen, setOpen, position, setPosition }), [isOpen, setOpen, position])
+  const value = React.useMemo(() => ({ open: isOpen, setOpen, requestOpen, position, setPosition }), [isOpen, setOpen, requestOpen, position])
   return <ContextMenuContext.Provider value={value}>{children}</ContextMenuContext.Provider>
 }
 
 function ContextMenuTrigger({ className, ...props }: TriggerProps & { style?: React.CSSProperties }) {
-  const { setOpen, setPosition } = useContextMenu()
+  const { requestOpen, setPosition } = useContextMenu()
   // Base UI's context trigger renders a <div> by default (it wraps arbitrary content).
   const render = props.render ?? <div />
   return renderTrigger(
@@ -35,7 +45,7 @@ function ContextMenuTrigger({ className, ...props }: TriggerProps & { style?: Re
         if (event.defaultPrevented) return
         event.preventDefault()
         setPosition({ top: event.clientY, left: event.clientX })
-        setOpen(true)
+        requestOpen()
       },
     }
   )

@@ -9,7 +9,7 @@ type AnyProps = Record<string, unknown>
 export type TriggerProps = Omit<React.HTMLAttributes<HTMLElement>, "children"> & {
   children?: React.ReactNode
   /** Element to render instead of the default `<button>`; its props are merged with the trigger's. */
-  render?: React.ReactElement<AnyProps>
+  render?: React.ReactElement
   disabled?: boolean
   nativeButton?: boolean
   type?: "button" | "submit" | "reset"
@@ -33,8 +33,8 @@ export function renderTrigger(
   // React 19 passes `ref` as a regular prop: keep the caller's (e.g. MUI Tooltip's) unless the owner needs its own.
   const ref = injectedRef ?? ((props as AnyProps).ref as React.Ref<HTMLElement> | undefined)
   if (render && React.isValidElement(render)) {
-    const own = render.props
-    return React.cloneElement(render, {
+    const own = render.props as AnyProps
+    return React.cloneElement(render as React.ReactElement<AnyProps>, {
       ...props,
       ...rest,
       ref,

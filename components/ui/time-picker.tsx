@@ -1,15 +1,13 @@
 "use client"
 
 import * as React from "react"
-import { ClockIcon } from "lucide-react"
+import { TimePicker as MuiTimePicker } from "@mui/x-date-pickers/TimePicker"
+import { format, isValid, parse } from "date-fns"
 
 import { cn } from "@/lib/utils"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
-import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from "@/components/ui/input-group"
 
 interface TimePickerProps {
-  /** "HH:MM" or empty string. */
+  /** "HH:mm" or "". */
   value: string
   onValueChange: (value: string) => void
   placeholder?: string
@@ -17,94 +15,30 @@ interface TimePickerProps {
   disabled?: boolean
   "aria-invalid"?: boolean
   id?: string
-  /** Interval, in minutes, between listed quick-select options. */
+  /** Minutes between the options in the list. */
   step?: number
 }
 
-function buildTimeOptions(step: number): string[] {
-  const options: string[] = []
-  for (let minutes = 0; minutes < 24 * 60; minutes += step) {
-    const h = String(Math.floor(minutes / 60)).padStart(2, "0")
-    const m = String(minutes % 60).padStart(2, "0")
-    options.push(`${h}:${m}`)
-  }
-  return options
-}
+const BASE = new Date(2000, 0, 1)
 
-/** Masks free typing into a "HH:MM" shape, clamping hours to 0-23 and minutes to 0-59 as digits complete. */
-function maskTimeInput(raw: string): string {
-  const digits = raw.replace(/\D/g, "").slice(0, 4)
-  if (digits.length <= 2) {
-    if (digits.length === 2 && Number(digits) > 23) return "23"
-    return digits
-  }
-  let hours = digits.slice(0, 2)
-  if (Number(hours) > 23) hours = "23"
-  let minutes = digits.slice(2)
-  if (minutes.length === 2 && Number(minutes) > 59) minutes = "59"
-  return `${hours}:${minutes}`
-}
-
-export function TimePicker({
-  value,
-  onValueChange,
-  placeholder = "HH:MM",
-  className,
-  disabled,
-  id,
-  step = 15,
-  ...props
-}: TimePickerProps) {
-  const [open, setOpen] = React.useState(false)
-  const options = React.useMemo(() => buildTimeOptions(step), [step])
-
+/** MUI X TimePicker (24h, typing or list) keeping the old "HH:mm" string API. */
+export function TimePicker({ value, onValueChange, className, disabled, id, step = 15, ...props }: TimePickerProps) {
+  const parsed = value ? parse(value, "HH:mm", BASE) : null
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <InputGroup className={cn(className)}>
-        <InputGroupInput
-          id={id}
-          disabled={disabled}
-          placeholder={placeholder}
-          value={value}
-          aria-invalid={props["aria-invalid"]}
-          onChange={(e) => onValueChange(maskTimeInput(e.target.value))}
-          onBlur={(e) => {
-            const digits = e.target.value.replace(/\D/g, "")
-            if (digits.length > 0 && digits.length < 3) onValueChange(maskTimeInput(digits.padEnd(2, "0") + "00"))
-          }}
-        />
-        <InputGroupAddon align="inline-end">
-          <PopoverTrigger
-            disabled={disabled}
-            render={<InputGroupButton type="button" variant="ghost" size="icon-sm" aria-label="Selecionar horário" />}
-          >
-            <ClockIcon className="h-4 w-4" />
-          </PopoverTrigger>
-        </InputGroupAddon>
-      </InputGroup>
-      <PopoverContent className="w-40 p-0" align="end">
-        <Command>
-          <CommandInput placeholder="Buscar horário..." />
-          <CommandList>
-            <CommandEmpty>Nenhum horário encontrado.</CommandEmpty>
-            <CommandGroup>
-              {options.map((time) => (
-                <CommandItem
-                  key={time}
-                  value={time}
-                  data-checked={time === value}
-                  onSelect={() => {
-                    onValueChange(time)
-                    setOpen(false)
-                  }}
-                >
-                  {time}
-                </CommandItem>
-              ))}
-            </CommandGroup>
-          </CommandList>
-        </Command>
-      </PopoverContent>
-    </Popover>
+    <MuiTimePicker
+      value={parsed && isValid(parsed) ? parsed : null}
+      onChange={(next) => {
+        if (next === null) onValueChange("")
+        else if (isValid(next)) onValueChange(format(next, "HH:mm"))
+      }}
+      ampm={false}
+      timeSteps={{ minutes: step }}
+      disabled={disabled}
+      className={cn("w-full", className)}
+      slotProps={{
+        textField: { id, size: "small", fullWidth: true, error: props["aria-invalid"] === true },
+        field: { clearable: true },
+      }}
+    />
   )
 }

@@ -1,19 +1,12 @@
 "use client"
 
 import * as React from "react"
-import { Check, ChevronsUpDown } from "lucide-react"
+import Autocomplete from "@mui/material/Autocomplete"
+import TextField from "@mui/material/TextField"
+import { Check } from "lucide-react"
 
 import { cn } from "@/lib/utils"
-import { Button } from "@/components/ui/button"
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from "@/components/ui/command"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { VirtualListbox, VIRTUALIZE_OPTIONS_AT } from "@/components/ui/virtual-listbox"
 
 export interface ComboboxItem {
   value: string
@@ -29,28 +22,28 @@ interface ComboboxProps {
   emptyText?: string
   disabled?: boolean
   className?: string
-  /** Custom content for an item, used in the list and for the selected value (e.g. a colored badge). Search still matches `label`. */
+  /** Custom content for an item, used in the list (e.g. a colored badge). Search still matches `label`. */
   renderItem?: (item: ComboboxItem) => React.ReactNode
   "aria-invalid"?: boolean
+  id?: string
 }
 
+/** Searchable single select (MUI Autocomplete). Lists over 100 options are virtualized. */
 export function Combobox({
   items,
   value,
   onValueChange,
   placeholder = "Selecione...",
-  searchPlaceholder = "Buscar...",
   emptyText = "Nenhum resultado encontrado.",
   disabled,
   className,
   renderItem,
+  id,
   ...props
 }: ComboboxProps) {
-  const [open, setOpen] = React.useState(false)
-  const selected = items.find((item) => item.value === value)
   // Upstream lists (e.g. a TOTVS report/TBC listing) can legitimately repeat a `value` — dedupe so
   // React never sees two children with the same key, which corrupts selection/rendering.
-  const dedupedItems = React.useMemo(() => {
+  const options = React.useMemo(() => {
     const seen = new Set<string>()
     return items.filter((item) => {
       if (seen.has(item.value)) return false
@@ -58,48 +51,41 @@ export function Combobox({
       return true
     })
   }, [items])
+  const selected = React.useMemo(() => options.find((item) => item.value === value) ?? null, [options, value])
+  const virtualize = options.length > VIRTUALIZE_OPTIONS_AT
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger
-        disabled={disabled}
-        render={
-          <Button
-            type="button"
-            variant="outline"
-            role="combobox"
-            aria-expanded={open}
-            className={cn("w-full justify-between font-normal", !selected && "text-muted-foreground", className)}
-            {...props}
-          />
-        }
-      >
-        <span className="min-w-0 flex-1 truncate text-left">{selected ? (renderItem ? renderItem(selected) : selected.label) : placeholder}</span>
-        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-      </PopoverTrigger>
-      <PopoverContent className="min-w-(--anchor-width) w-max max-w-(--available-width) p-0" align="start">
-        <Command>
-          <CommandInput placeholder={searchPlaceholder} />
-          <CommandList>
-            <CommandEmpty>{emptyText}</CommandEmpty>
-            <CommandGroup>
-              {dedupedItems.map((item) => (
-                <CommandItem
-                  key={item.value}
-                  value={item.label}
-                  onSelect={() => {
-                    onValueChange(item.value === value ? "" : item.value)
-                    setOpen(false)
-                  }}
-                >
-                  <Check className={cn("mr-2 h-4 w-4", item.value === value ? "opacity-100" : "opacity-0")} />
-                  {renderItem ? renderItem(item) : item.label}
-                </CommandItem>
-              ))}
-            </CommandGroup>
-          </CommandList>
-        </Command>
-      </PopoverContent>
-    </Popover>
+    <Autocomplete
+      id={id}
+      className={cn("w-full", className)}
+      options={options}
+      value={selected}
+      disabled={disabled}
+      onChange={(_event, next) => onValueChange(next?.value ?? "")}
+      getOptionLabel={(option) => option.label}
+      isOptionEqualToValue={(a, b) => a.value === b.value}
+      noOptionsText={emptyText}
+      openText="Abrir"
+      closeText="Fechar"
+      clearText="Limpar"
+      autoHighlight
+      size="small"
+      slots={virtualize ? { listbox: VirtualListbox as React.JSXElementConstructor<React.HTMLAttributes<HTMLElement>> } : undefined}
+      renderOption={({ key, ...optionProps }, option, { selected: isSelected }) => (
+        <li key={key} {...optionProps} className={cn(optionProps.className, "flex items-center gap-2 text-sm")}>
+          <Check className={cn("size-4 shrink-0", isSelected ? "opacity-100" : "opacity-0")} />
+          <span className="min-w-0 truncate">{renderItem ? renderItem(option) : option.label}</span>
+        </li>
+      )}
+      renderInput={(params) => (
+        <TextField
+          {...params}
+          placeholder={placeholder}
+          error={props["aria-invalid"] === true}
+          slotProps={{ ...params.slotProps, htmlInput: { ...params.slotProps.htmlInput, "aria-invalid": props["aria-invalid"] } }}
+          sx={{ "& .MuiInputBase-root": { minHeight: 32, py: "0 !important" } }}
+        />
+      )}
+    />
   )
 }

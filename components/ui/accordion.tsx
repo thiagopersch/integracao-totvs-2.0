@@ -69,16 +69,17 @@ function AccordionItem({ className, value, children, disabled }: { className?: s
         className={cn("border-b bg-transparent last:border-b-0 before:hidden", className)}
         sx={{ bgcolor: "transparent", color: "inherit" }}
       >
-        {children}
+        {children as NonNullable<React.ReactNode>}
       </MuiAccordion>
     </ItemContext.Provider>
   )
 }
 
-function AccordionTrigger({ className, children }: { className?: string; children?: React.ReactNode }) {
+function AccordionTrigger({ className, children, title }: { className?: string; children?: React.ReactNode; title?: string }) {
   return (
     <AccordionSummary
       data-slot="accordion-trigger"
+      title={title}
       expandIcon={<ChevronDownIcon className="size-4 text-muted-foreground" />}
       className={cn("min-h-0 px-0 py-0 text-left text-sm font-medium hover:underline", className)}
       sx={{ minHeight: 0, px: 0, "& .MuiAccordionSummary-content": { my: 2, gap: 1 } }}

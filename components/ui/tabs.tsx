@@ -100,7 +100,7 @@ function TabsTrigger({
   children,
   disabled,
   ...props
-}: Omit<React.ComponentProps<typeof MuiTab>, "value" | "label"> & { value: TabValue }) {
+}: Omit<React.ComponentProps<typeof MuiTab>, "value" | "label" | "children"> & { value: TabValue; children?: React.ReactNode }) {
   return (
     <MuiTab
       data-slot="tabs-trigger"

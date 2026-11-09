@@ -101,3 +101,33 @@ function Button({ variant = "default", size = "default", render, nativeButton: _
 }
 
 export { Button }
+
+const LINK_VARIANT_CLASSES: Record<ButtonVariant, string> = {
+  default: "bg-primary text-primary-foreground shadow-none hover:bg-primary/90",
+  outline: "border border-border bg-background hover:bg-muted",
+  secondary: "bg-secondary text-secondary-foreground hover:bg-secondary/80",
+  ghost: "hover:bg-muted",
+  destructive: "bg-destructive text-white hover:bg-destructive/90",
+  link: "text-primary underline-offset-4 hover:underline",
+}
+const LINK_SIZE_CLASSES: Record<ButtonSize, string> = {
+  default: "h-8 px-2.5",
+  xs: "h-6 px-2 text-xs",
+  sm: "h-7 px-2.5 text-[0.8rem]",
+  lg: "h-9 px-2.5",
+  icon: "size-8",
+  "icon-xs": "size-6",
+  "icon-sm": "size-7",
+  "icon-lg": "size-9",
+}
+
+/** Classes that make a plain element (e.g. a next/link `<Link>`) look like <Button>. */
+function buttonVariants({ variant = "default", size = "default" }: { variant?: ButtonVariant | null; size?: ButtonSize | null } = {}) {
+  return [
+    "inline-flex shrink-0 items-center justify-center gap-1.5 rounded-[7px] text-sm font-medium whitespace-nowrap transition-colors select-none [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+    LINK_VARIANT_CLASSES[variant ?? "default"],
+    LINK_SIZE_CLASSES[size ?? "default"],
+  ].join(" ")
+}
+
+export { buttonVariants }

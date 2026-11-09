@@ -3,7 +3,7 @@
 import { useUrlParams } from "@/hooks/use-url-params"
 import { useMemo, useState } from "react"
 import { format } from "date-fns"
-import type { DateRange } from "react-day-picker"
+import type { DateRange } from "@/components/ui/date-range-picker"
 import type { ColumnDef } from "@tanstack/react-table"
 import { Eye, History, MoreHorizontal } from "lucide-react"
 import { DataTable } from "@/components/shared/data-table"

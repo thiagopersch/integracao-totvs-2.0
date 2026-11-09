@@ -16,7 +16,8 @@ import { popoverOrigins } from "@/components/ui/popover"
  * SelectTrigger/SelectValue/SelectContent/SelectItem) rendered with MUI ButtonBase + Menu.
  */
 type SelectItemDef = { value: string | null; label: React.ReactNode }
-type SelectItems = SelectItemDef[] | Record<string, React.ReactNode>
+type SelectGroupDef = { label: React.ReactNode; items: SelectItemDef[] }
+type SelectItems = ReadonlyArray<SelectItemDef | SelectGroupDef> | Record<string, React.ReactNode>
 
 type SelectCtx = {
   value: string | null | undefined
@@ -40,7 +41,8 @@ function useSelect() {
 type SelectProps = {
   value?: string | null
   defaultValue?: string | null
-  onValueChange?: (value: string) => void
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- callers narrow the value to their own union type
+  onValueChange?: (value: any) => void
   items?: SelectItems
   disabled?: boolean
   name?: string
@@ -56,12 +58,19 @@ function Select({ value, defaultValue, onValueChange, items, disabled, name, ope
   const [openInner, setOpenInner] = React.useState(false)
   const isOpen = open ?? openInner
   const [anchorEl, setAnchorEl] = React.useState<HTMLElement | null>(null)
-  const labels = React.useRef(new Map<string, React.ReactNode>())
-  const [, bump] = React.useReducer((n: number) => n + 1, 0)
+  const [labels, setLabels] = React.useState<Record<string, React.ReactNode>>({})
+  const registerLabel = React.useCallback(
+    (v: string, label: React.ReactNode) => setLabels((prev) => (v in prev ? prev : { ...prev, [v]: label })),
+    []
+  )
 
   const itemLabels = React.useMemo(() => {
     const map = new Map<string, React.ReactNode>()
-    if (Array.isArray(items)) for (const item of items) map.set(String(item.value), item.label)
+    if (Array.isArray(items))
+      for (const entry of items as ReadonlyArray<SelectItemDef | SelectGroupDef>) {
+        if ("items" in entry) for (const item of entry.items) map.set(String(item.value), item.label)
+        else map.set(String(entry.value), entry.label)
+      }
     else if (items) for (const [k, v] of Object.entries(items)) map.set(k, v)
     return map
   }, [items])
@@ -80,17 +89,12 @@ function Select({ value, defaultValue, onValueChange, items, disabled, name, ope
       },
       anchorEl,
       setAnchorEl,
-      labelOf: (v) => (v == null ? undefined : (itemLabels.get(String(v)) ?? labels.current.get(String(v)))),
-      registerLabel: (v, label) => {
-        if (!labels.current.has(v)) {
-          labels.current.set(v, label)
-          if (v === String(current)) bump()
-        }
-      },
+      labelOf: (v) => (v == null ? undefined : (itemLabels.get(String(v)) ?? labels[String(v)])),
+      registerLabel,
       disabled,
       name,
     }),
-    [current, value, onValueChange, isOpen, onOpenChange, anchorEl, itemLabels, disabled, name]
+    [current, value, onValueChange, isOpen, onOpenChange, anchorEl, itemLabels, labels, registerLabel, disabled, name]
   )
 
   return (
@@ -108,18 +112,19 @@ function SelectTrigger({
   disabled,
   ...props
 }: Omit<React.ComponentProps<"button">, "ref"> & { size?: "sm" | "default" }) {
-  const ctx = useSelect()
-  const isDisabled = disabled ?? ctx.disabled
+  const { setAnchorEl, value, open, setOpen, disabled: ctxDisabled } = useSelect()
+  const isDisabled = disabled ?? ctxDisabled
+  const isEmpty = value == null || value === ""
   return (
     <ButtonBase
-      ref={ctx.setAnchorEl}
+      ref={setAnchorEl}
       data-slot="select-trigger"
       data-size={size}
-      data-placeholder={ctx.value == null || ctx.value === "" ? "" : undefined}
+      data-placeholder={isEmpty ? "" : undefined}
       aria-haspopup="listbox"
-      aria-expanded={ctx.open}
+      aria-expanded={open}
       disabled={isDisabled}
-      onClick={() => ctx.setOpen(!ctx.open)}
+      onClick={() => setOpen(!open)}
       className={cn(
         "flex w-fit cursor-pointer items-center justify-between gap-1.5 rounded-lg border border-input bg-transparent py-2 pr-2 pl-2.5 text-sm whitespace-nowrap transition-colors select-none",
         "focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50",
@@ -144,7 +149,8 @@ function SelectValue({
 }: {
   className?: string
   placeholder?: React.ReactNode
-  children?: React.ReactNode | ((value: string | null | undefined) => React.ReactNode)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- same as onValueChange
+  children?: React.ReactNode | ((value: any) => React.ReactNode)
 }) {
   const ctx = useSelect()
   const hasValue = ctx.value != null && ctx.value !== ""
