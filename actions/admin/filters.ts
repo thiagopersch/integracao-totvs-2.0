@@ -177,7 +177,6 @@ export async function createBackupFromFilter(filterId: string, sentenceCategoryI
     if (!filter) return { success: false, error: "Filtro para backup não encontrado ou fora do seu escopo de acesso" };
     await backupService.createFromFilter(filterId, organizationId, sentenceCategoryId, userId)
     await auditService.log({ action: "CREATE", entity: "BackupRun", entityId: filterId, organizationId, userId })
-    updateTag("backups")
     updateTag("filters")
     updateTag(`filter-${filterId}`)
     updateTag(`filter-backups-${filterId}`)

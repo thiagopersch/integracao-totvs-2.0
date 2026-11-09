@@ -2,12 +2,12 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { hasPermission } from "@/lib/permissions";
 import { findNavItemByPathname } from "@/lib/nav-items";
-import { checkRateLimit } from "@/lib/rate-limiter";
+import { rateLimit } from "@/lib/rate-limiter";
 import { getClientIp } from "@/lib/client-ip";
 
 const PUBLIC_ROUTES = ["/login", "/forgot-password", "/api/auth"];
 
-export default auth((request) => {
+export default auth(async (request) => {
   const { pathname } = request.nextUrl;
 
   const isPublicRoute = PUBLIC_ROUTES.some((route) => pathname.startsWith(route));
@@ -18,7 +18,8 @@ export default auth((request) => {
   const isPrefetch = request.headers.has("next-router-prefetch") || request.headers.get("purpose") === "prefetch";
   if (!isPrefetch) {
     const rateKey = session?.user?.id ? `api:user:${session.user.id}` : `api:ip:${getClientIp(request.headers)}`;
-    if (!checkRateLimit(rateKey).allowed) {
+    // Sliding window in Upstash Redis — one counter for all instances (per-process fallback without Redis).
+    if (!(await rateLimit(rateKey)).allowed) {
       return NextResponse.json({ error: "Too many requests" }, { status: 429 });
     }
   }

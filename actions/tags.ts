@@ -1,5 +1,6 @@
 "use server"
 
+import { getCachedTags } from "@/queries/registries";
 import { updateTag as updateCacheTag } from "next/cache";
 import { tagService } from "@/services/tag.service";
 import { auditService } from "@/services/audit.service";
@@ -9,7 +10,7 @@ import { getRequestContext } from "@/lib/tenant";
 import { formatBlockingReferences } from "@/lib/entity-relations";
 export async function listAllTags() {
   const { organizationId } = await getRequestContext();
-  return tagService.listAll(organizationId);
+  return getCachedTags(organizationId);
 }
 
 export async function createTag(formData: FormData) {

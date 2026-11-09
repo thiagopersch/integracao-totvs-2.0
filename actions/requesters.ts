@@ -1,5 +1,6 @@
 "use server"
 
+import { getCachedRequesters } from "@/queries/registries";
 import { updateTag } from "next/cache";
 import { requesterService } from "@/services/requester.service";
 import { auditService } from "@/services/audit.service";
@@ -9,7 +10,7 @@ import { getRequestContext } from "@/lib/tenant";
 import { formatBlockingReferences } from "@/lib/entity-relations";
 export async function listAllRequesters() {
   const { organizationId } = await getRequestContext();
-  return requesterService.listAll(organizationId);
+  return getCachedRequesters(organizationId);
 }
 
 export async function createRequester(formData: FormData) {

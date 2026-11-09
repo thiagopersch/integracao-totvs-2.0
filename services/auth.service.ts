@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { hashPassword, comparePassword } from "@/lib/encryption";
 import { logger } from "@/lib/logger";
-import { checkRateLimit } from "@/lib/rate-limiter";
+import { rateLimit } from "@/lib/rate-limiter";
 import { notificationService } from "@/services/notification.service";
 import { buildLoginSuspiciousNotification } from "@/lib/notification-types";
 import type { AuthUser, LoginInput } from "@/types/auth";
@@ -74,7 +74,7 @@ export const authService = {
 
       // Reuses the same in-memory limiter as API rate limiting — fires exactly once, on the
       // Nth failure, not on every attempt after (checkRateLimit flips to `allowed: false` past it).
-      const attempts = checkRateLimit(`login-fail:${input.email}`, LOGIN_FAILURE_WINDOW_MS, LOGIN_FAILURE_THRESHOLD);
+      const attempts = await rateLimit(`login-fail:${input.email}`, LOGIN_FAILURE_WINDOW_MS, LOGIN_FAILURE_THRESHOLD);
       if (attempts.allowed && attempts.remaining === 0) {
         await notificationService.broadcastToRole(
           user.organizationId,

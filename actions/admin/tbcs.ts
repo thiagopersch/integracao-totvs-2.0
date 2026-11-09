@@ -1,5 +1,6 @@
 "use server"
 
+import { getCachedTbcs } from "@/queries/registries";
 import { updateTag } from "next/cache";
 import { tbcService } from "@/services/tbc.service";
 import { auditService } from "@/services/audit.service";
@@ -12,7 +13,7 @@ import { formatBlockingReferences } from "@/lib/entity-relations";
 import type { WsName } from "@/lib/ws-names";
 export async function listAllTbcs() {
   const { organizationId, allowedClientIds } = await getRequestContext();
-  return tbcService.listAll(organizationId, allowedClientIds);
+  return getCachedTbcs(organizationId, allowedClientIds);
 }
 
 export async function testTbcConnection(formData: FormData) {

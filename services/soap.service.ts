@@ -1,4 +1,5 @@
 import { clampTimeout, getIntegrationConfig } from "@/lib/integration-config";
+import { forgetSoapAuth, isSoapAuthCached, rememberSoapAuth, soapAuthCacheKey } from "@/lib/soap-auth-cache";
 import axios from "axios";
 import { XMLParser } from "fast-xml-parser";
 import { logger } from "@/lib/logger";
@@ -152,10 +153,24 @@ export const soapService = {
    * the required TOTVS call order, before dispatching the real operation.
    */
   async execute(request: SoapRequest, organizationId: string, userId?: string): Promise<SoapResponse> {
-    if (request.method !== "AUTENTICAACESSO" && request.method !== "CHECKSERVICEACTIVITY") {
-      await this.authenticate(request.tbc, request.wsName, organizationId, userId);
+    if (request.method === "AUTENTICAACESSO" || request.method === "CHECKSERVICEACTIVITY") {
+      return this.dispatch(request, organizationId, userId);
     }
-    return this.dispatch(request, organizationId, userId);
+    // A successful handshake is remembered for a few minutes per TBC + credentials + ws
+    // (lib/soap-auth-cache.ts), so back-to-back executions skip the 2 extra round trips.
+    const authKey = soapAuthCacheKey(request.tbc, request.wsName);
+    if (!(await isSoapAuthCached(authKey))) {
+      await this.authenticate(request.tbc, request.wsName, organizationId, userId);
+      await rememberSoapAuth(authKey);
+    }
+    try {
+      return await this.dispatch(request, organizationId, userId);
+    } catch (error) {
+      // Credentials rejected now (password changed on the RM side, user blocked…): drop the cached
+      // handshake so the next call authenticates for real and reports the actual reason.
+      if (/Autenticação HTTP rejeitada|HTTP 401|HTTP 403/.test((error as Error).message)) await forgetSoapAuth(authKey);
+      throw error;
+    }
   },
 
   /** 1º AutenticaAcesso, 2º CheckServiceActivity — required before any other TOTVS call. */

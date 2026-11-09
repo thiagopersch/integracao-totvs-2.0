@@ -1,6 +1,6 @@
 "use server"
 
-import { updateTag, cacheTag } from "next/cache";
+import { updateTag, cacheLife, cacheTag } from "next/cache";
 import { demandService, demandHasAnalyst } from "@/services/demand.service";
 import { contractUsageService } from "@/services/contract-usage.service";
 import { demandSheetSyncService } from "@/services/demand-sheet-sync.service";
@@ -43,9 +43,10 @@ async function getCachedDemandFilterOptions(
   analystScope: string | undefined,
   period: Period | null
 ) {
-  "use cache";
+  "use cache: remote";
   // Departments: the options carry each department's clients, edited on the departments page.
   cacheTag("demands", "departments");
+  cacheLife("aggregates");
   return demandService.getFilterOptions(organizationId, allowedClientIds, analystScope, periodToDateRange(period));
 }
 

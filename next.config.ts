@@ -18,15 +18,47 @@ const SECURITY_HEADERS = [
     : []),
 ];
 
+/** Versioned/immutable files in public/ (fonts, hashed assets): cached by the browser and CDN for a year. */
+const IMMUTABLE = [{ key: "Cache-Control", value: "public, max-age=31536000, immutable" }];
+/** Other public/ files (logos, icons) can be replaced in place under the same name: a day, then revalidate. */
+const PUBLIC_ASSET = [{ key: "Cache-Control", value: "public, max-age=86400, stale-while-revalidate=604800" }];
+
 const nextConfig: NextConfig = {
   cacheComponents: true,
+  // "use cache: remote" → Upstash Redis shared by every instance (falls back to memory without
+  // UPSTASH_REDIS_REST_* / KV_REST_API_*). Plain "use cache" keeps Next's per-instance memory LRU.
+  cacheHandlers: {
+    remote: require.resolve("./cache-handlers/redis.mjs"),
+  },
+  // Profiles for cacheLife(): server revalidation of the shared caches. Mutations still invalidate
+  // immediately through their tags (updateTag); these only bound how long an untouched entry lives.
+  cacheLife: {
+    /** Registries edited from their own screens (clients, TBCs, analysts…). */
+    registries: { stale: 300, revalidate: 900, expire: 86_400 },
+    /** Aggregates over demands/contracts (dashboard, filter options). */
+    aggregates: { stale: 60, revalidate: 300, expire: 3_600 },
+    /** External lookups that change rarely (TBC report catalogs). */
+    external: { stale: 300, revalidate: 1_800, expire: 21_600 },
+  },
   experimental: {
     serverActions: {
       bodySizeLimit: "10mb",
     },
+    // Client router cache: reuse a visited dynamic page for 30 s on back/forward-style navigations
+    // (mutations clear it through updateTag/refresh), prefetched/static segments for 5 min.
+    staleTimes: {
+      dynamic: 30,
+      static: 300,
+    },
   },
   async headers() {
-    return [{ source: "/:path*", headers: SECURITY_HEADERS }];
+    return [
+      { source: "/:path*", headers: SECURITY_HEADERS },
+      { source: "/fonts/:path*", headers: IMMUTABLE },
+      // Uploads stored locally in dev/Docker are content-hash named (lib/upload.ts) — never change.
+      { source: "/storage/:path*", headers: IMMUTABLE },
+      { source: "/:file(.*\\.(?:svg|png|jpg|jpeg|gif|webp|avif|ico))", headers: PUBLIC_ASSET },
+    ];
   },
 };
 
