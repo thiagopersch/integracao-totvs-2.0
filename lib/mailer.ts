@@ -1,3 +1,4 @@
+import { withSpan } from "@/lib/tracing";
 import { decryptSecret } from "@/lib/secret-box";
 import nodemailer from "nodemailer";
 import { prisma } from "@/lib/prisma";
@@ -83,7 +84,7 @@ export async function sendEmail(
   const transporter = getTransporter(organizationId, settings, timeoutMs);
 
   try {
-    await transporter.sendMail({
+    await withSpan("smtp send", { integration: "SMTP", "email.recipients": toList.length + cc.length }, () => transporter.sendMail({
       from: settings.from,
       to: toList,
       cc: cc.length ? cc : undefined,
@@ -91,7 +92,7 @@ export async function sendEmail(
       text,
       html: options?.html,
       attachments: attachments.length ? attachments : undefined,
-    });
+    }));
     await prisma.emailLog.create({ data: { organizationId, userId, to: logTo, subject: logSubject, status: "SENT" } });
     return "SENT";
   } catch (error) {

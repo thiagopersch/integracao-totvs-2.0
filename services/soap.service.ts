@@ -1,3 +1,4 @@
+import { withSpan } from "@/lib/tracing";
 import { clampTimeout, getIntegrationConfig } from "@/lib/integration-config";
 import { forgetSoapAuth, isSoapAuthCached, rememberSoapAuth, soapAuthCacheKey } from "@/lib/soap-auth-cache";
 import axios from "axios";
@@ -223,15 +224,20 @@ export const soapService = {
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
-        const response = await axios.post(url, envelope, {
-          headers: {
-            "Content-Type": "text/xml; charset=utf-8",
-            SOAPAction: soapAction,
-            Authorization: authHeader,
-          },
-          timeout,
-          responseType: "text",
-        });
+        const response = await withSpan(
+          `soap ${request.method}`,
+          { "integration": "SOAP", "soap.method": request.method, "soap.ws": request.wsName, "tbc.id": request.tbc.id ?? "", attempt },
+          () =>
+            axios.post(url, envelope, {
+              headers: {
+                "Content-Type": "text/xml; charset=utf-8",
+                SOAPAction: soapAction,
+                Authorization: authHeader,
+              },
+              timeout,
+              responseType: "text",
+            })
+        );
 
         const duration = Date.now() - startTime;
         const xmlResponse = response.data as string;
