@@ -354,6 +354,15 @@ export const backupService = {
 
   /** Always re-reads from the app DB at click time — "Visualizar" must never trust an in-memory
    *  row that may have gone stale if a newer backup ran since the page loaded. */
+  /** Only the SQL text of one backup — lists don't load it; the viewer fetches it when opened. */
+  async getContent(id: string, organizationId: string, allowedClientIds: string[] | null) {
+    const backup = await prisma.backup.findFirst({
+      where: { id, organizationId, ...(allowedClientIds ? { tbc: { clientId: { in: allowedClientIds } } } : {}) },
+      select: { contentSentence: true },
+    });
+    return backup?.contentSentence ?? null;
+  },
+
   async getLatestByCode(filterId: string, codeSentence: string, organizationId: string) {
     return prisma.backup.findFirst({
       where: { filterId, organizationId, codeSentence, isLatest: true, deletedAt: null },

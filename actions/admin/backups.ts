@@ -168,6 +168,12 @@ export async function getLatestBackupForCode(filterId: string, codeSentence: str
   return backupService.getLatestByCode(filterId, codeSentence, organizationId);
 }
 
+/** SQL content of one backup, fetched by the viewer dialog on open (lists omit the column). */
+export async function getBackupContent(id: string) {
+  const { organizationId, allowedClientIds } = await getRequestContext();
+  return backupService.getContent(id, organizationId, allowedClientIds);
+}
+
 export async function listBackupsForRun(backupRunId: string) {
   const { organizationId, allowedClientIds } = await getRequestContext();
   const run = await prisma.backupRun.findFirst({ where: { id: backupRunId, organizationId } });

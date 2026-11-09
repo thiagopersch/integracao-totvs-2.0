@@ -40,7 +40,7 @@ export default function LoginPage() {
       // to know about it without a hard reload; a soft push would leave every permission-gated
       // component (sidebar, DataTable actions) reading the previous session until something else
       // happened to trigger a refetch.
-      window.location.href = "/dashboard"
+      window.location.assign("/dashboard")
     } else {
       toast.error(result.error ?? "Erro ao fazer login")
       setLoading(false)

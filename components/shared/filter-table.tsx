@@ -244,7 +244,8 @@ export function FilterTable({ data, meta, clients, tbcs, sistemas, categories, f
     try {
       const result = await createBackupFromFilter(filterId, sentenceCategoryId)
       if (result.success) {
-        toast.success("Backup realizado com sucesso")
+        // With the job queue (QStash) the backup runs in the background and a notification arrives when it ends.
+        toast.success("queued" in result && result.queued ? "Backup iniciado — você será notificado ao terminar" : "Backup realizado com sucesso")
         refresh()
       } else {
         toast.error(result.error || "Erro ao realizar backup")

@@ -37,7 +37,7 @@ export default function ResetPasswordPage() {
       // user's session-relevant data, and Next's implicit post-action revalidation of this route
       // races with a soft client-side push, silently swallowing it. A hard navigation sidesteps
       // that entirely and is a fine trade-off for a once-per-forced-reset page.
-      window.location.href = "redirectTo" in result ? result.redirectTo : "/dashboard"
+      window.location.assign("redirectTo" in result ? result.redirectTo : "/dashboard")
     } else {
       toast.error("error" in result ? result.error : "Erro ao redefinir senha")
       setLoading(false)
