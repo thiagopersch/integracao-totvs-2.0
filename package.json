@@ -23,7 +23,9 @@
     "start:prod": "docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build",
     "start:down": "docker compose down",
     "start:logs": "docker compose logs -f app",
-    "start:seed": "docker compose run --rm migrate npx tsx prisma/seed.ts"
+    "start:seed": "docker compose run --rm migrate npx tsx prisma/seed.ts",
+    "test": "vitest run",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.135.0",
@@ -111,6 +113,7 @@
   "devDependencies": {
     "@commitlint/cli": "^21.0.1",
     "@commitlint/config-conventional": "^21.0.1",
+    "@playwright/test": "^1.63.0",
     "@tailwindcss/postcss": "^4",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
