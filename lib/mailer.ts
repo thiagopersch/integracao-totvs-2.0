@@ -3,6 +3,38 @@ import nodemailer from "nodemailer";
 import { prisma } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 
+function buildTransport(settings: { host: string; port: number; user: string; password: string }) {
+  return nodemailer.createTransport({
+    pool: true,
+    maxConnections: 3,
+    host: settings.host,
+    port: settings.port,
+    secure: settings.port === 465,
+    auth: { user: settings.user, pass: decryptSecret(settings.password) },
+  });
+}
+
+type Transporter = ReturnType<typeof buildTransport>;
+
+/**
+ * One pooled SMTP transport per organization, reused across sends (a broadcast used to open one TCP
+ * + TLS + AUTH handshake per recipient). Rebuilt whenever the settings row changes.
+ */
+const transporters = new Map<string, { version: number; transporter: Transporter }>();
+
+function getTransporter(
+  organizationId: string,
+  settings: { host: string; port: number; user: string; password: string; updatedAt: Date },
+): Transporter {
+  const version = settings.updatedAt.getTime();
+  const cached = transporters.get(organizationId);
+  if (cached && cached.version === version) return cached.transporter;
+  cached?.transporter.close();
+  const transporter = buildTransport(settings);
+  transporters.set(organizationId, { version, transporter });
+  return transporter;
+}
+
 export type EmailSendStatus = "SENT" | "SKIPPED" | "FAILED";
 
 export interface EmailAttachment {
@@ -41,12 +73,7 @@ export async function sendEmail(
     return "SKIPPED";
   }
 
-  const transporter = nodemailer.createTransport({
-    host: settings.host,
-    port: settings.port,
-    secure: settings.port === 465,
-    auth: { user: settings.user, pass: decryptSecret(settings.password) },
-  });
+  const transporter = getTransporter(organizationId, settings);
 
   try {
     await transporter.sendMail({

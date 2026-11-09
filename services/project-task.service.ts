@@ -584,8 +584,11 @@ export const projectTaskService = {
           orderBy: [{ boardPosition: "asc" }, { number: "asc" }],
         });
         const positions = rebalance(insertAfter(column.map((c) => c.id), taskId, input.beforeId));
-        for (const [id, position] of positions) {
-          if (id !== taskId) await tx.projectTask.update({ where: { id }, data: { boardPosition: position } });
+        // One UPDATE … FROM (VALUES …) for the whole column instead of one UPDATE per card.
+        const others = [...positions].filter(([id]) => id !== taskId);
+        if (others.length > 0) {
+          const values = Prisma.join(others.map(([id, position]) => Prisma.sql`(${id}::text, ${position}::double precision)`));
+          await tx.$executeRaw`UPDATE "project_tasks" AS t SET "board_position" = v.pos FROM (VALUES ${values}) AS v(id, pos) WHERE t."id" = v.id`;
         }
         boardPosition = positions.get(taskId)!;
       } else {

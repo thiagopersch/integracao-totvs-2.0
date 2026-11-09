@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { mapWithConcurrency } from "@/lib/concurrency";
 import { Prisma } from "@/generated/prisma/client";
 import { BaseRepository } from "@/repositories/base.repository";
 import { assertClientAllowed } from "@/lib/client-access";
@@ -694,7 +695,8 @@ export const demandService = {
     const updated: Awaited<ReturnType<typeof this.update>>[] = [];
     const { analystIds, requesterIds, departmentIds, demandTypeIds, tagIds, date, startTime, endTime, projectId, projectTaskId, ...simple } = input;
 
-    for (const demand of demands) {
+    // Independent per-demand edits, a few at a time (each one is several queries in its own transaction).
+    const outcomes = await mapWithConcurrency(demands, 4, async (demand) => {
       try {
         const lists = {
           analystIds: applyListChange(demand.demandAnalysts.map((l) => l.analystId), analystIds),
@@ -745,10 +747,14 @@ export const demandService = {
           organizationId,
           allowedClientIds,
         );
-        updated.push(entity);
+        return { ok: true as const, entity };
       } catch (error) {
-        failed.push({ id: demand.id, name: demand.name, reason: (error as Error).message });
+        return { ok: false as const, failure: { id: demand.id, name: demand.name, reason: (error as Error).message } };
       }
+    });
+    for (const outcome of outcomes) {
+      if (outcome.ok) updated.push(outcome.entity);
+      else failed.push(outcome.failure);
     }
     return { updated, failed };
   },
