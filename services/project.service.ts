@@ -228,6 +228,28 @@ function sortValue(row: ProjectRow, field: string, defsById: Map<string, CustomF
 }
 
 /** Nulls always last, whatever the direction. */
+/** Sorts the database can do itself (same order as `sortValue`, nulls last); null = computed, sort in memory. */
+function projectDbOrderBy(sort: { field: string; direction: "asc" | "desc" }): Prisma.ProjectOrderByWithRelationInput[] | null {
+  const dir = sort.direction;
+  switch (sort.field) {
+    case "code":
+    case "name":
+    case "createdAt":
+    case "updatedAt":
+    case "progress":
+      return [{ [sort.field]: dir }];
+    case "plannedStartDate":
+    case "plannedEndDate":
+      return [{ [sort.field]: { sort: dir, nulls: "last" } }];
+    case "clientName":
+      return [{ client: { name: dir } }];
+    case "managerName":
+      return [{ manager: { name: dir } }];
+    default:
+      return null;
+  }
+}
+
 function compareRows(a: ProjectRow, b: ProjectRow, field: string, direction: "asc" | "desc", defsById: Map<string, CustomFieldDef>) {
   const va = sortValue(a, field, defsById);
   const vb = sortValue(b, field, defsById);
@@ -347,8 +369,33 @@ export const projectService = {
     }
     and.push(...(buildCustomFieldWhere(defs, filters) as Prisma.ProjectWhereInput[]));
 
+    const where: Prisma.ProjectWhereInput = { ...(baseWhere as Prisma.ProjectWhereInput), AND: and };
+    const page = params.page || 1;
+    const pageSize = params.pageSize || 10;
+
+    // Paginated in the database when neither the filter nor the sort depends on a computed value
+    // (health, task/hour counts, custom fields): only the current page and its task stats are loaded.
+    const dbOrderBy = params.sort ? projectDbOrderBy(params.sort) : [{ updatedAt: "desc" as const }];
+    if (!filters.health && dbOrderBy) {
+      const [pageRows, total] = await Promise.all([
+        prisma.project.findMany({
+          where,
+          include: projectInclude,
+          orderBy: [...dbOrderBy, { id: "asc" }],
+          skip: (page - 1) * pageSize,
+          take: pageSize,
+        }),
+        prisma.project.count({ where }),
+      ]);
+      const pageStats = await loadTaskStats(pageRows.map((p) => p.id), today);
+      return {
+        data: pageRows.map((p) => decorate(p, pageStats.get(p.id) ?? EMPTY_STATS, today)),
+        meta: { page, pageSize, total, totalPages: Math.ceil(total / pageSize) },
+      };
+    }
+
     const projects = await prisma.project.findMany({
-      where: { ...(baseWhere as Prisma.ProjectWhereInput), AND: and },
+      where,
       include: projectInclude,
       take: 2000,
     });
@@ -360,8 +407,6 @@ export const projectService = {
     const sort = params.sort ?? { field: "updatedAt", direction: "desc" as const };
     rows.sort((a, b) => compareRows(a, b, sort.field, sort.direction, defsById));
 
-    const page = params.page || 1;
-    const pageSize = params.pageSize || 10;
     return {
       data: rows.slice((page - 1) * pageSize, page * pageSize),
       meta: { page, pageSize, total: rows.length, totalPages: Math.ceil(rows.length / pageSize) },

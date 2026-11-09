@@ -68,8 +68,10 @@ export class BaseRepository<T extends { id: string; deletedAt: Date | null }> {
 
     const orgClause = organizationId ? Prisma.sql`AND "organization_id" = ${organizationId}` : Prisma.sql``;
 
+    // Only live rows: buildWhere always adds `deletedAt: null`, so deleted matches were ids shipped
+    // back to Postgres for nothing (the list already filtered them out).
     const rows = await prisma.$queryRaw<{ id: string }[]>(
-      Prisma.sql`SELECT id FROM ${Prisma.raw(`"${this.tableName}"`)} WHERE (${conditions}) ${orgClause}`
+      Prisma.sql`SELECT id FROM ${Prisma.raw(`"${this.tableName}"`)} WHERE (${conditions}) ${orgClause} AND "deleted_at" IS NULL`
     );
     return rows.map((r) => r.id);
   }

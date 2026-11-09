@@ -396,10 +396,9 @@ export const activityLogService = {
    *
    * With `filters.source` set, delegates to that table's own exact `skip`/`take` — cheap, correct
    * pagination. With no source filter ("todas as fontes"), there's no single SQL table to paginate
-   * against, so this over-fetches the `page * pageSize` most recent rows from each of the 5 tables,
-   * merges + sorts them in memory, and slices out the current page's window. That cost grows with
-   * page depth — acceptable at today's volume; if it ever becomes a problem, replace this branch
-   * with a `$queryRaw` UNION ALL across the tables instead.
+   * against: it reads only (id, createdAt) of the `page * pageSize` most recent rows of each table
+   * (index-only, a few bytes per row), merges them to find the page's window, and then loads the
+   * full rows for that window alone. Keeps the Prisma `where` builders shared with `listSource`.
    */
   async list(
     organizationId: string,
@@ -415,33 +414,75 @@ export const activityLogService = {
       return this.listSource(filters.source, organizationId, page, pageSize, filters, ctx, direction);
     }
 
+    // Phase 1: only (id, createdAt) of the `page * pageSize` most recent rows of each source — tiny
+    // index-backed reads — plus the totals, all in parallel. Phase 2 below loads the full rows (with
+    // their JSON/XML payloads) for the current page's window only, instead of page × 5 full rows.
     const take = page * pageSize;
-    const [auditRows, soapRows, emailRows, apiRows, deletionRows] = await Promise.all([
-      prisma.auditLog.findMany({ where: auditWhere(organizationId, filters), include: userSelect, omit: AUDIT_LIST_OMIT, orderBy: { createdAt: direction }, take }),
-      prisma.soapLog.findMany({ where: soapWhere(organizationId, filters, ctx), include: userSelect, omit: SOAP_LIST_OMIT, orderBy: { createdAt: direction }, take }),
-      prisma.emailLog.findMany({ where: emailWhere(organizationId, filters), include: userSelect, orderBy: { createdAt: direction }, take }),
-      prisma.apiLog.findMany({ where: apiWhere(organizationId, filters), include: userSelect, orderBy: { createdAt: direction }, take }),
-      prisma.auditLog.findMany({ where: deletionWhere(organizationId, filters), include: userSelect, omit: AUDIT_LIST_OMIT, orderBy: { createdAt: direction }, take }),
+    const keys = { id: true, createdAt: true } as const;
+    const order = { createdAt: direction };
+    const auditW = auditWhere(organizationId, filters);
+    const soapW = soapWhere(organizationId, filters, ctx);
+    const emailW = emailWhere(organizationId, filters);
+    const apiW = apiWhere(organizationId, filters);
+    const deletionW = deletionWhere(organizationId, filters);
+    const [auditKeys, soapKeys, emailKeys, apiKeys, deletionKeys, auditTotal, soapTotal, emailTotal, apiTotal, deletionTotal] = await Promise.all([
+      prisma.auditLog.findMany({ where: auditW, select: keys, orderBy: order, take }),
+      prisma.soapLog.findMany({ where: soapW, select: keys, orderBy: order, take }),
+      prisma.emailLog.findMany({ where: emailW, select: keys, orderBy: order, take }),
+      prisma.apiLog.findMany({ where: apiW, select: keys, orderBy: order, take }),
+      prisma.auditLog.findMany({ where: deletionW, select: keys, orderBy: order, take }),
+      prisma.auditLog.count({ where: auditW }),
+      prisma.soapLog.count({ where: soapW }),
+      prisma.emailLog.count({ where: emailW }),
+      prisma.apiLog.count({ where: apiW }),
+      prisma.auditLog.count({ where: deletionW }),
     ]);
 
-    const merged = [
-      ...auditRows.map(normalizeAudit),
-      ...soapRows.map(normalizeSoap),
-      ...emailRows.map(normalizeEmail),
-      ...apiRows.map(normalizeApi),
-      ...deletionRows.map(normalizeDeletion),
-    ].sort((a, b) => (direction === "desc" ? b.createdAt.getTime() - a.createdAt.getTime() : a.createdAt.getTime() - b.createdAt.getTime()));
-
+    type Key = { source: "CRUD" | "SOAP" | "EMAIL" | "API" | "DELETION"; id: string; createdAt: Date };
+    const tag = (source: Key["source"], rows: { id: string; createdAt: Date }[]): Key[] => rows.map((r) => ({ source, ...r }));
     const windowStart = (page - 1) * pageSize;
-    const data = merged.slice(windowStart, windowStart + pageSize);
+    const window = [
+      ...tag("CRUD", auditKeys),
+      ...tag("SOAP", soapKeys),
+      ...tag("EMAIL", emailKeys),
+      ...tag("API", apiKeys),
+      ...tag("DELETION", deletionKeys),
+    ]
+      .sort((a, b) => (direction === "desc" ? b.createdAt.getTime() - a.createdAt.getTime() : a.createdAt.getTime() - b.createdAt.getTime()))
+      .slice(windowStart, windowStart + pageSize);
+    const idsOf = (source: Key["source"]) => window.filter((k) => k.source === source).map((k) => k.id);
 
-    const [auditTotal, soapTotal, emailTotal, apiTotal, deletionTotal] = await Promise.all([
-      prisma.auditLog.count({ where: auditWhere(organizationId, filters) }),
-      prisma.soapLog.count({ where: soapWhere(organizationId, filters, ctx) }),
-      prisma.emailLog.count({ where: emailWhere(organizationId, filters) }),
-      prisma.apiLog.count({ where: apiWhere(organizationId, filters) }),
-      prisma.auditLog.count({ where: deletionWhere(organizationId, filters) }),
+    const auditIds = [...idsOf("CRUD"), ...idsOf("DELETION")];
+    const soapIds = idsOf("SOAP");
+    const emailIds = idsOf("EMAIL");
+    const apiIds = idsOf("API");
+    const [auditRows, soapRows, emailRows, apiRows] = await Promise.all([
+      auditIds.length ? prisma.auditLog.findMany({ where: { id: { in: auditIds } }, include: userSelect, omit: AUDIT_LIST_OMIT }) : [],
+      soapIds.length ? prisma.soapLog.findMany({ where: { id: { in: soapIds } }, include: userSelect, omit: SOAP_LIST_OMIT }) : [],
+      emailIds.length ? prisma.emailLog.findMany({ where: { id: { in: emailIds } }, include: userSelect }) : [],
+      apiIds.length ? prisma.apiLog.findMany({ where: { id: { in: apiIds } }, include: userSelect }) : [],
     ]);
+    const auditById = new Map(auditRows.map((r) => [r.id, r]));
+    const soapById = new Map(soapRows.map((r) => [r.id, r]));
+    const emailById = new Map(emailRows.map((r) => [r.id, r]));
+    const apiById = new Map(apiRows.map((r) => [r.id, r]));
+
+    const data = window.flatMap((key): ActivityRow[] => {
+      if (key.source === "CRUD" || key.source === "DELETION") {
+        const row = auditById.get(key.id);
+        return row ? [key.source === "CRUD" ? normalizeAudit(row) : normalizeDeletion(row)] : [];
+      }
+      if (key.source === "SOAP") {
+        const row = soapById.get(key.id);
+        return row ? [normalizeSoap(row)] : [];
+      }
+      if (key.source === "EMAIL") {
+        const row = emailById.get(key.id);
+        return row ? [normalizeEmail(row)] : [];
+      }
+      const row = apiById.get(key.id);
+      return row ? [normalizeApi(row)] : [];
+    });
     const total = auditTotal + soapTotal + emailTotal + apiTotal + deletionTotal;
 
     return { data, meta: { page, pageSize, total, totalPages: Math.ceil(total / pageSize) } };
