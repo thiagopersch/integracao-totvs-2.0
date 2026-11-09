@@ -46,7 +46,9 @@ export type ActivityFilters = {
 type AuditLogWithUser = AuditLog & { user: { name: string } | null };
 // The response payloads (xmlResponse/jsonResponse — a ReadView can return megabytes) are left out of
 // the paginated feed and fetched only when a row's detail is opened (getSoapResponse).
-const SOAP_LIST_OMIT = { xmlResponse: true, jsonResponse: true } as const;
+const SOAP_LIST_OMIT = { xmlRequest: false, xmlResponse: true, jsonResponse: true } as const;
+// The detail dialog shows the audit diff straight from `raw`, so the list opts back into it (globally omitted in lib/prisma.ts).
+const AUDIT_LIST_OMIT = { oldData: false, newData: false } as const;
 type SoapLogWithUser = Omit<SoapLog, "xmlResponse" | "jsonResponse"> & { user: { name: string } | null };
 type EmailLogWithUser = EmailLog & { user: { name: string } | null };
 type ApiLogWithUser = ApiLog & { user: { name: string } | null };
@@ -415,11 +417,11 @@ export const activityLogService = {
 
     const take = page * pageSize;
     const [auditRows, soapRows, emailRows, apiRows, deletionRows] = await Promise.all([
-      prisma.auditLog.findMany({ where: auditWhere(organizationId, filters), include: userSelect, orderBy: { createdAt: direction }, take }),
+      prisma.auditLog.findMany({ where: auditWhere(organizationId, filters), include: userSelect, omit: AUDIT_LIST_OMIT, orderBy: { createdAt: direction }, take }),
       prisma.soapLog.findMany({ where: soapWhere(organizationId, filters, ctx), include: userSelect, omit: SOAP_LIST_OMIT, orderBy: { createdAt: direction }, take }),
       prisma.emailLog.findMany({ where: emailWhere(organizationId, filters), include: userSelect, orderBy: { createdAt: direction }, take }),
       prisma.apiLog.findMany({ where: apiWhere(organizationId, filters), include: userSelect, orderBy: { createdAt: direction }, take }),
-      prisma.auditLog.findMany({ where: deletionWhere(organizationId, filters), include: userSelect, orderBy: { createdAt: direction }, take }),
+      prisma.auditLog.findMany({ where: deletionWhere(organizationId, filters), include: userSelect, omit: AUDIT_LIST_OMIT, orderBy: { createdAt: direction }, take }),
     ]);
 
     const merged = [
@@ -461,7 +463,7 @@ export const activityLogService = {
     if (source === "CRUD") {
       const where = auditWhere(organizationId, filters);
       const [rows, total] = await Promise.all([
-        prisma.auditLog.findMany({ where, include: userSelect, orderBy, skip, take: pageSize }),
+        prisma.auditLog.findMany({ where, include: userSelect, omit: AUDIT_LIST_OMIT, orderBy, skip, take: pageSize }),
         prisma.auditLog.count({ where }),
       ]);
       return { data: rows.map(normalizeAudit), meta: { page, pageSize, total, totalPages: Math.ceil(total / pageSize) } };
@@ -470,7 +472,7 @@ export const activityLogService = {
     if (source === "DELETION") {
       const where = deletionWhere(organizationId, filters);
       const [rows, total] = await Promise.all([
-        prisma.auditLog.findMany({ where, include: userSelect, orderBy, skip, take: pageSize }),
+        prisma.auditLog.findMany({ where, include: userSelect, omit: AUDIT_LIST_OMIT, orderBy, skip, take: pageSize }),
         prisma.auditLog.count({ where }),
       ]);
       return { data: rows.map(normalizeDeletion), meta: { page, pageSize, total, totalPages: Math.ceil(total / pageSize) } };

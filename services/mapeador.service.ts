@@ -58,7 +58,13 @@ export const mapeadorService = {
   async getProjeto(id: string, organizationId: string): Promise<MapeadorProjetoDTO | null> {
     const projeto = await prisma.mapeadorProjeto.findFirst({
       where: { id, organizationId, deletedAt: null },
-      include: { etapas: { orderBy: { ordem: "asc" } } },
+      include: {
+        etapas: {
+          orderBy: { ordem: "asc" },
+          select: { id: true, ordem: true, nome: true, condicao: true, regras: true, camposPorEtapa: true, feedbacks: true },
+        },
+      },
+      omit: { prototipoConfig: false },
     });
     if (!projeto) return null;
 
@@ -117,6 +123,7 @@ export const mapeadorService = {
   async duplicateEtapa(etapaId: string, organizationId: string) {
     const etapa = await prisma.mapeadorEtapa.findFirst({
       where: { id: etapaId, projeto: { organizationId } },
+      omit: { camposPorEtapa: false },
     });
     if (!etapa) throw new Error("Etapa não encontrada");
 

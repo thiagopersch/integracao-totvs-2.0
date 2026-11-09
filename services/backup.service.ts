@@ -17,7 +17,7 @@ import type { ListParams } from "@/types/common";
 import type { Backup, Prisma } from "@/generated/prisma/client";
 import { safeOrderBy } from "@/lib/sort";
 
-class BackupRepository extends BaseRepository<Backup> {
+class BackupRepository extends BaseRepository<Omit<Backup, "contentSentence">> {
   constructor() {
     super(prisma.backup, ["codeSentence", "nameSentence", "branchSentence"], "backups", "Backup");
   }
@@ -338,6 +338,7 @@ export const backupService = {
         orderBy,
         skip: (page - 1) * pageSize,
         take: pageSize,
+        omit: { contentSentence: false },
       }),
       prisma.backup.count({ where }),
     ]);
@@ -349,6 +350,7 @@ export const backupService = {
     return prisma.backup.findMany({
       where: { filterId, organizationId, codeSentence, deletedAt: null },
       orderBy: { createdAt: "desc" },
+      omit: { contentSentence: false },
     });
   },
 
@@ -357,6 +359,7 @@ export const backupService = {
   async getLatestByCode(filterId: string, codeSentence: string, organizationId: string) {
     return prisma.backup.findFirst({
       where: { filterId, organizationId, codeSentence, isLatest: true, deletedAt: null },
+      omit: { contentSentence: false },
     });
   },
 
@@ -383,12 +386,14 @@ export const backupService = {
     return prisma.backup.findMany({
       where: { backupRunId, organizationId, deletedAt: null },
       orderBy: { codeSentence: "asc" },
+      omit: { contentSentence: false },
     });
   },
 
   async restoreLatestForFilter(filterId: string, targetTbcId: string, organizationId: string, userId: string) {
     const backups = await prisma.backup.findMany({
       where: { filterId, organizationId, isLatest: true, deletedAt: null },
+      omit: { contentSentence: false },
     });
     if (backups.length === 0) throw new Error(NO_BACKUP_MESSAGE);
     return restoreBackupRows(backups, targetTbcId, organizationId, userId);
@@ -397,13 +402,14 @@ export const backupService = {
   async restoreForRun(backupRunId: string, targetTbcId: string, organizationId: string, userId: string) {
     const backups = await prisma.backup.findMany({
       where: { backupRunId, organizationId, deletedAt: null },
+      omit: { contentSentence: false },
     });
     if (backups.length === 0) throw new Error("Nenhuma sentença encontrada nesta execução de backup.");
     return restoreBackupRows(backups, targetTbcId, organizationId, userId);
   },
 
   async restoreSingle(backupId: string, targetTbcId: string, organizationId: string, userId: string) {
-    const backup = await prisma.backup.findFirst({ where: { id: backupId, organizationId } });
+    const backup = await prisma.backup.findFirst({ where: { id: backupId, organizationId }, omit: { contentSentence: false } });
     if (!backup) throw new Error("Backup não encontrado");
     return restoreBackupRows([backup], targetTbcId, organizationId, userId);
   },

@@ -202,6 +202,7 @@ export async function importStandardSentencesToTbc(tbcId: string, sentenceCatego
     const tbc = { ...credentials, id: tbcId };
     const sentences = await prisma.sentence.findMany({
       where: { sentenceCategoryId, organizationId, status: true, deletedAt: null },
+      omit: { content: false },
     });
 
     if (sentences.length === 0) {
