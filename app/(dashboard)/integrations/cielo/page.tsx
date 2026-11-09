@@ -11,7 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { CodeEditor } from "@/components/shared/code-editor"
 import { Loader2, CreditCard } from "lucide-react"
-import { toast } from "sonner"
+import { toast } from "@/lib/toast"
 import { testCieloPayment } from "@/actions/integrations/cielo"
 
 const BRANDS = ["Visa", "Master", "Amex", "Elo", "Aura", "JCB", "Diners", "Discover"]

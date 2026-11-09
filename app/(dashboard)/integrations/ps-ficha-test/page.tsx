@@ -36,7 +36,7 @@ import {
   Square,
 } from "lucide-react"
 import { useMemo, useRef, useState } from "react"
-import { toast } from "sonner"
+import { toast } from "@/lib/toast"
 
 type CheckStatus = "pending" | "running" | "success" | "failed" | "skipped"
 

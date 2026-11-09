@@ -37,7 +37,7 @@ import { deleteUser, restoreUser, bulkDeleteUsers, setUserStatus, setUserClients
 import { UserForm } from "./user-form"
 import { useCrudTable } from "@/hooks/use-crud-table"
 import { useHasPermission } from "@/hooks/use-permissions"
-import { toast } from "sonner"
+import { toast } from "@/lib/toast"
 import type { User, Client } from "@/generated/prisma/client"
 import type { PaginationMeta } from "@/types/common"
 

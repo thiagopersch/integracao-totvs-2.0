@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { toast } from "sonner"
+import { toast } from "@/lib/toast"
 import { Download, ExternalLink, FileText, Loader2, Pencil, Ruler, TriangleAlert } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { CollapsibleSection } from "@/components/mapeador/collapsible-section"

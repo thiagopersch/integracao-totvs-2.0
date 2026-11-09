@@ -36,7 +36,7 @@ import {
 import { Plus, Loader2 } from "lucide-react"
 import { deleteSentenceCategory, restoreSentenceCategory, createSentenceCategory, updateSentenceCategory, bulkDeleteSentenceCategories, setSentenceCategoryStatus } from "@/actions/admin/sentence-categories"
 import { createSentenceCategorySchema, updateSentenceCategorySchema, type CreateSentenceCategoryInput } from "@/schemas/sentence-category.schema"
-import { toast } from "sonner"
+import { toast } from "@/lib/toast"
 import { useCrudTable } from "@/hooks/use-crud-table"
 import { useHasPermission } from "@/hooks/use-permissions"
 import type { SentenceCategory } from "@/generated/prisma/client"

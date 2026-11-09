@@ -3,7 +3,7 @@
 import { useMemo, useRef, useState } from "react"
 import type { ColumnDef } from "@tanstack/react-table"
 import { AlertTriangle, Download, FileUp, Loader2, Settings2, Users } from "lucide-react"
-import { toast } from "sonner"
+import { toast } from "@/lib/toast"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"

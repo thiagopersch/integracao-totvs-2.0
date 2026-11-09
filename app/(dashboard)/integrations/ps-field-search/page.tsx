@@ -30,7 +30,7 @@ import { CredentialsFormFields } from "@/components/ps-docs/credentials-form-fie
 import { ComponentDetailPanel } from "@/components/ps-docs/component-detail-panel"
 import { TotvsFieldAuditResults, useTotvsFieldAudit } from "@/components/ps-docs/totvs-field-audit"
 import { SearchCode, Loader2, RefreshCw, Info, ChevronDown, ChevronRight, Copy, FileSpreadsheet, FileText, FileCode2, MoreHorizontal } from "lucide-react"
-import { toast } from "sonner"
+import { toast } from "@/lib/toast"
 import { fetchComponentDetail } from "@/actions/integrations/ps-field-search"
 import type { ActionCatalogEntries } from "@/actions/integrations/ps-docs"
 import { readNdjson, type StandaloneContainer, type SweepEvent } from "@/lib/ps-docs/field-search-stream"

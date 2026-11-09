@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 import { useForm, Controller, type Resolver, type FieldErrors } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
-import { toast } from "sonner"
+import { toast } from "@/lib/toast"
 import { Loader2, Maximize2, Minimize2 } from "lucide-react"
 import { ColorBadge } from "@/components/shared/color-badge"
 import { WithTooltip } from "@/components/shared/with-tooltip"

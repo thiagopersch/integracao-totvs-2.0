@@ -23,7 +23,7 @@ import {
 } from "@/lib/tbc-checklist-dataservers"
 import type { TbcChecklistProcessoView } from "@/services/tbc-checklist.service"
 import type { Dataserver } from "@/generated/prisma/client"
-import { toast } from "sonner"
+import { toast } from "@/lib/toast"
 
 export type ProcessoSeletivo = {
   /** Id of the processo saved in the checklist. */

@@ -25,7 +25,7 @@ import {
 import { Plus, Loader2 } from "lucide-react"
 import { deleteProcess, restoreProcess, createProcess, updateProcess, bulkDeleteProcesses } from "@/actions/admin/processes"
 import { createProcessSchema, updateProcessSchema, type CreateProcessInput } from "@/schemas/process.schema"
-import { toast } from "sonner"
+import { toast } from "@/lib/toast"
 import { useCrudTable } from "@/hooks/use-crud-table"
 import { useHasPermission } from "@/hooks/use-permissions"
 import type { Process } from "@/generated/prisma/client"

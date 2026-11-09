@@ -1,3 +1,6 @@
+/* MUI styles live in @layer mui (AppRouterCacheProvider enableCssLayer), between Tailwind's base
+   and utilities: utilities still override MUI, preflight doesn't. */
+@layer theme, base, mui, components, utilities;
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
@@ -56,21 +59,23 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
+/* Colors that MUI also paints come from the MUI theme (theme/index.ts) so Tailwind utilities
+   and MUI components never drift. The rest are app-only tokens. */
 :root {
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.527 0.154 150.069);
-  --primary-foreground: oklch(0.982 0.018 155.826);
+  --card: var(--mui-palette-background-paper);
+  --card-foreground: var(--mui-palette-text-primary);
+  --popover: var(--mui-palette-background-paper);
+  --popover-foreground: var(--mui-palette-text-primary);
+  --primary: var(--mui-palette-primary-main);
+  --primary-foreground: var(--mui-palette-primary-contrastText);
   --secondary: oklch(0.967 0.001 286.375);
   --secondary-foreground: oklch(0.21 0.006 285.885);
   --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
+  --muted-foreground: var(--mui-palette-text-secondary);
   --accent: oklch(0.97 0 0);
   --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
+  --destructive: var(--mui-palette-error-main);
+  --border: var(--mui-palette-divider);
   --input: oklch(0.922 0 0);
   --ring: oklch(0.708 0 0);
   --chart-1: oklch(0.809 0.105 251.813);
@@ -94,27 +99,27 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
+  --background: var(--mui-palette-background-default);
+  --foreground: var(--mui-palette-text-primary);
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.448 0.119 151.328);
-  --primary-foreground: oklch(0.982 0.018 155.826);
+  --background: var(--mui-palette-background-default);
+  --foreground: var(--mui-palette-text-primary);
+  --card: var(--mui-palette-background-paper);
+  --card-foreground: var(--mui-palette-text-primary);
+  --popover: var(--mui-palette-background-paper);
+  --popover-foreground: var(--mui-palette-text-primary);
+  --primary: var(--mui-palette-primary-main);
+  --primary-foreground: var(--mui-palette-primary-contrastText);
   --secondary: oklch(0.274 0.006 286.033);
   --secondary-foreground: oklch(0.985 0 0);
   --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
+  --muted-foreground: var(--mui-palette-text-secondary);
   --accent: oklch(0.269 0 0);
   --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
+  --destructive: var(--mui-palette-error-main);
+  --border: var(--mui-palette-divider);
   --input: oklch(1 0 0 / 15%);
   --ring: oklch(0.556 0 0);
   --chart-1: oklch(0.809 0.105 251.813);

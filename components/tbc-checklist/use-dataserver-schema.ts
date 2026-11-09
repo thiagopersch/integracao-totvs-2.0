@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { toast } from "sonner"
+import { toast } from "@/lib/toast"
 import { fetchDataserverSchema } from "@/actions/integrations/tbc-checklist"
 import { toChecklistContext, type ChecklistContextForm } from "@/lib/tbc-checklist-dataservers"
 import type { SchemaTable } from "@/utils/soap-schema"

@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { ChevronsUpDown, X } from "lucide-react"
-import { useTheme } from "next-themes"
+import { useAppTheme } from "@/hooks/use-app-theme"
 
 import { cn } from "@/lib/utils"
 import { getBadgeTextColor } from "@/lib/colors"
@@ -58,7 +58,7 @@ export function MultiSelect({
   className,
   maxVisible,
 }: MultiSelectProps) {
-  const { resolvedTheme } = useTheme()
+  const { resolvedTheme } = useAppTheme()
   const isDarkTheme = resolvedTheme === "dark"
   const [open, setOpen] = React.useState(false)
   const selected = items.filter((item) => value.includes(item.value))

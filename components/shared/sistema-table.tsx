@@ -24,7 +24,7 @@ import {
 import { Plus, Loader2 } from "lucide-react"
 import { deleteSistema, restoreSistema, createSistema, updateSistema, bulkDeleteSistemas } from "@/actions/admin/sistemas"
 import { createSistemaSchema, updateSistemaSchema, type CreateSistemaInput } from "@/schemas/sistema.schema"
-import { toast } from "sonner"
+import { toast } from "@/lib/toast"
 import { useCrudTable } from "@/hooks/use-crud-table"
 import { useHasPermission } from "@/hooks/use-permissions"
 import type { TotvsSystem } from "@/generated/prisma/client"

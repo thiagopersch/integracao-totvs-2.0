@@ -3,7 +3,7 @@
 import { useMemo, useRef, useState } from "react"
 import type { ColumnDef } from "@tanstack/react-table"
 import { Download, Loader2, Play, RotateCw } from "lucide-react"
-import { toast } from "sonner"
+import { toast } from "@/lib/toast"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Label } from "@/components/ui/label"

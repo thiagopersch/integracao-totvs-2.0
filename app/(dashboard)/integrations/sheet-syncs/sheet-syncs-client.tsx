@@ -3,7 +3,7 @@
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { Copy, ExternalLink, FileSpreadsheet, KeyRound, Loader2, Pencil, PlugZap, Plus, RefreshCw, Trash2 } from "lucide-react"
-import { toast } from "sonner"
+import { toast } from "@/lib/toast"
 import { PageHeader } from "@/components/shared/page-header"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
 import { WithTooltip } from "@/components/shared/with-tooltip"

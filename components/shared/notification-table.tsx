@@ -12,7 +12,7 @@ import { Eye } from "lucide-react"
 import { formatDate } from "@/utils/format"
 import { getNotificationCategory } from "@/lib/notification-category"
 import { markNotificationAsRead, markAllNotificationsAsRead } from "@/actions/notifications"
-import { toast } from "sonner"
+import { toast } from "@/lib/toast"
 import type { Notification } from "@/generated/prisma/client"
 import type { PaginationMeta } from "@/types/common"
 

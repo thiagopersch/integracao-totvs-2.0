@@ -38,7 +38,7 @@ import {
 import { Plus, Loader2, Maximize2, Minimize2 } from "lucide-react"
 import { deleteSentence, restoreSentence, createSentence, updateSentence, bulkDeleteSentences, setSentenceStatus } from "@/actions/admin/sentences"
 import { createSentenceSchema, updateSentenceSchema, type CreateSentenceInput } from "@/schemas/sentence.schema"
-import { toast } from "sonner"
+import { toast } from "@/lib/toast"
 import { useCrudTable } from "@/hooks/use-crud-table"
 import { useHasPermission } from "@/hooks/use-permissions"
 import type { Sentence } from "@/generated/prisma/client"

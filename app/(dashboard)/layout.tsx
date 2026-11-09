@@ -20,15 +20,15 @@ import { useCurrentUser } from "@/hooks/use-current-user"
 import { useSidebarStore } from "@/store/sidebar.store"
 import { cn } from "@/utils/cn"
 import { LogOut, Menu, Moon, Sun, User } from "lucide-react"
-import { useTheme } from "next-themes"
+import { useAppTheme } from "@/hooks/use-app-theme"
 import { usePathname, useRouter } from "next/navigation"
 import { Suspense, useState } from "react"
-import { toast } from "sonner"
+import { toast } from "@/lib/toast"
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const router = useRouter()
-  const { theme, setTheme } = useTheme()
+  const { theme, setTheme } = useAppTheme()
   const collapsed = useSidebarStore((state) => state.collapsed)
   const toggle = useSidebarStore((state) => state.toggle)
   const [mobileNavOpen, setMobileNavOpen] = useState(false)

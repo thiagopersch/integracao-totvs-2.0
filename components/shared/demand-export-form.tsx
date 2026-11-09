@@ -9,7 +9,7 @@ import { ExportPeriodSelect, isExportPeriodPending, toExportPeriod, type ExportP
 import { exportDemandsXlsx, getDemandExportData } from "@/actions/export"
 import type { Client } from "@/generated/prisma/client"
 import { Loader2, FileSpreadsheet, FileText } from "lucide-react"
-import { toast } from "sonner"
+import { toast } from "@/lib/toast"
 
 // jspdf + jspdf-autotable + html-to-image + the charts only load when a PDF is actually generated.
 const DemandExportPdfBuilder = dynamic(

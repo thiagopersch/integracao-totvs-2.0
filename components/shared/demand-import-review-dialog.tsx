@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react"
 import { AlertCircle, AlertTriangle, ArrowDownToLine, CheckCircle2, Info, Loader2, Maximize2, Minimize2, Search } from "lucide-react"
-import { toast } from "sonner"
+import { toast } from "@/lib/toast"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Combobox, type ComboboxItem } from "@/components/ui/combobox"

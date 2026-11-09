@@ -4,7 +4,7 @@ import { useMemo, useState } from "react"
 import type { ColumnDef } from "@tanstack/react-table"
 import { useForm, Controller, type Resolver } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
-import { useTheme } from "next-themes"
+import { useAppTheme } from "@/hooks/use-app-theme"
 import { DataTable } from "@/components/shared/data-table"
 import { DataTableFilterPanel } from "@/components/shared/data-table-filter-panel"
 import { PageHeader } from "@/components/shared/page-header"
@@ -34,7 +34,7 @@ import { deleteAnalyst, createAnalyst, updateAnalyst, bulkDeleteAnalysts, setAna
 import { createAnalystSchema, updateAnalystSchema, type CreateAnalystInput } from "@/schemas/analyst.schema"
 import { formatPhone, formatDecimal } from "@/lib/masks"
 import { getBadgeTextColor, randomColor } from "@/lib/colors"
-import { toast } from "sonner"
+import { toast } from "@/lib/toast"
 import { useCrudTable } from "@/hooks/use-crud-table"
 import { useHasPermission } from "@/hooks/use-permissions"
 import type { Analyst } from "@/generated/prisma/client"
@@ -67,7 +67,7 @@ const ANALYST_FIELD_TAB: Record<string, AnalystTab> = {
 }
 
 export function AnalystTable({ data, meta }: AnalystTableProps) {
-  const { resolvedTheme } = useTheme()
+  const { resolvedTheme } = useAppTheme()
   const {
     searchParams,
     deleteDialog,

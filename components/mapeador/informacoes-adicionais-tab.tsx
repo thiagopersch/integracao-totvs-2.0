@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { updateMapeadorInformacoesAdicionais } from "@/actions/mapeador"
 import { useMapeadorStore } from "@/store/mapeador.store"
-import { toast } from "sonner"
+import { toast } from "@/lib/toast"
 
 const CAMPOS = [
   ["idProcessoSeletivo", "Identificador (ID) do Processo Seletivo"],

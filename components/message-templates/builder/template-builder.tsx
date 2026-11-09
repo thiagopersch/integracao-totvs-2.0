@@ -17,7 +17,7 @@ import {
   type Over,
 } from "@dnd-kit/core"
 import { ArrowLeft, Eye, Loader2, Save, Send } from "lucide-react"
-import { toast } from "sonner"
+import { toast } from "@/lib/toast"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { Input } from "@/components/ui/input"

@@ -1,16 +1,27 @@
+"use client"
+
 import * as React from "react"
+import OutlinedInput from "@mui/material/OutlinedInput"
 
 import { cn } from "@/lib/utils"
+import { splitInputClasses } from "@/components/ui/input"
 
-function Textarea({ className, ...props }: React.ComponentProps<"textarea">) {
+/** Multi-line text field (MUI OutlinedInput). `ref` reaches the native <textarea> for react-hook-form. */
+function Textarea({ className, ref, rows = 3, style, disabled, ...props }: React.ComponentProps<"textarea">) {
+  const { inner, outer } = splitInputClasses(className)
+  const invalid = props["aria-invalid"] === true || props["aria-invalid"] === "true"
   return (
-    <textarea
+    <OutlinedInput
       data-slot="textarea"
-      className={cn(
-        "flex field-sizing-content min-h-16 w-full rounded-lg border border-input bg-transparent px-2.5 py-2 text-base transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:bg-input/50 disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 md:text-sm dark:bg-input/30 dark:disabled:bg-input/80 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40",
-        className
-      )}
-      {...props}
+      multiline
+      rows={rows}
+      inputRef={ref}
+      disabled={disabled}
+      error={invalid}
+      className={cn("w-full text-sm", outer)}
+      style={style}
+      inputProps={{ ...props, className: cn("min-h-16 resize-y px-2.5 py-2 placeholder:text-muted-foreground", inner) } as React.TextareaHTMLAttributes<HTMLTextAreaElement>}
+      sx={{ p: 0, alignItems: "stretch" }}
     />
   )
 }

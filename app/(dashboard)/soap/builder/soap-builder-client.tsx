@@ -44,7 +44,7 @@ import {
   CircleCheck,
   CircleX,
 } from "lucide-react"
-import { toast } from "sonner"
+import { toast } from "@/lib/toast"
 import axios from "axios"
 import { xmlToJson, jsonToXml, safeFormatXmlDeep } from "@/utils/xml"
 import { buildSoapEnvelope, escapeXml, METHOD_OPERATION } from "@/utils/soap-envelope"

@@ -1,125 +1,76 @@
 "use client"
 
 import * as React from "react"
-import { ContextMenu as ContextMenuPrimitive } from "@base-ui/react/context-menu"
+import Menu from "@mui/material/Menu"
 
 import { cn } from "@/lib/utils"
-import { CheckIcon } from "lucide-react"
+import { MenuContext, DropdownMenuItem, DropdownMenuCheckboxItem, DropdownMenuSeparator, DropdownMenuLabel } from "@/components/ui/dropdown-menu"
+import { renderTrigger, useOpenState, type TriggerProps } from "@/components/ui/slot"
 
-function ContextMenu({ ...props }: ContextMenuPrimitive.Root.Props) {
-  return <ContextMenuPrimitive.Root data-slot="context-menu" {...props} />
+type Ctx = { open: boolean; setOpen: (open: boolean) => void; position: { top: number; left: number } | null; setPosition: (p: { top: number; left: number } | null) => void }
+const ContextMenuContext = React.createContext<Ctx | null>(null)
+function useContextMenu() {
+  const ctx = React.useContext(ContextMenuContext)
+  if (!ctx) throw new Error("ContextMenu parts must be used inside <ContextMenu>")
+  return ctx
 }
 
-function ContextMenuTrigger({ className, ...props }: ContextMenuPrimitive.Trigger.Props) {
-  return (
-    <ContextMenuPrimitive.Trigger
-      data-slot="context-menu-trigger"
-      className={cn(className)}
-      {...props}
-    />
+function ContextMenu({ open, onOpenChange, children }: { open?: boolean; onOpenChange?: (open: boolean) => void; children?: React.ReactNode }) {
+  const [isOpen, setOpen] = useOpenState(open, false, onOpenChange)
+  const [position, setPosition] = React.useState<{ top: number; left: number } | null>(null)
+  const value = React.useMemo(() => ({ open: isOpen, setOpen, position, setPosition }), [isOpen, setOpen, position])
+  return <ContextMenuContext.Provider value={value}>{children}</ContextMenuContext.Provider>
+}
+
+function ContextMenuTrigger({ className, ...props }: TriggerProps & { style?: React.CSSProperties }) {
+  const { setOpen, setPosition } = useContextMenu()
+  // Base UI's context trigger renders a <div> by default (it wraps arbitrary content).
+  const render = props.render ?? <div />
+  return renderTrigger(
+    { ...props, render, className: cn(className) },
+    {
+      "data-slot": "context-menu-trigger",
+      onContextMenu: (event: React.MouseEvent<HTMLElement>) => {
+        ;(props.onContextMenu as ((e: React.MouseEvent<HTMLElement>) => void) | undefined)?.(event)
+        if (event.defaultPrevented) return
+        event.preventDefault()
+        setPosition({ top: event.clientY, left: event.clientX })
+        setOpen(true)
+      },
+    }
   )
 }
 
-function ContextMenuPortal({ ...props }: ContextMenuPrimitive.Portal.Props) {
-  return <ContextMenuPrimitive.Portal data-slot="context-menu-portal" {...props} />
+function ContextMenuPortal({ children }: { children?: React.ReactNode }) {
+  return <>{children}</>
 }
 
-function ContextMenuContent({
-  className,
-  ...props
-}: ContextMenuPrimitive.Popup.Props) {
+function ContextMenuContent({ className, children, onClick, style }: { className?: string; children?: React.ReactNode; onClick?: React.MouseEventHandler<HTMLDivElement>; style?: React.CSSProperties }) {
+  const { open, setOpen, position } = useContextMenu()
+  const menuCtx = React.useMemo(() => ({ open, setOpen, anchorEl: null, setAnchorEl: () => {} }), [open, setOpen])
   return (
-    <ContextMenuPrimitive.Portal>
-      <ContextMenuPrimitive.Positioner className="isolate z-50 outline-none">
-        <ContextMenuPrimitive.Popup
-          data-slot="context-menu-content"
-          className={cn(
-            "z-50 max-h-(--available-height) min-w-40 origin-(--transform-origin) overflow-x-hidden overflow-y-auto rounded-lg bg-popover p-1 text-popover-foreground shadow-md ring-1 ring-foreground/10 duration-100 outline-none data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:overflow-hidden data-closed:fade-out-0 data-closed:zoom-out-95",
-            className
-          )}
-          {...props}
-        />
-      </ContextMenuPrimitive.Positioner>
-    </ContextMenuPrimitive.Portal>
-  )
-}
-
-function ContextMenuItem({
-  className,
-  inset,
-  variant = "default",
-  ...props
-}: ContextMenuPrimitive.Item.Props & {
-  inset?: boolean
-  variant?: "default" | "destructive"
-}) {
-  return (
-    <ContextMenuPrimitive.Item
-      data-slot="context-menu-item"
-      data-inset={inset}
-      data-variant={variant}
-      className={cn(
-        "relative flex cursor-pointer items-center gap-1.5 rounded-md px-1.5 py-1 text-sm outline-hidden select-none focus:bg-accent focus:text-accent-foreground not-data-[variant=destructive]:focus:**:text-accent-foreground data-inset:pl-7 data-[variant=destructive]:text-destructive data-[variant=destructive]:focus:bg-destructive/10 data-[variant=destructive]:focus:text-destructive dark:data-[variant=destructive]:focus:bg-destructive/20 data-disabled:pointer-events-none data-disabled:cursor-not-allowed data-disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 data-[variant=destructive]:*:[svg]:text-destructive",
-        className
-      )}
-      {...props}
-    />
-  )
-}
-
-function ContextMenuCheckboxItem({
-  className,
-  children,
-  checked,
-  ...props
-}: ContextMenuPrimitive.CheckboxItem.Props) {
-  return (
-    <ContextMenuPrimitive.CheckboxItem
-      data-slot="context-menu-checkbox-item"
-      className={cn(
-        "relative flex cursor-pointer items-center gap-1.5 rounded-md py-1 pr-8 pl-1.5 text-sm outline-hidden select-none focus:bg-accent focus:text-accent-foreground focus:**:text-accent-foreground data-disabled:pointer-events-none data-disabled:cursor-not-allowed data-disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
-        className
-      )}
-      checked={checked}
-      {...props}
-    >
-      <span
-        className="pointer-events-none absolute right-2 flex items-center justify-center"
-        data-slot="context-menu-checkbox-item-indicator"
+    <MenuContext.Provider value={menuCtx}>
+      <Menu
+        open={open && position !== null}
+        onClose={() => setOpen(false)}
+        anchorReference="anchorPosition"
+        anchorPosition={position ?? undefined}
+        onClick={onClick}
+        slotProps={{ paper: { "data-slot": "context-menu-content", className: cn("min-w-36 text-sm", className), style, sx: { border: 1, borderColor: "divider" } } as React.ComponentProps<"div">, list: { dense: true } }}
       >
-        <ContextMenuPrimitive.CheckboxItemIndicator>
-          <CheckIcon />
-        </ContextMenuPrimitive.CheckboxItemIndicator>
-      </span>
-      {children}
-    </ContextMenuPrimitive.CheckboxItem>
+        {children}
+      </Menu>
+    </MenuContext.Provider>
   )
 }
 
-function ContextMenuSeparator({
-  className,
-  ...props
-}: ContextMenuPrimitive.Separator.Props) {
-  return (
-    <ContextMenuPrimitive.Separator
-      data-slot="context-menu-separator"
-      className={cn("-mx-1 my-1 h-px bg-border", className)}
-      {...props}
-    />
-  )
-}
+const ContextMenuItem = DropdownMenuItem
+const ContextMenuCheckboxItem = DropdownMenuCheckboxItem
+const ContextMenuSeparator = DropdownMenuSeparator
+const ContextMenuLabel = DropdownMenuLabel
 
-export {
-  ContextMenu,
-  ContextMenuTrigger,
-  ContextMenuPortal,
-  ContextMenuContent,
-  ContextMenuItem,
-  ContextMenuCheckboxItem,
-  ContextMenuSeparator,
-}
+export { ContextMenu, ContextMenuCheckboxItem, ContextMenuContent, ContextMenuItem, ContextMenuLabel, ContextMenuPortal, ContextMenuSeparator, ContextMenuTrigger }
 
-// Context menus are Base UI menus under the hood, so the dropdown's submenu/radio parts work as-is.
 export {
   DropdownMenuSub as ContextMenuSub,
   DropdownMenuSubTrigger as ContextMenuSubTrigger,

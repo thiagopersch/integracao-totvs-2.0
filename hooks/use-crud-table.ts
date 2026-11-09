@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { toast } from "sonner"
+import { toast } from "@/lib/toast"
 import { useUrlParams } from "@/hooks/use-url-params"
 
 type ActionResult = { success: boolean; error?: string }

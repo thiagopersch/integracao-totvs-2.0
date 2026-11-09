@@ -31,7 +31,7 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { AlertCircle, CheckCircle2, FileText, Info, Loader2 } from "lucide-react"
 import { useState } from "react"
 import { useForm, useWatch, type Resolver } from "react-hook-form"
-import { toast } from "sonner"
+import { toast } from "@/lib/toast"
 
 type DocMode = "processo" | "portal"
 

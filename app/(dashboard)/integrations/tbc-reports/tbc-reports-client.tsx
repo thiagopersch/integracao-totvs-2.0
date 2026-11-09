@@ -3,7 +3,7 @@
 import { PendingRegion } from "@/components/shared/pending-region"
 import { useEffect, useMemo, useState } from "react"
 import axios from "axios"
-import { toast } from "sonner"
+import { toast } from "@/lib/toast"
 import { FileBarChart2, Loader2, Download, ListChecks } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"

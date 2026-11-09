@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react"
 import Link from "next/link"
-import { toast } from "sonner"
+import { toast } from "@/lib/toast"
 import { ArrowLeft, CalendarDays, ChartGantt, Clock, Gauge, KanbanSquare, LayoutDashboard, List, Loader2, Plus, Settings } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Tabs, ScrollableTabsList, TabsTrigger } from "@/components/ui/tabs"

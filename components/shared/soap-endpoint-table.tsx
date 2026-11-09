@@ -43,7 +43,7 @@ import {
   type CreateSoapEndpointTypeInput,
   type CreateSoapEndpointMethodInput,
 } from "@/schemas/soap-endpoint.schema"
-import { toast } from "sonner"
+import { toast } from "@/lib/toast"
 import { useCrudTable } from "@/hooks/use-crud-table"
 import { useHasPermission } from "@/hooks/use-permissions"
 import type { SoapEndpointType, SoapEndpointMethod } from "@/generated/prisma/client"

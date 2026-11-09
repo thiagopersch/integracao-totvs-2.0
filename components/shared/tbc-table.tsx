@@ -39,7 +39,7 @@ import type { ColumnDef } from "@tanstack/react-table"
 import { KeyRound, ListChecks, Loader2, Plus, ShieldCheck } from "lucide-react"
 import { useMemo, useState } from "react"
 import { Controller, useForm, type Resolver } from "react-hook-form"
-import { toast } from "sonner"
+import { toast } from "@/lib/toast"
 
 interface TbcTableProps {
   data: TbcRow[]

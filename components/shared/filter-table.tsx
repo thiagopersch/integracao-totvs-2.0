@@ -43,7 +43,7 @@ import { RestorePasswordConfirmDialog } from "@/components/shared/restore-passwo
 import { deleteFilter, restoreFilter, createFilter, updateFilter, createBackupFromFilter, bulkDeleteFilters, setFilterStatus, importStandardSentencesToTbc } from "@/actions/admin/filters"
 import { BACKUP_SCHEDULE_LABELS, SCHEDULES_WITH_TIME_OF_DAY } from "@/lib/backup-schedule"
 import { createFilterSchema, updateFilterSchema, type CreateFilterInput } from "@/schemas/filter.schema"
-import { toast } from "sonner"
+import { toast } from "@/lib/toast"
 import { useCrudTable } from "@/hooks/use-crud-table"
 import { useHasPermission } from "@/hooks/use-permissions"
 import type { Filter, TotvsSystem, SentenceCategory } from "@/generated/prisma/client"

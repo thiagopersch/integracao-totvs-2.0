@@ -33,7 +33,7 @@ import {
   bulkDeleteDataservers,
 } from "@/actions/admin/dataservers"
 import { createDataserverSchema, updateDataserverSchema, type CreateDataserverInput } from "@/schemas/dataserver.schema"
-import { toast } from "sonner"
+import { toast } from "@/lib/toast"
 import { useCrudTable } from "@/hooks/use-crud-table"
 import { useHasPermission } from "@/hooks/use-permissions"
 import type { Dataserver } from "@/generated/prisma/client"

@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { toast } from "sonner"
+import { toast } from "@/lib/toast"
 import { Loader2 } from "lucide-react"
 import { ColorBadge } from "@/components/shared/color-badge"
 import { ClientSelect } from "@/components/shared/client-select"

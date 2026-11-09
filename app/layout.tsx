@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { Inter, Poppins, JetBrains_Mono, Orbitron } from "next/font/google";
 import { Suspense } from "react";
+import InitColorSchemeScript from "@mui/material/InitColorSchemeScript";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 import "./globals.css";
 import { ThemeProvider } from "@/providers/theme-provider";
 import { SessionProvider } from "@/providers/session-provider";
@@ -14,8 +16,8 @@ const inter = Inter({
 const poppins = Poppins({
   variable: "--font-poppins",
   subsets: ["latin"],
-  // Only the weights actually used (font-heading with normal/medium/semibold/bold).
-  weight: ["400", "500", "600", "700"],
+  // Only the weights actually used (headings/buttons: medium/semibold/bold).
+  weight: ["500", "600", "700"],
 });
 
 const jetbrainsMono = JetBrains_Mono({
@@ -28,8 +30,9 @@ const jetbrainsMono = JetBrains_Mono({
 const orbitron = Orbitron({
   variable: "--font-orbitron",
   subsets: ["latin"],
-  // Sidebar logo only (font-bold).
+  // Sidebar logo only (font-bold) — not worth preloading on every page.
   weight: ["700"],
+  preload: false,
 });
 
 export const metadata: Metadata = {
@@ -49,12 +52,14 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <body className="min-h-full flex flex-col">
-        <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
+        <InitColorSchemeScript attribute="class" defaultMode="system" />
+        <ThemeProvider>
           <SessionProvider>
             <Suspense fallback={null}>{children}</Suspense>
             <Toaster />
           </SessionProvider>
         </ThemeProvider>
+        <SpeedInsights />
       </body>
     </html>
   );

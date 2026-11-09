@@ -1,11 +1,10 @@
 "use client"
 
 import * as React from "react"
-import { cva, type VariantProps } from "class-variance-authority"
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
+import { BareInput } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 
 function InputGroup({ className, ...props }: React.ComponentProps<"div">) {
@@ -22,11 +21,8 @@ function InputGroup({ className, ...props }: React.ComponentProps<"div">) {
   )
 }
 
-const inputGroupAddonVariants = cva(
-  "flex h-auto cursor-text items-center justify-center gap-2 py-1.5 text-sm font-medium text-muted-foreground select-none group-data-[disabled=true]/input-group:opacity-50 [&>kbd]:rounded-[calc(var(--radius)-5px)] [&>svg:not([class*='size-'])]:size-4",
-  {
-    variants: {
-      align: {
+const ADDON_BASE = "flex h-auto cursor-text items-center justify-center gap-2 py-1.5 text-sm font-medium text-muted-foreground select-none group-data-[disabled=true]/input-group:opacity-50 [&>kbd]:rounded-[calc(var(--radius)-5px)] [&>svg:not([class*='size-'])]:size-4"
+const ADDON_ALIGN = {
         "inline-start":
           "order-first pl-2 has-[>button]:ml-[-0.3rem] has-[>kbd]:ml-[-0.15rem]",
         "inline-end":
@@ -35,19 +31,14 @@ const inputGroupAddonVariants = cva(
           "order-first w-full justify-start px-2.5 pt-2 group-has-[>input]/input-group:pt-2 [.border-b]:pb-2",
         "block-end":
           "order-last w-full justify-start px-2.5 pb-2 group-has-[>input]/input-group:pb-2 [.border-t]:pt-2",
-      },
-    },
-    defaultVariants: {
-      align: "inline-start",
-    },
-  }
-)
+      } as const
+const inputGroupAddonVariants = ({ align = "inline-start" }: { align?: keyof typeof ADDON_ALIGN | null }) => cn(ADDON_BASE, ADDON_ALIGN[align ?? "inline-start"])
 
 function InputGroupAddon({
   className,
   align = "inline-start",
   ...props
-}: React.ComponentProps<"div"> & VariantProps<typeof inputGroupAddonVariants>) {
+}: React.ComponentProps<"div"> & { align?: keyof typeof ADDON_ALIGN | null }) {
   return (
     <div
       role="group"
@@ -65,23 +56,15 @@ function InputGroupAddon({
   )
 }
 
-const inputGroupButtonVariants = cva(
-  "flex items-center gap-2 text-sm shadow-none",
-  {
-    variants: {
-      size: {
+const BUTTON_BASE = "flex items-center gap-2 text-sm shadow-none"
+const BUTTON_SIZE = {
         xs: "h-6 gap-1 rounded-[calc(var(--radius)-3px)] px-1.5 [&>svg:not([class*='size-'])]:size-3.5",
         sm: "",
         "icon-xs":
           "size-6 rounded-[calc(var(--radius)-3px)] p-0 has-[>svg]:p-0",
         "icon-sm": "size-8 p-0 has-[>svg]:p-0",
-      },
-    },
-    defaultVariants: {
-      size: "xs",
-    },
-  }
-)
+      } as const
+const inputGroupButtonVariants = ({ size = "xs" }: { size?: keyof typeof BUTTON_SIZE | null }) => cn(BUTTON_BASE, BUTTON_SIZE[size ?? "xs"])
 
 function InputGroupButton({
   className,
@@ -90,7 +73,7 @@ function InputGroupButton({
   size = "xs",
   ...props
 }: Omit<React.ComponentProps<typeof Button>, "size" | "type"> &
-  VariantProps<typeof inputGroupButtonVariants> & {
+  { size?: keyof typeof BUTTON_SIZE | null } & {
     type?: "button" | "submit" | "reset"
   }) {
   return (
@@ -121,7 +104,7 @@ function InputGroupInput({
   ...props
 }: React.ComponentProps<"input">) {
   return (
-    <Input
+    <BareInput
       data-slot="input-group-control"
       className={cn(
         "flex-1 rounded-none border-0 bg-transparent shadow-none ring-0 focus-visible:ring-0 disabled:bg-transparent aria-invalid:ring-0 dark:bg-transparent dark:disabled:bg-transparent",

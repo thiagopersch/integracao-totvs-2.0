@@ -54,7 +54,7 @@ import { createContractSchema, updateContractSchema, type CreateContractInput } 
 import { formatDecimal } from "@/lib/masks"
 import type { UsageLevel } from "@/lib/contract-usage"
 import { formatDateOnly, toDateInputValue } from "@/utils/format"
-import { toast } from "sonner"
+import { toast } from "@/lib/toast"
 import { useCrudTable } from "@/hooks/use-crud-table"
 import { useHasPermission } from "@/hooks/use-permissions"
 import type { Client } from "@/generated/prisma/client"

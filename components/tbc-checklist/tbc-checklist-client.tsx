@@ -47,7 +47,7 @@ import type { TbcChecklistField, TbcChecklistLink } from "@/schemas/tbc-checklis
 import type { TbcChecklistImportSource, TbcChecklistView } from "@/services/tbc-checklist.service"
 import type { TbcRow } from "@/services/tbc.service"
 import type { Dataserver } from "@/generated/prisma/client"
-import { toast } from "sonner"
+import { toast } from "@/lib/toast"
 import { WithTooltip } from "@/components/shared/with-tooltip"
 
 /** Load state of one related (child) table for one parent row — fetched lazily the first time a

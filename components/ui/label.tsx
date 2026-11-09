@@ -1,18 +1,15 @@
-"use client"
-
 import * as React from "react"
+import FormLabel from "@mui/material/FormLabel"
 
 import { cn } from "@/lib/utils"
 
 function Label({ className, ...props }: React.ComponentProps<"label">) {
   return (
-    <label
+    <FormLabel
       data-slot="label"
-      className={cn(
-        "flex items-center gap-2 text-sm leading-none font-medium select-none group-data-[disabled=true]:pointer-events-none group-data-[disabled=true]:opacity-50 peer-data-[slot=checkbox]:cursor-pointer peer-disabled:cursor-not-allowed peer-disabled:opacity-50",
-        className
-      )}
-      {...props}
+      className={cn("flex items-center gap-2 text-sm leading-none font-medium text-foreground select-none peer-disabled:cursor-not-allowed peer-disabled:opacity-50", className)}
+      sx={{ color: "text.primary", "&.Mui-focused": { color: "text.primary" } }}
+      {...(props as object)}
     />
   )
 }

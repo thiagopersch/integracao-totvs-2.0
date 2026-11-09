@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input"
 import { PasswordInput } from "@/components/ui/password-input"
 import { Field, FieldLabel, FieldError } from "@/components/ui/field"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { toast } from "sonner"
+import { toast } from "@/lib/toast"
 import { Loader2, LogIn } from "lucide-react"
 
 export default function LoginPage() {

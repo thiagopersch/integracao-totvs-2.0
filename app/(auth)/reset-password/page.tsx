@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button"
 import { PasswordInput } from "@/components/ui/password-input"
 import { Field, FieldLabel, FieldError } from "@/components/ui/field"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { toast } from "sonner"
+import { toast } from "@/lib/toast"
 import { Loader2, KeyRound } from "lucide-react"
 
 export default function ResetPasswordPage() {

@@ -4,7 +4,7 @@ import { useMemo, useState } from "react"
 import type { ColumnDef } from "@tanstack/react-table"
 import { useForm, type Resolver } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
-import { useTheme } from "next-themes"
+import { useAppTheme } from "@/hooks/use-app-theme"
 import { DataTable } from "@/components/shared/data-table"
 import { PageHeader } from "@/components/shared/page-header"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
@@ -28,7 +28,7 @@ import {
 import { Plus, Loader2 } from "lucide-react"
 import { deleteTag, createTag, updateTag, bulkDeleteTags } from "@/actions/tags"
 import { createTagSchema, updateTagSchema, type CreateTagInput } from "@/schemas/tag.schema"
-import { toast } from "sonner"
+import { toast } from "@/lib/toast"
 import { useCrudTable } from "@/hooks/use-crud-table"
 import { useHasPermission } from "@/hooks/use-permissions"
 import type { Tag } from "@/generated/prisma/client"
@@ -42,7 +42,7 @@ interface TagTableProps {
 const SORTABLE_COLUMNS = ["name"]
 
 export function TagTable({ data, meta }: TagTableProps) {
-  const { resolvedTheme } = useTheme()
+  const { resolvedTheme } = useAppTheme()
   const {
     deleteDialog,
     setDeleteDialog,

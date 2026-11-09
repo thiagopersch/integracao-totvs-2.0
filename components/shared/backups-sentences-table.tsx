@@ -22,7 +22,7 @@ import {
 import { ViewBackupSentenceDialog } from "@/components/shared/view-backup-sentence-dialog"
 import { BackupCodeHistoryDialog } from "@/components/shared/backup-code-history-dialog"
 import { getLatestBackupForCode } from "@/actions/admin/backups"
-import { toast } from "sonner"
+import { toast } from "@/lib/toast"
 import type { Backup } from "@/generated/prisma/client"
 import type { PaginationMeta } from "@/types/common"
 
