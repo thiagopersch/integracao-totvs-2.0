@@ -64,6 +64,7 @@ export function DepartmentTable({ data, meta, clients, requesters }: DepartmentT
     onSortChange,
     refresh,
     isPending,
+    optimisticRows,
   } = useCrudTable<Department>({
     deleteAction: deleteDepartment,
     deleteSuccessMessage: "Setor excluído com sucesso",
@@ -268,7 +269,7 @@ export function DepartmentTable({ data, meta, clients, requesters }: DepartmentT
       <DataTable
         refreshing={isPending}
         columns={columns}
-        data={data}
+        data={optimisticRows(data)}
         page={meta.page}
         pageSize={meta.pageSize}
         total={meta.total}

@@ -49,6 +49,7 @@ export function SistemaTable({ data, meta }: SistemaTableProps) {
     onSortChange,
     refresh,
     isPending,
+    optimisticRows,
   } = useCrudTable<TotvsSystem>({
     deleteAction: deleteSistema,
     restoreAction: restoreSistema,
@@ -170,7 +171,7 @@ export function SistemaTable({ data, meta }: SistemaTableProps) {
       <DataTable
         refreshing={isPending}
         columns={columns}
-        data={data}
+        data={optimisticRows(data)}
         page={meta.page}
         pageSize={meta.pageSize}
         total={meta.total}

@@ -85,8 +85,9 @@ function FilterSelect({
 }
 
 export function MessageTemplateTable({ data, meta }: { data: MessageTemplateRow[]; meta: PaginationMeta }) {
-  const { router, searchParams, deleteDialog, setDeleteDialog, pushParams, handleDelete, handleToggleStatus, sort, onSortChange, refresh, isPending } =
+  const { router, searchParams, deleteDialog, setDeleteDialog, pushParams, handleDelete, handleToggleStatus, optimisticRows, sort, onSortChange, refresh, isPending } =
     useCrudTable<MessageTemplateRow>({
+      statusKey: "isActive",
       deleteAction: deleteMessageTemplate,
       setStatusAction: setMessageTemplateActive,
       deleteSuccessMessage: "Template excluído com sucesso",
@@ -236,7 +237,7 @@ export function MessageTemplateTable({ data, meta }: { data: MessageTemplateRow[
       <DataTable
         refreshing={isPending}
         columns={columns}
-        data={data}
+        data={optimisticRows(data)}
         page={meta.page}
         pageSize={meta.pageSize}
         total={meta.total}

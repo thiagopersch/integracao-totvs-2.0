@@ -94,6 +94,7 @@ export function FilterTable({ data, meta, clients, tbcs, sistemas, categories, f
     onSortChange,
     refresh,
     isPending,
+    optimisticRows,
   } = useCrudTable<FilterRow>({
     deleteAction: deleteFilter,
     restoreAction: restoreFilter,
@@ -808,7 +809,7 @@ export function FilterTable({ data, meta, clients, tbcs, sistemas, categories, f
       <DataTable
         refreshing={isPending}
         columns={columns}
-        data={data}
+        data={optimisticRows(data)}
         page={meta.page}
         pageSize={meta.pageSize}
         total={meta.total}

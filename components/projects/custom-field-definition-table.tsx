@@ -416,6 +416,7 @@ export function CustomFieldDefinitionTable({ data, meta, orderLists }: CustomFie
     handleToggleStatus,
     sort,
     onSortChange,
+    optimisticRows,
   } = useCrudTable<CustomFieldDefinitionRow>({
     deleteAction: deleteCustomFieldDefinition,
     setStatusAction: setCustomFieldDefinitionStatus,
@@ -837,7 +838,7 @@ export function CustomFieldDefinitionTable({ data, meta, orderLists }: CustomFie
       <DataTable
         refreshing={isPending}
         columns={columns}
-        data={data}
+        data={optimisticRows(data)}
         page={meta.page}
         pageSize={meta.pageSize}
         total={meta.total}

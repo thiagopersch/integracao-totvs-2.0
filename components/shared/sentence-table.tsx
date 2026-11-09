@@ -72,6 +72,7 @@ export function SentenceTable({ data, meta, categories }: SentenceTableProps) {
     onSortChange,
     refresh,
     isPending,
+    optimisticRows,
   } = useCrudTable<SentenceRow>({
     deleteAction: deleteSentence,
     restoreAction: restoreSentence,
@@ -314,7 +315,7 @@ export function SentenceTable({ data, meta, categories }: SentenceTableProps) {
       <DataTable
         refreshing={isPending}
         columns={columns}
-        data={data}
+        data={optimisticRows(data)}
         page={meta.page}
         pageSize={meta.pageSize}
         total={meta.total}

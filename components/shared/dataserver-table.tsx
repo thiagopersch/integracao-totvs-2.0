@@ -60,6 +60,7 @@ export function DataserverTable({ data, meta, tbcs }: DataserverTableProps) {
     onSortChange,
     refresh,
     isPending,
+    optimisticRows,
   } = useCrudTable<Dataserver>({
     deleteAction: deleteDataserver,
     restoreAction: restoreDataserver,
@@ -247,7 +248,7 @@ export function DataserverTable({ data, meta, tbcs }: DataserverTableProps) {
       <DataTable
         refreshing={isPending}
         columns={columns}
-        data={data}
+        data={optimisticRows(data)}
         page={meta.page}
         pageSize={meta.pageSize}
         total={meta.total}

@@ -71,6 +71,7 @@ export function UsersTable({ data, meta, clients }: UsersTableProps) {
     onSortChange,
     refresh,
     isPending,
+    optimisticRows,
   } = useCrudTable<UserRow>({
     deleteAction: deleteUser,
     restoreAction: restoreUser,
@@ -310,7 +311,7 @@ export function UsersTable({ data, meta, clients }: UsersTableProps) {
       <DataTable
         refreshing={isPending}
         columns={columns}
-        data={data}
+        data={optimisticRows(data)}
         page={meta.page}
         pageSize={meta.pageSize}
         total={meta.total}

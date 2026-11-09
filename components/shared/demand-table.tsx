@@ -153,6 +153,7 @@ export function DemandTable({
     onSortChange,
     refresh,
     isPending,
+    optimisticRows,
   } = useCrudTable<DemandRow>({
     deleteAction: deleteDemand,
     deleteSuccessMessage: "Demanda excluída com sucesso",
@@ -443,7 +444,7 @@ export function DemandTable({
       <DataTable
         refreshing={isPending || isPeriodPending}
         columns={columns}
-        data={data}
+        data={optimisticRows(data)}
         page={meta.page}
         pageSize={meta.pageSize}
         total={meta.total}

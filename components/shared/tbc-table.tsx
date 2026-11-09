@@ -51,7 +51,7 @@ interface TbcTableProps {
 const SORTABLE_COLUMNS = ["name", "link", "notRequiredLicense", "status"]
 
 export function TbcTable({ data, meta, clients, filterClients }: TbcTableProps) {
-  const { router, searchParams, deleteDialog, setDeleteDialog, editDialog, setEditDialog, pushParams, handleDelete, handleToggleStatus, sort, onSortChange, refresh, isPending } =
+  const { router, searchParams, deleteDialog, setDeleteDialog, editDialog, setEditDialog, pushParams, handleDelete, handleToggleStatus, optimisticRows, sort, onSortChange, refresh, isPending } =
     useCrudTable<TbcRow>({
       deleteAction: deleteTbc,
       restoreAction: restoreTbc,
@@ -497,7 +497,7 @@ export function TbcTable({ data, meta, clients, filterClients }: TbcTableProps) 
       <DataTable
         refreshing={isPending}
         columns={columns}
-        data={data}
+        data={optimisticRows(data)}
         page={meta.page}
         pageSize={meta.pageSize}
         total={meta.total}

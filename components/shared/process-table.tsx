@@ -50,6 +50,7 @@ export function ProcessTable({ data, meta }: ProcessTableProps) {
     onSortChange,
     refresh,
     isPending,
+    optimisticRows,
   } = useCrudTable<Process>({
     deleteAction: deleteProcess,
     restoreAction: restoreProcess,
@@ -172,7 +173,7 @@ export function ProcessTable({ data, meta }: ProcessTableProps) {
       <DataTable
         refreshing={isPending}
         columns={columns}
-        data={data}
+        data={optimisticRows(data)}
         page={meta.page}
         pageSize={meta.pageSize}
         total={meta.total}

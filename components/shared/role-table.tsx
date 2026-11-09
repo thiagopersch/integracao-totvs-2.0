@@ -39,6 +39,7 @@ export function RoleTable({ data }: RoleTableProps) {
     setDeleteDialog,
     handleDelete,
     isPending,
+    optimisticRows,
   } = useCrudTable<RoleRow>({
     deleteAction: deleteRole,
     deleteSuccessMessage: "Papel excluído com sucesso",
@@ -114,7 +115,7 @@ export function RoleTable({ data }: RoleTableProps) {
         <DataTable
           refreshing={isPending}
           columns={columns}
-          data={filteredData}
+          data={optimisticRows(filteredData)}
           searchPlaceholder="Buscar por nome ou descrição..."
           searchDefaultValue={search}
           onSearch={setSearch}

@@ -147,6 +147,7 @@ export function ContractTable({
     onSortChange,
     refresh,
     isPending,
+    optimisticRows,
   } = useCrudTable<ContractRow>({
     deleteAction: deleteContract,
     deleteSuccessMessage: "Contrato excluído com sucesso",
@@ -537,7 +538,7 @@ export function ContractTable({
       <DataTable
         refreshing={isPending || isPeriodPending}
         columns={columns}
-        data={data}
+        data={optimisticRows(data)}
         page={meta.page}
         pageSize={meta.pageSize}
         total={meta.total}

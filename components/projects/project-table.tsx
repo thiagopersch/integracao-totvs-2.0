@@ -81,6 +81,7 @@ export function ProjectTable({ data, meta, options, defs }: ProjectTableProps) {
     sort,
     onSortChange,
     router,
+    optimisticRows,
   } = useCrudTable<ProjectRow>({
     deleteAction: deleteProject,
     deleteSuccessMessage: "Projeto excluído com sucesso",
@@ -317,7 +318,7 @@ export function ProjectTable({ data, meta, options, defs }: ProjectTableProps) {
       <DataTable
         refreshing={isPending}
         columns={columns}
-        data={data}
+        data={optimisticRows(data)}
         page={meta.page}
         pageSize={meta.pageSize}
         total={meta.total}

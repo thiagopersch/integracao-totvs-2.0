@@ -72,6 +72,7 @@ export function SoapEndpointTable({ data, meta, filterOptions }: SoapEndpointTab
     onSortChange,
     refresh,
     isPending,
+    optimisticRows,
   } = useCrudTable<SoapEndpointTypeWithMethods>({
     deleteAction: deleteSoapEndpointType,
     deleteSuccessMessage: "Tipo de endpoint excluído com sucesso",
@@ -391,7 +392,7 @@ export function SoapEndpointTable({ data, meta, filterOptions }: SoapEndpointTab
       <DataTable
         refreshing={isPending}
         columns={columns}
-        data={data}
+        data={optimisticRows(data)}
         page={meta.page}
         pageSize={meta.pageSize}
         total={meta.total}

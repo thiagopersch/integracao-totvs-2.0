@@ -65,6 +65,7 @@ export function RequesterTable({ data, meta, clients }: RequesterTableProps) {
     onSortChange,
     refresh,
     isPending,
+    optimisticRows,
   } = useCrudTable<Requester>({
     deleteAction: deleteRequester,
     setStatusAction: setRequesterStatus,
@@ -280,7 +281,7 @@ export function RequesterTable({ data, meta, clients }: RequesterTableProps) {
       <DataTable
         refreshing={isPending}
         columns={columns}
-        data={data}
+        data={optimisticRows(data)}
         page={meta.page}
         pageSize={meta.pageSize}
         total={meta.total}

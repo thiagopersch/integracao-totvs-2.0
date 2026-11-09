@@ -81,6 +81,7 @@ export function AnalystTable({ data, meta }: AnalystTableProps) {
     onSortChange,
     refresh,
     isPending,
+    optimisticRows,
   } = useCrudTable<AnalystRow>({
     deleteAction: deleteAnalyst,
     setStatusAction: setAnalystStatus,
@@ -374,7 +375,7 @@ export function AnalystTable({ data, meta }: AnalystTableProps) {
       <DataTable
         refreshing={isPending}
         columns={columns}
-        data={data}
+        data={optimisticRows(data)}
         page={meta.page}
         pageSize={meta.pageSize}
         total={meta.total}
