@@ -9,7 +9,7 @@ import { ChartTypeSelect } from "@/components/shared/charts/chart-type-select"
 import type { MultiTypeChartProps } from "@/components/shared/charts/multi-type-chart"
 import type { ChartKind, ChartSeries } from "@/components/shared/charts/chart-types"
 
-// recharts is only needed once a chart tab is opened — the default "Visão Geral" tab has none.
+// The chart library (MUI X Charts) is only needed once a chart tab is opened — the default "Visão Geral" tab has none.
 const MultiTypeChart = dynamic<MultiTypeChartProps>(
   () => import("@/components/shared/charts/multi-type-chart").then((m) => m.MultiTypeChart),
   { ssr: false, loading: () => <Skeleton className="h-[260px] w-full" /> }

@@ -28,7 +28,7 @@ export function DemandExportPdfBuilder({ data, clientLabel, onDone }: Props) {
     let cancelled = false
 
     async function build() {
-      // Let recharts paint into the off-screen containers before capturing them as images.
+      // Let the charts paint into the off-screen containers before capturing them as images.
       await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))
 
       const doc = new jsPDF({ orientation: "landscape", unit: "pt" })
