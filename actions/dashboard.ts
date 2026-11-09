@@ -1,6 +1,6 @@
 "use server"
 
-import { cacheTag } from "next/cache";
+import { cacheLife, cacheTag } from "next/cache";
 import { dashboardService } from "@/services/dashboard.service";
 import { getRequestContext } from "@/lib/tenant";
 import { periodToDateRange, type Period } from "@/lib/period";
@@ -24,7 +24,8 @@ async function getCachedDashboardStats(
   attentionMonth: { year: number; month: number },
   analystId: string | null
 ) {
-  "use cache";
+  "use cache: remote";
   cacheTag("dashboard");
+  cacheLife("aggregates");
   return dashboardService.getStats(organizationId, allowedClientIds, periodToDateRange(period), attentionMonth, analystId);
 }

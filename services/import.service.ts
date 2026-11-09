@@ -1,5 +1,7 @@
+import { randomUUID } from "node:crypto";
 import * as XLSX from "xlsx";
 import { prisma } from "@/lib/prisma";
+import type { Prisma } from "@/generated/prisma/client";
 import { assertClientAllowed } from "@/lib/client-access";
 import { matchName, type FuzzyCandidate } from "@/lib/fuzzy-match";
 import type { FieldMatch, ParsedDemandRow } from "@/schemas/demand-import.schema";
@@ -344,65 +346,113 @@ export const importService = {
       ])
     );
 
+    type PreparedRow = {
+      rowNumber: number;
+      key: string;
+      existingId?: string;
+      newId: string;
+      data: Prisma.DemandCreateManyInput;
+      people: { analystIds: string[]; requesterIds: string[]; departmentIds: string[] };
+      demandTypeId: string;
+    };
+
+    /** Writes a group of rows in ONE transaction: updates one by one (each replaces the type), creates
+     *  as a handful of createMany calls (demands + their link rows) instead of 5 inserts per row. */
+    const applyGroup = (group: PreparedRow[]) =>
+      prisma.$transaction(
+        async (tx) => {
+          for (const row of group.filter((r) => r.existingId)) {
+            await tx.demand.update({
+              where: { id: row.existingId },
+              data: { ...row.data, demandDemandTypes: { deleteMany: {}, create: [{ demandTypeId: row.demandTypeId }] } },
+            });
+          }
+          const creates = group.filter((r) => !r.existingId);
+          if (creates.length === 0) return;
+          await tx.demand.createMany({ data: creates.map((r) => ({ ...r.data, id: r.newId })) });
+          await tx.demandAnalyst.createMany({ data: creates.flatMap((r) => r.people.analystIds.map((analystId) => ({ demandId: r.newId, analystId }))) });
+          await tx.demandRequester.createMany({ data: creates.flatMap((r) => r.people.requesterIds.map((requesterId) => ({ demandId: r.newId, requesterId }))) });
+          await tx.demandDepartment.createMany({ data: creates.flatMap((r) => r.people.departmentIds.map((departmentId) => ({ demandId: r.newId, departmentId }))) });
+          await tx.demandDemandType.createMany({ data: creates.map((r) => ({ demandId: r.newId, demandTypeId: r.demandTypeId })) });
+        },
+        { timeout: 15000 }
+      );
+
+    const commit = (group: PreparedRow[]) => {
+      for (const row of group) {
+        if (row.existingId) updatedCount++;
+        else {
+          existingIdByKey.set(row.key, row.newId);
+          createdCount++;
+        }
+      }
+    };
+
     // Committed in batches, each its own transaction, so one import can't hold a single
     // interactive transaction (and a DB connection) open for as long as the whole file takes to
     // process. Rows succeed or fail independently — a bad row is reported in `rowErrors` without
     // rolling back the rows around it, since the duplicate check above also makes re-running the
     // import after fixing a flagged row safe (already-imported rows just get updated in place).
+    //
+    // A database error aborts the whole Postgres transaction, so it can't be caught per row inside
+    // it (every later statement would fail with "current transaction is aborted" and the counters
+    // would report rows that were rolled back). Instead a failed batch is retried row by row, each
+    // in its own transaction, which isolates the bad rows.
     for (const batch of chunk(rows, BULK_IMPORT_BATCH_SIZE)) {
-      await prisma.$transaction(
-        async (tx) => {
-          for (const row of batch) {
-            try {
-              assertClientAllowed(row.clientId, allowedClientIds);
-              const data = {
-                organizationId,
-                name: row.name,
-                description: row.description,
-                date: new Date(row.date),
-                durationMinutes: Math.round(row.hours * 60),
-                priority: row.priority,
-                status: row.status,
-                clientId: row.clientId,
-              };
-              // A spreadsheet row carries one analyst/requester/department cell each.
-              const people = {
-                analystIds: [row.analystId],
-                requesterIds: row.requesterId ? [row.requesterId] : [],
-                departmentIds: row.departmentId ? [row.departmentId] : [],
-              };
-
-              const key = duplicateKey({ date: data.date, clientId: row.clientId, name: row.name, durationMinutes: data.durationMinutes, ...people });
-              const existingId = existingIdByKey.get(key);
-
-              if (existingId) {
-                // Same key = same people, so only the type (not part of the key) is replaced.
-                await tx.demand.update({
-                  where: { id: existingId },
-                  data: { ...data, demandDemandTypes: { deleteMany: {}, create: [{ demandTypeId: row.demandTypeId }] } },
-                });
-                updatedCount++;
-              } else {
-                const created = await tx.demand.create({
-                  data: {
-                    ...data,
-                    demandAnalysts: { create: people.analystIds.map((analystId) => ({ analystId })) },
-                    demandRequesters: { create: people.requesterIds.map((requesterId) => ({ requesterId })) },
-                    demandDepartments: { create: people.departmentIds.map((departmentId) => ({ departmentId })) },
-                    demandDemandTypes: { create: [{ demandTypeId: row.demandTypeId }] },
-                  },
-                  select: { id: true },
-                });
-                existingIdByKey.set(key, created.id);
-                createdCount++;
-              }
-            } catch (error) {
-              rowErrors.push({ rowNumber: row.rowNumber, message: (error as Error).message });
-            }
+      const prepared: PreparedRow[] = [];
+      const pendingByKey = new Map<string, PreparedRow>();
+      for (const row of batch) {
+        try {
+          assertClientAllowed(row.clientId, allowedClientIds);
+          const data = {
+            organizationId,
+            name: row.name,
+            description: row.description,
+            date: new Date(row.date),
+            durationMinutes: Math.round(row.hours * 60),
+            priority: row.priority,
+            status: row.status,
+            clientId: row.clientId,
+          };
+          // A spreadsheet row carries one analyst/requester/department cell each.
+          const people = {
+            analystIds: [row.analystId],
+            requesterIds: row.requesterId ? [row.requesterId] : [],
+            departmentIds: row.departmentId ? [row.departmentId] : [],
+          };
+          const key = duplicateKey({ date: data.date, clientId: row.clientId, name: row.name, durationMinutes: data.durationMinutes, ...people });
+          // Same key twice in one batch: the later row updates the one created by the earlier row.
+          const pending = pendingByKey.get(key);
+          const existingId = existingIdByKey.get(key) ?? (pending ? pending.existingId ?? pending.newId : undefined);
+          const item: PreparedRow = { rowNumber: row.rowNumber, key, existingId, newId: randomUUID(), data, people, demandTypeId: row.demandTypeId };
+          if (pending && !pending.existingId) {
+            // Can't update a row that doesn't exist yet in this transaction — fold it into the create.
+            pending.data = data;
+            pending.demandTypeId = row.demandTypeId;
+            updatedCount++;
+            continue;
           }
-        },
-        { timeout: 15000 }
-      );
+          pendingByKey.set(key, item);
+          prepared.push(item);
+        } catch (error) {
+          rowErrors.push({ rowNumber: row.rowNumber, message: (error as Error).message });
+        }
+      }
+      if (prepared.length === 0) continue;
+
+      try {
+        await applyGroup(prepared);
+        commit(prepared);
+      } catch {
+        for (const row of prepared) {
+          try {
+            await applyGroup([row]);
+            commit([row]);
+          } catch (error) {
+            rowErrors.push({ rowNumber: row.rowNumber, message: (error as Error).message });
+          }
+        }
+      }
     }
 
     if (rowErrors.length) {

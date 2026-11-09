@@ -51,7 +51,8 @@ export const exportService = {
       deletedAt: null,
       organizationId,
       clientId: { in: effectiveClientIds },
-      ...(analystScope ? { analystId: analystScope } : {}),
+      // Demands have many analysts now (demand_analysts); the old `analystId` column no longer exists.
+      ...(analystScope ? { demandAnalysts: { some: { analystId: analystScope } } } : {}),
       ...(period ? { date: period } : {}),
     };
     const demands = await prisma.demand.findMany({ where, orderBy: { date: "asc" as const }, include: demandIncludeRelations });
@@ -84,22 +85,21 @@ export const exportService = {
     const demandsByStatus = statusRaw.map((d) => ({ name: DEMAND_STATUS_LABELS[d.status] || d.status, value: d._count.id }));
 
     const analystIds = analystRaw.map((d) => d.analystId);
-    const analysts = analystIds.length
-      ? await prisma.analyst.findMany({ where: { id: { in: analystIds } }, select: { id: true, name: true } })
-      : [];
+    const clientIds = clientRaw.map((d) => d.clientId);
+    // Independent lookups — fetched together instead of one after another.
+    const [analysts, clients, extraByClientId] = await Promise.all([
+      analystIds.length ? prisma.analyst.findMany({ where: { id: { in: analystIds } }, select: { id: true, name: true } }) : [],
+      clientIds.length ? prisma.client.findMany({ where: { id: { in: clientIds } }, select: { id: true, name: true } }) : [],
+      // Extra hours launched for the exported period's months (current month without one).
+      contractUsageService.getExtraHoursByClient(organizationId, effectiveClientIds, period),
+    ]);
     const analystNameById = new Map(analysts.map((a) => [a.id, a.name]));
     const demandsByAnalyst = analystRaw.map((d) => ({ name: analystNameById.get(d.analystId) || "Desconhecido", value: d._count.demandId }));
 
-    const clientIds = clientRaw.map((d) => d.clientId);
-    const clients = clientIds.length
-      ? await prisma.client.findMany({ where: { id: { in: clientIds } }, select: { id: true, name: true } })
-      : [];
     const clientNameById = new Map(clients.map((c) => [c.id, c.name]));
     const demandsByClient = clientRaw.map((d) => ({ name: clientNameById.get(d.clientId) || "Desconhecido", value: d._count.id }));
 
     const contractedByClientId = new Map(contractsRaw.map((c) => [c.clientId, c._sum.contractedHours || 0]));
-    // Extra hours launched for the exported period's months (current month without one).
-    const extraByClientId = await contractUsageService.getExtraHoursByClient(organizationId, effectiveClientIds, period);
     for (const [clientId, extra] of extraByClientId) {
       contractedByClientId.set(clientId, (contractedByClientId.get(clientId) || 0) + extra);
     }

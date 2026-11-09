@@ -1,3 +1,4 @@
+import { getIntegrationConfig } from "@/lib/integration-config";
 import { requirePermission } from "@/lib/rbac";
 import { logApiCall, logAndNotifyFailure, sessionErrorMessage } from "@/lib/ps-docs/api-helpers";
 import { parseCookieString } from "@/lib/ps-docs/credential";
@@ -30,7 +31,10 @@ export async function POST(request: Request) {
       : data.docMode === "portal"
         ? { docMode: "portal", idPortal: data.idPortal, localId: data.localId, crmDomain: data.crmDomain }
         : { docMode: "ambiente" };
-  const client = createRubeusClient(parseCookieString(data.cookie), { signal: request.signal });
+  const client = createRubeusClient(parseCookieString(data.cookie), {
+    signal: request.signal,
+    timeoutMs: (await getIntegrationConfig(ctx.organizationId, "RUBEUS")).timeoutMs,
+  });
   const url = "https://admin.portal.apprbs.com.br/api (busca de elementos)";
 
   const stream = new ReadableStream<Uint8Array>({

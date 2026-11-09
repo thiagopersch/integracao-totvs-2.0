@@ -42,6 +42,8 @@ export const ENTITY_LABELS: Record<string, string> = {
   SoapTemplate: "Templates SOAP",
   SoapFavorite: "Favoritos SOAP",
   AuditLog: "Logs de Auditoria",
+  BackgroundJob: "Tarefas em segundo plano",
+  IntegrationSettings: "Configurações de Integrações",
   EmailSettings: "Configurações de E-mail",
   AiSettings: "Configurações de IA",
   DemandReportSchedule: "Regras de Envio de Relatório",

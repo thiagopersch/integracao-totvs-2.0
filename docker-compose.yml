@@ -62,6 +62,8 @@ services:
       NODE_ENV: ${NODE_ENV:-production}
       DATABASE_URL: postgresql://${DB_USER:-admin}:${DB_PASS:?Defina DB_PASS no arquivo .env}@postgres:5432/${DB_NAME:-integracao_totvs}
       AUTH_SECRET: ${AUTH_SECRET:?Defina AUTH_SECRET no arquivo .env}
+      # Container de longa duração: agendamentos (backups, relatórios, planilhas, prazos) em processo.
+      RUN_INPROCESS_SCHEDULERS: ${RUN_INPROCESS_SCHEDULERS:-true}
     volumes:
       - integracao_totvs_app_uploads:/app/public/uploads
     networks:

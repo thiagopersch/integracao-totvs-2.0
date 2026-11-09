@@ -1,5 +1,6 @@
 "use server";
 
+import { getIntegrationConfig } from "@/lib/integration-config";
 import { requireAnyPermission } from "@/lib/rbac";
 import { hasRequiredCredentials, type PsCredentials } from "@/lib/ps-docs/credential";
 import { PS_STRUCTURE_GRANTS, sessionErrorMessage, logApiCall, logAndNotifyFailure } from "@/lib/ps-docs/api-helpers";
@@ -43,7 +44,7 @@ export async function fetchPortalOverview(input: { credentials: PsCredentials; i
   const generalUrl = `${API_ROOT}/portal/general/${idPortal}`;
 
   try {
-    const overview = await loadPortalOverview(createRubeusClient(credentials), idPortal, localId);
+    const overview = await loadPortalOverview(createRubeusClient(credentials, { timeoutMs: (await getIntegrationConfig(organizationId, "RUBEUS")).timeoutMs }), idPortal, localId);
 
     await logApiCall({
       organizationId,
@@ -79,7 +80,7 @@ export async function listPortalSelectiveProcesses(input: { credentials: PsCrede
   const url = `${API_ROOT}/portal/selective-process-local/${idPortal}`;
 
   try {
-    const { total, processes } = await listPortalProcesses(createRubeusClient(credentials), idPortal);
+    const { total, processes } = await listPortalProcesses(createRubeusClient(credentials, { timeoutMs: (await getIntegrationConfig(organizationId, "RUBEUS")).timeoutMs }), idPortal);
 
     await logApiCall({ organizationId, userId, integration: "PS_DOCS", url, httpMethod: "GET", httpStatus: 200, requestSummary: { idPortal }, responseSummary: { total, ativos: processes.length } });
 

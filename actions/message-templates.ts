@@ -174,7 +174,7 @@ const ALLOWED_IMAGE_TYPES = ["image/png", "image/jpeg", "image/webp", "image/gif
 const MAX_IMAGE_SIZE = 2 * 1024 * 1024;
 
 export async function uploadMessageTemplateImage(formData: FormData) {
-  await requirePermission("message_templates", "update");
+  const { organizationId } = await requirePermission("message_templates", "update");
   const file = formData.get("file");
   if (!(file instanceof File)) return { success: false as const, error: "Nenhum arquivo enviado" };
   if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
@@ -183,7 +183,7 @@ export async function uploadMessageTemplateImage(formData: FormData) {
   if (file.size > MAX_IMAGE_SIZE) return { success: false as const, error: "Imagem maior que 2MB" };
   try {
     const ext = path.extname(file.name) || ".png";
-    const url = await storeUploadedFile(file, `message-templates/${randomUUID()}${ext}`);
+    const url = await storeUploadedFile(file, `message-templates/${randomUUID()}${ext}`, { organizationId });
     return { success: true as const, url };
   } catch (error) {
     return { success: false as const, error: (error as Error).message };

@@ -1,5 +1,6 @@
 "use server";
 
+import { getIntegrationConfig } from "@/lib/integration-config";
 import https from "node:https";
 import axios from "axios";
 import { requirePermission } from "@/lib/rbac";
@@ -54,7 +55,7 @@ export async function testTpiLogin(input: TpiLoginInput) {
       httpsAgent: new https.Agent({ rejectUnauthorized: input.useSsl }),
       headers: { "User-Agent": "integracao-totvs/1.0" },
       validateStatus: () => true,
-      timeout: 30_000,
+      timeout: (await getIntegrationConfig(organizationId, "TPI")).timeoutMs,
     });
     const duration = Date.now() - startTime;
     const failed = res.status >= 400;

@@ -1,3 +1,4 @@
+import { withSpan } from "@/lib/tracing";
 import { anthropicToolCall } from "./anthropic";
 import { openaiToolCall } from "./openai";
 import { geminiToolCall } from "./gemini";
@@ -15,14 +16,16 @@ export async function runAiToolCall(
 ): Promise<AiToolCallResult> {
   const signal = AbortSignal.timeout(config.timeoutSeconds * 1000);
   try {
-    switch (config.provider) {
-      case "OPENAI":
-        return await openaiToolCall(config, system, messages, tool, signal, onDelta);
-      case "GEMINI":
-        return await geminiToolCall(config, system, messages, tool, signal, onDelta);
-      default:
-        return await anthropicToolCall(config, system, messages, tool, signal, onDelta);
-    }
+    return await withSpan(`ai ${config.provider}`, { integration: "AI", "ai.provider": config.provider, "ai.model": config.model }, () => {
+      switch (config.provider) {
+        case "OPENAI":
+          return openaiToolCall(config, system, messages, tool, signal, onDelta);
+        case "GEMINI":
+          return geminiToolCall(config, system, messages, tool, signal, onDelta);
+        default:
+          return anthropicToolCall(config, system, messages, tool, signal, onDelta);
+      }
+    });
   } catch (error) {
     // Each SDK wraps the abort differently; the signal is the one reliable witness.
     if (signal.aborted) {

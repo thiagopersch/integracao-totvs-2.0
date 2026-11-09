@@ -4,7 +4,7 @@ import type { CreateSentenceInput, UpdateSentenceInput } from "@/schemas/sentenc
 import type { Sentence } from "@/generated/prisma/client";
 import { safeOrderBy } from "@/lib/sort";
 
-class SentenceRepository extends BaseRepository<Sentence> {
+class SentenceRepository extends BaseRepository<Omit<Sentence, "content">> {
   constructor() {
     super(prisma.sentence, ["code", "name"], "sentences", "Sentence");
   }
@@ -28,6 +28,7 @@ export const sentenceService = {
         skip: (page - 1) * pageSize,
         take: pageSize,
         include: { category: { select: { id: true, name: true } } },
+        omit: { content: false },
       }),
       prisma.sentence.count({ where }),
     ]);

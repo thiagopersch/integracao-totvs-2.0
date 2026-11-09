@@ -1,5 +1,6 @@
 "use server"
 
+import { getCachedClients } from "@/queries/registries";
 import { updateTag } from "next/cache";
 import { clientService } from "@/services/client.service";
 import { auditService } from "@/services/audit.service";
@@ -41,7 +42,8 @@ async function parseClientForm(formData: FormData) {
 
 export async function listAllClients() {
   const { organizationId, allowedClientIds } = await getRequestContext();
-  return clientService.listAll(organizationId, allowedClientIds);
+  const allowed = new Set(allowedClientIds);
+  return (await getCachedClients(organizationId)).filter((c) => allowed.has(c.id));
 }
 
 /** For the "assign clients to a user" picker only — see clientService.listAllUnrestricted. */

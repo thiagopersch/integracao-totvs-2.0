@@ -1,8 +1,10 @@
+import { withSpan } from "@/lib/tracing";
+import { clampTimeout, getIntegrationConfig } from "@/lib/integration-config";
+import { forgetSoapAuth, isSoapAuthCached, rememberSoapAuth, soapAuthCacheKey } from "@/lib/soap-auth-cache";
 import axios from "axios";
 import { XMLParser } from "fast-xml-parser";
 import { logger } from "@/lib/logger";
 import { prisma } from "@/lib/prisma";
-import { env } from "@/config/app.config";
 import { buildSoapEnvelope, METHOD_OPERATION, type SoapContext } from "@/utils/soap-envelope";
 import { notificationService } from "@/services/notification.service";
 import { buildSoapCallFailedNotification } from "@/lib/notification-types";
@@ -152,10 +154,24 @@ export const soapService = {
    * the required TOTVS call order, before dispatching the real operation.
    */
   async execute(request: SoapRequest, organizationId: string, userId?: string): Promise<SoapResponse> {
-    if (request.method !== "AUTENTICAACESSO" && request.method !== "CHECKSERVICEACTIVITY") {
-      await this.authenticate(request.tbc, request.wsName, organizationId, userId);
+    if (request.method === "AUTENTICAACESSO" || request.method === "CHECKSERVICEACTIVITY") {
+      return this.dispatch(request, organizationId, userId);
     }
-    return this.dispatch(request, organizationId, userId);
+    // A successful handshake is remembered for a few minutes per TBC + credentials + ws
+    // (lib/soap-auth-cache.ts), so back-to-back executions skip the 2 extra round trips.
+    const authKey = soapAuthCacheKey(request.tbc, request.wsName);
+    if (!(await isSoapAuthCached(authKey))) {
+      await this.authenticate(request.tbc, request.wsName, organizationId, userId);
+      await rememberSoapAuth(authKey);
+    }
+    try {
+      return await this.dispatch(request, organizationId, userId);
+    } catch (error) {
+      // Credentials rejected now (password changed on the RM side, user blocked…): drop the cached
+      // handshake so the next call authenticates for real and reports the actual reason.
+      if (/Autenticação HTTP rejeitada|HTTP 401|HTTP 403/.test((error as Error).message)) await forgetSoapAuth(authKey);
+      throw error;
+    }
   },
 
   /** 1º AutenticaAcesso, 2º CheckServiceActivity — required before any other TOTVS call. */
@@ -186,9 +202,12 @@ export const soapService = {
   /** Low-level HTTP dispatch — no auth handshake. Only call directly for AUTENTICAACESSO/CHECKSERVICEACTIVITY. */
   async dispatch(request: SoapRequest, organizationId: string, userId?: string): Promise<SoapResponse> {
     const startTime = Date.now();
-    const timeout = request.timeout || env.SOAP_DEFAULT_TIMEOUT;
-    const maxRetries = env.SOAP_MAX_RETRIES;
-    const retryDelay = env.SOAP_RETRY_DELAY;
+    // Per-organization policy (Integrações > Configurações); a caller-supplied timeout (the SOAP
+    // builder's field) is honoured but clamped to the platform bounds.
+    const config = await getIntegrationConfig(organizationId, "SOAP");
+    const timeout = clampTimeout(request.timeout, config.timeoutMs);
+    const maxRetries = config.maxRetries;
+    const retryDelay = config.retryDelayMs;
 
     const envelope = buildSoapEnvelope(request.xml, request.context);
     const soapAction = resolveSoapAction(request.wsName, request.method);
@@ -205,15 +224,20 @@ export const soapService = {
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
-        const response = await axios.post(url, envelope, {
-          headers: {
-            "Content-Type": "text/xml; charset=utf-8",
-            SOAPAction: soapAction,
-            Authorization: authHeader,
-          },
-          timeout,
-          responseType: "text",
-        });
+        const response = await withSpan(
+          `soap ${request.method}`,
+          { "integration": "SOAP", "soap.method": request.method, "soap.ws": request.wsName, "tbc.id": request.tbc.id ?? "", attempt },
+          () =>
+            axios.post(url, envelope, {
+              headers: {
+                "Content-Type": "text/xml; charset=utf-8",
+                SOAPAction: soapAction,
+                Authorization: authHeader,
+              },
+              timeout,
+              responseType: "text",
+            })
+        );
 
         const duration = Date.now() - startTime;
         const xmlResponse = response.data as string;

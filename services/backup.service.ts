@@ -3,7 +3,6 @@ import { endOfDay } from "date-fns";
 import { prisma } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { BaseRepository } from "@/repositories/base.repository";
-import { computeNextRunAt } from "@/lib/backup-schedule";
 import { auditService, RESTORE_ERROR_ACTION } from "@/services/audit.service";
 import { notificationService } from "@/services/notification.service";
 import { buildBackupRunFailedNotification, buildBackupRunSucceededNotification } from "@/lib/notification-types";
@@ -17,7 +16,7 @@ import type { ListParams } from "@/types/common";
 import type { Backup, Prisma } from "@/generated/prisma/client";
 import { safeOrderBy } from "@/lib/sort";
 
-class BackupRepository extends BaseRepository<Backup> {
+class BackupRepository extends BaseRepository<Omit<Backup, "contentSentence">> {
   constructor() {
     super(prisma.backup, ["codeSentence", "nameSentence", "branchSentence"], "backups", "Backup");
   }
@@ -165,46 +164,56 @@ export const backupService = {
       // version. Subsequent backups: equal hash means unchanged — skip, no new version created;
       // different hash means the new content becomes latest and the previous row is demoted (kept,
       // for that sentence's version history) rather than deleted.
-      for (const sentence of sentences) {
+      // Versioned by the full GConsSql key — the same CODSENTENCA can exist under another
+      // coligada/aplicação and must not demote (and so drop from restores) that other consulta.
+      const keyOf = (s: { codColigada: string | null; codSystem: string | null; codeSentence: string | null }) =>
+        `${s.codColigada ?? ""}\u0000${s.codSystem ?? ""}\u0000${s.codeSentence ?? ""}`;
+
+      // One read of the current versions + one demote + batched inserts, instead of 2–3 queries
+      // per sentence. When the TBC returns the same key twice, the last occurrence wins (as before).
+      const latest = await prisma.backup.findMany({
+        where: { filterId, isLatest: true, deletedAt: null },
+        select: { id: true, codColigada: true, codSystem: true, codeSentence: true, hash: true },
+      });
+      const currentByKey = new Map(latest.map((row) => [keyOf(row), row]));
+      const incomingByKey = new Map(sentences.map((sentence) => [keyOf(sentence), sentence]));
+
+      const demoteIds: string[] = [];
+      const rows: Prisma.BackupCreateManyInput[] = [];
+      for (const [key, sentence] of incomingByKey) {
         const hash = hashContent(sentence.contentSentence);
-        // Versioned by the full GConsSql key — the same CODSENTENCA can exist under another
-        // coligada/aplicação and must not demote (and so drop from restores) that other consulta.
-        const current = await prisma.backup.findFirst({
-          where: {
-            filterId,
-            codColigada: sentence.codColigada,
-            codSystem: sentence.codSystem,
-            codeSentence: sentence.codeSentence,
-            isLatest: true,
-            deletedAt: null,
-          },
-        });
-
+        const current = currentByKey.get(key);
         if (current && current.hash === hash) continue;
-
-        if (current) {
-          await prisma.backup.update({ where: { id: current.id }, data: { isLatest: false } });
-        }
-
-        await prisma.backup.create({
-          data: {
-            organizationId,
-            tbcId: filter.tbcId,
-            filterId,
-            backupRunId: backupRun.id,
-            sentenceCategoryId,
-            branchSentence: String(filter.branchContext),
-            codColigada: sentence.codColigada,
-            codSystem: sentence.codSystem,
-            codeSentence: sentence.codeSentence,
-            nameSentence: sentence.nameSentence,
-            contentSentence: sentence.contentSentence,
-            hash,
-            isLatest: true,
-            totvsUpdatedAt: sentence.totvsUpdatedAt,
-            totvsUpdatedBy: sentence.totvsUpdatedBy,
-          },
+        if (current) demoteIds.push(current.id);
+        rows.push({
+          organizationId,
+          tbcId: filter.tbcId,
+          filterId,
+          backupRunId: backupRun.id,
+          sentenceCategoryId,
+          branchSentence: String(filter.branchContext),
+          codColigada: sentence.codColigada,
+          codSystem: sentence.codSystem,
+          codeSentence: sentence.codeSentence,
+          nameSentence: sentence.nameSentence,
+          contentSentence: sentence.contentSentence,
+          hash,
+          isLatest: true,
+          totvsUpdatedAt: sentence.totvsUpdatedAt,
+          totvsUpdatedBy: sentence.totvsUpdatedBy,
         });
+      }
+
+      if (rows.length > 0) {
+        const INSERT_CHUNK = 200;
+        await prisma.$transaction(async (tx) => {
+          if (demoteIds.length > 0) {
+            await tx.backup.updateMany({ where: { id: { in: demoteIds } }, data: { isLatest: false } });
+          }
+          for (let i = 0; i < rows.length; i += INSERT_CHUNK) {
+            await tx.backup.createMany({ data: rows.slice(i, i + INSERT_CHUNK) });
+          }
+        }, { timeout: 60_000 });
       }
 
       const finishedAt = new Date();
@@ -256,58 +265,35 @@ export const backupService = {
   },
 
   /**
-   * Polled by the in-process scheduler (see lib/backup-scheduler.ts) — runs every filter whose
-   * `nextRunAt` has passed, then re-anchors `nextRunAt` from "now" regardless of success/failure
-   * (a filter stuck failing every run must not fire in a tight retry loop).
-   *
-   * Guarded by a Postgres advisory lock so that if the app is ever deployed with more than one
-   * long-lived Node process (each running its own `setInterval` poller), only one of them actually
-   * processes a given tick — the others see the lock held and return immediately instead of
-   * duplicating the same scheduled backups.
+   * Scheduler tick (`/api/cron/backup`, or the in-process poller with RUN_INPROCESS_SCHEDULERS):
+   * enqueues one "backup.filter" job per due filter — QStash runs them with bounded parallelism and
+   * the job re-anchors the filter's nextRunAt when it finishes. A Redis lock keeps overlapping ticks
+   * (several instances, a slow tick) from enqueuing twice, and the job dedupe id covers the rest.
    */
   async runDueScheduledBackups() {
-    const [{ locked }] = await prisma.$queryRaw<{ locked: boolean }[]>`
-      SELECT pg_try_advisory_lock(hashtext('backup-scheduler')::bigint) AS locked
-    `;
-    if (!locked) return { processed: 0, skipped: "locked" as const };
-
-    try {
+    const { withLock } = await import("@/lib/locks");
+    const { enqueue } = await import("@/lib/jobs");
+    const outcome = await withLock("scheduler:backup", 55_000, async () => {
       const due = await prisma.filter.findMany({
-        where: {
-          deletedAt: null,
-          status: true,
-          schedule: { not: "NONE" },
-          nextRunAt: { lte: new Date() },
-        },
-        select: { id: true, filter: true, organizationId: true, schedule: true, scheduleTime: true, scheduleCategoryId: true },
+        where: { deletedAt: null, status: true, schedule: { not: "NONE" }, nextRunAt: { lte: new Date() } },
+        select: { id: true, organizationId: true, scheduleCategoryId: true, nextRunAt: true },
       });
-
-      await Promise.allSettled(
-        due.map(async (filter) => {
-          try {
-            const run = await this.createFromFilter(filter.id, filter.organizationId, filter.scheduleCategoryId ?? undefined, undefined);
-            await auditService.log({
-              action: "CREATE",
-              entity: "BackupRun",
-              entityId: run.id,
-              organizationId: filter.organizationId,
-              newData: { filter: filter.filter },
-            });
-          } catch (error) {
-            // createFromFilter already builds and broadcasts a detailed failure notification
-            // (with errorMessage/errorKind) — this is just the server-side trail for support.
-            logger.error(`Backup agendado falhou para o filtro ${filter.id}`, { error: (error as Error).message });
-          } finally {
-            const nextRunAt = computeNextRunAt(filter.schedule, new Date(), filter.scheduleTime);
-            await prisma.filter.update({ where: { id: filter.id }, data: { nextRunAt } });
-          }
-        })
-      );
-
-      return { processed: due.length };
-    } finally {
-      await prisma.$queryRaw`SELECT pg_advisory_unlock(hashtext('backup-scheduler')::bigint)`;
-    }
+      let enqueued = 0;
+      for (const filter of due) {
+        try {
+          const { deduped } = await enqueue(
+            "backup.filter",
+            { filterId: filter.id, sentenceCategoryId: filter.scheduleCategoryId ?? undefined, scheduled: true },
+            { organizationId: filter.organizationId, dedupeId: `backup:${filter.id}:${filter.nextRunAt?.getTime() ?? 0}` }
+          );
+          if (!deduped) enqueued++;
+        } catch (error) {
+          logger.error(`Falha ao enfileirar o backup agendado do filtro ${filter.id}`, { error: (error as Error).message });
+        }
+      }
+      return enqueued;
+    });
+    return outcome.skipped ? { processed: 0, skipped: "locked" as const } : { processed: outcome.value };
   },
 
   async listLatestByFilter(filterId: string, params: ListParams, organizationId: string) {
@@ -338,6 +324,7 @@ export const backupService = {
         orderBy,
         skip: (page - 1) * pageSize,
         take: pageSize,
+        omit: { contentSentence: false },
       }),
       prisma.backup.count({ where }),
     ]);
@@ -349,6 +336,7 @@ export const backupService = {
     return prisma.backup.findMany({
       where: { filterId, organizationId, codeSentence, deletedAt: null },
       orderBy: { createdAt: "desc" },
+      omit: { contentSentence: false },
     });
   },
 
@@ -366,6 +354,7 @@ export const backupService = {
   async getLatestByCode(filterId: string, codeSentence: string, organizationId: string) {
     return prisma.backup.findFirst({
       where: { filterId, organizationId, codeSentence, isLatest: true, deletedAt: null },
+      omit: { contentSentence: false },
     });
   },
 
@@ -392,12 +381,14 @@ export const backupService = {
     return prisma.backup.findMany({
       where: { backupRunId, organizationId, deletedAt: null },
       orderBy: { codeSentence: "asc" },
+      omit: { contentSentence: false },
     });
   },
 
   async restoreLatestForFilter(filterId: string, targetTbcId: string, organizationId: string, userId: string) {
     const backups = await prisma.backup.findMany({
       where: { filterId, organizationId, isLatest: true, deletedAt: null },
+      omit: { contentSentence: false },
     });
     if (backups.length === 0) throw new Error(NO_BACKUP_MESSAGE);
     return restoreBackupRows(backups, targetTbcId, organizationId, userId);
@@ -406,13 +397,14 @@ export const backupService = {
   async restoreForRun(backupRunId: string, targetTbcId: string, organizationId: string, userId: string) {
     const backups = await prisma.backup.findMany({
       where: { backupRunId, organizationId, deletedAt: null },
+      omit: { contentSentence: false },
     });
     if (backups.length === 0) throw new Error("Nenhuma sentença encontrada nesta execução de backup.");
     return restoreBackupRows(backups, targetTbcId, organizationId, userId);
   },
 
   async restoreSingle(backupId: string, targetTbcId: string, organizationId: string, userId: string) {
-    const backup = await prisma.backup.findFirst({ where: { id: backupId, organizationId } });
+    const backup = await prisma.backup.findFirst({ where: { id: backupId, organizationId }, omit: { contentSentence: false } });
     if (!backup) throw new Error("Backup não encontrado");
     return restoreBackupRows([backup], targetTbcId, organizationId, userId);
   },

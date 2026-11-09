@@ -1,6 +1,6 @@
 "use server"
 
-import { updateTag } from "next/cache";
+import { updateTag, refresh } from "next/cache";
 import { backupService } from "@/services/backup.service";
 import { authService } from "@/services/auth.service";
 import { filterService } from "@/services/filter.service";
@@ -11,7 +11,7 @@ import { requirePermission } from "@/lib/rbac";
 import { getRequestContext } from "@/lib/tenant";
 import { prisma } from "@/lib/prisma";
 import { formatBlockingReferences } from "@/lib/entity-relations";
-import { checkRateLimit } from "@/lib/rate-limiter";
+import { rateLimit } from "@/lib/rate-limiter";
 export async function createBackup(formData: FormData) {
   const { organizationId } = await requirePermission("backups", "create");
   const data = {
@@ -37,7 +37,7 @@ export async function createBackup(formData: FormData) {
       entityId: entity.id,
       newData: { codeSentence: entity.codeSentence, nameSentence: entity.nameSentence },
     });
-    updateTag("backups");
+    refresh(); // no cached read uses a "backups" tag — just re-render the current page
     return { success: true, data: entity };
   } catch (error) {
     return { success: false, error: (error as Error).message };
@@ -71,7 +71,7 @@ export async function updateBackup(id: string, formData: FormData) {
       oldData: old ? { codeSentence: old.codeSentence, nameSentence: old.nameSentence } : undefined,
       newData: { codeSentence: entity.codeSentence, nameSentence: entity.nameSentence },
     });
-    updateTag("backups");
+    refresh(); // no cached read uses a "backups" tag — just re-render the current page
     updateTag(`backup-${id}`);
     return { success: true, data: entity };
   } catch (error) {
@@ -90,7 +90,7 @@ export async function deleteBackup(id: string) {
       entityId: id,
       oldData: old ? { codeSentence: old.codeSentence, nameSentence: old.nameSentence } : undefined,
     });
-    updateTag("backups");
+    refresh(); // no cached read uses a "backups" tag — just re-render the current page
     return { success: true };
   } catch (error) {
     return { success: false, error: (error as Error).message };
@@ -102,7 +102,7 @@ export async function restoreBackup(id: string) {
   try {
     await backupService.restore(id, organizationId);
     await auditService.log({ action: "RESTORE", entity: "Backup", entityId: id });
-    updateTag("backups");
+    refresh(); // no cached read uses a "backups" tag — just re-render the current page
     return { success: true };
   } catch (error) {
     return { success: false, error: (error as Error).message };
@@ -126,7 +126,7 @@ export async function bulkDeleteBackups(ids: string[]) {
     if (result.blocked.length) {
       await auditService.logBulkDeleteBlocked("Backup", result.blocked, organizationId, userId);
     }
-    updateTag("backups");
+    refresh(); // no cached read uses a "backups" tag — just re-render the current page
     return {
       success: true,
       deletedCount: result.deletedCount,
@@ -147,7 +147,7 @@ export async function bulkRestoreBackups(ids: string[]) {
       entityId: ids.join(","),
       newData: { count },
     });
-    updateTag("backups");
+    refresh(); // no cached read uses a "backups" tag — just re-render the current page
     return { success: true, count };
   } catch (error) {
     return { success: false, error: (error as Error).message };
@@ -185,7 +185,7 @@ export async function listBackupsForRun(backupRunId: string) {
 
 export async function verifyPasswordForRestore(password: string) {
   const { userId } = await requirePermission("backups", "restore");
-  if (!checkRateLimit(`verify-password:${userId}`, 15 * 60 * 1000, 10).allowed) {
+  if (!(await rateLimit(`verify-password:${userId}`, 15 * 60 * 1000, 10)).allowed) {
     return { success: false, error: "Muitas tentativas. Tente novamente mais tarde." };
   }
   try {
@@ -203,7 +203,7 @@ export async function verifyPasswordForRestore(password: string) {
  * restore action would otherwise skip it).
  */
 async function verifyRestorePassword(userId: string, password: string | undefined) {
-  if (!checkRateLimit(`verify-password:${userId}`, 15 * 60 * 1000, 10).allowed) {
+  if (!(await rateLimit(`verify-password:${userId}`, 15 * 60 * 1000, 10)).allowed) {
     return { success: false as const, error: "Muitas tentativas. Tente novamente mais tarde." };
   }
   if (!password || !(await authService.verifyPassword(userId, password))) {
@@ -213,7 +213,6 @@ async function verifyRestorePassword(userId: string, password: string | undefine
 }
 
 function invalidateBackupTags(filterId: string) {
-  updateTag("backups");
   updateTag(`filter-backups-${filterId}`);
   updateTag(`filter-backup-runs-${filterId}`);
 }

@@ -151,6 +151,7 @@ export const navGroups: NavGroup[] = [
       { href: "/integrations/report-schedules", label: "Envio de Relatórios", icon: "CalendarClock", resource: "report_schedules", action: "read" },
       { href: "/integrations/sheet-syncs", label: "Planilhas Google", icon: "FileSpreadsheet", resource: "sheet_syncs", action: "read" },
       { href: "/integrations/ai", label: "Assistente IA", icon: "Sparkles", resource: "integrations", action: "execute" },
+      { href: "/integrations/settings", label: "Configurações", icon: "Settings", resource: "settings", action: "manage" },
     ],
   },
   {

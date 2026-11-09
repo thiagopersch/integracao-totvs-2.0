@@ -1,5 +1,6 @@
 "use server"
 
+import { getCachedDemandTypes } from "@/queries/registries";
 import { updateTag } from "next/cache";
 import { demandTypeService } from "@/services/demand-type.service";
 import { auditService } from "@/services/audit.service";
@@ -9,7 +10,7 @@ import { getRequestContext } from "@/lib/tenant";
 import { formatBlockingReferences } from "@/lib/entity-relations";
 export async function listAllDemandTypes() {
   const { organizationId } = await getRequestContext();
-  return demandTypeService.listAll(organizationId);
+  return getCachedDemandTypes(organizationId);
 }
 
 export async function createDemandType(formData: FormData) {

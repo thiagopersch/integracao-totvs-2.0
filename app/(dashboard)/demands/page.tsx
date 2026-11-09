@@ -46,15 +46,14 @@ export default function DemandsPage({ searchParams }: { searchParams: Promise<Re
 }
 
 async function DemandsContent({ searchParams }: { searchParams: Promise<Record<string, string>> }) {
-  const params = await searchParams
-  const ctx = await getRequestContext()
+  const [params, ctx, cookieStore] = await Promise.all([searchParams, getRequestContext(), cookies()])
   const analystScope = await getDemandAnalystScope(ctx)
-  const cookieStore = await cookies()
   const period = resolvePeriod(params, cookieStore.get(PERIOD_COOKIE_NAME)?.value)
 
   const filters = Object.fromEntries(FILTER_PARAMS.filter((key) => params[key]).map((key) => [key, params[key]]))
 
-  const [{ data, meta, totalsByClient }, analysts, clients, filterOptions, requesters, departments, demandTypes, tags, periodOptions] = await Promise.all([
+  const canCreate = hasPermission(ctx.permissions, "demands", "create")
+  const [{ data, meta, totalsByClient }, analysts, clients, filterOptions, requesters, departments, demandTypes, tags, periodOptions, formContext] = await Promise.all([
     listDemands({
       page: Number(params.page) || 1,
       pageSize: Number(params.pageSize) || 10,
@@ -70,9 +69,8 @@ async function DemandsContent({ searchParams }: { searchParams: Promise<Record<s
     listAllDemandTypes(),
     listAllTags(),
     getDemandPeriodOptions(),
+    canCreate ? getDemandFormContext() : Promise.resolve({ projects: [], myAnalystId: null }),
   ])
-  const canCreate = hasPermission(ctx.permissions, "demands", "create")
-  const formContext = canCreate ? await getDemandFormContext() : { projects: [], myAnalystId: null }
 
   return (
     <DemandTable
