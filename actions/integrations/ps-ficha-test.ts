@@ -1,5 +1,6 @@
 "use server";
 
+import { getIntegrationConfig } from "@/lib/integration-config";
 import axios from "axios";
 import { requirePermission } from "@/lib/rbac";
 import { notificationService } from "@/services/notification.service";
@@ -35,7 +36,7 @@ export async function testFichaPageReachability(input: { pageUrl: string }): Pro
 
   const startTime = Date.now();
   try {
-    const res = await axios.get(url, { validateStatus: () => true, timeout: 15_000 });
+    const res = await axios.get(url, { validateStatus: () => true, timeout: (await getIntegrationConfig(organizationId, "RUBEUS")).timeoutMs });
     const durationMs = Date.now() - startTime;
     const failed = res.status >= 400 || !res.data;
 

@@ -187,6 +187,8 @@ model Organization {
   customFieldDefinitions CustomFieldDefinition[]
   projectTaskDueAlerts   ProjectTaskDueAlert[]
 
+  integrationSettings IntegrationSettings[]
+
   @@map("organizations")
 }
 
@@ -1906,4 +1908,37 @@ model DemandSheetSync {
   @@index([isActive, nextRunAt])
   @@index([isActive, pendingSyncAt])
   @@map("demand_sheet_syncs")
+}
+
+/**
+ * External integrations whose HTTP timeout/retries are configurable per organization
+ * (Integrações > Configurações). Defaults come from the environment (lib/integration-config.ts).
+ */
+enum IntegrationKind {
+  SOAP
+  RUBEUS
+  CIELO
+  TPI
+  GOOGLE_SHEETS
+  SMTP
+  BLOB
+}
+
+/**
+ * Per-organization override of an integration's timeout and retry policy. No row = defaults.
+ */
+model IntegrationSettings {
+  id             String          @id @default(uuid())
+  organizationId String          @map("organization_id")
+  integration    IntegrationKind
+  timeoutMs      Int             @map("timeout_ms")
+  maxRetries     Int             @default(0) @map("max_retries")
+  retryDelayMs   Int             @default(1000) @map("retry_delay_ms")
+  createdAt      DateTime        @default(now()) @map("created_at")
+  updatedAt      DateTime        @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@unique([organizationId, integration])
+  @@map("integration_settings")
 }

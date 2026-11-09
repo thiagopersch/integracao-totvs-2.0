@@ -51,7 +51,11 @@ export function createLimiter(concurrency: number) {
   };
 }
 
-export function createRubeusClient(credentials: PsCredentials, options: { concurrency?: number; signal?: AbortSignal } = {}): RubeusClient {
+export function createRubeusClient(
+  credentials: PsCredentials,
+  /** `timeoutMs`: per-request default — the organization's RUBEUS setting (getIntegrationConfig). */
+  options: { concurrency?: number; signal?: AbortSignal; timeoutMs?: number } = {}
+): RubeusClient {
   const run = createLimiter(options.concurrency ?? 10);
   const memo = new Map<string, Promise<RubeusResponse>>();
   const baseHeaders = authHeaders(credentials);
@@ -70,7 +74,7 @@ export function createRubeusClient(credentials: PsCredentials, options: { concur
         data: body,
         headers: { ...baseHeaders, ...opts.headers },
         validateStatus: () => true,
-        timeout: opts.timeout ?? 30_000,
+        timeout: opts.timeout ?? options.timeoutMs ?? 30_000,
         httpsAgent: keepAliveAgent,
         signal: options.signal,
       });

@@ -1,5 +1,6 @@
 "use server";
 
+import { getIntegrationConfig } from "@/lib/integration-config";
 import { requireAnyPermission } from "@/lib/rbac";
 import { hasRequiredCredentials, type PsCredentials } from "@/lib/ps-docs/credential";
 import { PS_STRUCTURE_GRANTS, sessionErrorMessage, logApiCall, logAndNotifyFailure } from "@/lib/ps-docs/api-helpers";
@@ -75,7 +76,7 @@ export async function listSelectiveProcessStages(input: { credentials: PsCredent
   const crmDomain = input.crmDomain?.trim();
 
   try {
-    const res = await loadProcessStages(createRubeusClient(credentials), idPs, crmDomain);
+    const res = await loadProcessStages(createRubeusClient(credentials, { timeoutMs: (await getIntegrationConfig(organizationId, "RUBEUS")).timeoutMs }), idPs, crmDomain);
 
     await logApiCall({
       organizationId,
@@ -130,7 +131,7 @@ export async function fetchStageDocumentation(input: {
     // per-id `GET /api/custom-component/{id}` fallback returned WRONG labels for system-field ids
     // (e.g. 316191 "IDPS" -> "Botões"), so an uncovered id renders honestly as "campo #<id>".
     const catalogs = input.actionCatalogEntries ? toActionCatalogs(input.actionCatalogEntries) : EMPTY_CATALOGS;
-    const { etapa, warnings } = await loadStage(createRubeusClient(input.credentials), idPs, input.stage, new Map(input.fieldCatalogEntries), catalogs);
+    const { etapa, warnings } = await loadStage(createRubeusClient(input.credentials, { timeoutMs: (await getIntegrationConfig(organizationId, "RUBEUS")).timeoutMs }), idPs, input.stage, new Map(input.fieldCatalogEntries), catalogs);
 
     await logApiCall({
       organizationId,

@@ -1,3 +1,4 @@
+import { INTEGRATION_LIMITS } from "@/lib/integration-config";
 import { NextRequest, NextResponse } from "next/server";
 import { authorizeRoute } from "@/lib/api-auth";
 import { revalidateTag } from "next/cache";
@@ -52,7 +53,9 @@ export async function POST(request: NextRequest) {
         method: endpointMethod.method as SoapMethod,
         xml,
         context,
-        timeout,
+        // Never trust the client's number blindly: non-numbers fall back to the org default and
+        // the value is clamped to INTEGRATION_LIMITS inside soapService.dispatch.
+        timeout: typeof timeout === "number" && Number.isFinite(timeout) ? Math.min(timeout, INTEGRATION_LIMITS.timeoutMs.max) : undefined,
         endpointType: endpointType.type,
       },
       organizationId,

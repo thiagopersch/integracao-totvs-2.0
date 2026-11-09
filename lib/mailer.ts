@@ -2,11 +2,16 @@ import { decryptSecret } from "@/lib/secret-box";
 import nodemailer from "nodemailer";
 import { prisma } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
+import { getIntegrationConfig } from "@/lib/integration-config";
 
-function buildTransport(settings: { host: string; port: number; user: string; password: string }) {
+function buildTransport(settings: { host: string; port: number; user: string; password: string }, timeoutMs: number) {
   return nodemailer.createTransport({
     pool: true,
     maxConnections: 3,
+    // Organization's SMTP timeout (Integrações > Configurações) for each phase of the conversation.
+    connectionTimeout: timeoutMs,
+    greetingTimeout: timeoutMs,
+    socketTimeout: timeoutMs,
     host: settings.host,
     port: settings.port,
     secure: settings.port === 465,
@@ -25,12 +30,13 @@ const transporters = new Map<string, { version: number; transporter: Transporter
 function getTransporter(
   organizationId: string,
   settings: { host: string; port: number; user: string; password: string; updatedAt: Date },
+  timeoutMs: number,
 ): Transporter {
-  const version = settings.updatedAt.getTime();
+  const version = settings.updatedAt.getTime() + timeoutMs;
   const cached = transporters.get(organizationId);
   if (cached && cached.version === version) return cached.transporter;
   cached?.transporter.close();
-  const transporter = buildTransport(settings);
+  const transporter = buildTransport(settings, timeoutMs);
   transporters.set(organizationId, { version, transporter });
   return transporter;
 }
@@ -73,7 +79,8 @@ export async function sendEmail(
     return "SKIPPED";
   }
 
-  const transporter = getTransporter(organizationId, settings);
+  const { timeoutMs } = await getIntegrationConfig(organizationId, "SMTP");
+  const transporter = getTransporter(organizationId, settings, timeoutMs);
 
   try {
     await transporter.sendMail({

@@ -1,8 +1,8 @@
+import { clampTimeout, getIntegrationConfig } from "@/lib/integration-config";
 import axios from "axios";
 import { XMLParser } from "fast-xml-parser";
 import { logger } from "@/lib/logger";
 import { prisma } from "@/lib/prisma";
-import { env } from "@/config/app.config";
 import { buildSoapEnvelope, METHOD_OPERATION, type SoapContext } from "@/utils/soap-envelope";
 import { notificationService } from "@/services/notification.service";
 import { buildSoapCallFailedNotification } from "@/lib/notification-types";
@@ -186,9 +186,12 @@ export const soapService = {
   /** Low-level HTTP dispatch — no auth handshake. Only call directly for AUTENTICAACESSO/CHECKSERVICEACTIVITY. */
   async dispatch(request: SoapRequest, organizationId: string, userId?: string): Promise<SoapResponse> {
     const startTime = Date.now();
-    const timeout = request.timeout || env.SOAP_DEFAULT_TIMEOUT;
-    const maxRetries = env.SOAP_MAX_RETRIES;
-    const retryDelay = env.SOAP_RETRY_DELAY;
+    // Per-organization policy (Integrações > Configurações); a caller-supplied timeout (the SOAP
+    // builder's field) is honoured but clamped to the platform bounds.
+    const config = await getIntegrationConfig(organizationId, "SOAP");
+    const timeout = clampTimeout(request.timeout, config.timeoutMs);
+    const maxRetries = config.maxRetries;
+    const retryDelay = config.retryDelayMs;
 
     const envelope = buildSoapEnvelope(request.xml, request.context);
     const soapAction = resolveSoapAction(request.wsName, request.method);
