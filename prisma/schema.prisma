@@ -263,6 +263,7 @@ model User {
   projectTaskComments  ProjectTaskComment[]
   ownedProjectRisks    ProjectRisk[]         @relation("ProjectRiskOwner")
 
+  @@index([organizationId])
   @@map("users")
 }
 
@@ -277,6 +278,7 @@ model UserClient {
   client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
 
   @@id([userId, clientId])
+  @@index([clientId])
   @@map("user_clients")
 }
 
@@ -334,15 +336,15 @@ model Client {
   updatedAt      DateTime  @updatedAt @map("updated_at")
   deletedAt      DateTime? @map("deleted_at")
 
-  organization     Organization         @relation(fields: [organizationId], references: [id])
-  tbcs             Tbc[]
-  filters          Filter[]
-  contracts        ClientContract[]
-  demands          Demand[]
-  userClients      UserClient[]
-  mapeadorProjetos MapeadorProjeto[]
-  usageAlerts      ContractUsageAlert[]
-  projects         Project[]
+  organization      Organization         @relation(fields: [organizationId], references: [id])
+  tbcs              Tbc[]
+  filters           Filter[]
+  contracts         ClientContract[]
+  demands           Demand[]
+  userClients       UserClient[]
+  mapeadorProjetos  MapeadorProjeto[]
+  usageAlerts       ContractUsageAlert[]
+  projects          Project[]
   requesterClients  RequesterClient[]
   departmentClients DepartmentClient[]
 
@@ -477,6 +479,7 @@ model Filter {
 
   @@index([nextRunAt])
   @@index([organizationId, clientId])
+  @@index([tbcId])
   @@map("filters")
 }
 
@@ -496,6 +499,7 @@ model BackupRun {
   backups      Backup[]
 
   @@index([filterId, startedAt])
+  @@index([executedByUserId])
   @@map("backup_runs")
 }
 
@@ -534,6 +538,9 @@ model Backup {
 
   @@index([filterId, isLatest, codeSentence])
   @@index([backupRunId])
+  @@index([tbcId])
+  @@index([restoredToTbcId])
+  @@index([sentenceCategoryId])
   @@map("backups")
 }
 
@@ -553,6 +560,7 @@ model FichaAutomationRun {
   user         User?                 @relation(fields: [userId], references: [id])
   steps        FichaAutomationStep[]
 
+  @@index([organizationId, startedAt])
   @@map("ficha_automation_runs")
 }
 
@@ -573,6 +581,7 @@ model FichaAutomationStep {
 
   run FichaAutomationRun @relation(fields: [runId], references: [id], onDelete: Cascade)
 
+  @@index([runId])
   @@map("ficha_automation_steps")
 }
 
@@ -613,6 +622,7 @@ model Sentence {
   category     SentenceCategory @relation(fields: [sentenceCategoryId], references: [id])
 
   @@unique([organizationId, code])
+  @@index([sentenceCategoryId])
   @@map("sentences")
 }
 
@@ -650,6 +660,7 @@ model AuditLog {
 
   @@index([organizationId, createdAt])
   @@index([entity, entityId])
+  @@index([userId])
   @@map("audit_logs")
 }
 
@@ -678,6 +689,8 @@ model SoapLog {
   endpointMethod SoapEndpointMethod? @relation(fields: [methodId], references: [id])
 
   @@index([organizationId, createdAt])
+  @@index([userId])
+  @@index([organizationId, status, createdAt])
   @@map("soap_logs")
 }
 
@@ -695,6 +708,7 @@ model EmailLog {
   user         User?        @relation(fields: [userId], references: [id])
 
   @@index([organizationId, createdAt])
+  @@index([userId])
   @@map("email_logs")
 }
 
@@ -722,6 +736,7 @@ model ApiLog {
   user         User?        @relation(fields: [userId], references: [id])
 
   @@index([organizationId, createdAt])
+  @@index([userId])
   @@map("api_logs")
 }
 
@@ -742,6 +757,7 @@ model SoapTemplate {
   organization Organization @relation(fields: [organizationId], references: [id])
   user         User?        @relation(fields: [userId], references: [id])
 
+  @@index([organizationId])
   @@map("soap_templates")
 }
 
@@ -760,6 +776,7 @@ model SoapFavorite {
   organization Organization @relation(fields: [organizationId], references: [id])
   user         User         @relation(fields: [userId], references: [id])
 
+  @@index([organizationId, userId])
   @@map("soap_favorites")
 }
 
@@ -876,6 +893,7 @@ model Analyst {
   user           User?           @relation(fields: [userId], references: [id])
   demandAnalysts DemandAnalyst[]
 
+  @@index([organizationId, deletedAt])
   @@map("analysts")
 }
 
@@ -985,6 +1003,7 @@ model Requester {
   demandRequesters     DemandRequester[]
   departmentRequesters DepartmentRequester[]
 
+  @@index([organizationId, deletedAt])
   @@map("requesters")
 }
 
@@ -1015,6 +1034,7 @@ model Department {
   demandDepartments    DemandDepartment[]
   departmentRequesters DepartmentRequester[]
 
+  @@index([organizationId, deletedAt])
   @@map("departments")
 }
 
@@ -1057,6 +1077,7 @@ model DemandType {
   organization      Organization       @relation(fields: [organizationId], references: [id])
   demandDemandTypes DemandDemandType[]
 
+  @@index([organizationId, deletedAt])
   @@map("demand_types")
 }
 
@@ -1113,6 +1134,7 @@ model Attachment {
   demand     Demand @relation(fields: [demandId], references: [id], onDelete: Cascade)
   uploadedBy User?  @relation(fields: [uploadedById], references: [id])
 
+  @@index([demandId])
   @@map("attachments")
 }
 
@@ -1130,6 +1152,7 @@ model Comment {
   parent  Comment?  @relation("CommentReplies", fields: [parentId], references: [id])
   replies Comment[] @relation("CommentReplies")
 
+  @@index([demandId])
   @@map("comments")
 }
 
@@ -1225,6 +1248,7 @@ model Notification {
   user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, readAt, createdAt])
+  @@index([userId, createdAt])
   @@map("notifications")
 }
 
@@ -1258,6 +1282,7 @@ model MapeadorProjeto {
   cliente      Client?         @relation(fields: [clienteId], references: [id])
   etapas       MapeadorEtapa[]
 
+  @@index([organizationId, deletedAt])
   @@map("mapeador_projetos")
 }
 
@@ -1278,6 +1303,7 @@ model MapeadorEtapa {
 
   projeto MapeadorProjeto @relation(fields: [projetoId], references: [id], onDelete: Cascade)
 
+  @@index([projetoId])
   @@map("mapeador_etapas")
 }
 
@@ -1294,6 +1320,7 @@ model MapeadorTema {
 
   organization Organization @relation(fields: [organizationId], references: [id])
 
+  @@index([organizationId])
   @@map("mapeador_temas")
 }
 
@@ -1319,6 +1346,7 @@ model MapeadorTemplateProjeto {
 
   organization Organization @relation(fields: [organizationId], references: [id])
 
+  @@index([organizationId])
   @@map("mapeador_templates_projeto")
 }
 
