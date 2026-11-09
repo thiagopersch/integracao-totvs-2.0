@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react"
 import Link from "next/link"
+import dynamic from "next/dynamic"
 import { toast } from "@/lib/toast"
 import { ArrowLeft, CalendarDays, ChartGantt, Clock, Gauge, KanbanSquare, LayoutDashboard, List, Loader2, Plus, Settings } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -13,12 +14,18 @@ import { WithTooltip } from "@/components/shared/with-tooltip"
 import { PriorityBadge, ProgressCell, ProjectHealthBadge, ProjectStatusBadge } from "@/components/projects/project-badges"
 import type { ProjectPickerOptions } from "@/components/projects/project-settings-form"
 import { WorkspaceFilters } from "@/components/projects/workspace/workspace-filters"
-import { KanbanBoard, kanbanStages } from "@/components/projects/workspace/kanban-board"
-import { TaskListView } from "@/components/projects/workspace/task-list-view"
-import { GanttChart } from "@/components/projects/workspace/gantt-chart"
-import { TaskCalendar } from "@/components/projects/workspace/task-calendar"
-import { ProjectDashboard } from "@/components/projects/workspace/project-dashboard"
-import { ProjectOverview } from "@/components/projects/workspace/project-overview"
+import { kanbanStages } from "@/components/projects/workspace/kanban-stages"
+import { DetailSkeleton } from "@/components/shared/skeletons"
+
+// Only the view on screen is downloaded: kanban (dnd-kit), gantt, calendar and dashboard (charts)
+// each come in their own chunk, with a skeleton while it loads.
+const viewLoading = () => <DetailSkeleton />
+const KanbanBoard = dynamic(() => import("@/components/projects/workspace/kanban-board").then((m) => m.KanbanBoard), { loading: viewLoading })
+const TaskListView = dynamic(() => import("@/components/projects/workspace/task-list-view").then((m) => m.TaskListView), { loading: viewLoading })
+const GanttChart = dynamic(() => import("@/components/projects/workspace/gantt-chart").then((m) => m.GanttChart), { loading: viewLoading })
+const TaskCalendar = dynamic(() => import("@/components/projects/workspace/task-calendar").then((m) => m.TaskCalendar), { loading: viewLoading })
+const ProjectDashboard = dynamic(() => import("@/components/projects/workspace/project-dashboard").then((m) => m.ProjectDashboard), { loading: viewLoading })
+const ProjectOverview = dynamic(() => import("@/components/projects/workspace/project-overview").then((m) => m.ProjectOverview), { loading: viewLoading })
 import { TaskSheet } from "@/components/projects/workspace/task-sheet"
 import { TaskFormDialog } from "@/components/projects/workspace/task-form-dialog"
 import { useTaskContextMenu } from "@/components/projects/workspace/task-context-menu"
@@ -30,7 +37,7 @@ import {
   type DemandFormEntity,
 } from "@/components/demands/demand-form-dialog"
 import { setProjectLifecycleStatus } from "@/actions/projects"
-import { getDemandForEdit, getDemandFormData } from "@/actions/demands"
+import { openDemandForm } from "@/actions/demands"
 import { useUrlParams } from "@/hooks/use-url-params"
 import { useHasPermission } from "@/hooks/use-permissions"
 import { WORKSPACE_VIEW_LABELS, type WorkspaceParams, type WorkspaceView } from "@/lib/project-workspace-params"
@@ -121,10 +128,9 @@ export function ProjectWorkspace({
     }
     setOpeningDemand(true)
     try {
-      const data = demandForm ?? (await getDemandFormData())
-      if (!demandForm) setDemandForm(data)
+      const { form, demand } = await openDemandForm(demandId ?? null, !demandForm)
+      if (form) setDemandForm(form)
       if (demandId) {
-        const demand = await getDemandForEdit(demandId)
         if (!demand) return void toast.error("Demanda não encontrada ou fora do seu escopo")
         setDemandDialog({ open: true, demand })
       } else {

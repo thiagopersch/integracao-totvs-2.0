@@ -71,6 +71,22 @@ export const mapeadorService = {
     };
   },
 
+  /** Every project with its steps in one query (the prototype's "gerar para todos" view). */
+  async listProjetosCompletos(organizationId: string): Promise<MapeadorProjetoDTO[]> {
+    const projetos = await prisma.mapeadorProjeto.findMany({
+      where: { organizationId, deletedAt: null },
+      include: { etapas: { orderBy: { ordem: "asc" } } },
+      orderBy: { nome: "asc" },
+    });
+    return projetos.map((projeto) => ({
+      id: projeto.id,
+      nome: projeto.nome,
+      informacoesAdicionais: (projeto.informacoesAdicionais as MapeadorInformacoesAdicionais | null) ?? {},
+      prototipoConfig: (projeto.prototipoConfig as MapeadorPrototipoConfig | null) ?? {},
+      etapas: projeto.etapas.map(toEtapaDTO),
+    }));
+  },
+
   async createProjeto(nome: string, organizationId: string, clienteId?: string | null) {
     return prisma.mapeadorProjeto.create({ data: { nome, organizationId, clienteId: clienteId || null } });
   },

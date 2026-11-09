@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { updateMapeadorPrototipoConfig, updateMapeadorEtapa, listMapeadorProjetos, getMapeadorProjeto } from "@/actions/mapeador"
+import { updateMapeadorPrototipoConfig, updateMapeadorEtapa, listMapeadorProjetosCompletos } from "@/actions/mapeador"
 import { exportMapeadorPrototipoHtml } from "@/actions/mapeador-export"
 import { listMapeadorTemas, checkClienteIdentidadeTema } from "@/actions/mapeador-tema"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
@@ -105,10 +105,9 @@ export function PrototipoTab() {
         return
       }
       setLoadingSiblings(true)
-      const summaries = await listMapeadorProjetos()
-      const all = await Promise.all(summaries.map((s) => getMapeadorProjeto(s.id)))
+      const all = await listMapeadorProjetosCompletos()
       if (cancelled) return
-      setSiblingProjetos(all.filter((p): p is MapeadorProjetoDTO => !!p))
+      setSiblingProjetos(all)
       setLoadingSiblings(false)
     }
 

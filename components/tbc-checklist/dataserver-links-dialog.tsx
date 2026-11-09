@@ -11,7 +11,7 @@ import { Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTi
 import { ChecklistContextFields } from "@/components/tbc-checklist/checklist-context-fields"
 import { PermissionDeniedAlert } from "@/components/tbc-checklist/permission-denied-alert"
 import { WithTooltip } from "@/components/shared/with-tooltip"
-import { fetchDataserverSchema } from "@/actions/integrations/tbc-checklist"
+import { fetchDataserverSchemas } from "@/actions/integrations/tbc-checklist"
 import { toChecklistContext, type ChecklistContextForm } from "@/lib/tbc-checklist-dataservers"
 import { linkableParents, suggestLinkFields, type LinkFieldPair } from "@/lib/tbc-checklist-links"
 import type { TbcChecklistLink } from "@/schemas/tbc-checklist.schema"
@@ -123,15 +123,18 @@ export function DataserverLinksDialog({
         key,
         byCode: { ...(prev.key === key ? prev.byCode : {}), ...Object.fromEntries(codes.map((c) => [c, { status: "loading" as const }])) },
       }))
+      const byCode = await fetchDataserverSchemas({ tbcId, dataserverCodes: codes, context })
+      const states: Record<string, SchemaState> = {}
       for (const c of codes) {
-        const result = await fetchDataserverSchema({ tbcId, dataserverCode: c, context })
-        const state: SchemaState = result.success
+        const result = byCode[c]
+        if (!result) continue
+        states[c] = result.success
           ? { status: "loaded", main: result.tables[0] }
           : { status: "error", error: result.error, permissionDenied: result.permissionDenied }
         if (result.success) mainsRef.current.set(`${key}|${c}`, result.tables[0])
-        setSchemas((prev) => (prev.key === key ? { key, byCode: { ...prev.byCode, [c]: state } } : prev))
-        applySuggestionsRef.current(key)
       }
+      setSchemas((prev) => (prev.key === key ? { key, byCode: { ...prev.byCode, ...states } } : prev))
+      applySuggestionsRef.current(key)
     }, 400)
     return () => clearTimeout(timer)
   }, [missingKey, contextKey, context, tbcId])

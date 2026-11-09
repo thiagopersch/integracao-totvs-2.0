@@ -178,6 +178,18 @@ export async function fetchDataserverSchema(input: { tbcId: string; dataserverCo
   }
 }
 
+/**
+ * GetSchema for several Data Servers in one call, at most 4 against TOTVS at a time — Server
+ * Actions run one at a time per client, so a client-side loop of fetchDataserverSchema queued.
+ */
+export async function fetchDataserverSchemas(input: { tbcId: string; dataserverCodes: string[]; context?: ChecklistContext }) {
+  const codes = [...new Set(input.dataserverCodes)].slice(0, 20)
+  const results = await mapWithLimit(codes, 4, (dataserverCode) =>
+    fetchDataserverSchema({ tbcId: input.tbcId, dataserverCode, context: input.context })
+  )
+  return Object.fromEntries(codes.map((code, i) => [code, results[i]]))
+}
+
 /** Most links one Data Server is filtered by (same cap as the saved checklist). */
 const MAX_LINKS = 10
 
