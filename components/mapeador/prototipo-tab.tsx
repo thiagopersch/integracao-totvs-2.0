@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
+import { Skeleton } from "@/components/ui/skeleton"
 import { toast } from "@/lib/toast"
 import { Download, ExternalLink, FileText, Loader2, Pencil, Ruler, TriangleAlert } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
@@ -423,8 +424,8 @@ export function PrototipoTab() {
       </Card>
 
       {loadingSiblings ? (
-        <div className="flex justify-center py-12">
-          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        <div className="flex justify-center py-6" role="status" aria-label="Carregando protótipo">
+          <Skeleton className="h-[480px] w-full max-w-sm rounded-3xl" />
         </div>
       ) : (
         <div className="flex justify-center">

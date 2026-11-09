@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useRef, useState } from "react"
+import { Skeleton } from "@/components/ui/skeleton"
 import { AlertTriangle, Link2, Loader2, Plus, Sparkles, Trash2, X } from "lucide-react"
 import { toast } from "@/lib/toast"
 import { Button } from "@/components/ui/button"
@@ -187,10 +188,11 @@ export function DataserverLinksDialog({
           {!context ? (
             <p className="text-xs text-muted-foreground">Preencha coligada, filial e tipo de curso para buscar os campos no TOTVS.</p>
           ) : !own || own.status === "loading" ? (
-            <p className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              Buscando campos de {dataserverName(code)} no TOTVS...
-            </p>
+            <div className="space-y-2" role="status" aria-label={`Buscando campos de ${dataserverName(code)} no TOTVS`}>
+              <Skeleton className="h-8 w-full" />
+              <Skeleton className="h-8 w-full" />
+              <Skeleton className="h-8 w-3/4" />
+            </div>
           ) : own.status === "error" ? (
             own.permissionDenied ? (
               <PermissionDeniedAlert tbcUser={tbcUser} dataservers={[{ code, name: dataserverName(code) }]} />

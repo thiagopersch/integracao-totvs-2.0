@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { ListSkeleton } from "@/components/shared/skeletons"
 import { Loader2, MessageSquare, Search, Trash2 } from "lucide-react"
 import { toast } from "@/lib/toast"
 import { Button } from "@/components/ui/button"
@@ -62,9 +63,7 @@ export function ConversationHistory({ currentId, onOpen, onDeletedCurrent }: Con
         <Input autoFocus className="pl-8" placeholder="Buscar nas conversas..." value={search} onChange={(e) => setSearch(e.target.value)} />
       </div>
       {items === null ? (
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <Loader2 className="h-3.5 w-3.5 animate-spin" /> Carregando conversas...
-        </div>
+        <ListSkeleton rows={4} />
       ) : items.length === 0 ? (
         <p className="text-xs text-muted-foreground">{search ? "Nenhuma conversa encontrada." : "Nenhuma conversa anterior."}</p>
       ) : (

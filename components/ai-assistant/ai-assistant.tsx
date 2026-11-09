@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
+import { ListSkeleton } from "@/components/shared/skeletons"
 import { ArrowLeft, CheckCircle2, History, Loader2, RotateCcw, Send, Sparkles } from "lucide-react"
 import { toast } from "@/lib/toast"
 import { Button } from "@/components/ui/button"
@@ -440,9 +441,7 @@ export function AiAssistant({ onCreated }: AiAssistantProps) {
           ) : (
           <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4">
             {loading && (
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <Loader2 className="h-3.5 w-3.5 animate-spin" /> Carregando cadastros...
-              </div>
+              <ListSkeleton rows={3} />
             )}
             {chat.length === 0 && (
               <div className="space-y-2 text-xs text-muted-foreground">

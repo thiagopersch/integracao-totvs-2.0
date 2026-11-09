@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { ListSkeleton } from "@/components/shared/skeletons"
 import { Loader2, Plus, Trash2 } from "lucide-react"
 import { toast } from "@/lib/toast"
 import { Button } from "@/components/ui/button"
@@ -172,9 +173,7 @@ function ExtraHoursPanel({
           <div className="space-y-2">
             <p className="text-sm font-medium">Lançamentos do mês</p>
             {loadingList ? (
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Loader2 className="h-4 w-4 animate-spin" /> Carregando…
-              </div>
+              <ListSkeleton rows={3} />
             ) : entries.length === 0 ? (
               <p className="text-sm text-muted-foreground">Nenhuma hora extra lançada neste mês.</p>
             ) : (
