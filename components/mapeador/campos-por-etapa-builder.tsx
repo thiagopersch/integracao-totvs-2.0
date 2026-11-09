@@ -6,6 +6,7 @@ import { Plus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { updateMapeadorEtapa } from "@/actions/mapeador"
+import { useShallow } from "zustand/react/shallow"
 import { useMapeadorStore } from "@/store/mapeador.store"
 import { useDebounce } from "@/hooks/use-debounce"
 import { PassoEditor } from "@/components/mapeador/passo-editor"
@@ -17,7 +18,8 @@ function newPasso(): MapeadorPasso {
 }
 
 export function CamposPorEtapaBuilder() {
-  const projeto = useMapeadorStore((s) => s.projeto)!
+  // Only the fields this component shows: edits elsewhere in the project (e.g. prototype config) don't re-render it.
+  const projeto = useMapeadorStore(useShallow((s) => ({ id: s.projeto!.id, etapas: s.projeto!.etapas })))
   const selectedEtapaId = useMapeadorStore((s) => s.selectedEtapaId)
   const setSelectedEtapaId = useMapeadorStore((s) => s.setSelectedEtapaId)
   const setCamposPorEtapa = useMapeadorStore((s) => s.setCamposPorEtapa)

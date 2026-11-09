@@ -27,6 +27,7 @@ import {
   reorderMapeadorEtapas,
   updateMapeadorEtapa,
 } from "@/actions/mapeador"
+import { useShallow } from "zustand/react/shallow"
 import { useMapeadorStore } from "@/store/mapeador.store"
 import type { MapeadorEtapaDTO } from "@/types/mapeador"
 
@@ -99,7 +100,8 @@ function EtapaRow({ etapa, index, total, onMove, onDuplicate, onDelete, onFieldB
 }
 
 export function EtapasFichaSection() {
-  const projeto = useMapeadorStore((s) => s.projeto)!
+  // Only the fields this component shows: edits elsewhere in the project (e.g. prototype config) don't re-render it.
+  const projeto = useMapeadorStore(useShallow((s) => ({ id: s.projeto!.id, etapas: s.projeto!.etapas })))
   const setEtapas = useMapeadorStore((s) => s.setEtapas)
   const selectedEtapaId = useMapeadorStore((s) => s.selectedEtapaId)
   const setSelectedEtapaId = useMapeadorStore((s) => s.setSelectedEtapaId)

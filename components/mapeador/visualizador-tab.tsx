@@ -8,6 +8,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { CollapsibleSection } from "@/components/mapeador/collapsible-section"
 import { exportMapeadorProjetoXlsx } from "@/actions/mapeador-export"
+import { useShallow } from "zustand/react/shallow"
 import { useMapeadorStore } from "@/store/mapeador.store"
 import { flattenCampos, MAPEADOR_CAMPO_TIPO_LABELS } from "@/types/mapeador"
 
@@ -33,7 +34,8 @@ function downloadBase64(base64: string, fileName: string) {
 }
 
 export function VisualizadorTab() {
-  const projeto = useMapeadorStore((s) => s.projeto)!
+  // Only the fields this component shows: edits elsewhere in the project (e.g. prototype config) don't re-render it.
+  const projeto = useMapeadorStore(useShallow((s) => ({ id: s.projeto!.id, nome: s.projeto!.nome, etapas: s.projeto!.etapas, informacoesAdicionais: s.projeto!.informacoesAdicionais })))
 
   async function handleExportXlsx() {
     const result = await exportMapeadorProjetoXlsx(projeto.id)
