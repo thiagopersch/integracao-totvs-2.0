@@ -11,7 +11,8 @@ import { BackupsSentencesTable } from "@/components/shared/backups-sentences-tab
 import { BackupsHistoryTable } from "@/components/shared/backups-history-table"
 import { RestoreBackupDialog, type RestoreScope } from "@/components/shared/restore-backup-dialog"
 import { RestorePasswordConfirmDialog } from "@/components/shared/restore-password-confirm-dialog"
-import type { Backup, BackupRun, Client, Filter, Tbc } from "@/generated/prisma/client"
+import type { BackupRun, Client, Filter, Tbc } from "@/generated/prisma/client"
+import type { BackupListRow as Backup } from "@/types/backup"
 
 type FilterTbc = Pick<Tbc, "id" | "name" | "link" | "clientId" | "status">
 import type { PaginationMeta } from "@/types/common"

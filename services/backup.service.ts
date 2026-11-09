@@ -324,7 +324,6 @@ export const backupService = {
         orderBy,
         skip: (page - 1) * pageSize,
         take: pageSize,
-        omit: { contentSentence: false },
       }),
       prisma.backup.count({ where }),
     ]);
@@ -336,12 +335,9 @@ export const backupService = {
     return prisma.backup.findMany({
       where: { filterId, organizationId, codeSentence, deletedAt: null },
       orderBy: { createdAt: "desc" },
-      omit: { contentSentence: false },
     });
   },
 
-  /** Always re-reads from the app DB at click time — "Visualizar" must never trust an in-memory
-   *  row that may have gone stale if a newer backup ran since the page loaded. */
   /** Only the SQL text of one backup — lists don't load it; the viewer fetches it when opened. */
   async getContent(id: string, organizationId: string, allowedClientIds: string[] | null) {
     const backup = await prisma.backup.findFirst({
@@ -351,6 +347,8 @@ export const backupService = {
     return backup?.contentSentence ?? null;
   },
 
+  /** Always re-reads from the app DB at click time — "Visualizar" must never trust an in-memory
+   *  row that may have gone stale if a newer backup ran since the page loaded. */
   async getLatestByCode(filterId: string, codeSentence: string, organizationId: string) {
     return prisma.backup.findFirst({
       where: { filterId, organizationId, codeSentence, isLatest: true, deletedAt: null },
@@ -381,7 +379,6 @@ export const backupService = {
     return prisma.backup.findMany({
       where: { backupRunId, organizationId, deletedAt: null },
       orderBy: { codeSentence: "asc" },
-      omit: { contentSentence: false },
     });
   },
 
