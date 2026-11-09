@@ -1,6 +1,9 @@
 "use client"
 
-import { useRef } from "react"
+// Memoized: the SOAP builder re-renders on every keystroke in its editors; result tables (thousands
+// of rows) only re-render when the result changes.
+
+import { memo, useRef } from "react"
 import { Badge } from "@/components/ui/badge"
 import { VirtualRows, VIRTUALIZE_AT } from "@/components/shared/virtual-rows"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
@@ -15,7 +18,7 @@ interface SoapDataTableViewProps {
 /** Renders an actual ReadView result — same overview-badges + per-table sections layout as
  *  SoapSchemaView (its GetSchema counterpart), just showing real row values under dynamic,
  *  data-driven columns instead of fixed field-metadata columns. */
-export function SoapDataTableView({ tables }: SoapDataTableViewProps) {
+export const SoapDataTableView = memo(function SoapDataTableView({ tables }: SoapDataTableViewProps) {
   if (!tables.length) {
     return (
       <p className="text-muted-foreground text-sm p-4">
@@ -44,7 +47,7 @@ export function SoapDataTableView({ tables }: SoapDataTableViewProps) {
       ))}
     </div>
   )
-}
+})
 
 /** One result table. ReadViews can return thousands of rows: past VIRTUALIZE_AT only the rows on
  *  screen are rendered, inside a scroll box with a sticky header. */
