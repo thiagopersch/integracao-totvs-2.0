@@ -10,8 +10,8 @@ import { safeOrderBy } from "@/lib/sort";
 /**
  * Live-pushes each new row over SSE (see app/api/notifications/stream/route.ts) and, for
  * recipients who opted into the EMAIL channel (NotificationSetting, opt-in — no row means
- * disabled), sends it by mail too. Fire-and-forget-safe: email failures are logged inside
- * sendEmail and never block the in-app notification from having been created.
+ * disabled), queues the e-mail copy (lib/jobs, "notification.email"). Email failures are logged
+ * inside sendEmail and never undo the in-app notification.
  */
 async function dispatch(notifications: Notification[]): Promise<void> {
   if (notifications.length === 0) return;
@@ -24,6 +24,8 @@ async function dispatch(notifications: Notification[]): Promise<void> {
     )
   );
 
+  // E-mail copies leave the request: one background job per organization (QStash in production,
+  // `after()` locally) — SMTP latency no longer holds up the action that created the notification.
   const userIds = [...new Set(notifications.map((n) => n.userId))];
   const emailSettings = await prisma.notificationSetting.findMany({
     where: { userId: { in: userIds }, channel: "EMAIL", enabled: true },
@@ -32,26 +34,43 @@ async function dispatch(notifications: Notification[]): Promise<void> {
   const emailEnabledUserIds = new Set(emailSettings.map((s) => s.userId));
   if (emailEnabledUserIds.size === 0) return;
 
+  const idsByOrg = new Map<string, string[]>();
+  for (const n of notifications) {
+    if (!emailEnabledUserIds.has(n.userId)) continue;
+    idsByOrg.set(n.organizationId, [...(idsByOrg.get(n.organizationId) ?? []), n.id]);
+  }
+  const { enqueue } = await import("@/lib/jobs");
+  for (const [organizationId, notificationIds] of idsByOrg) {
+    await enqueue("notification.email", { notificationIds }, { organizationId }).catch((error) => {
+      console.error("[notification.service] failed to enqueue notification e-mails:", error);
+    });
+  }
+}
+
+/** Sends the e-mail copy of each notification whose recipient opted into the EMAIL channel. */
+async function sendNotificationEmails(notificationIds: string[]): Promise<number> {
+  if (notificationIds.length === 0) return 0;
+  const notifications = await prisma.notification.findMany({ where: { id: { in: notificationIds } } });
+  const userIds = [...new Set(notifications.map((n) => n.userId))];
   const users = await prisma.user.findMany({
-    where: { id: { in: [...emailEnabledUserIds] } },
+    where: { id: { in: userIds }, notificationSettings: { some: { channel: "EMAIL", enabled: true } } },
     select: { id: true, email: true, name: true },
   });
   const userById = new Map(users.map((u) => [u.id, u]));
 
+  let sent = 0;
   await Promise.all(
-    notifications
-      .filter((n) => emailEnabledUserIds.has(n.userId))
-      .map(async (n) => {
-        const user = userById.get(n.userId);
-        if (!user?.email) return;
-        const templated = await renderNotificationEmail(n, user);
-        if (templated) {
-          await sendEmail(n.organizationId, user.email, templated.subject, templated.text, n.userId, { html: templated.html });
-        } else {
-          await sendEmail(n.organizationId, user.email, n.title, n.body, n.userId);
-        }
-      })
+    notifications.map(async (n) => {
+      const user = userById.get(n.userId);
+      if (!user?.email) return;
+      const templated = await renderNotificationEmail(n, user);
+      const status = templated
+        ? await sendEmail(n.organizationId, user.email, templated.subject, templated.text, n.userId, { html: templated.html })
+        : await sendEmail(n.organizationId, user.email, n.title, n.body, n.userId);
+      if (status === "SENT") sent++;
+    })
   );
+  return sent;
 }
 
 /** TBC address for failure emails: the backup filter's TBC, or the URL the SOAP call hit. */
@@ -81,6 +100,8 @@ async function renderNotificationEmail(notification: Notification, user: { email
 }
 
 export const notificationService = {
+  sendEmails: sendNotificationEmails,
+
   async list(
     organizationId: string,
     userId: string,

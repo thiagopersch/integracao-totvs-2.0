@@ -189,6 +189,8 @@ model Organization {
 
   integrationSettings IntegrationSettings[]
 
+  backgroundJobs BackgroundJob[]
+
   @@map("organizations")
 }
 
@@ -264,6 +266,7 @@ model User {
   projectTimeEntries   ProjectTimeEntry[]
   projectTaskComments  ProjectTaskComment[]
   ownedProjectRisks    ProjectRisk[]         @relation("ProjectRiskOwner")
+  backgroundJobs       BackgroundJob[]
 
   @@index([organizationId])
   @@map("users")
@@ -1941,4 +1944,40 @@ model IntegrationSettings {
 
   @@unique([organizationId, integration])
   @@map("integration_settings")
+}
+
+enum BackgroundJobStatus {
+  QUEUED
+  RUNNING
+  DONE
+  FAILED
+}
+
+/**
+ * A unit of slow work run outside the request that asked for it (Upstash QStash in production,
+ * `after()` locally) — see lib/jobs. Lets the UI show progress and the result after the fact.
+ */
+model BackgroundJob {
+  id             String              @id @default(uuid())
+  organizationId String              @map("organization_id")
+  type           String
+  status         BackgroundJobStatus @default(QUEUED)
+  payload        Json
+  result         Json?
+  error          String?
+  attempts       Int                 @default(0)
+  dedupeId       String?             @map("dedupe_id")
+  createdById    String?             @map("created_by_id")
+  createdAt      DateTime            @default(now()) @map("created_at")
+  startedAt      DateTime?           @map("started_at")
+  finishedAt     DateTime?           @map("finished_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  createdBy    User?        @relation(fields: [createdById], references: [id])
+
+  @@index([organizationId, createdAt])
+  @@index([status, createdAt])
+  @@index([dedupeId])
+  @@index([createdById])
+  @@map("background_jobs")
 }

@@ -3,7 +3,6 @@ import { endOfDay } from "date-fns";
 import { prisma } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { BaseRepository } from "@/repositories/base.repository";
-import { computeNextRunAt } from "@/lib/backup-schedule";
 import { auditService, RESTORE_ERROR_ACTION } from "@/services/audit.service";
 import { notificationService } from "@/services/notification.service";
 import { buildBackupRunFailedNotification, buildBackupRunSucceededNotification } from "@/lib/notification-types";
@@ -266,58 +265,35 @@ export const backupService = {
   },
 
   /**
-   * Polled by the in-process scheduler (see lib/backup-scheduler.ts) — runs every filter whose
-   * `nextRunAt` has passed, then re-anchors `nextRunAt` from "now" regardless of success/failure
-   * (a filter stuck failing every run must not fire in a tight retry loop).
-   *
-   * Guarded by a Postgres advisory lock so that if the app is ever deployed with more than one
-   * long-lived Node process (each running its own `setInterval` poller), only one of them actually
-   * processes a given tick — the others see the lock held and return immediately instead of
-   * duplicating the same scheduled backups.
+   * Scheduler tick (`/api/cron/backup`, or the in-process poller with RUN_INPROCESS_SCHEDULERS):
+   * enqueues one "backup.filter" job per due filter — QStash runs them with bounded parallelism and
+   * the job re-anchors the filter's nextRunAt when it finishes. A Redis lock keeps overlapping ticks
+   * (several instances, a slow tick) from enqueuing twice, and the job dedupe id covers the rest.
    */
   async runDueScheduledBackups() {
-    const [{ locked }] = await prisma.$queryRaw<{ locked: boolean }[]>`
-      SELECT pg_try_advisory_lock(hashtext('backup-scheduler')::bigint) AS locked
-    `;
-    if (!locked) return { processed: 0, skipped: "locked" as const };
-
-    try {
+    const { withLock } = await import("@/lib/locks");
+    const { enqueue } = await import("@/lib/jobs");
+    const outcome = await withLock("scheduler:backup", 55_000, async () => {
       const due = await prisma.filter.findMany({
-        where: {
-          deletedAt: null,
-          status: true,
-          schedule: { not: "NONE" },
-          nextRunAt: { lte: new Date() },
-        },
-        select: { id: true, filter: true, organizationId: true, schedule: true, scheduleTime: true, scheduleCategoryId: true },
+        where: { deletedAt: null, status: true, schedule: { not: "NONE" }, nextRunAt: { lte: new Date() } },
+        select: { id: true, organizationId: true, scheduleCategoryId: true, nextRunAt: true },
       });
-
-      await Promise.allSettled(
-        due.map(async (filter) => {
-          try {
-            const run = await this.createFromFilter(filter.id, filter.organizationId, filter.scheduleCategoryId ?? undefined, undefined);
-            await auditService.log({
-              action: "CREATE",
-              entity: "BackupRun",
-              entityId: run.id,
-              organizationId: filter.organizationId,
-              newData: { filter: filter.filter },
-            });
-          } catch (error) {
-            // createFromFilter already builds and broadcasts a detailed failure notification
-            // (with errorMessage/errorKind) — this is just the server-side trail for support.
-            logger.error(`Backup agendado falhou para o filtro ${filter.id}`, { error: (error as Error).message });
-          } finally {
-            const nextRunAt = computeNextRunAt(filter.schedule, new Date(), filter.scheduleTime);
-            await prisma.filter.update({ where: { id: filter.id }, data: { nextRunAt } });
-          }
-        })
-      );
-
-      return { processed: due.length };
-    } finally {
-      await prisma.$queryRaw`SELECT pg_advisory_unlock(hashtext('backup-scheduler')::bigint)`;
-    }
+      let enqueued = 0;
+      for (const filter of due) {
+        try {
+          const { deduped } = await enqueue(
+            "backup.filter",
+            { filterId: filter.id, sentenceCategoryId: filter.scheduleCategoryId ?? undefined, scheduled: true },
+            { organizationId: filter.organizationId, dedupeId: `backup:${filter.id}:${filter.nextRunAt?.getTime() ?? 0}` }
+          );
+          if (!deduped) enqueued++;
+        } catch (error) {
+          logger.error(`Falha ao enfileirar o backup agendado do filtro ${filter.id}`, { error: (error as Error).message });
+        }
+      }
+      return enqueued;
+    });
+    return outcome.skipped ? { processed: 0, skipped: "locked" as const } : { processed: outcome.value };
   },
 
   async listLatestByFilter(filterId: string, params: ListParams, organizationId: string) {

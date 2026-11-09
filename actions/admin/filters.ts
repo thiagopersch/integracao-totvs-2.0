@@ -2,6 +2,7 @@
 
 import { updateTag } from "next/cache";
 import { prisma } from "@/lib/prisma";
+import { enqueue, hasQueue } from "@/lib/jobs";
 import { filterService } from "@/services/filter.service";
 import { backupService } from "@/services/backup.service";
 import { auditService } from "@/services/audit.service";
@@ -175,6 +176,17 @@ export async function createBackupFromFilter(filterId: string, sentenceCategoryI
   try {
     const filter = await filterService.getById(filterId, organizationId, allowedClientIds);
     if (!filter) return { success: false, error: "Filtro para backup não encontrado ou fora do seu escopo de acesso" };
+    // With QStash (production) the backup runs as a background job — it can take minutes on a big
+    // TBC; the user is notified when it ends (createFromFilter's success/failure notification) and
+    // the job revalidates the filter's caches. Without a queue it runs right here, as before.
+    if (hasQueue) {
+      const { jobId } = await enqueue(
+        "backup.filter",
+        { filterId, sentenceCategoryId, userId },
+        { organizationId, userId, dedupeId: `backup-manual:${filterId}` }
+      )
+      return { success: true, queued: true, jobId }
+    }
     await backupService.createFromFilter(filterId, organizationId, sentenceCategoryId, userId)
     await auditService.log({ action: "CREATE", entity: "BackupRun", entityId: filterId, organizationId, userId })
     updateTag("filters")
