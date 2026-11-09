@@ -1,4 +1,4 @@
-import { Loader2 } from "lucide-react"
+import { Skeleton } from "@/components/ui/skeleton"
 import { cn } from "@/lib/utils"
 
 interface PendingRegionProps {
@@ -6,20 +6,23 @@ interface PendingRegionProps {
   pending: boolean
   children: React.ReactNode
   className?: string
+  /** Placeholder shaped like the content (e.g. <ChartSkeleton />). Defaults to one skeleton block of the region's size. */
+  skeleton?: React.ReactNode
 }
 
 /**
- * Keeps the current (stale) content on screen while new data loads, dimmed and non-interactive
- * with a spinner on top — so only the component being refreshed signals loading, instead of the
- * whole page being swapped for a skeleton.
+ * While new data loads, only this component shows a loading state: its content is swapped for a
+ * Skeleton of the same size (the stale content stays in the layout, invisible, so nothing moves).
  */
-export function PendingRegion({ pending, children, className }: PendingRegionProps) {
+export function PendingRegion({ pending, children, className, skeleton }: PendingRegionProps) {
   return (
     <div className={cn("relative", className)} aria-busy={pending || undefined} data-pending={pending ? "" : undefined}>
-      <div className={cn("h-full transition-opacity duration-200", pending && "pointer-events-none opacity-50")}>{children}</div>
+      <div className={cn("h-full", pending && "pointer-events-none invisible")} aria-hidden={pending || undefined}>
+        {children}
+      </div>
       {pending && (
-        <div className="absolute inset-0 z-20 flex items-center justify-center" role="status" aria-label="Carregando">
-          <Loader2 className="h-6 w-6 animate-spin text-primary" />
+        <div className="absolute inset-0 z-20 overflow-hidden" role="status" aria-label="Carregando">
+          {skeleton ?? <Skeleton className="h-full w-full rounded-xl" />}
         </div>
       )}
     </div>

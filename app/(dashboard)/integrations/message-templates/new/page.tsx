@@ -1,13 +1,13 @@
 import { Suspense } from "react"
 import { redirect } from "next/navigation"
 import { TemplateBuilder } from "@/components/message-templates/builder/template-builder"
-import { TableSkeleton } from "@/components/shared/table-skeleton"
+import { EditorSkeleton } from "@/components/shared/skeletons"
 import { getRequestContext } from "@/lib/tenant"
 import { hasPermission } from "@/lib/permissions"
 
 export default function NewMessageTemplatePage() {
   return (
-    <Suspense fallback={<TableSkeleton className="m-6" />}>
+    <Suspense fallback={<EditorSkeleton className="m-6" />}>
       <NewMessageTemplateContent />
     </Suspense>
   )

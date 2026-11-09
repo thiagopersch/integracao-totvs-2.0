@@ -3,14 +3,15 @@ import { redirect } from "next/navigation"
 import { authService } from "@/services/auth.service"
 import { getRequestContext } from "@/lib/tenant"
 import { ProfileForm } from "@/components/shared/profile-form"
+import { notificationService } from "@/services/notification.service"
 import { PageHeader } from "@/components/shared/page-header"
-import { TableSkeleton } from "@/components/shared/table-skeleton"
+import { FormSkeleton } from "@/components/shared/skeletons"
 
 export default function ProfilePage() {
   return (
     <div className="p-4 md:p-6">
       <PageHeader title="Perfil" description="Gerencie seus dados e sua senha" />
-      <Suspense fallback={<TableSkeleton />}>
+      <Suspense fallback={<FormSkeleton />}>
         <ProfileContent />
       </Suspense>
     </div>
@@ -19,8 +20,9 @@ export default function ProfilePage() {
 
 async function ProfileContent() {
   const { userId } = await getRequestContext();
-  const user = await authService.getUserById(userId);
+  const [user, settings] = await Promise.all([authService.getUserById(userId), notificationService.getSettings(userId)]);
   if (!user) redirect("/login");
 
-  return <ProfileForm user={user} />
+  const emailNotifications = settings.some((s) => s.channel === "EMAIL" && s.enabled);
+  return <ProfileForm user={user} initialEmailNotifications={emailNotifications} />
 }

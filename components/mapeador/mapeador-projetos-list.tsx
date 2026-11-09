@@ -28,7 +28,6 @@ import {
   createMapeadorProjetosFromTemplates,
   deleteMapeadorProjeto,
   importMapeadorProjeto,
-  listClientesParaMapeador,
 } from "@/actions/mapeador"
 import { deleteMapeadorTemplateModelo } from "@/actions/mapeador-template"
 import { useHasPermission } from "@/hooks/use-permissions"
@@ -54,9 +53,11 @@ type DialogStep = "closed" | "choice" | "templates" | "blank"
 interface MapeadorProjetosListProps {
   initialProjetos: MapeadorProjetoSummary[]
   templates: MapeadorTemplateSummary[]
+  /** Loaded by the server page together with the list (was a client fetch on mount). */
+  clientes: ClienteOption[]
 }
 
-export function MapeadorProjetosList({ initialProjetos, templates }: MapeadorProjetosListProps) {
+export function MapeadorProjetosList({ initialProjetos, templates, clientes }: MapeadorProjetosListProps) {
   const router = useRouter()
   const [projetos, setProjetos] = useState(initialProjetos)
   const [templateList, setTemplateList] = useState(templates)
@@ -70,16 +71,11 @@ export function MapeadorProjetosList({ initialProjetos, templates }: MapeadorPro
   const canCreate = useHasPermission("mapeador_projetos", "create")
   const canDelete = useHasPermission("mapeador_projetos", "delete")
 
-  const [clientes, setClientes] = useState<ClienteOption[]>([])
   const [dialogClienteId, setDialogClienteId] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState("")
   const [filtersOpen, setFiltersOpen] = useState(false)
   const [clienteFilter, setClienteFilter] = useState("")
   const [formaIngressoFilter, setFormaIngressoFilter] = useState("")
-
-  useEffect(() => {
-    listClientesParaMapeador().then((data) => setClientes(data as ClienteOption[]))
-  }, [])
 
   function openChoice() {
     setNome("")

@@ -3,6 +3,7 @@
 import dynamic from "next/dynamic"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
+import { ChartSkeleton } from "@/components/shared/skeletons"
 import { PendingRegion } from "@/components/shared/pending-region"
 import { ChartTypeSelect } from "@/components/shared/charts/chart-type-select"
 import type { MultiTypeChartProps } from "@/components/shared/charts/multi-type-chart"
@@ -53,7 +54,7 @@ export function ChartCard({
   pending = false,
 }: ChartCardProps) {
   return (
-    <PendingRegion pending={pending}>
+    <PendingRegion pending={pending} skeleton={<div className="h-full rounded-xl border p-4"><ChartSkeleton height={height ?? 260} /></div>}>
       <Card className="h-full">
         <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2">
           <CardTitle className="min-w-0 text-sm">{title}</CardTitle>

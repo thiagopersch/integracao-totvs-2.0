@@ -13,9 +13,11 @@ import {
   type VisibilityState,
   type PaginationState,
 } from "@tanstack/react-table"
-import { Fragment, useRef, useState } from "react"
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
+import type { Row } from "@tanstack/react-table"
+import TableSortLabel from "@mui/material/TableSortLabel"
 import { useVirtualizer } from "@tanstack/react-virtual"
-import { ArrowDown, ArrowUp, ArrowUpDown, Trash2 } from "lucide-react"
+import { Trash2 } from "lucide-react"
 import { toast } from "@/lib/toast"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
@@ -24,7 +26,6 @@ import { DataTableToolbar } from "./data-table-toolbar"
 import { ConfirmDialog } from "./confirm-dialog"
 import { Skeleton } from "@/components/ui/skeleton"
 import { ContextMenu, ContextMenuTrigger } from "@/components/ui/context-menu"
-import { PendingRegion } from "./pending-region"
 
 type SortState = { field: string; direction: "asc" | "desc" }
 
@@ -77,6 +78,71 @@ function showCellTitle(event: React.MouseEvent<HTMLTableCellElement>) {
   if (text) cell.title = text
   else cell.removeAttribute("title")
 }
+
+type DataTableRowProps<TData> = {
+  row: Row<TData>
+  selected: boolean
+  expanded: boolean
+  columns: unknown
+  visibility: VisibilityState
+  clickable: boolean
+  onRowClickRef: React.RefObject<((row: TData) => void) | undefined>
+  rowContextMenu?: (row: TData) => React.ReactNode
+  renderExpanded?: (row: TData) => React.ReactNode
+}
+
+/**
+ * One body row, memoized: selecting a row, toggling filters or the bulk bar re-renders only the
+ * rows whose data/selection changed (columns are memoized by every caller).
+ */
+const DataTableRow = memo(
+  function DataTableRow<TData>({ row, expanded, columns, clickable, onRowClickRef, rowContextMenu, renderExpanded }: DataTableRowProps<TData>) {
+    const cells = row.getVisibleCells()
+    return (
+      <>
+        {withRowMenu(
+          row.original,
+          <TableRow
+            data-state={row.getIsSelected() && "selected"}
+            onClick={clickable ? (e) => handleRowClick(e, () => onRowClickRef.current?.(row.original)) : undefined}
+            className={clickable ? "cursor-pointer hover:bg-muted/50" : undefined}
+          >
+            {cells.map((cell) => (
+              <TableCell
+                key={cell.id}
+                className={
+                  cell.column.id === "actions"
+                    ? "sticky right-0 z-10 border-l bg-background group-hover:bg-muted/50 group-data-[state=selected]:bg-muted"
+                    : undefined
+                }
+                onMouseEnter={COLUMNS_WITHOUT_TITLE.has(cell.column.id) ? undefined : showCellTitle}
+              >
+                {flexRender(cell.column.columnDef.cell, cell.getContext())}
+              </TableCell>
+            ))}
+          </TableRow>,
+          rowContextMenu
+        )}
+        {expanded && renderExpanded && (
+          <TableRow>
+            <TableCell colSpan={(columns as unknown[]).length} className="bg-muted/30 p-0">
+              {renderExpanded(row.original)}
+            </TableCell>
+          </TableRow>
+        )}
+      </>
+    )
+  },
+  (prev, next) =>
+    prev.row.original === next.row.original &&
+    prev.selected === next.selected &&
+    prev.expanded === next.expanded &&
+    prev.columns === next.columns &&
+    prev.visibility === next.visibility &&
+    prev.clickable === next.clickable &&
+    prev.rowContextMenu === next.rowContextMenu &&
+    prev.renderExpanded === next.renderExpanded
+) as <TData>(props: DataTableRowProps<TData>) => React.ReactElement
 
 export interface BulkDeleteActionResult {
   success: boolean
@@ -182,13 +248,25 @@ export function DataTable<TData, TValue>({
   const [filtersOpen, setFiltersOpen] = useState(false)
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false)
   const [bulkDeleting, setBulkDeleting] = useState(false)
+  // Latest row-click handler for the memoized rows (callers usually pass an inline function).
+  const onRowClickRef = useRef(onRowClick)
+  useEffect(() => {
+    onRowClickRef.current = onRowClick
+  })
 
   const manual = !!pageCount
 
   const effectivePageSize = manual ? pageSize : internalPagination.pageSize
-  const effectiveOnPageSizeChange = manual
-    ? (ps: number) => onPageSizeChange?.(ps)
-    : (ps: number) => setInternalPagination((prev) => ({ ...prev, pageSize: ps }))
+  // Stable callbacks/elements so the memoized toolbar and pagination skip re-renders on row selection.
+  const effectiveOnPageSizeChange = useCallback(
+    (ps: number) => (manual ? onPageSizeChange?.(ps) : setInternalPagination((prev) => ({ ...prev, pageSize: ps }))),
+    [manual, onPageSizeChange]
+  )
+  const pageSizeSelect = useMemo(
+    () => <PageSizeSelect pageSize={effectivePageSize} onPageSizeChange={effectiveOnPageSizeChange} />,
+    [effectivePageSize, effectiveOnPageSizeChange]
+  )
+  const toggleFilters = useCallback(() => setFiltersOpen((v) => !v), [])
 
   const table = useReactTable({
     data,
@@ -206,8 +284,8 @@ export function DataTable<TData, TValue>({
     onRowSelectionChange: setRowSelection,
     onPaginationChange: manual ? undefined : setInternalPagination,
     getCoreRowModel: getCoreRowModel(),
-    getFilteredRowModel: getFilteredRowModel(),
-    getSortedRowModel: getSortedRowModel(),
+    // Server-paginated tables are already filtered/sorted by the backend.
+    ...(manual ? {} : { getFilteredRowModel: getFilteredRowModel(), getSortedRowModel: getSortedRowModel() }),
     // TanStack's getPageCount() does `table.options.pageCount ?? Math.ceil(rowCount / pageSize)` —
     // -1 is not nullish, so passing it unconditionally pinned the auto-computed (non-manual) path
     // to always report page count -1 (shown as 1 via the Math.max clamp below), permanently
@@ -218,6 +296,10 @@ export function DataTable<TData, TValue>({
       : { getPaginationRowModel: getPaginationRowModel(), manualPagination: false }),
   })
 
+  // First load and refetches (filter, page, sort, save) both swap the body for skeleton rows of the
+  // same count, keeping header, toolbar and pagination usable.
+  const showSkeleton = loading || refreshing
+  const skeletonRows = Math.min(Math.max(data.length, 5), 15)
   const selectedRows = table.getSelectedRowModel().rows
   const selectedCount = selectedRows.length
   const rows = table.getRowModel().rows
@@ -226,7 +308,7 @@ export function DataTable<TData, TValue>({
   // virtualizer's windowing would need per-row dynamic measurement wired through a second config
   // surface for comparatively little payoff, since expandable tables tend to be smaller lists.
   const scrollContainerRef = useRef<HTMLDivElement>(null)
-  const virtualizationEnabled = !loading && !expandable && rows.length > VIRTUALIZE_ROW_THRESHOLD
+  const virtualizationEnabled = !showSkeleton && !expandable && rows.length > VIRTUALIZE_ROW_THRESHOLD
   const rowVirtualizer = useVirtualizer({
     count: virtualizationEnabled ? rows.length : 0,
     getScrollElement: () => scrollContainerRef.current,
@@ -291,10 +373,10 @@ export function DataTable<TData, TValue>({
         searchDefaultValue={searchDefaultValue}
         onSearch={onSearch}
         toolbarActions={toolbarActions}
-        pageSizeSelect={<PageSizeSelect pageSize={effectivePageSize} onPageSizeChange={effectiveOnPageSizeChange} />}
+        pageSizeSelect={pageSizeSelect}
         hasFilterPanel={!!filterPanel}
         filtersOpen={filtersOpen}
-        onToggleFilters={() => setFiltersOpen((v) => !v)}
+        onToggleFilters={toggleFilters}
       />
       {filterPanel && filtersOpen && <div>{filterPanel}</div>}
       {(bulkDelete || bulkActions) && selectedCount > 0 && (
@@ -310,8 +392,7 @@ export function DataTable<TData, TValue>({
           </div>
         </div>
       )}
-      <PendingRegion pending={refreshing && !loading}>
-        <div className="space-y-4">
+      <div className="space-y-4" aria-busy={refreshing || loading || undefined}>
           <div
             ref={scrollContainerRef}
             className={
@@ -366,25 +447,17 @@ export function DataTable<TData, TValue>({
 
                         return (
                           <TableHead key={header.id} className={stickyActionsClass} style={virtualStyle}>
-                            <button
-                              type="button"
-                              className="flex items-center gap-1 hover:text-foreground cursor-pointer"
-                              onClick={() =>
+                            <TableSortLabel
+ active={!!direction}
+ direction={direction === "desc" ? "desc" : "asc"}
+ onClick={() =>
                                 onSortChange({
                                   field: header.column.id,
                                   direction: isActive && direction === "asc" ? "desc" : "asc",
-                                })
-                              }
-                            >
-                              {content}
-                              {direction === "asc" ? (
-                                <ArrowUp className="h-3.5 w-3.5" />
-                              ) : direction === "desc" ? (
-                                <ArrowDown className="h-3.5 w-3.5" />
-                              ) : (
-                                <ArrowUpDown className="h-3.5 w-3.5 opacity-40" />
-                              )}
-                            </button>
+                                })}
+ >
+ {content}
+ </TableSortLabel>
                           </TableHead>
                         )
                       }
@@ -394,20 +467,13 @@ export function DataTable<TData, TValue>({
 
                       return (
                         <TableHead key={header.id} className={stickyActionsClass} style={virtualStyle}>
-                          <button
-                            type="button"
-                            className="flex items-center gap-1 hover:text-foreground cursor-pointer"
-                            onClick={header.column.getToggleSortingHandler()}
-                          >
-                            {content}
-                            {clientDirection === "asc" ? (
-                              <ArrowUp className="h-3.5 w-3.5" />
-                            ) : clientDirection === "desc" ? (
-                              <ArrowDown className="h-3.5 w-3.5" />
-                            ) : (
-                              <ArrowUpDown className="h-3.5 w-3.5 opacity-40" />
-                            )}
-                          </button>
+                          <TableSortLabel
+ active={!!clientDirection}
+ direction={clientDirection === "desc" ? "desc" : "asc"}
+ onClick={header.column.getToggleSortingHandler()}
+ >
+ {content}
+ </TableSortLabel>
                         </TableHead>
                       )
                     })}
@@ -421,8 +487,8 @@ export function DataTable<TData, TValue>({
                     : undefined
                 }
               >
-                {loading ? (
-                  Array.from({ length: 5 }).map((_, i) => (
+                {showSkeleton ? (
+                  Array.from({ length: skeletonRows }).map((_, i) => (
                     <TableRow key={i}>
                       {columns.map((col, j) => (
                         <TableCell
@@ -482,38 +548,18 @@ export function DataTable<TData, TValue>({
                   })
                 ) : (
                   rows.map((row) => (
-                    <Fragment key={row.id}>
-                      {withRowMenu(
-                        row.original,
-                        <TableRow
-                          data-state={row.getIsSelected() && "selected"}
-                          onClick={onRowClick ? (e) => handleRowClick(e, () => onRowClick(row.original)) : undefined}
-                          className={onRowClick ? "cursor-pointer hover:bg-muted/50" : undefined}
-                        >
-                          {row.getVisibleCells().map((cell) => (
-                            <TableCell
-                              key={cell.id}
-                              className={
-                                cell.column.id === "actions"
-                                  ? "sticky right-0 z-10 border-l bg-background group-hover:bg-muted/50 group-data-[state=selected]:bg-muted"
-                                  : undefined
-                              }
-                              onMouseEnter={COLUMNS_WITHOUT_TITLE.has(cell.column.id) ? undefined : showCellTitle}
-                            >
-                              {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                            </TableCell>
-                          ))}
-                        </TableRow>,
-                        rowContextMenu
-                      )}
-                      {expandable?.isExpanded(row.original) && (
-                        <TableRow>
-                          <TableCell colSpan={columns.length} className="bg-muted/30 p-0">
-                            {expandable.renderExpanded(row.original)}
-                          </TableCell>
-                        </TableRow>
-                      )}
-                    </Fragment>
+                    <DataTableRow
+                      key={row.id}
+                      row={row}
+                      selected={row.getIsSelected()}
+                      expanded={expandable?.isExpanded(row.original) ?? false}
+                      columns={columns}
+                      visibility={columnVisibility}
+                      clickable={!!onRowClick}
+                      onRowClickRef={onRowClickRef}
+                      rowContextMenu={rowContextMenu}
+                      renderExpanded={expandable?.renderExpanded}
+                    />
                   ))
                 )}
               </TableBody>
@@ -535,8 +581,7 @@ export function DataTable<TData, TValue>({
               onPageChange={(p) => table.setPageIndex(p - 1)}
             />
           )}
-        </div>
-      </PendingRegion>
+      </div>
       {bulkDelete && (
         <ConfirmDialog
           open={bulkDeleteOpen}
