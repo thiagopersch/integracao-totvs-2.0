@@ -51,7 +51,8 @@ export const exportService = {
       deletedAt: null,
       organizationId,
       clientId: { in: effectiveClientIds },
-      ...(analystScope ? { analystId: analystScope } : {}),
+      // Demands have many analysts now (demand_analysts); the old `analystId` column no longer exists.
+      ...(analystScope ? { demandAnalysts: { some: { analystId: analystScope } } } : {}),
       ...(period ? { date: period } : {}),
     };
     const demands = await prisma.demand.findMany({ where, orderBy: { date: "asc" as const }, include: demandIncludeRelations });

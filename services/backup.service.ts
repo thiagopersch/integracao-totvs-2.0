@@ -165,46 +165,56 @@ export const backupService = {
       // version. Subsequent backups: equal hash means unchanged — skip, no new version created;
       // different hash means the new content becomes latest and the previous row is demoted (kept,
       // for that sentence's version history) rather than deleted.
-      for (const sentence of sentences) {
+      // Versioned by the full GConsSql key — the same CODSENTENCA can exist under another
+      // coligada/aplicação and must not demote (and so drop from restores) that other consulta.
+      const keyOf = (s: { codColigada: string | null; codSystem: string | null; codeSentence: string | null }) =>
+        `${s.codColigada ?? ""}\u0000${s.codSystem ?? ""}\u0000${s.codeSentence ?? ""}`;
+
+      // One read of the current versions + one demote + batched inserts, instead of 2–3 queries
+      // per sentence. When the TBC returns the same key twice, the last occurrence wins (as before).
+      const latest = await prisma.backup.findMany({
+        where: { filterId, isLatest: true, deletedAt: null },
+        select: { id: true, codColigada: true, codSystem: true, codeSentence: true, hash: true },
+      });
+      const currentByKey = new Map(latest.map((row) => [keyOf(row), row]));
+      const incomingByKey = new Map(sentences.map((sentence) => [keyOf(sentence), sentence]));
+
+      const demoteIds: string[] = [];
+      const rows: Prisma.BackupCreateManyInput[] = [];
+      for (const [key, sentence] of incomingByKey) {
         const hash = hashContent(sentence.contentSentence);
-        // Versioned by the full GConsSql key — the same CODSENTENCA can exist under another
-        // coligada/aplicação and must not demote (and so drop from restores) that other consulta.
-        const current = await prisma.backup.findFirst({
-          where: {
-            filterId,
-            codColigada: sentence.codColigada,
-            codSystem: sentence.codSystem,
-            codeSentence: sentence.codeSentence,
-            isLatest: true,
-            deletedAt: null,
-          },
-        });
-
+        const current = currentByKey.get(key);
         if (current && current.hash === hash) continue;
-
-        if (current) {
-          await prisma.backup.update({ where: { id: current.id }, data: { isLatest: false } });
-        }
-
-        await prisma.backup.create({
-          data: {
-            organizationId,
-            tbcId: filter.tbcId,
-            filterId,
-            backupRunId: backupRun.id,
-            sentenceCategoryId,
-            branchSentence: String(filter.branchContext),
-            codColigada: sentence.codColigada,
-            codSystem: sentence.codSystem,
-            codeSentence: sentence.codeSentence,
-            nameSentence: sentence.nameSentence,
-            contentSentence: sentence.contentSentence,
-            hash,
-            isLatest: true,
-            totvsUpdatedAt: sentence.totvsUpdatedAt,
-            totvsUpdatedBy: sentence.totvsUpdatedBy,
-          },
+        if (current) demoteIds.push(current.id);
+        rows.push({
+          organizationId,
+          tbcId: filter.tbcId,
+          filterId,
+          backupRunId: backupRun.id,
+          sentenceCategoryId,
+          branchSentence: String(filter.branchContext),
+          codColigada: sentence.codColigada,
+          codSystem: sentence.codSystem,
+          codeSentence: sentence.codeSentence,
+          nameSentence: sentence.nameSentence,
+          contentSentence: sentence.contentSentence,
+          hash,
+          isLatest: true,
+          totvsUpdatedAt: sentence.totvsUpdatedAt,
+          totvsUpdatedBy: sentence.totvsUpdatedBy,
         });
+      }
+
+      if (rows.length > 0) {
+        const INSERT_CHUNK = 200;
+        await prisma.$transaction(async (tx) => {
+          if (demoteIds.length > 0) {
+            await tx.backup.updateMany({ where: { id: { in: demoteIds } }, data: { isLatest: false } });
+          }
+          for (let i = 0; i < rows.length; i += INSERT_CHUNK) {
+            await tx.backup.createMany({ data: rows.slice(i, i + INSERT_CHUNK) });
+          }
+        }, { timeout: 60_000 });
       }
 
       const finishedAt = new Date();

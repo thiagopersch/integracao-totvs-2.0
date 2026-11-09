@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@/generated/prisma/client";
-import { findBlockingReferences, formatBlockingReferences, type BlockingReference } from "@/lib/entity-relations";
+import { findBlockingReferences, findBlockingReferencesMany, formatBlockingReferences, type BlockingReference } from "@/lib/entity-relations";
 import type { ListParams, PaginationMeta, SortParams } from "@/types/common";
 import { safeOrderBy } from "@/lib/sort";
 
@@ -236,11 +236,16 @@ export class BaseRepository<T extends { id: string; deletedAt: Date | null }> {
     const blocked: BulkDeleteBlocked[] = [];
     const deletableIds: string[] = [];
 
-    for (const id of ids) {
-      const reasons = await this.blockingReasons(id);
+    // One GROUP BY per referencing model for the whole batch, plus each repository's extra checks in parallel.
+    const [genericById, extras] = await Promise.all([
+      findBlockingReferencesMany(this.modelName, ids, { ignoreModels: this.ownedModels() }),
+      Promise.all(ids.map((id) => this.extraBlockingReferences(id))),
+    ]);
+    ids.forEach((id, i) => {
+      const reasons = [...(genericById.get(id) ?? []), ...extras[i]];
       if (reasons.length > 0) blocked.push({ id, reasons });
       else deletableIds.push(id);
-    }
+    });
 
     if (deletableIds.length > 0) {
       await this.model.updateMany({
