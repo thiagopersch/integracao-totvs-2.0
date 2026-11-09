@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useState } from "react"
 import Link from "next/link"
 import { Bell } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -14,8 +14,9 @@ import { ERROR_KIND_LABELS, type ErrorKind } from "@/lib/error-kind"
 import { formatRelativeTime } from "@/utils/format"
 import { cn } from "@/lib/utils"
 import type { Notification } from "@/generated/prisma/client"
+import { BELL_LIMIT, useNotificationStore } from "@/store/notification.store"
+import { toast } from "@/lib/toast"
 
-const POPOVER_NOTIFICATION_LIMIT = 4
 
 type ChangeEntry = { field: string; from?: unknown; to?: unknown }
 
@@ -63,51 +64,44 @@ function summarizeDataLine(data: unknown): string | null {
 
 export function NotificationBell() {
   const [open, setOpen] = useState(false)
-  const [items, setItems] = useState<Notification[]>([])
-  const [unreadCount, setUnreadCount] = useState(0)
   const [detail, setDetail] = useState<Notification | null>(null)
-  const [loading, setLoading] = useState(true)
-
-  async function load() {
-    try {
-      // The popover is a quick glance, not the full inbox — only the most recent
-      // POPOVER_NOTIFICATION_LIMIT show here; everything else lives behind "Ver todas".
-      const result = await listNotifications(1, POPOVER_NOTIFICATION_LIMIT)
-      setItems(result.data as Notification[])
-      setUnreadCount(result.unreadCount)
-    } catch (error) {
-      console.error("Failed to load notifications", error)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const hasLoadedOnce = useRef(false)
+  const items = useNotificationStore((s) => s.items)
+  const unreadCount = useNotificationStore((s) => s.unreadCount)
+  const loading = !useNotificationStore((s) => s.loaded)
 
   useEffect(() => {
-    // Strict Mode's dev-only double-invoke would otherwise fire this initial load() twice on
-    // every mount; the ref survives that replay, so it still runs exactly once.
-    if (!hasLoadedOnce.current) {
-      hasLoadedOnce.current = true
-      load()
+    const store = useNotificationStore.getState()
+    async function load() {
+      try {
+        // The popover is a quick glance, not the full inbox — only the most recent BELL_LIMIT show here.
+        const result = await listNotifications(1, BELL_LIMIT)
+        useNotificationStore.getState().hydrate(result.data as Notification[], result.unreadCount)
+      } catch (error) {
+        console.error("Failed to load notifications", error)
+      }
     }
+    if (!store.loaded) load()
 
-    // Live updates via SSE — falls back to the old 60s polling if the stream errors out
-    // (e.g. a proxy that mishandles text/event-stream), so the bell never goes fully silent.
+    // Live updates via SSE: the event already carries the notification, so it is applied without a
+    // refetch. Falls back to 60s polling if the stream errors (e.g. a proxy that mishandles SSE).
     let pollInterval: ReturnType<typeof setInterval> | null = null
-    function startPolling() {
-      if (pollInterval) return
-      pollInterval = setInterval(load, 60000)
+    const startPolling = () => {
+      if (!pollInterval) pollInterval = setInterval(load, 60000)
     }
-    function stopPolling() {
-      if (!pollInterval) return
-      clearInterval(pollInterval)
+    const stopPolling = () => {
+      if (pollInterval) clearInterval(pollInterval)
       pollInterval = null
     }
 
     const source = new EventSource("/api/notifications/stream")
     source.addEventListener("ready", stopPolling)
-    source.addEventListener("notification", load)
+    source.addEventListener("notification", (event) => {
+      try {
+        useNotificationStore.getState().receive(JSON.parse((event as MessageEvent).data) as Notification)
+      } catch {
+        load()
+      }
+    })
     source.onerror = startPolling
 
     return () => {
@@ -116,17 +110,18 @@ export function NotificationBell() {
     }
   }, [])
 
-  async function handleClick(notification: Notification) {
+  // Optimistic: the badge and the card update at once; the server call runs behind.
+  function handleClick(notification: Notification) {
     if (!notification.readAt) {
-      await markNotificationAsRead(notification.id)
-      load()
+      useNotificationStore.getState().markRead(notification.id)
+      markNotificationAsRead(notification.id).catch(() => toast.error("Não foi possível marcar como lida"))
     }
     setDetail(notification)
   }
 
-  async function handleReadAll() {
-    await markAllNotificationsAsRead()
-    load()
+  function handleReadAll() {
+    useNotificationStore.getState().markAllRead()
+    markAllNotificationsAsRead().catch(() => toast.error("Não foi possível marcar todas como lidas"))
   }
 
   return (

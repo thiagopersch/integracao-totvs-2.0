@@ -12,6 +12,7 @@ import { Eye } from "lucide-react"
 import { formatDate } from "@/utils/format"
 import { getNotificationCategory } from "@/lib/notification-category"
 import { markNotificationAsRead, markAllNotificationsAsRead } from "@/actions/notifications"
+import { useNotificationStore } from "@/store/notification.store"
 import { toast } from "@/lib/toast"
 import type { Notification } from "@/generated/prisma/client"
 import type { PaginationMeta } from "@/types/common"
@@ -34,6 +35,7 @@ export function NotificationTable({ data, meta, unreadCount }: NotificationTable
     : { field: "createdAt", direction: "desc" as const }
 
   async function handleRead(id: string) {
+    useNotificationStore.getState().markRead(id)
     await markNotificationAsRead(id)
     refresh()
   }
@@ -41,6 +43,7 @@ export function NotificationTable({ data, meta, unreadCount }: NotificationTable
   async function handleReadAll() {
     const result = await markAllNotificationsAsRead()
     if (result.success) {
+      useNotificationStore.getState().markAllRead()
       toast.success("Todas as notificações marcadas como lidas")
       refresh()
     }
