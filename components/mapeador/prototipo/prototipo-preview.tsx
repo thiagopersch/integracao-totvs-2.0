@@ -619,7 +619,7 @@ export function PrototipoPreview({
       <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
         <div className="p-topbar">
           {logoUrl ? (
-            <img src={logoUrl} alt="Logo" className="h-8" />
+            <img loading="lazy" decoding="async" src={logoUrl} alt="Logo" className="h-8" />
           ) : (
             <EditableText id="brand.fallback" value={t("brand.fallback", "EXEMPLO")} editing={editingTextos} onChange={onTextoChange} className="p-brand" />
           )}
@@ -682,7 +682,7 @@ export function PrototipoPreview({
       <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
         <div className="p-topbar">
           {logoUrl ? (
-            <img src={logoUrl} alt="Logo" className="h-8" />
+            <img loading="lazy" decoding="async" src={logoUrl} alt="Logo" className="h-8" />
           ) : (
             <EditableText id="brand.fallback" value={t("brand.fallback", "EXEMPLO")} editing={editingTextos} onChange={onTextoChange} className="p-brand" />
           )}
@@ -790,7 +790,7 @@ export function PrototipoPreview({
     <div ref={formRootRef} className="flex min-h-0 flex-1 flex-col overflow-y-auto">
       <div className="p-topbar">
         {logoUrl ? (
-          <img src={logoUrl} alt="Logo" className="h-8" />
+          <img loading="lazy" decoding="async" src={logoUrl} alt="Logo" className="h-8" />
         ) : (
           <EditableText id="brand.fallback" value={t("brand.fallback", "EXEMPLO")} editing={editingTextos} onChange={onTextoChange} className="p-brand" />
         )}

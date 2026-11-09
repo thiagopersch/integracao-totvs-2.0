@@ -20,10 +20,20 @@ const SECURITY_HEADERS = [
 
 const nextConfig: NextConfig = {
   cacheComponents: true,
+  // next/image serves AVIF (WebP fallback), resized per `sizes`, lazy-loaded off-screen and cached
+  // at the CDN/browser for a year (uploads are content-addressed, so a changed image has a new URL).
+  images: {
+    formats: ["image/avif", "image/webp"],
+    remotePatterns: [{ protocol: "https", hostname: "*.public.blob.vercel-storage.com" }],
+    localPatterns: [{ pathname: "/storage/**" }, { pathname: "/uploads/**" }],
+    minimumCacheTTL: 31536000,
+  },
   experimental: {
     serverActions: {
       bodySizeLimit: "10mb",
     },
+    // @mui/material and lucide-react are optimized by default; the MUI X packages are not.
+    optimizePackageImports: ["@mui/x-date-pickers", "@mui/x-charts"],
   },
   async headers() {
     return [{ source: "/:path*", headers: SECURITY_HEADERS }];

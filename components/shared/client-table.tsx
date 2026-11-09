@@ -1,6 +1,7 @@
 "use client"
 
 import { createClient, deleteClient, restoreClient, updateClient, bulkDeleteClients, setClientStatus } from "@/actions/admin/clients"
+import Image from "next/image"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
 import { DataTable } from "@/components/shared/data-table"
 import { DataTableFilterPanel } from "@/components/shared/data-table-filter-panel"
@@ -179,17 +180,18 @@ export function ClientTable({ data, meta }: ClientTableProps) {
           <Tooltip>
             <TooltipTrigger
               render={
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
+                <Image
                   src={image}
                   alt={row.original.name}
+                  width={40}
+                  height={40}
+                  sizes="40px"
                   className="h-10 w-10 rounded-md border border-input bg-muted/30 object-contain p-1"
                 />
               }
             />
             <TooltipContent variant="surface" side="right" className="max-w-none p-2">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={image} alt={row.original.name} className="h-48 w-48 rounded-md object-contain" />
+              <Image src={image} alt={row.original.name} width={192} height={192} sizes="192px" className="h-48 w-48 rounded-md object-contain" />
             </TooltipContent>
           </Tooltip>
         )

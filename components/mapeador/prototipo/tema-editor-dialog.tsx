@@ -148,8 +148,8 @@ export function TemaEditorDialog({ open, onOpenChange, tema, onSaved }: TemaEdit
               {config.clienteId && (
                 <div className="mt-2 flex items-center gap-3 rounded-md border p-2">
                   <span className="h-6 w-6 shrink-0 rounded border" style={{ backgroundColor: config.corMarca }} />
-                  {config.logoUrl && <img src={config.logoUrl} alt="Logo do cliente" className="h-8 w-auto" />}
-                  {config.bgImageUrl && <img src={config.bgImageUrl} alt="Imagem de fundo do cliente" className="h-8 w-14 rounded object-cover" />}
+                  {config.logoUrl && <img loading="lazy" decoding="async" src={config.logoUrl} alt="Logo do cliente" className="h-8 w-auto" />}
+                  {config.bgImageUrl && <img loading="lazy" decoding="async" src={config.bgImageUrl} alt="Imagem de fundo do cliente" className="h-8 w-14 rounded object-cover" />}
                   <span className="text-xs text-muted-foreground">Cor, logo e imagem de fundo herdados do cliente selecionado.</span>
                 </div>
               )}
