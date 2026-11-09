@@ -3,16 +3,21 @@
 import { Fragment, useMemo, useState } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
+import Box from "@mui/material/Box"
+import Collapse from "@mui/material/Collapse"
+import Divider from "@mui/material/Divider"
+import List from "@mui/material/List"
+import ListItemButton from "@mui/material/ListItemButton"
+import ListItemIcon from "@mui/material/ListItemIcon"
+import ListItemText from "@mui/material/ListItemText"
+import ListSubheader from "@mui/material/ListSubheader"
+import Menu from "@mui/material/Menu"
+import MenuItem from "@mui/material/MenuItem"
+import Tooltip from "@mui/material/Tooltip"
 import { ChevronDown, ChevronLeft, ChevronRight, Radio, Settings } from "lucide-react"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { ScrollArea } from "@/components/ui/scroll-area"
 import { Button } from "@/components/ui/button"
 import { NAV_ICONS } from "@/lib/nav-icons"
-import { findNavItemByPathname, navGroups, type NavGroup } from "@/lib/nav-items"
-import { hasPermission } from "@/lib/permissions"
-import { usePermissions } from "@/hooks/use-permissions"
-import { useSidebarStore } from "@/store/sidebar.store"
-import { cn } from "@/utils/cn"
+import { findNavItemByPathname, type NavGroup } from "@/lib/nav-items"
 
 function isItemActive(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(href + "/")
@@ -22,211 +27,177 @@ function isGroupActive(pathname: string, group: NavGroup) {
   return group.items.some((item) => isItemActive(pathname, item.href))
 }
 
-function visibleGroups(permissions: string[]): NavGroup[] {
-  return navGroups
-    .filter((g) => g.label !== "Conta")
-    .map((group) => ({
-      ...group,
-      items: group.items.filter((item) => !item.resource || hasPermission(permissions, item.resource, item.action ?? "read")),
-    }))
-    .filter((group) => group.items.length > 0)
-}
+const itemSx = {
+  borderRadius: 2,
+  py: 0.75,
+  px: 1.5,
+  color: "text.secondary",
+  "&.Mui-selected, &.Mui-selected:hover": { bgcolor: "primary.main", color: "primary.contrastText" },
+  "&.Mui-selected .MuiListItemIcon-root": { color: "primary.contrastText" },
+} as const
 
-export function DashboardSidebar() {
+const iconSx = { minWidth: 0, mr: 1.5, color: "inherit", "& svg": { width: 16, height: 16 } } as const
+
+/**
+ * Sidebar navigation. `groups` arrive already filtered by permission from the server layout,
+ * so the menu is complete on the first paint (no wait for the client session).
+ */
+export function DashboardSidebar({
+  groups,
+  collapsed,
+  onToggle,
+}: {
+  groups: NavGroup[]
+  collapsed: boolean
+  onToggle: () => void
+}) {
   const pathname = usePathname()
-  const permissions = usePermissions()
-  const sidebarGroups = useMemo(() => visibleGroups(permissions), [permissions])
   const activeGroupLabel = useMemo(
-    () => (path: string) => sidebarGroups.find((g) => isGroupActive(path, g))?.label ?? null,
-    [sidebarGroups]
+    () => (path: string) => groups.find((g) => isGroupActive(path, g))?.label ?? null,
+    [groups]
   )
-  const collapsed = useSidebarStore((state) => state.collapsed)
-  const toggle = useSidebarStore((state) => state.toggle)
   const [openGroup, setOpenGroup] = useState<string | null>(() => activeGroupLabel(pathname))
   const [lastPathname, setLastPathname] = useState(pathname)
+  const [flyout, setFlyout] = useState<{ label: string; anchor: HTMLElement } | null>(null)
 
-  // Only one collapse may be open at a time; navigating always re-syncs the
-  // open group to whichever one contains the active route.
+  // Only one group is open at a time; navigating re-syncs it to the group of the active route.
   if (pathname !== lastPathname) {
     setLastPathname(pathname)
     setOpenGroup(activeGroupLabel(pathname))
-  }
-
-  function toggleGroup(label: string) {
-    setOpenGroup((prev) => (prev === label ? null : label))
+    setFlyout(null)
   }
 
   // Only the most specific match is active — /projetos/gestao/campos highlights "Propriedades",
   // not also its parent route "Gestão de Projetos".
   const activeHref = findNavItemByPathname(pathname)?.href
-  function itemActive(href: string) {
-    return activeHref ? activeHref === href : isItemActive(pathname, href)
-  }
+  const itemActive = (href: string) => (activeHref ? activeHref === href : isItemActive(pathname, href))
 
-  function groupActive(group: NavGroup) {
-    return isGroupActive(pathname, group)
+  function renderLink(href: string, label: string, icon: string, nested = false) {
+    const Icon = NAV_ICONS[icon] ?? Settings
+    const link = (
+      <ListItemButton
+        key={href}
+        component={Link}
+        href={href}
+        selected={itemActive(href)}
+        sx={{ ...itemSx, justifyContent: collapsed && !nested ? "center" : "flex-start", px: collapsed && !nested ? 1 : 1.5 }}
+      >
+        <ListItemIcon sx={{ ...iconSx, mr: collapsed && !nested ? 0 : 1.5 }}>
+          <Icon />
+        </ListItemIcon>
+        {(!collapsed || nested) && <ListItemText primary={label} slotProps={{ primary: { sx: { fontSize: 14 } } }} />}
+      </ListItemButton>
+    )
+    return collapsed && !nested ? (
+      <Tooltip key={href} title={label} placement="right">
+        {link}
+      </Tooltip>
+    ) : (
+      link
+    )
   }
 
   function renderGroup(group: NavGroup) {
-    const GroupIcon = NAV_ICONS[group.icon] ?? Settings
-
-    // Single-item groups render as a plain link — no point collapsing one route —
-    // unless the group opts into always showing as a collapsible section (forceCollapsible).
+    // Single-item groups render as a plain link unless the group opts into a collapsible section.
     if (group.items.length === 1 && !group.forceCollapsible) {
       const item = group.items[0]
-      const ItemIcon = NAV_ICONS[item.icon] ?? Settings
-      const active = itemActive(item.href)
-      return (
-        <Link
-          key={item.href}
-          href={item.href}
-          className={cn(
-            "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors",
-            active
-              ? "bg-primary text-primary-foreground"
-              : "hover:bg-accent hover:text-accent-foreground text-muted-foreground",
-            collapsed && "justify-center px-2"
-          )}
-          title={collapsed ? item.label : undefined}
-        >
-          <ItemIcon className="h-4 w-4 shrink-0" />
-          {!collapsed && <span>{item.label}</span>}
-        </Link>
-      )
+      return renderLink(item.href, item.label, item.icon)
     }
 
-    // Collapsed sidebar: show one icon per group, click opens a popover with its routes.
+    const GroupIcon = NAV_ICONS[group.icon] ?? Settings
+    const active = isGroupActive(pathname, group)
+
+    // Collapsed sidebar: one icon per group; click opens a flyout menu with its routes.
     if (collapsed) {
-      const active = groupActive(group)
       return (
-        <Popover key={group.label}>
-          <PopoverTrigger
-            className={cn(
-              "flex w-full items-center justify-center rounded-lg px-2 py-2 text-sm transition-colors cursor-pointer",
-              active
-                ? "bg-primary text-primary-foreground"
-                : "hover:bg-accent hover:text-accent-foreground text-muted-foreground"
-            )}
-            title={group.label}
+        <Tooltip key={group.label} title={group.label} placement="right">
+          <ListItemButton
+            selected={active}
+            onClick={(event) => setFlyout({ label: group.label, anchor: event.currentTarget })}
+            sx={{ ...itemSx, justifyContent: "center", px: 1 }}
+            aria-haspopup="menu"
           >
-            <GroupIcon className="h-4 w-4 shrink-0" />
-          </PopoverTrigger>
-          <PopoverContent side="right" align="start" className="w-56 p-1">
-            <p className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">{group.label}</p>
-            {group.items.map((item) => {
-              const ItemIcon = NAV_ICONS[item.icon] ?? Settings
-              const active = itemActive(item.href)
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={cn(
-                    "flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors",
-                    active
-                      ? "bg-primary text-primary-foreground"
-                      : "hover:bg-accent hover:text-accent-foreground"
-                  )}
-                >
-                  <ItemIcon className="h-4 w-4 shrink-0" />
-                  {item.label}
-                </Link>
-              )
-            })}
-          </PopoverContent>
-        </Popover>
+            <ListItemIcon sx={{ ...iconSx, mr: 0 }}>
+              <GroupIcon />
+            </ListItemIcon>
+          </ListItemButton>
+        </Tooltip>
       )
     }
 
-    // Expanded sidebar: collapsible (accordion) section per group — only one open at a time.
     const isOpen = openGroup === group.label
     return (
-      <div key={group.label}>
-        <button
-          type="button"
-          onClick={() => toggleGroup(group.label)}
-          className={cn(
-            "flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors cursor-pointer",
-            "hover:bg-accent hover:text-accent-foreground text-muted-foreground"
-          )}
-        >
-          <GroupIcon className="h-4 w-4 shrink-0" />
-          <span className="flex-1 text-left font-medium">{group.label}</span>
-          <ChevronDown className={cn("h-4 w-4 shrink-0 transition-transform", isOpen && "rotate-180")} />
-        </button>
-        {isOpen && (
-          <div className="mt-1 space-y-1 border-l border-border/60 pl-4">
-            {group.items.map((item) => {
-              const ItemIcon = NAV_ICONS[item.icon] ?? Settings
-              const active = itemActive(item.href)
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={cn(
-                    "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors",
-                    active
-                      ? "bg-primary text-primary-foreground"
-                      : "hover:bg-accent hover:text-accent-foreground text-muted-foreground"
-                  )}
-                >
-                  <ItemIcon className="h-4 w-4 shrink-0" />
-                  <span>{item.label}</span>
-                </Link>
-              )
-            })}
-          </div>
-        )}
-      </div>
+      <Fragment key={group.label}>
+        <ListItemButton onClick={() => setOpenGroup((prev) => (prev === group.label ? null : group.label))} sx={itemSx} aria-expanded={isOpen}>
+          <ListItemIcon sx={iconSx}>
+            <GroupIcon />
+          </ListItemIcon>
+          <ListItemText primary={group.label} slotProps={{ primary: { sx: { fontSize: 14, fontWeight: 500 } } }} />
+          <ChevronDown className={`size-4 shrink-0 transition-transform ${isOpen ? "rotate-180" : ""}`} />
+        </ListItemButton>
+        <Collapse in={isOpen} timeout="auto" unmountOnExit>
+          <List disablePadding sx={{ ml: 2, pl: 1, borderLeft: 1, borderColor: "divider", display: "grid", gap: 0.5, mt: 0.5 }}>
+            {group.items.map((item) => renderLink(item.href, item.label, item.icon, true))}
+          </List>
+        </Collapse>
+      </Fragment>
     )
   }
 
-  /** Section heading (a divider when the sidebar is collapsed) where a new section starts. */
-  function renderSectionHeading(group: NavGroup, index: number) {
-    const section = group.section
-    if (!section || section === sidebarGroups[index - 1]?.section) return null
-    if (collapsed) return <div className="mx-2 my-2 border-t border-border/60" aria-hidden />
-    return (
-      <p className="px-3 pt-4 pb-1 text-[10px] font-semibold tracking-wider text-muted-foreground/70 uppercase">{section}</p>
-    )
-  }
+  const flyoutGroup = flyout ? groups.find((g) => g.label === flyout.label) : undefined
 
   return (
-    <div className="flex flex-col h-full">
-      <div className={cn("p-4 border-b", collapsed ? "flex justify-center" : "")}>
+    <Box sx={{ display: "flex", flexDirection: "column", height: "100%" }}>
+      <Box sx={{ p: 2, borderBottom: 1, borderColor: "divider", display: "flex", justifyContent: collapsed ? "center" : "flex-start", minHeight: 61, alignItems: "center" }}>
         {collapsed ? (
-          <Radio className="h-6 w-6 text-primary" />
+          <Radio className="size-6 text-primary" />
         ) : (
-          <h2 className="font-(family-name:--font-orbitron) text-lg font-bold tracking-wider text-primary">
-            PerschTech
-          </h2>
+          <h2 className="font-(family-name:--font-orbitron) text-lg font-bold tracking-wider text-primary">PerschTech</h2>
         )}
-      </div>
-      <ScrollArea className="flex-1 min-h-0 px-2 py-2">
-        <nav className="space-y-1">
-          {sidebarGroups.map((group, index) => (
-            <Fragment key={group.label}>
-              {renderSectionHeading(group, index)}
-              {renderGroup(group)}
-            </Fragment>
-          ))}
-        </nav>
-      </ScrollArea>
-      <div className={cn("p-3 border-t space-y-2", collapsed && "flex flex-col items-center")}>
-        <Button
-          variant="ghost"
-          size="sm"
-          className={cn("w-full justify-start", collapsed && "justify-center")}
-          onClick={toggle}
-        >
-          {collapsed ? (
-            <ChevronRight className="h-4 w-4" />
-          ) : (
-            <>
-              <ChevronLeft className="h-4 w-4 mr-2" /> Recolher
-            </>
-          )}
+      </Box>
+      <Box component="nav" sx={{ flex: 1, minHeight: 0, overflowY: "auto", px: 1, py: 1 }}>
+        <List disablePadding sx={{ display: "grid", gap: 0.5 }}>
+          {groups.map((group, index) => {
+            const startsSection = group.section && group.section !== groups[index - 1]?.section
+            return (
+              <Fragment key={group.label}>
+                {startsSection &&
+                  (collapsed ? (
+                    <Divider sx={{ my: 1, mx: 1 }} />
+                  ) : (
+                    <ListSubheader disableSticky sx={{ bgcolor: "transparent", lineHeight: "28px", pt: 1.5, fontSize: 10, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase" }}>
+                      {group.section}
+                    </ListSubheader>
+                  ))}
+                {renderGroup(group)}
+              </Fragment>
+            )
+          })}
+        </List>
+      </Box>
+      <Box sx={{ p: 1.5, borderTop: 1, borderColor: "divider" }}>
+        <Button variant="ghost" size="sm" className={collapsed ? "w-full justify-center" : "w-full justify-start"} onClick={onToggle} aria-label={collapsed ? "Expandir menu" : "Recolher menu"}>
+          {collapsed ? <ChevronRight /> : (<><ChevronLeft /> Recolher</>)}
         </Button>
-      </div>
-    </div>
+      </Box>
+      <Menu
+        open={Boolean(flyoutGroup)}
+        anchorEl={flyout?.anchor}
+        onClose={() => setFlyout(null)}
+        anchorOrigin={{ vertical: "top", horizontal: "right" }}
+        transformOrigin={{ vertical: "top", horizontal: "left" }}
+        slotProps={{ list: { dense: true, subheader: <ListSubheader sx={{ lineHeight: "32px", fontSize: 12 }}>{flyoutGroup?.label}</ListSubheader> } }}
+      >
+        {flyoutGroup?.items.map((item) => {
+          const Icon = NAV_ICONS[item.icon] ?? Settings
+          return (
+            <MenuItem key={item.href} component={Link} href={item.href} selected={itemActive(item.href)} sx={{ gap: 1.5, minWidth: 200 }}>
+              <Icon className="size-4" />
+              {item.label}
+            </MenuItem>
+          )
+        })}
+      </Menu>
+    </Box>
   )
 }

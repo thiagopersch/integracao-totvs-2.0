@@ -206,3 +206,14 @@ export function getFirstAllowedRoute(permissions: string[]): string {
   const allowed = flattenNavItems().find((item) => !item.resource || hasPermission(permissions, item.resource, item.action || "read"));
   return allowed?.href ?? "/dashboard";
 }
+
+/** Sidebar groups the user may see ("Conta" lives in the avatar menu). Runs on the server layout. */
+export function visibleNavGroups(permissions: string[]): NavGroup[] {
+  return navGroups
+    .filter((g) => g.label !== "Conta")
+    .map((group) => ({
+      ...group,
+      items: group.items.filter((item) => !item.resource || hasPermission(permissions, item.resource, item.action ?? "read")),
+    }))
+    .filter((group) => group.items.length > 0);
+}
