@@ -1,5 +1,5 @@
 import { ApiError, FinishReason, FunctionCallingConfigMode, GoogleGenAI } from "@google/genai"
-import type { AiChatMessage, AiClientConfig, AiToolCallResult, AiToolDefinition } from "./types"
+import type { AiChatMessage, AiClientConfig, AiDeltaHandler, AiToolCallResult, AiToolDefinition } from "./types"
 
 /** Google Gemini with one function declared from the same JSON Schema used by the other providers.
  *  Function calling runs in ANY mode (Gemini supports forcing it), so the answer is always a call. */
@@ -8,7 +8,8 @@ export async function geminiToolCall(
   system: string,
   messages: AiChatMessage[],
   tool: AiToolDefinition,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  onDelta?: AiDeltaHandler
 ): Promise<AiToolCallResult> {
   const ai = new GoogleGenAI({ apiKey: config.apiKey })
   try {
@@ -44,6 +45,8 @@ export async function geminiToolCall(
     }
 
     const call = response.functionCalls?.find((c) => c.name === tool.name)
+    // Gemini returns function-call arguments in one piece (no partial JSON to stream).
+    if (onDelta && call?.args) onDelta(JSON.stringify(call.args))
     // `.text` concatenates text parts only; read it only when there's no call (avoids SDK warnings on mixed parts).
     return { toolInput: call?.args ?? null, text: call ? "" : (response.text ?? "").trim() }
   } catch (error) {

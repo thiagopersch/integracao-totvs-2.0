@@ -33,6 +33,9 @@ export interface AiToolDefinition {
   parameters: Record<string, unknown>;
 }
 
+/** Receives each new fragment of the tool-call JSON as the model writes it (token-by-token UI). */
+export type AiDeltaHandler = (jsonFragment: string) => void;
+
 export interface AiToolCallResult {
   /** Parsed arguments of the tool call — null when the model answered in text only. */
   toolInput: unknown | null;

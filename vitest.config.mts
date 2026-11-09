@@ -8,6 +8,7 @@ export default defineConfig({
   },
   test: {
     include: ["**/*.test.ts", "**/*.test.tsx"],
-    exclude: ["node_modules/**", ".next/**", "generated/**"],
+    // .claude/worktrees holds other sessions' checkouts (with their own node_modules).
+    exclude: ["**/node_modules/**", ".next/**", "generated/**", ".claude/**"],
   },
 })

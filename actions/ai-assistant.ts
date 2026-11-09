@@ -121,7 +121,8 @@ export async function getAiAssistantData() {
  * Sends the conversation to the configured AI and returns records to preview. Nothing is written:
  * the user confirms each proposal, which goes through the entity's regular create action.
  */
-export async function proposeRecordsWithAi(messages: unknown) {
+/** `onDelta` is only passed by the streaming route (app/api/ai-assistant/propose); a client can't send a function. */
+export async function proposeRecordsWithAi(messages: unknown, onDelta?: (jsonFragment: string) => void) {
   const ctx = await getRequestContext();
   const entities = creatableEntities(ctx);
   if (!entities.length) return { success: false as const, error: "Você não tem permissão para criar cadastros" };
@@ -140,6 +141,7 @@ export async function proposeRecordsWithAi(messages: unknown) {
       catalogs,
       defaultAnalystId: analystScope ?? myAnalystId,
       analystScope,
+      onDelta: typeof onDelta === "function" ? onDelta : undefined,
     });
     return { success: true as const, ...result };
   } catch (error) {

@@ -23,28 +23,63 @@ import {
 import type { AiChatMessage } from "@/lib/ai/types"
 import { createRecord } from "./create-record"
 import { ProposalCard, type ProposalState } from "./proposal-card"
+import { parsePartialJson } from "@/lib/ai/partial-json"
 import { ConversationHistory } from "./conversation-history"
 
 type ProposeResult = Awaited<ReturnType<typeof proposeRecordsWithAi>>
 
+/** What the model has written so far, shown while it streams. */
+type StreamPreview = { reply: string; records: number }
+
 /** Calls the assistant route (not a Server Action: a large batch outlives the page's action timeout).
+ *  The route streams NDJSON: tool-call JSON fragments as the model writes them (`onPreview` gets the
+ *  partially parsed reply and record count, token by token), then the validated result.
  *  Never throws — network failures and gateway timeouts come back as an error result. */
-async function requestProposals(messages: AiChatMessage[]): Promise<ProposeResult> {
+async function requestProposals(messages: AiChatMessage[], onPreview: (preview: StreamPreview) => void): Promise<ProposeResult> {
   try {
     const response = await fetch("/api/ai-assistant/propose", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ messages }),
     })
-    const data = (await response.json().catch(() => null)) as ProposeResult | null
-    if (data) return data
-    return {
-      success: false,
-      error:
-        response.status === 504
-          ? "A IA demorou demais para responder. Tente pedir menos registros por vez."
-          : `Erro ao falar com o assistente (${response.status})`,
+    if (!response.ok || !response.body) {
+      return {
+        success: false,
+        error:
+          response.status === 504
+            ? "A IA demorou demais para responder. Tente pedir menos registros por vez."
+            : `Erro ao falar com o assistente (${response.status})`,
+      }
     }
+    const reader = response.body.pipeThrough(new TextDecoderStream()).getReader()
+    let buffer = ""
+    let json = ""
+    let lastPreview = 0
+    for (;;) {
+      const { value, done } = await reader.read()
+      if (done) break
+      buffer += value
+      let newline: number
+      while ((newline = buffer.indexOf("\n")) >= 0) {
+        const line = buffer.slice(0, newline).trim()
+        buffer = buffer.slice(newline + 1)
+        if (!line) continue
+        const event = JSON.parse(line) as { type: "delta"; chunk: string } | { type: "done"; result: ProposeResult }
+        if (event.type === "done") return event.result
+        json += event.chunk
+        // Re-parse at most ~12×/s: enough for a fluid preview without parsing on every token.
+        const now = Date.now()
+        if (now - lastPreview > 80) {
+          lastPreview = now
+          const partial = parsePartialJson(json) as { reply?: unknown; records?: unknown } | undefined
+          onPreview({
+            reply: typeof partial?.reply === "string" ? partial.reply : "",
+            records: Array.isArray(partial?.records) ? partial.records.length : 0,
+          })
+        }
+      }
+    }
+    return { success: false, error: "A resposta do assistente foi interrompida — tente novamente" }
   } catch {
     return { success: false, error: "Falha de conexão com o assistente — tente novamente" }
   }
@@ -105,6 +140,7 @@ export function AiAssistant({ onCreated }: AiAssistantProps) {
   const [chat, setChat] = useState<ChatEntry[]>([])
   const [proposals, setProposals] = useState<ProposalState[]>([])
   const [thinking, setThinking] = useState(false)
+  const [preview, setPreview] = useState<StreamPreview | null>(null)
   const [confirmingAll, setConfirmingAll] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
   // confirm() runs in a loop ("Confirmar todos"): read the latest state, not the render's closure.
@@ -195,10 +231,14 @@ export function AiAssistant({ onCreated }: AiAssistantProps) {
     setThinking(true)
     const request = ++requestRef.current
     const history: AiChatMessage[] = nextChat.map((m) => ({ role: m.role, content: m.content }))
-    const result = await requestProposals(history)
+    setPreview(null)
+    const result = await requestProposals(history, (next) => {
+      if (request === requestRef.current) setPreview(next)
+    })
     // The user left (or started another conversation) while it was thinking: drop the answer.
     if (request !== requestRef.current) return
     setThinking(false)
+    setPreview(null)
     if (!result.success) {
       toast.error(result.error)
       setChatNow([...chatRef.current, { role: "assistant", display: `⚠️ ${result.error}`, content: "Não foi possível processar o pedido." }])
@@ -468,8 +508,14 @@ export function AiAssistant({ onCreated }: AiAssistantProps) {
               </div>
             ))}
             {thinking && (
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <Loader2 className="h-3.5 w-3.5 animate-spin" /> Pensando...
+              <div className="space-y-1 text-xs text-muted-foreground" aria-live="polite">
+                {preview?.reply ? (
+                  <p className="rounded-lg bg-muted px-3 py-2 text-sm whitespace-pre-wrap text-foreground">{preview.reply}<span className="ml-0.5 inline-block h-3.5 w-1.5 animate-pulse bg-foreground/60 align-middle" /></p>
+                ) : null}
+                <div className="flex items-center gap-2">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  {preview?.records ? `Montando ${preview.records} registro(s)...` : preview?.reply ? "Escrevendo..." : "Pensando..."}
+                </div>
               </div>
             )}
 

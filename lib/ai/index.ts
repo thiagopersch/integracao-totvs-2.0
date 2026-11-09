@@ -1,7 +1,7 @@
 import { anthropicToolCall } from "./anthropic";
 import { openaiToolCall } from "./openai";
 import { geminiToolCall } from "./gemini";
-import type { AiChatMessage, AiClientConfig, AiToolCallResult, AiToolDefinition } from "./types";
+import type { AiChatMessage, AiClientConfig, AiDeltaHandler, AiToolCallResult, AiToolDefinition } from "./types";
 
 /** Provider-agnostic single tool call — the provider/model/key/timeout come from AiSettings
  *  (/integrations/ai). Gives up after `timeoutSeconds` with a message instead of a gateway timeout. */
@@ -9,17 +9,19 @@ export async function runAiToolCall(
   config: AiClientConfig,
   system: string,
   messages: AiChatMessage[],
-  tool: AiToolDefinition
+  tool: AiToolDefinition,
+  /** When given, the provider streams and reports the tool-call JSON as it is generated. */
+  onDelta?: AiDeltaHandler
 ): Promise<AiToolCallResult> {
   const signal = AbortSignal.timeout(config.timeoutSeconds * 1000);
   try {
     switch (config.provider) {
       case "OPENAI":
-        return await openaiToolCall(config, system, messages, tool, signal);
+        return await openaiToolCall(config, system, messages, tool, signal, onDelta);
       case "GEMINI":
-        return await geminiToolCall(config, system, messages, tool, signal);
+        return await geminiToolCall(config, system, messages, tool, signal, onDelta);
       default:
-        return await anthropicToolCall(config, system, messages, tool, signal);
+        return await anthropicToolCall(config, system, messages, tool, signal, onDelta);
     }
   } catch (error) {
     // Each SDK wraps the abort differently; the signal is the one reliable witness.
