@@ -12,7 +12,7 @@ const MAX_SIZE_BY_KIND = {
 const ALLOWED_TYPES = ["image/png", "image/jpeg", "image/webp", "image/svg+xml", "image/gif"];
 
 export async function uploadMapeadorImagem(formData: FormData) {
-  await requirePermission("mapeador_projetos", "update");
+  const { organizationId } = await requirePermission("mapeador_projetos", "update");
 
   const file = formData.get("file");
   if (!(file instanceof File)) {
@@ -30,7 +30,7 @@ export async function uploadMapeadorImagem(formData: FormData) {
   try {
     const ext = path.extname(file.name) || ".png";
     const fileName = `${randomUUID()}${ext}`;
-    const url = await storeUploadedFile(file, `mapeador/${kind}/${fileName}`);
+    const url = await storeUploadedFile(file, `mapeador/${kind}/${fileName}`, { organizationId });
 
     return { success: true as const, url };
   } catch (error) {
