@@ -33,16 +33,17 @@ export async function POST(request: NextRequest) {
 
     // Never trust a client-supplied method/wsName string: always resolve them from what's
     // actually registered (and active) in /admin/soap-endpoints for the given ids.
-    const endpointType = await soapEndpointService.getActiveTypeById(endpointTypeId);
-    const endpointMethod = await soapEndpointService.getActiveMethodById(methodId);
+    const [endpointType, endpointMethod, tbc] = await Promise.all([
+      soapEndpointService.getActiveTypeById(endpointTypeId),
+      soapEndpointService.getActiveMethodById(methodId),
+      tbcService.getCredentialsForRequest(tbcId, organizationId, allowedClientIds),
+    ]);
     if (endpointMethod.endpointTypeId !== endpointType.id) {
       return NextResponse.json(
         { error: "O método selecionado não pertence ao tipo de endpoint selecionado" },
         { status: 400 }
       );
     }
-
-    const tbc = await tbcService.getCredentialsForRequest(tbcId, organizationId, allowedClientIds);
 
     const result = await soapService.execute(
       {

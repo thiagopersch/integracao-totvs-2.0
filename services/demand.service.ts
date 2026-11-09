@@ -390,16 +390,21 @@ export const demandService = {
       return rows.map((r) => (r as unknown as Record<string, string | null>)[field]).filter((v): v is string => !!v);
     };
 
-    const projectRows = await prisma.demand.groupBy({ by: ["projectId"], where: { ...where, projectId: { not: null } } });
-    const projects = projectRows.length
-      ? await prisma.project.findMany({
-          where: { id: { in: projectRows.map((r) => r.projectId!) } },
-          select: { id: true, code: true, name: true, color: true },
-          orderBy: { name: "asc" },
-        })
-      : [];
-    const [clientIds, analystIds, requesterIds, departmentIds, demandTypeIds, tagRows, priorityRows, statusRows, maxDuration] =
+    // Projects resolve in their own chain, alongside the other distinct-value queries.
+    const projectsPromise = prisma.demand
+      .groupBy({ by: ["projectId"], where: { ...where, projectId: { not: null } } })
+      .then((projectRows) =>
+        projectRows.length
+          ? prisma.project.findMany({
+              where: { id: { in: projectRows.map((r) => r.projectId!) } },
+              select: { id: true, code: true, name: true, color: true },
+              orderBy: { name: "asc" },
+            })
+          : []
+      );
+    const [projects, clientIds, analystIds, requesterIds, departmentIds, demandTypeIds, tagRows, priorityRows, statusRows, maxDuration] =
       await Promise.all([
+        projectsPromise,
         distinctIds("clientId"),
         prisma.demandAnalyst.groupBy({ by: ["analystId"], where: { demand: where } }).then((rows) => rows.map((r) => r.analystId)),
         prisma.demandRequester.groupBy({ by: ["requesterId"], where: { demand: where } }).then((rows) => rows.map((r) => r.requesterId)),

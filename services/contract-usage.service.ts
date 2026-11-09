@@ -81,19 +81,21 @@ async function getMonthlyUsage(organizationId: string, month: Month, clientIds?:
   if (contracts.length === 0) return [];
 
   const contractClientIds = [...new Set(contracts.map((c) => c.clientId))];
-  const minutesByClient = await prisma.demand.groupBy({
-    by: ["clientId"],
-    where: { deletedAt: null, organizationId, clientId: { in: contractClientIds }, date: range },
-    _sum: { durationMinutes: true },
-    _count: { _all: true },
-  });
-  // Demands linked to a project (Gestão de Projetos) are already in the totals above — this only
-  // breaks that share out for display ("Avulsas Xh · Projetos Yh"), never adds to it.
-  const projectMinutesByClient = await prisma.demand.groupBy({
-    by: ["clientId"],
-    where: { deletedAt: null, organizationId, clientId: { in: contractClientIds }, date: range, projectId: { not: null } },
-    _sum: { durationMinutes: true },
-  });
+  // Demands linked to a project (Gestão de Projetos) are already in the totals — the second query
+  // only breaks that share out for display ("Avulsas Xh · Projetos Yh"), never adds to it.
+  const [minutesByClient, projectMinutesByClient] = await Promise.all([
+    prisma.demand.groupBy({
+      by: ["clientId"],
+      where: { deletedAt: null, organizationId, clientId: { in: contractClientIds }, date: range },
+      _sum: { durationMinutes: true },
+      _count: { _all: true },
+    }),
+    prisma.demand.groupBy({
+      by: ["clientId"],
+      where: { deletedAt: null, organizationId, clientId: { in: contractClientIds }, date: range, projectId: { not: null } },
+      _sum: { durationMinutes: true },
+    }),
+  ]);
   const minutesByClientId = sumMinutesByClient(
     minutesByClient.map((d) => ({ clientId: d.clientId, minutes: d._sum.durationMinutes || 0 })),
     projectMinutesByClient.map((d) => ({ clientId: d.clientId, minutes: d._sum.durationMinutes || 0 }))
