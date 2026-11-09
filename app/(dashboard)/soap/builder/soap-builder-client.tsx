@@ -45,7 +45,7 @@ import {
   CircleX,
 } from "lucide-react"
 import { toast } from "@/lib/toast"
-import axios from "axios"
+import { isHttpError, postJson } from "@/lib/http"
 import { xmlToJson, jsonToXml, safeFormatXmlDeep } from "@/utils/xml"
 import { buildSoapEnvelope, escapeXml, METHOD_OPERATION } from "@/utils/soap-envelope"
 import {
@@ -439,7 +439,7 @@ export function SoapBuilderClient({
     setSentenceParams([])
     setSentenceParamValues({})
     try {
-      const res = await axios.post("/api/soap/consulta-sql/lookup-sentence", {
+      const res = await postJson("/api/soap/consulta-sql/lookup-sentence", {
         tbcId: selectedTbcId,
         codColigada: sqlCodColigada,
         codSistema: selectedSistemaCode,
@@ -463,7 +463,7 @@ export function SoapBuilderClient({
       }
     } catch (err) {
       setSentenceFound(false)
-      toast.error(axios.isAxiosError(err) ? err.response?.data?.error || err.message : (err as Error).message)
+      toast.error(isHttpError(err) ? err.response?.data?.error || err.message : (err as Error).message)
     } finally {
       setSentenceLookupLoading(false)
     }
@@ -622,7 +622,7 @@ export function SoapBuilderClient({
       setGuidedParamsLoading(true)
       try {
         const schemaXml = buildMethodTemplateXml(schemaMethodKey, typeKey, entityCode)
-        const res = await axios.post("/api/soap/execute", {
+        const res = await postJson("/api/soap/execute", {
           endpointTypeId: selectedTypeId,
           methodId: schemaMethodId,
           tbcId: selectedTbcId,
@@ -683,7 +683,7 @@ export function SoapBuilderClient({
         }
         setGuidedParamsLoadedFor(guidedParamsKey)
       } catch (err) {
-        const message = axios.isAxiosError(err) ? err.response?.data?.error || err.message : (err as Error).message
+        const message = isHttpError(err) ? err.response?.data?.error || err.message : (err as Error).message
         toast.error(`Falha ao carregar o schema (GetSchema): ${message}`, {
           description: "O TBC foi limpo — selecione-o novamente para tentar de novo.",
         })
@@ -833,7 +833,7 @@ export function SoapBuilderClient({
     setNoDataWarning(null)
 
     try {
-      const res = await axios.post("/api/soap/execute", {
+      const res = await postJson("/api/soap/execute", {
         endpointTypeId: selectedTypeId,
         methodId: selectedMethodId,
         tbcId: selectedTbcId,
@@ -900,7 +900,7 @@ export function SoapBuilderClient({
         setResponseTab("table")
       }
     } catch (err) {
-      const msg = axios.isAxiosError(err) ? err.response?.data?.error || err.message : (err as Error).message
+      const msg = isHttpError(err) ? err.response?.data?.error || err.message : (err as Error).message
       setError(msg)
       toast.error(msg)
     } finally {

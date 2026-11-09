@@ -2,7 +2,7 @@
 
 import { PendingRegion } from "@/components/shared/pending-region"
 import { useEffect, useMemo, useState } from "react"
-import axios from "axios"
+import { isHttpError, postJson } from "@/lib/http"
 import { toast } from "@/lib/toast"
 import { FileBarChart2, Loader2, Download, ListChecks } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -91,7 +91,7 @@ function sleep(ms: number) {
 }
 
 function extractErrorMessage(err: unknown): string {
-  if (axios.isAxiosError(err)) return err.response?.data?.error || err.message
+  if (isHttpError(err)) return err.response?.data?.error || err.message
   return (err as Error).message
 }
 
@@ -162,7 +162,7 @@ export function TbcReportsClient({
       // GetReportList's own codSistema field is the module's full display name ("TOTVS
       // Educacional"), not the Sistema catalog's short `code` — see tbc-report.service.ts.
       const codSistema = sistemas.find((s) => s.id === selectedSistemaId)?.externalName
-      const res = await axios.post("/api/tbc-reports/list", { tbcId: selectedTbcId, codColigada, codSistema })
+      const res = await postJson("/api/tbc-reports/list", { tbcId: selectedTbcId, codColigada, codSistema })
       setReports(res.data.reports)
       toast.success(`${res.data.reports.length} relatório(s) encontrado(s)`)
     } catch (err) {
@@ -180,7 +180,7 @@ export function TbcReportsClient({
 
     setLoading(true)
     try {
-      const res = await axios.post("/api/tbc-reports/info", {
+      const res = await postJson("/api/tbc-reports/info", {
         tbcId: selectedTbcId,
         codColigada,
         codSistema: report.codSistema,
@@ -199,7 +199,7 @@ export function TbcReportsClient({
       const remaining = budgetDeadline - Date.now()
       if (remaining <= 0) throw new Error("Orçamento de 120s excedido durante a verificação de status")
 
-      const res = await axios.post("/api/tbc-reports/status", {
+      const res = await postJson("/api/tbc-reports/status", {
         tbcId: selectedTbcId,
         guid,
         timeout: Math.min(remaining, 20_000),
@@ -233,7 +233,7 @@ export function TbcReportsClient({
       updateStep("generate", { status: "running" })
       if (remaining() <= 0) throw new Error("Orçamento de 120s excedido antes de iniciar a geração")
 
-      const genRes = await axios.post("/api/tbc-reports/generate", {
+      const genRes = await postJson("/api/tbc-reports/generate", {
         tbcId: selectedTbcId,
         codColigada,
         codSistema: selectedReport.codSistema,
@@ -262,7 +262,7 @@ export function TbcReportsClient({
       updateStep("download", { status: "running" })
       if (remaining() <= 0) throw new Error("Orçamento de 120s excedido antes do download")
 
-      const dlRes = await axios.post("/api/tbc-reports/download", {
+      const dlRes = await postJson("/api/tbc-reports/download", {
         tbcId: selectedTbcId,
         guid: finalGuid,
         fileName,

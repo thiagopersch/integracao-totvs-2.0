@@ -1,0 +1,3 @@
+/** Typography of e-mail body text (editor and previews share it). */
+export const EMAIL_TYPOGRAPHY_CLASSES =
+  "text-[15px] leading-relaxed text-neutral-900 [&_h1]:my-2 [&_h1]:text-[28px] [&_h1]:font-bold [&_h1]:leading-tight [&_h2]:my-2 [&_h2]:text-[22px] [&_h2]:font-bold [&_h2]:leading-tight [&_h3]:my-2 [&_h3]:text-[18px] [&_h3]:font-bold [&_p]:mb-3 [&_p:last-child]:mb-0 [&_ul]:mb-3 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:mb-3 [&_ol]:list-decimal [&_ol]:pl-5 [&_a]:text-blue-600 [&_a]:underline [&_blockquote]:border-l-[3px] [&_blockquote]:border-neutral-200 [&_blockquote]:pl-3 [&_blockquote]:text-neutral-600"
