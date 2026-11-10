@@ -89,12 +89,15 @@ export function tokenize(code: string, lang: CodeLang): CodeToken[] {
   const html = hljs.highlight(code, { language: lang === "html" ? "xml" : lang, ignoreIllegals: true }).value;
   const tokens: CodeToken[] = [];
   const stack: (string | undefined)[] = [];
-  const re = /<span class="hljs-([^"]*)">|<\/span>|([^<]+)/g;
+  // Any span — not just `hljs-*`: an embedded sub-language (the JS inside an HTML `<script>`) comes
+  // wrapped in `<span class="language-javascript">`, which must not leak into the text as
+  // `span class="language-javascript">` nor unbalance the stack on its `</span>`.
+  const re = /<span class="([^"]*)">|<\/span>|([^<]+)/g;
   let m: RegExpExecArray | null;
   while ((m = re.exec(html))) {
     if (m[1] !== undefined) {
-      const kind = m[1].split(" ")[0].replace(/^language-/, "");
-      stack.push(kind);
+      const cls = m[1].split(" ")[0];
+      stack.push(cls.startsWith("hljs-") ? cls.slice(5) : undefined);
     } else if (m[2] !== undefined) {
       const kind = [...stack].reverse().find((k) => k && (THEME[k] || THEME[k.split(".")[0]])) ?? stack[stack.length - 1];
       tokens.push({ text: decode(m[2]), kind });

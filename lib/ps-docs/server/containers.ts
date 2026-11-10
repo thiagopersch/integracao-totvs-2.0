@@ -2,6 +2,7 @@ import { buildIdTitleCatalog, harvestFieldLabels, parsePage, parsePopup, type Ac
 import type { ItemSpec, PaginaSpec, PopupSpec } from "@/lib/ps-docs/types";
 import { ADMIN_API } from "./process-structure";
 import { type RubeusClient } from "./rubeus-client";
+import { resolveStageRedirects } from "./stage-redirects";
 
 /** Pages and pop-ups for "Buscar elementos" — the parts the process/portal readers don't fetch:
  *  - `GET /api/pages/{id}`  -> a page's own content (same `content[]` shape as a pop-up)
@@ -46,7 +47,10 @@ async function fetchRaw(client: RubeusClient, kind: "popups" | "pages", id: numb
 
 export async function loadPopup(client: RubeusClient, id: number, baseCatalog: Map<number, string>, catalogs: ActionCatalogs, warnings: string[]): Promise<PopupSpec | undefined> {
   const raw = await fetchRaw(client, "popups", id, warnings);
-  return raw === undefined ? undefined : parsePopup(raw, undefined, catalogFor(raw, baseCatalog), catalogs);
+  if (raw === undefined) return undefined;
+  const popup = parsePopup(raw, undefined, catalogFor(raw, baseCatalog), catalogs);
+  await resolveStageRedirects(client, [popup], {}, warnings);
+  return popup;
 }
 
 /** A page with the pop-ups opened from its own buttons attached as `popupDetalhe`, mirroring
@@ -68,5 +72,6 @@ export async function loadPage(client: RubeusClient, id: number, baseCatalog: Ma
   const popupIds = [...new Set(nested.map((enc) => enc.popupId!))];
   const popups = new Map(await Promise.all(popupIds.map(async (popupId) => [popupId, await loadPopup(client, popupId, baseCatalog, catalogs, warnings)] as const)));
   for (const enc of nested) enc.popupDetalhe = popups.get(enc.popupId!);
+  await resolveStageRedirects(client, [page], {}, warnings);
   return page;
 }

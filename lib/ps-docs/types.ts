@@ -164,6 +164,10 @@ export interface EncaminhamentoSpec {
    *  by that screen after the fetch (never by the documentation pipeline). */
   paginaId?: number;
   paginaDetalhe?: PaginaSpec;
+  /** Only present for "Para outra etapa" (`redirect_type_id` 3) — the raw `stage_id`, resolved
+   *  into the etapa's name by the fetch layer (`server/stage-redirects.ts`), which rewrites
+   *  `destino`. */
+  etapaId?: number;
 }
 
 /** A pop-up's own full configuration — `GET /api/popups/{popup_id}`, per explicit instruction.
