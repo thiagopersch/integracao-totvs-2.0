@@ -3,6 +3,7 @@ import { buildIdTitleCatalog, buildFieldCatalog, formatFieldRefOptional, formatC
 import type { PortalOverviewSpec, PortalConsultaSpec, PortalIntegracaoSpec, PortalSegurancaCampoSpec, PortalGeralSpec, PortalApplymentDetailFieldSpec, PortalCampoResumo, PortalProcessRef } from "@/lib/ps-docs/types";
 import { ADMIN_API } from "./process-structure";
 import { httpError, type RubeusClient } from "./rubeus-client";
+import { resolveStageRedirects } from "./stage-redirects";
 
 /** HTTP + parse core of a whole portal, shared by the "Gerar documentação" Server Actions
  *  (`actions/integrations/ps-portal-docs.ts`, which documents the confirmed API contract) and the
@@ -107,6 +108,7 @@ export async function loadPortalOverview(client: RubeusClient, idPortal: string,
           return undefined;
         }
         const parsed = parsePopup(popupRes.data, queryRes.status < 400 ? queryRes.data : undefined, new Map(), EMPTY_CATALOGS);
+        await resolveStageRedirects(client, [parsed], {}, warnings);
         return { nome: parsed.nome, permiteFechar: parsed.permiteFechar, itens: parsed.itens, consultaSql: parsed.consultaSql };
       } catch {
         warnings.push(`Pop-up LGPD #${id}: falha ao consultar.`);

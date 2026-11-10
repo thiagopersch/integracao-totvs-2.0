@@ -13,6 +13,7 @@ import {
 } from "@/lib/ps-docs/parse-structure";
 import type { EtapaSpec } from "@/lib/ps-docs/types";
 import { httpError, type RubeusClient } from "./rubeus-client";
+import { resolveStageRedirects } from "./stage-redirects";
 
 /** HTTP + parse core of one processo seletivo, shared by the "Gerar documentação" Server Actions
  *  (`actions/integrations/ps-docs.ts`, which add the permission check and logging) and the
@@ -226,6 +227,9 @@ export async function loadStage(client: RubeusClient, idPs: string, stage: Stage
     );
     for (const enc of popupTargets) if (enc.popupId) enc.popupDetalhe = popupById.get(enc.popupId);
   }
+
+  // After the pop-ups are attached, so their own "Para outra etapa" encaminhamentos are named too.
+  await resolveStageRedirects(client, [etapa], { idPs }, warnings);
 
   return { etapa, warnings };
 }

@@ -312,8 +312,17 @@ export function formatFieldRefOptional(fieldId: unknown, fieldCatalog: Map<numbe
 function ruleToItem(rule: Raw, fieldCatalog: Map<number, string>): RegraLogicaItem {
   const campo = formatFieldRef(rule.field_compare_id, fieldCatalog);
   const regra = operatorLabel(rule.rule_logic_id);
-  const valor = OPERATORS_WITHOUT_VALUE.has(Number(rule.rule_logic_id)) || rule.fixed_value === null || rule.fixed_value === undefined || rule.fixed_value === "" ? undefined : String(rule.fixed_value);
+  const valor = OPERATORS_WITHOUT_VALUE.has(Number(rule.rule_logic_id)) || rule.fixed_value === null || rule.fixed_value === undefined || rule.fixed_value === "" ? undefined : checkboxValueLabel(rule.fixed_value);
   return { campo, regra, valor };
+}
+
+/** A checkbox field's rule compares against `true`/`false` — shown the way the builder's own
+ *  "Insira um valor" dropdown words it ("Selecionado"/"Não selecionado"). Only a checkbox compares
+ *  with a boolean in practice, so the value alone decides (the field catalog carries no type). */
+function checkboxValueLabel(value: unknown): string {
+  if (value === true || value === "true") return "Selecionado";
+  if (value === false || value === "false") return "Não selecionado";
+  return String(value);
 }
 
 /** A `logics` array is a list of conditions that are all required (AND) — confirmed by comparing
@@ -700,6 +709,7 @@ export function mapForwardData(item: Raw, fieldCatalog: Map<number, string>, cat
         // where to attach the result (`popupDetalhe`, filled in after this parse returns).
         popupId: type === 7 && fd.popup_id ? Number(fd.popup_id) : undefined,
         paginaId: type === 6 && fd.page_id ? Number(fd.page_id) : undefined,
+        etapaId: type === 3 && fd.stage_id ? Number(fd.stage_id) : undefined,
       };
     });
 }
