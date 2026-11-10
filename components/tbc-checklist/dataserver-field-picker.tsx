@@ -224,7 +224,7 @@ function PickerSectionBox({
               title={locked ? "Chave primária — sempre incluída, não é exibida no checklist" : `${section.table}.${field.name}`}
             >
               <Checkbox
-                className="mt-0.5 data-checked:border-green-600 data-checked:bg-green-600 dark:data-checked:bg-green-600"
+                className="mt-0.5 [&.Mui-checked]:text-green-600"
                 checked={checked}
                 disabled={locked}
                 onCheckedChange={(next) => onToggleFields([key], next === true)}

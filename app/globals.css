@@ -2,8 +2,6 @@
    and utilities: utilities still override MUI, preflight doesn't. */
 @layer theme, base, mui, components, utilities;
 @import "tailwindcss";
-@import "tw-animate-css";
-@import "shadcn/tailwind.css";
 
 @custom-variant dark (&:is(.dark *));
 

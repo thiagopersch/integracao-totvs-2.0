@@ -1,7 +1,7 @@
 "use client"
 
 import { useDeferredValue, useMemo, useState } from "react"
-import { Collapsible } from "@base-ui/react/collapsible"
+import { Collapsible } from "@/components/ui/collapsible"
 import { ChevronRight, Search, ListChecks, ListX, ChevronsDownUp, ChevronsUpDown } from "lucide-react"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"

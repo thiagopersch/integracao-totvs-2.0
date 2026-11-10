@@ -395,7 +395,7 @@ function RecordCards({ items }: { items: { key: string; label: ReactNode; conten
         <AccordionItem
           key={item.key}
           value={item.key}
-          className="overflow-hidden rounded-lg border bg-card shadow-sm transition-shadow last:border-b hover:shadow-md data-open:shadow-md"
+          className="overflow-hidden rounded-lg border bg-card shadow-sm transition-shadow last:border-b hover:shadow-md [&.Mui-expanded]:shadow-md"
         >
           <AccordionTrigger className="items-center rounded-none px-4 py-3 hover:bg-muted/40 hover:no-underline">{item.label}</AccordionTrigger>
           <AccordionContent className="border-t px-4 pt-1 pb-4">{item.content}</AccordionContent>
