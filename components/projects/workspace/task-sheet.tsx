@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import { toast } from "@/lib/toast"
 import {
   CalendarCheck,
@@ -96,6 +96,27 @@ type ActionResult = { success: boolean; error?: string; warning?: string }
 /** Borderless control that only shows its frame on hover/focus — the Notion property look. */
 const ghost =
   "h-8 border-transparent bg-transparent shadow-none hover:bg-muted focus-visible:bg-background dark:border-transparent dark:bg-transparent dark:hover:bg-muted"
+
+/** Panel width: dragged from its left edge. */
+const MIN_WIDTH = 480
+const DEFAULT_WIDTH = 768 // matches the previous fixed sm:max-w-3xl
+const WIDTH_STORAGE_KEY = "task-sheet-width"
+const maxWidth = () => Math.max(MIN_WIDTH, Math.floor(window.innerWidth * 0.9))
+
+function storedWidth() {
+  try {
+    const value = Number(localStorage.getItem(WIDTH_STORAGE_KEY))
+    return Number.isFinite(value) && value >= MIN_WIDTH ? value : DEFAULT_WIDTH
+  } catch {
+    return DEFAULT_WIDTH
+  }
+}
+
+/** Notion-style auto-grow: height tracks content instead of scrolling internally. */
+function autosize(el: HTMLTextAreaElement) {
+  el.style.height = "auto"
+  el.style.height = `${el.scrollHeight}px`
+}
 
 const dateValue = (value: Date | string | null) => (value ? new Date(value).toISOString().slice(0, 10) : "")
 
@@ -283,6 +304,45 @@ export function TaskSheet({
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [newComment, setNewComment] = useState("")
   const [newPredecessor, setNewPredecessor] = useState("")
+  const [width, setWidth] = useState(DEFAULT_WIDTH)
+
+  useEffect(() => {
+    if (open) setWidth(storedWidth())
+  }, [open])
+
+  /** Drag the panel's left edge to resize it (up to 90% of the screen). */
+  function startResize(event: React.PointerEvent<HTMLDivElement>) {
+    event.preventDefault()
+    const handle = event.currentTarget
+    handle.setPointerCapture(event.pointerId)
+    let next = width
+    const move = (e: PointerEvent) => {
+      next = Math.min(maxWidth(), Math.max(MIN_WIDTH, window.innerWidth - e.clientX))
+      setWidth(next)
+    }
+    const stop = () => {
+      handle.removeEventListener("pointermove", move)
+      handle.removeEventListener("pointerup", stop)
+      handle.removeEventListener("pointercancel", stop)
+      try {
+        localStorage.setItem(WIDTH_STORAGE_KEY, String(next))
+      } catch {
+        // Width just isn't remembered.
+      }
+    }
+    handle.addEventListener("pointermove", move)
+    handle.addEventListener("pointerup", stop)
+    handle.addEventListener("pointercancel", stop)
+  }
+
+  /** Re-measures the title on mount (it remounts per task via its `key`) and whenever its box resizes. */
+  const titleRef = useCallback((el: HTMLTextAreaElement | null) => {
+    if (!el) return
+    autosize(el)
+    const observer = new ResizeObserver(() => autosize(el))
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [])
 
   async function run(action: () => Promise<ActionResult>, success?: string) {
     setBusy(true)
@@ -321,7 +381,18 @@ export function TaskSheet({
 
   return (
     <Sheet open={open} onOpenChange={(next) => !next && onClose()}>
-      <SheetContent className="w-full gap-0 sm:max-w-3xl data-[side=right]:sm:max-w-3xl">
+      <SheetContent
+        className="gap-0 data-[side=right]:w-full data-[side=right]:sm:w-(--task-sheet-width) data-[side=right]:sm:max-w-[95vw]"
+        style={{ "--task-sheet-width": `${width}px` } as React.CSSProperties}
+      >
+        <div
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="Redimensionar a tarefa"
+          title="Arraste para redimensionar"
+          onPointerDown={startResize}
+          className="absolute inset-y-0 left-0 z-10 hidden w-1.5 cursor-col-resize hover:bg-primary/30 active:bg-primary/40 sm:block"
+        />
         {!task ? (
           <div className="space-y-3 p-6">
             <SheetTitle className="sr-only">Carregando tarefa</SheetTitle>
@@ -380,11 +451,13 @@ export function TaskSheet({
                       {task.isMilestone && <Diamond className="mt-2.5 h-5 w-5 shrink-0 fill-amber-500 text-amber-500" />}
                       <Textarea
                         key={`${task.id}:${task.title}`}
+                        ref={titleRef}
                         rows={1}
                         defaultValue={task.title}
                         readOnly={readOnly}
                         aria-label="Título da tarefa"
-                        className="min-h-0 resize-none border-transparent bg-transparent px-0 py-1 text-2xl font-bold leading-tight shadow-none focus-visible:border-transparent focus-visible:ring-0 md:text-2xl dark:bg-transparent"
+                        className="min-h-0 resize-none overflow-hidden border-transparent bg-transparent px-0 py-1 text-2xl font-bold leading-tight shadow-none focus-visible:border-transparent focus-visible:ring-0 md:text-2xl dark:bg-transparent"
+                        onInput={(e) => autosize(e.currentTarget)}
                         onKeyDown={(e) => {
                           if (e.key === "Enter") {
                             e.preventDefault()
