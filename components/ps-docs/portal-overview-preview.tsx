@@ -5,37 +5,38 @@ import { useMemo } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Download, ClipboardCopy } from "lucide-react"
-import { toast } from "sonner"
+import { toast } from "@/lib/toast"
 import { renderPortalOverviewHtml } from "@/lib/ps-docs/render-html"
 import { portalOverviewToMarkdown } from "@/lib/ps-docs/export-markdown"
 import { downloadBlob, slugify } from "@/lib/ps-docs/download-utils"
-import type { PortalOverviewSpec, StyleConfig } from "@/lib/ps-docs/types"
+import { DEFAULT_DOC_OPTIONS, type DocOptions, type PortalOverviewSpec, type StyleConfig } from "@/lib/ps-docs/types"
 
 interface PortalOverviewPreviewProps {
   overview: PortalOverviewSpec
   style: StyleConfig
+  options?: DocOptions
 }
 
 /** Preview + export (docx/md/Google Docs) of the portal-level "Geral/Consultas/Scripts/
  *  Integrações/Segurança/Domínio/TOTVS" section — a separate document from any single processo
  *  seletivo's own documentation (rendered per-tab by `ProcessDocResult`). */
-export function PortalOverviewPreview({ overview, style }: PortalOverviewPreviewProps) {
-  const html = useMemo(() => renderPortalOverviewHtml(overview, style), [overview, style])
+export function PortalOverviewPreview({ overview, style, options = DEFAULT_DOC_OPTIONS }: PortalOverviewPreviewProps) {
+  const html = useMemo(() => renderPortalOverviewHtml(overview, style, options), [overview, style, options])
 
   async function handleDownloadDocx() {
     // The docx library is only downloaded when the user actually exports.
     const { buildPortalOverviewDocx } = await import("@/lib/ps-docs/export-docx")
-    const blob = await buildPortalOverviewDocx(overview, style)
+    const blob = await buildPortalOverviewDocx(overview, style, options)
     downloadBlob(blob, `portal-${slugify(overview.geral.nome)}.docx`)
   }
 
   function handleDownloadMarkdown() {
-    const markdown = portalOverviewToMarkdown(overview, style)
+    const markdown = portalOverviewToMarkdown(overview, style, options)
     downloadBlob(new Blob([markdown], { type: "text/markdown" }), `portal-${slugify(overview.geral.nome)}.md`)
   }
 
   async function handleCopyForGoogleDocs() {
-    const markdown = portalOverviewToMarkdown(overview, style)
+    const markdown = portalOverviewToMarkdown(overview, style, options)
     try {
       await navigator.clipboard.write([
         new ClipboardItem({

@@ -30,7 +30,7 @@ import { CredentialsFormFields } from "@/components/ps-docs/credentials-form-fie
 import { ComponentDetailPanel } from "@/components/ps-docs/component-detail-panel"
 import { TotvsFieldAuditResults, useTotvsFieldAudit } from "@/components/ps-docs/totvs-field-audit"
 import { SearchCode, Loader2, RefreshCw, Info, ChevronDown, ChevronRight, Copy, FileSpreadsheet, FileText, FileCode2, MoreHorizontal } from "lucide-react"
-import { toast } from "sonner"
+import { toast } from "@/lib/toast"
 import { fetchComponentDetail } from "@/actions/integrations/ps-field-search"
 import type { ActionCatalogEntries } from "@/actions/integrations/ps-docs"
 import { readNdjson, type StandaloneContainer, type SweepEvent } from "@/lib/ps-docs/field-search-stream"
@@ -446,8 +446,8 @@ export default function PsFieldSearchPage() {
 
   const filterPanel = (
     <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-      <div className="space-y-2">
-        <Label>Tipo de uso</Label>
+      <Field>
+        <FieldLabel>Tipo de uso</FieldLabel>
         <Select
           items={[{ value: "all", label: "Todos" }, ...TIPOS_USO.map((t) => ({ value: t, label: t }))]}
           value={tipoUsoFilter || "all"}
@@ -465,9 +465,9 @@ export default function PsFieldSearchPage() {
             ))}
           </SelectContent>
         </Select>
-      </div>
-      <div className="space-y-2">
-        <Label>Oculto</Label>
+      </Field>
+      <Field>
+        <FieldLabel>Oculto</FieldLabel>
         <Select
           items={[{ value: "all", label: "Todos" }, ...(["Sim", "Condicional", "Não", "—"] as const).map((o) => ({ value: o, label: o === "—" ? "Não se aplica (referência)" : o }))]}
           value={ocultoFilter || "all"}
@@ -484,7 +484,7 @@ export default function PsFieldSearchPage() {
             <SelectItem value="—">Não se aplica (referência)</SelectItem>
           </SelectContent>
         </Select>
-      </div>
+      </Field>
     </div>
   )
 

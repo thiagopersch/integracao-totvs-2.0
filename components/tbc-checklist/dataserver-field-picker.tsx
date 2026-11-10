@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useDeferredValue, useMemo, useState } from "react"
 import { ChevronDown, ChevronsDownUp, ChevronsUpDown, KeyRound, Search } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -42,7 +42,8 @@ export function DataserverFieldPicker({ dataserverCode, tables, value, onChange 
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
   const tabs = useMemo(() => buildPickerTabs(dataserverCode, tables), [dataserverCode, tables])
 
-  const term = search.trim().toLowerCase()
+  // Typing stays responsive; the field list re-filters at lower priority.
+  const term = useDeferredValue(search).trim().toLowerCase()
   const visibleTabs: PickerTab[] = tabs
     .map((tab) => ({
       ...tab,
@@ -179,7 +180,7 @@ function PickerSectionBox({
   const contentId = `picker-section-${section.key}`
 
   return (
-    <section className="rounded-md border">
+    <section className="surface">
       <div className="flex flex-wrap items-center gap-2 px-3 py-2">
         <button
           type="button"
@@ -223,7 +224,7 @@ function PickerSectionBox({
               title={locked ? "Chave primária — sempre incluída, não é exibida no checklist" : `${section.table}.${field.name}`}
             >
               <Checkbox
-                className="mt-0.5 data-checked:border-green-600 data-checked:bg-green-600 dark:data-checked:bg-green-600"
+                className="mt-0.5 [&.Mui-checked]:text-green-600"
                 checked={checked}
                 disabled={locked}
                 onCheckedChange={(next) => onToggleFields([key], next === true)}

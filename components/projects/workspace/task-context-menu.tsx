@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { toast } from "sonner"
+import { toast } from "@/lib/toast"
 import { Clock, Flag, FolderOpen, Layers, Plus, Trash2, User, Workflow } from "lucide-react"
 import {
   ContextMenu,

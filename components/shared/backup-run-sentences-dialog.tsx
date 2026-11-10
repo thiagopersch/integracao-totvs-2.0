@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Dialog, DialogBody, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { ViewBackupSentenceDialog } from "@/components/shared/view-backup-sentence-dialog"
-import type { Backup } from "@/generated/prisma/client"
+import type { BackupListRow as Backup } from "@/types/backup"
 
 const SORTABLE_COLUMNS = ["codeSentence", "codColigada", "codSystem", "nameSentence"]
 

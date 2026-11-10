@@ -1,8 +1,9 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { ListSkeleton } from "@/components/shared/skeletons"
 import { Loader2, Plus, Trash2 } from "lucide-react"
-import { toast } from "sonner"
+import { toast } from "@/lib/toast"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -159,7 +160,7 @@ function ExtraHoursPanel({
     <>
       <form onSubmit={handleAdd} className="flex min-h-0 flex-1 flex-col overflow-hidden">
         <DialogBody>
-          <div className="space-y-2 rounded-md border p-3">
+          <div className="space-y-2 rounded-xl border p-3">
             <p className="text-sm font-medium">{contract.client.name}</p>
             <p className="text-sm text-muted-foreground tabular-nums">
               Franquia {formatHours(baseHours)} + extras {formatHours(extraTotal)} ={" "}
@@ -172,9 +173,7 @@ function ExtraHoursPanel({
           <div className="space-y-2">
             <p className="text-sm font-medium">Lançamentos do mês</p>
             {loadingList ? (
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Loader2 className="h-4 w-4 animate-spin" /> Carregando…
-              </div>
+              <ListSkeleton rows={3} />
             ) : entries.length === 0 ? (
               <p className="text-sm text-muted-foreground">Nenhuma hora extra lançada neste mês.</p>
             ) : (

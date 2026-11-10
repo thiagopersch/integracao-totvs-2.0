@@ -31,7 +31,7 @@ import { Plus, Loader2 } from "lucide-react"
 import { deleteRequester, createRequester, updateRequester, bulkDeleteRequesters, setRequesterStatus } from "@/actions/requesters"
 import { createRequesterSchema, updateRequesterSchema, type CreateRequesterInput } from "@/schemas/requester.schema"
 import { formatPhone } from "@/lib/masks"
-import { toast } from "sonner"
+import { toast } from "@/lib/toast"
 import { useCrudTable } from "@/hooks/use-crud-table"
 import { useHasPermission } from "@/hooks/use-permissions"
 import type { RequesterWithClients } from "@/services/requester.service"
@@ -65,6 +65,7 @@ export function RequesterTable({ data, meta, clients }: RequesterTableProps) {
     onSortChange,
     refresh,
     isPending,
+    optimisticRows,
   } = useCrudTable<Requester>({
     deleteAction: deleteRequester,
     setStatusAction: setRequesterStatus,
@@ -249,8 +250,8 @@ export function RequesterTable({ data, meta, clients }: RequesterTableProps) {
         pushParams({ status: undefined, page: 1 })
       }}
     >
-      <div className="space-y-2">
-        <Label>Status</Label>
+      <Field>
+        <FieldLabel>Status</FieldLabel>
         <Select
           items={[
             { value: "all", label: "Todos" },
@@ -269,7 +270,7 @@ export function RequesterTable({ data, meta, clients }: RequesterTableProps) {
             <SelectItem value="false">Inativo</SelectItem>
           </SelectContent>
         </Select>
-      </div>
+      </Field>
     </DataTableFilterPanel>
   )
 
@@ -280,7 +281,7 @@ export function RequesterTable({ data, meta, clients }: RequesterTableProps) {
       <DataTable
         refreshing={isPending}
         columns={columns}
-        data={data}
+        data={optimisticRows(data)}
         page={meta.page}
         pageSize={meta.pageSize}
         total={meta.total}

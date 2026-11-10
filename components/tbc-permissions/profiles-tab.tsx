@@ -3,7 +3,7 @@
 import { useMemo, useRef, useState } from "react"
 import type { ColumnDef } from "@tanstack/react-table"
 import { AlertTriangle, Download, FileUp, Loader2, Settings2, Users } from "lucide-react"
-import { toast } from "sonner"
+import { toast } from "@/lib/toast"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -124,7 +124,7 @@ export function ProfilesTab({ tbc, model }: ProfilesTabProps) {
 
   return (
     <div className="flex flex-col gap-4">
-      <section className="flex flex-col gap-3 rounded-md border p-4">
+      <section className="flex flex-col gap-3 surface p-4">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h2 className="font-semibold">Perfis do usuário {tbc.user}</h2>
@@ -162,7 +162,7 @@ export function ProfilesTab({ tbc, model }: ProfilesTabProps) {
         )}
       </section>
 
-      <section className="flex flex-col gap-3 rounded-md border p-4">
+      <section className="flex flex-col gap-3 surface p-4">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h2 className="font-semibold">Menus liberados × modelo {model.label}</h2>
@@ -238,7 +238,7 @@ function SystemLinks({ codSistema, links }: { codSistema: string; links: TbcUser
   const profiles = links.filter((l) => l.codPerfil)
 
   return (
-    <div className="rounded-md border p-3 text-sm">
+    <div className="surface p-3 text-sm">
       <div className="mb-2 flex items-center justify-between gap-2">
         <span className="font-medium">{name}</span>
         {!links.length ? (

@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Loader2 } from "lucide-react"
+import { Skeleton } from "@/components/ui/skeleton"
 import { ColorBadge } from "@/components/shared/color-badge"
 import { getDemandDeleteImpact } from "@/actions/demands"
 import type { DemandDeleteImpact as Impact } from "@/services/demand.service"
@@ -26,8 +26,10 @@ export function DemandDeleteImpact({ ids }: { ids: string[] }) {
 
   if (!state || state.key !== key) {
     return (
-      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-        <Loader2 className="h-4 w-4 animate-spin" /> Carregando vínculos...
+      <div className="space-y-2" role="status" aria-label="Carregando vínculos">
+        <Skeleton className="h-4 w-48" />
+        <Skeleton className="h-4 w-full" />
+        <Skeleton className="h-4 w-2/3" />
       </div>
     )
   }
@@ -62,7 +64,7 @@ export function DemandDeleteImpact({ ids }: { ids: string[] }) {
       <p className="text-sm font-medium">
         {impact.demandCount > 1 ? `As ${impact.demandCount} demandas estão vinculadas a:` : "Esta demanda está vinculada a:"}
       </p>
-      <dl className="max-h-72 space-y-2 overflow-y-auto rounded-md border p-3 text-sm">
+      <dl className="max-h-72 space-y-2 overflow-y-auto rounded-xl border p-3 text-sm">
         {visibleGroups.map(([label, items]) => (
           <div key={label} className="grid grid-cols-[8rem_1fr] items-start gap-2">
             <dt className="pt-0.5 text-muted-foreground">{label}</dt>

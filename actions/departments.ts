@@ -1,5 +1,6 @@
 "use server"
 
+import { getCachedDepartments } from "@/queries/registries";
 import { updateTag } from "next/cache";
 import { departmentService } from "@/services/department.service";
 import { auditService } from "@/services/audit.service";
@@ -9,7 +10,7 @@ import { getRequestContext } from "@/lib/tenant";
 import { formatBlockingReferences } from "@/lib/entity-relations";
 export async function listAllDepartments() {
   const { organizationId } = await getRequestContext();
-  return departmentService.listAll(organizationId);
+  return getCachedDepartments(organizationId);
 }
 
 export async function createDepartment(formData: FormData) {

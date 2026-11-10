@@ -1,49 +1,61 @@
 "use client"
 
-import { useTheme } from "next-themes"
-import { Toaster as Sonner, type ToasterProps } from "sonner"
-import { CircleCheckIcon, InfoIcon, TriangleAlertIcon, OctagonXIcon, Loader2Icon } from "lucide-react"
+import Alert from "@mui/material/Alert"
+import AlertTitle from "@mui/material/AlertTitle"
+import CircularProgress from "@mui/material/CircularProgress"
+import Slide from "@mui/material/Slide"
+import Stack from "@mui/material/Stack"
+import { useEffect } from "react"
+import { useToastStore, type ToastItem } from "@/lib/toast"
 
-const Toaster = ({ ...props }: ToasterProps) => {
-  const { theme = "system" } = useTheme()
+function ToastCard({ item }: { item: ToastItem }) {
+  const close = useToastStore((s) => s.close)
+  const remove = useToastStore((s) => s.remove)
+
+  useEffect(() => {
+    if (!item.open || item.duration === null) return
+    const timer = setTimeout(() => close(item.id), item.duration)
+    return () => clearTimeout(timer)
+  }, [item.open, item.duration, item.id, close, item.message])
+
+  const severity = item.kind === "default" || item.kind === "loading" ? "info" : item.kind
+  const icon = item.kind === "loading" ? <CircularProgress size={18} color="inherit" /> : item.kind === "default" ? false : undefined
 
   return (
-    <Sonner
-      theme={theme as ToasterProps["theme"]}
-      className="toaster group"
-      richColors
-      icons={{
-        success: (
-          <CircleCheckIcon className="size-4" />
-        ),
-        info: (
-          <InfoIcon className="size-4" />
-        ),
-        warning: (
-          <TriangleAlertIcon className="size-4" />
-        ),
-        error: (
-          <OctagonXIcon className="size-4" />
-        ),
-        loading: (
-          <Loader2Icon className="size-4 animate-spin" />
-        ),
-      }}
-      style={
-        {
-          "--normal-bg": "var(--popover)",
-          "--normal-text": "var(--popover-foreground)",
-          "--normal-border": "var(--border)",
-          "--border-radius": "var(--radius)",
-        } as React.CSSProperties
-      }
-      toastOptions={{
-        classNames: {
-          toast: "cn-toast",
-        },
-      }}
-      {...props}
-    />
+    <Slide in={item.open} direction="left" mountOnEnter unmountOnExit onExited={() => remove(item.id)}>
+      <Alert
+        role="status"
+        severity={severity}
+        variant="filled"
+        icon={icon}
+        onClose={item.kind === "loading" ? undefined : () => close(item.id)}
+        sx={{
+          width: { xs: "calc(100vw - 32px)", sm: 360 },
+          boxShadow: 6,
+          alignItems: "center",
+          ...(item.kind === "default" && { bgcolor: "background.paper", color: "text.primary" }),
+        }}
+      >
+        {item.description ? <AlertTitle sx={{ mb: 0 }}>{item.message}</AlertTitle> : item.message}
+        {item.description}
+      </Alert>
+    </Slide>
+  )
+}
+
+/** Toast stack (bottom-right) driven by `toast()` from `@/lib/toast`. Mount once in the root layout. */
+function Toaster() {
+  const toasts = useToastStore((s) => s.toasts)
+  return (
+    <Stack
+      spacing={1}
+      aria-live="polite"
+      sx={{ position: "fixed", right: 16, bottom: 16, zIndex: (theme) => theme.zIndex.snackbar, alignItems: "flex-end", pointerEvents: "none", "& > *": { pointerEvents: "auto" } }}
+    >
+      {toasts.map((item) => (
+        <ToastCard key={item.id} item={item} />
+      ))}
+    </Stack>
   )
 }
 

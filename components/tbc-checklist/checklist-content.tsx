@@ -5,7 +5,7 @@ import { DndContext, PointerSensor, closestCenter, useSensor, useSensors, type D
 import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
 import { AlertTriangle, GripVertical, Link2, ListPlus, Loader2, Plus, RefreshCw, Trash2 } from "lucide-react"
-import { toast } from "sonner"
+import { toast } from "@/lib/toast"
 import { Button } from "@/components/ui/button"
 import { ScrollableTabsList, Tabs, TabsContent, TabsTrigger } from "@/components/ui/tabs"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
@@ -395,7 +395,7 @@ function RecordCards({ items }: { items: { key: string; label: ReactNode; conten
         <AccordionItem
           key={item.key}
           value={item.key}
-          className="overflow-hidden rounded-lg border bg-card shadow-sm transition-shadow last:border-b hover:shadow-md data-open:shadow-md"
+          className="overflow-hidden rounded-lg border bg-card shadow-sm transition-shadow last:border-b hover:shadow-md [&.Mui-expanded]:shadow-md"
         >
           <AccordionTrigger className="items-center rounded-none px-4 py-3 hover:bg-muted/40 hover:no-underline">{item.label}</AccordionTrigger>
           <AccordionContent className="border-t px-4 pt-1 pb-4">{item.content}</AccordionContent>
@@ -700,7 +700,7 @@ export function ChecklistContent({
 
   if (!selectedProcesso) {
     return (
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-y-auto rounded-md border p-3 sm:p-4">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-y-auto surface p-3 sm:p-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-base font-semibold">{checklist.name}</h2>
           {addButton}
@@ -725,7 +725,7 @@ export function ChecklistContent({
 
   return (
     <TbcUserContext.Provider value={tbcUser}>
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-y-auto rounded-md border p-3 sm:p-4">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-y-auto surface p-3 sm:p-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-base font-semibold">Processo: {selectedProcesso.label}</h2>
           <div className="flex flex-wrap items-center gap-2">

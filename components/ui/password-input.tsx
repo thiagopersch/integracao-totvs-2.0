@@ -2,7 +2,8 @@
 
 import { useState } from "react"
 import { Eye, EyeOff, Check, X } from "lucide-react"
-import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from "@/components/ui/input-group"
+import IconButton from "@mui/material/IconButton"
+import { InputField } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
 import { passwordRequirements } from "@/lib/validators"
 
@@ -56,32 +57,30 @@ export function PasswordInput({
 
   return (
     <div className="space-y-2">
-      <InputGroup className={className}>
-        <InputGroupInput
-          id={id}
-          aria-invalid={ariaInvalid}
-          type={visible ? "text" : "password"}
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          onBlur={onBlur}
-          disabled={disabled}
-          placeholder={placeholder}
-          autoComplete={autoComplete}
-          maxLength={showStrength ? passwordRequirements.maxLength : undefined}
-        />
-        <InputGroupAddon align="inline-end">
-          <InputGroupButton
-            type="button"
-            size="icon-xs"
-            variant="ghost"
+      <InputField
+        id={id}
+        className={className}
+        aria-invalid={ariaInvalid}
+        type={visible ? "text" : "password"}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        onBlur={onBlur}
+        disabled={disabled}
+        placeholder={placeholder}
+        autoComplete={autoComplete}
+        maxLength={showStrength ? passwordRequirements.maxLength : undefined}
+        endAdornment={
+          <IconButton
+            edge="end"
+            size="small"
             disabled={disabled}
             aria-label={visible ? "Ocultar senha" : "Mostrar senha"}
             onClick={() => setVisible((v) => !v)}
           >
-            {visible ? <EyeOff /> : <Eye />}
-          </InputGroupButton>
-        </InputGroupAddon>
-      </InputGroup>
+            {visible ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+          </IconButton>
+        }
+      />
 
       {showStrength && value && (
         <div className="space-y-2">

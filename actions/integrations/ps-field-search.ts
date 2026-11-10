@@ -1,5 +1,6 @@
 "use server";
 
+import { getIntegrationConfig } from "@/lib/integration-config";
 import axios from "axios";
 import { requirePermission } from "@/lib/rbac";
 import { hasRequiredCredentials, type PsCredentials } from "@/lib/ps-docs/credential";
@@ -37,7 +38,7 @@ export async function fetchComponentDetail(input: {
   const url = `${API_ROOT}/custom-component/${componentId}`;
   const headers = { ...authHeaders(input.credentials), Referer: "https://admin.portal.apprbs.com.br/administrativo/definicoes" };
   try {
-    const res = await axios.get(url, { headers, validateStatus: () => true, timeout: 30_000 });
+    const res = await axios.get(url, { headers, validateStatus: () => true, timeout: (await getIntegrationConfig(organizationId, "RUBEUS")).timeoutMs });
     if (res.status >= 400) throw Object.assign(new Error(`HTTP ${res.status} ao consultar o componente #${componentId}`), { response: { status: res.status } });
 
     const raw = unwrapData(res.data);

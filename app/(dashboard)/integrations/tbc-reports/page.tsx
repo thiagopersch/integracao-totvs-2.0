@@ -1,12 +1,12 @@
 import { Suspense } from "react"
 import { listAllTbcs } from "@/actions/admin/tbcs"
 import { listAllSistemas } from "@/actions/admin/sistemas"
-import { TableSkeleton } from "@/components/shared/table-skeleton"
+import { FormSkeleton } from "@/components/shared/skeletons"
 import { TbcReportsClient } from "./tbc-reports-client"
 
 export default function TbcReportsPage() {
   return (
-    <Suspense fallback={<TableSkeleton className="m-6" />}>
+    <Suspense fallback={<FormSkeleton className="m-6" />}>
       <TbcReportsContent />
     </Suspense>
   )

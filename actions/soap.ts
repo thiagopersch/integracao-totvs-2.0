@@ -66,7 +66,7 @@ export async function deleteSoapTemplate(id: string) {
 export async function reexecuteSoapLog(logId: string) {
   const { organizationId, userId, allowedClientIds } = await requirePermission("soap", "execute");
   try {
-    const log = await prisma.soapLog.findFirst({ where: { id: logId, organizationId } });
+    const log = await prisma.soapLog.findFirst({ where: { id: logId, organizationId }, omit: { xmlRequest: false } });
     if (!log) return { success: false, error: "Registro de histórico não encontrado" };
     if (!log.dataserver || !log.process || !log.method || !log.xmlRequest) {
       return { success: false, error: "Este registro não tem dados suficientes para ser reexecutado" };

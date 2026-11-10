@@ -39,7 +39,7 @@ import type { ColumnDef } from "@tanstack/react-table"
 import { KeyRound, ListChecks, Loader2, Plus, ShieldCheck } from "lucide-react"
 import { useMemo, useState } from "react"
 import { Controller, useForm, type Resolver } from "react-hook-form"
-import { toast } from "sonner"
+import { toast } from "@/lib/toast"
 
 interface TbcTableProps {
   data: TbcRow[]
@@ -51,7 +51,7 @@ interface TbcTableProps {
 const SORTABLE_COLUMNS = ["name", "link", "notRequiredLicense", "status"]
 
 export function TbcTable({ data, meta, clients, filterClients }: TbcTableProps) {
-  const { router, searchParams, deleteDialog, setDeleteDialog, editDialog, setEditDialog, pushParams, handleDelete, handleToggleStatus, sort, onSortChange, refresh, isPending } =
+  const { router, searchParams, deleteDialog, setDeleteDialog, editDialog, setEditDialog, pushParams, handleDelete, handleToggleStatus, optimisticRows, sort, onSortChange, refresh, isPending } =
     useCrudTable<TbcRow>({
       deleteAction: deleteTbc,
       restoreAction: restoreTbc,
@@ -420,8 +420,8 @@ export function TbcTable({ data, meta, clients, filterClients }: TbcTableProps) 
         pushParams({ clientId: undefined, status: undefined, notRequiredLicense: undefined, page: 1 })
       }}
     >
-      <div className="space-y-2">
-        <Label>Clientes</Label>
+      <Field>
+        <FieldLabel>Clientes</FieldLabel>
         <Select
           items={[{ value: "all", label: "Todos" }, ...filterClients.map((c) => ({ value: c.id, label: c.name }))]}
           value={clientFilter || "all"}
@@ -444,9 +444,9 @@ export function TbcTable({ data, meta, clients, filterClients }: TbcTableProps) 
             ))}
           </SelectContent>
         </Select>
-      </div>
-      <div className="space-y-2">
-        <Label>Ativo</Label>
+      </Field>
+      <Field>
+        <FieldLabel>Ativo</FieldLabel>
         <Select
           items={[
             { value: "all", label: "Todos" },
@@ -465,9 +465,9 @@ export function TbcTable({ data, meta, clients, filterClients }: TbcTableProps) 
             <SelectItem value="false">Não</SelectItem>
           </SelectContent>
         </Select>
-      </div>
-      <div className="space-y-2">
-        <Label>Utiliza métodos sem licenças</Label>
+      </Field>
+      <Field>
+        <FieldLabel>Utiliza métodos sem licenças</FieldLabel>
         <Select
           items={[
             { value: "all", label: "Todos" },
@@ -486,7 +486,7 @@ export function TbcTable({ data, meta, clients, filterClients }: TbcTableProps) 
             <SelectItem value="false">Não</SelectItem>
           </SelectContent>
         </Select>
-      </div>
+      </Field>
     </DataTableFilterPanel>
   )
 
@@ -497,7 +497,7 @@ export function TbcTable({ data, meta, clients, filterClients }: TbcTableProps) 
       <DataTable
         refreshing={isPending}
         columns={columns}
-        data={data}
+        data={optimisticRows(data)}
         page={meta.page}
         pageSize={meta.pageSize}
         total={meta.total}

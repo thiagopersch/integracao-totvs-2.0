@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import { toast } from "sonner"
+import { toast } from "@/lib/toast"
 import { Plus, X } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -73,7 +73,7 @@ export function FeedbacksEditor({ etapaId, etapaNome, projetoId, feedbacks, onCh
       </div>
 
       {feedbacks.length > 0 && (
-        <div className="no-scrollbar overflow-x-auto rounded-md border">
+        <div className="no-scrollbar overflow-x-auto surface">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b bg-muted/50 text-left text-xs uppercase text-muted-foreground">

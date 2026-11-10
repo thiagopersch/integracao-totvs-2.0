@@ -13,7 +13,7 @@ import { css } from "@codemirror/lang-css"
 import { javascript } from "@codemirror/lang-javascript"
 import { php } from "@codemirror/lang-php"
 import { format as formatSql } from "sql-formatter"
-import { useTheme } from "next-themes"
+import { useAppTheme } from "@/hooks/use-app-theme"
 import { cn } from "@/utils/cn"
 import { formatXml } from "@/utils/xml"
 import { Badge } from "@/components/ui/badge"
@@ -26,7 +26,7 @@ import {
   ContextMenuTrigger,
 } from "@/components/ui/context-menu"
 import { Copy, Wand2, Maximize2, Minimize2 } from "lucide-react"
-import { toast } from "sonner"
+import { toast } from "@/lib/toast"
 import { WithTooltip } from "@/components/shared/with-tooltip"
 
 export type CodeEditorLanguage = "sql" | "html" | "css" | "javascript" | "php" | "json" | "xml"
@@ -94,7 +94,7 @@ export function CodeEditor({
   theme = "auto",
   sqlSchema,
 }: CodeEditorProps) {
-  const { theme: appTheme } = useTheme()
+  const { theme: appTheme } = useAppTheme()
   const [editorEl, setEditorEl] = useState<HTMLDivElement | null>(null)
   const viewRef = useRef<EditorView | null>(null)
   // Stable string form so a same-shaped-but-new sqlSchema object (e.g. re-derived on every render)

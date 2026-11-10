@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import dynamic from "next/dynamic"
-import { useTheme } from "next-themes"
+import { useAppTheme } from "@/hooks/use-app-theme"
 import { codeEdit, codeLive, codePreview, divider, fullscreen, type ICommand } from "@uiw/react-md-editor/commands"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
@@ -15,7 +15,7 @@ const MDPreview = dynamic(() => import("@uiw/react-md-editor").then((m) => m.def
 
 /** "light" | "dark" for the editor's own palette, following the app theme (not only the OS). */
 function useColorMode() {
-  const { resolvedTheme } = useTheme()
+  const { resolvedTheme } = useAppTheme()
   return resolvedTheme === "dark" ? "dark" : "light"
 }
 

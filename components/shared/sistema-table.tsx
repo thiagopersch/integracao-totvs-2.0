@@ -24,7 +24,7 @@ import {
 import { Plus, Loader2 } from "lucide-react"
 import { deleteSistema, restoreSistema, createSistema, updateSistema, bulkDeleteSistemas } from "@/actions/admin/sistemas"
 import { createSistemaSchema, updateSistemaSchema, type CreateSistemaInput } from "@/schemas/sistema.schema"
-import { toast } from "sonner"
+import { toast } from "@/lib/toast"
 import { useCrudTable } from "@/hooks/use-crud-table"
 import { useHasPermission } from "@/hooks/use-permissions"
 import type { TotvsSystem } from "@/generated/prisma/client"
@@ -49,6 +49,7 @@ export function SistemaTable({ data, meta }: SistemaTableProps) {
     onSortChange,
     refresh,
     isPending,
+    optimisticRows,
   } = useCrudTable<TotvsSystem>({
     deleteAction: deleteSistema,
     restoreAction: restoreSistema,
@@ -170,7 +171,7 @@ export function SistemaTable({ data, meta }: SistemaTableProps) {
       <DataTable
         refreshing={isPending}
         columns={columns}
-        data={data}
+        data={optimisticRows(data)}
         page={meta.page}
         pageSize={meta.pageSize}
         total={meta.total}

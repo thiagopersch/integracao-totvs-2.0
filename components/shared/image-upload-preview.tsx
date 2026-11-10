@@ -1,6 +1,7 @@
 "use client"
 
 import { useRef } from "react"
+import Image from "next/image"
 import { ImagePlus, Upload, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
@@ -36,13 +37,13 @@ export function ImageUploadPreview({
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
         <div
           className={cn(
-            "flex shrink-0 items-center justify-center overflow-hidden rounded-md border border-dashed border-input bg-muted/30",
+            "relative flex shrink-0 items-center justify-center overflow-hidden rounded-md border border-dashed border-input bg-muted/30",
             previewClassName
           )}
         >
           {preview ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={preview} alt={label} className="h-full w-full object-contain" />
+            // `unoptimized`: the preview may be a local blob: URL of the file being chosen.
+            <Image src={preview} alt={label} fill sizes="96px" unoptimized={preview.startsWith("blob:") || preview.startsWith("data:")} className="object-contain" />
           ) : (
             <ImagePlus className="h-5 w-5 text-muted-foreground" />
           )}

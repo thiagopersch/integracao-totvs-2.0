@@ -1,20 +1,8 @@
 "use client";
 
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  Cell,
-  Legend,
-  Line,
-  LineChart,
-  Pie,
-  PieChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
+import { BarChart } from "@mui/x-charts/BarChart";
+import { LineChart } from "@mui/x-charts/LineChart";
+import { PieChart } from "@mui/x-charts/PieChart";
 import { shadeColor } from "@/lib/colors";
 import type { ChartKind, ChartSeries } from "./chart-types";
 import { useMediaQuery } from "@/hooks/use-media-query";
@@ -31,15 +19,11 @@ const CATEGORY_COLORS = [
   "var(--chart-8)",
 ];
 
-const tooltipStyle = {
-  backgroundColor: "var(--popover)",
-  border: "1px solid var(--border)",
-  borderRadius: "var(--radius-md)",
-  color: "var(--popover-foreground)",
-  fontSize: 12,
-};
-
-const axisTick = { fill: "var(--muted-foreground)", fontSize: 12 };
+const axisSx = {
+  "& .MuiChartsAxis-tickLabel": { fill: "var(--muted-foreground)", fontSize: 12 },
+  "& .MuiChartsAxis-line, & .MuiChartsAxis-tick": { display: "none" },
+  "& .MuiChartsGrid-line": { stroke: "var(--border)", strokeDasharray: "3 3" },
+} as const;
 
 type DatumRecord = Record<string, string | number>;
 
@@ -109,126 +93,94 @@ export function MultiTypeChart({
     );
   }
 
+  const categories = data.map((entry) => String(entry[nameKey]));
+  const formatValue = (value: number | null) => (value == null ? "" : valueFormatter(Number(value)));
+  const hideLegend = series.length <= 1;
+
   if (kind === "line") {
     return (
-      <ResponsiveContainer width="100%" height={height}>
-        <LineChart data={data}>
-          <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-          <XAxis
-            dataKey={nameKey}
-            tick={axisTick}
-            axisLine={false}
-            tickLine={false}
-            tickFormatter={(v: string) => truncateLabel(String(v), 10)}
-          />
-          <YAxis tick={axisTick} allowDecimals={false} axisLine={false} tickLine={false} />
-          <Tooltip contentStyle={tooltipStyle} formatter={(value) => valueFormatter(Number(value))} />
-          {series.length > 1 && <Legend wrapperStyle={{ fontSize: 12, color: "var(--muted-foreground)" }} />}
-          {series.map((s, i) => (
-            <Line
-              key={s.key}
-              type="monotone"
-              dataKey={s.key}
-              name={s.name}
-              stroke={s.color ?? CATEGORY_COLORS[i % CATEGORY_COLORS.length]}
-              strokeWidth={2}
-              dot={{ fill: s.color ?? CATEGORY_COLORS[i % CATEGORY_COLORS.length] }}
-            />
-          ))}
-        </LineChart>
-      </ResponsiveContainer>
+      <LineChart
+        height={height}
+        grid={{ horizontal: true }}
+        sx={axisSx}
+        hideLegend={hideLegend}
+        xAxis={[{ scaleType: "point", data: categories, valueFormatter: (v: string) => truncateLabel(String(v), 10) }]}
+        yAxis={[{ tickMinStep: 1 }]}
+        series={series.map((s, i) => ({
+          id: s.key,
+          label: s.name,
+          data: data.map((entry) => Number(entry[s.key]) || 0),
+          color: s.color ?? CATEGORY_COLORS[i % CATEGORY_COLORS.length],
+          curve: "monotoneX",
+          valueFormatter: formatValue,
+        }))}
+      />
     );
   }
 
   if (kind === "bar-v" || kind === "bar-h") {
     const isHorizontal = kind === "bar-h";
+    const bandAxis = {
+      scaleType: "band" as const,
+      data: categories,
+      valueFormatter: (v: string, ctx: { location: string }) => (ctx.location === "tick" ? truncateLabel(String(v), isHorizontal ? 16 : 10) : String(v)),
+      categoryGapRatio: 0.35,
+    };
+    const valueAxis = { tickMinStep: 1 };
     return (
-      <ResponsiveContainer width="100%" height={height}>
-        <BarChart data={data} layout={isHorizontal ? "vertical" : "horizontal"} margin={{ left: 8, right: 16 }}>
-          <CartesianGrid strokeDasharray="3 3" className="stroke-border" horizontal={!isHorizontal} />
-          {isHorizontal ? (
-            <>
-              <XAxis type="number" tick={axisTick} allowDecimals={false} axisLine={false} tickLine={false} />
-              <YAxis
-                type="category"
-                dataKey={nameKey}
-                tick={axisTick}
-                width={narrow ? 72 : 110}
-                axisLine={false}
-                tickLine={false}
-                tickFormatter={(v: string) => truncateLabel(v)}
-              />
-            </>
-          ) : (
-            <>
-              <XAxis
-                dataKey={nameKey}
-                tick={axisTick}
-                axisLine={false}
-                tickLine={false}
-                tickFormatter={(v: string) => truncateLabel(v, 10)}
-              />
-              <YAxis type="number" tick={axisTick} allowDecimals={false} axisLine={false} tickLine={false} />
-            </>
-          )}
-          <Tooltip
-            contentStyle={tooltipStyle}
-            formatter={(value) => valueFormatter(Number(value))}
-            cursor={{ fill: "var(--muted)" }}
-          />
-          {series.length > 1 && <Legend wrapperStyle={{ fontSize: 12, color: "var(--muted-foreground)" }} />}
-          {series.map((s, si) => (
-            <Bar
-              key={s.key}
-              dataKey={s.key}
-              name={s.name}
-              radius={isHorizontal ? [0, 4, 4, 0] : [4, 4, 0, 0]}
-              maxBarSize={series.length > 1 ? 16 : 22}
-              fill={s.color ?? CATEGORY_COLORS[si % CATEGORY_COLORS.length]}
-            >
-              {(series.length === 1 || colorKey) &&
-                data.map((entry, i) => {
-                  const rowColor =
-                    colorKey && entry[colorKey]
-                      ? shadeColor(String(entry[colorKey]), si === 0 ? 0 : -18 * si)
-                      : undefined;
-                  return (
-                    <Cell
-                      key={String(entry[nameKey])}
-                      fill={resolveColor(String(entry[nameKey]), i, s.color, colorByIndex, statusColorMap, rowColor)}
-                    />
-                  );
-                })}
-            </Bar>
-          ))}
-        </BarChart>
-      </ResponsiveContainer>
+      <BarChart
+        height={height}
+        layout={isHorizontal ? "horizontal" : "vertical"}
+        grid={isHorizontal ? { vertical: true } : { horizontal: true }}
+        borderRadius={4}
+        sx={axisSx}
+        hideLegend={hideLegend}
+        xAxis={isHorizontal ? [valueAxis] : [bandAxis]}
+        yAxis={isHorizontal ? [{ ...bandAxis, width: narrow ? 72 : 110 }] : [valueAxis]}
+        margin={{ left: 8, right: 16 }}
+        series={series.map((s, si) => ({
+          id: s.key,
+          label: s.name,
+          data: data.map((entry) => Number(entry[s.key]) || 0),
+          color: s.color ?? CATEGORY_COLORS[si % CATEGORY_COLORS.length],
+          valueFormatter: formatValue,
+          // Per-bar colors: a row's own color (shaded per series), the category palette, or a status map.
+          ...(series.length === 1 || colorKey
+            ? {
+                colorGetter: ({ dataIndex }: { dataIndex: number }) => {
+                  const entry = data[dataIndex];
+                  const rowColor = colorKey && entry?.[colorKey] ? shadeColor(String(entry[colorKey]), si === 0 ? 0 : -18 * si) : undefined;
+                  return resolveColor(categories[dataIndex] ?? "", dataIndex, s.color, colorByIndex, statusColorMap, rowColor);
+                },
+              }
+            : {}),
+        }))}
+      />
     );
   }
 
   // pie / donut
   const measureKey = series.length > 1 ? (pieSeriesKey ?? series[0].key) : series[0].key;
-  const measureSeries = series.find((s) => s.key === measureKey) ?? series[0];
-  const pieData = data.map((entry) => ({
-    name: String(entry[nameKey]),
-    value: Number(entry[measureKey]) || 0,
-    color: colorKey && entry[colorKey] ? String(entry[colorKey]) : undefined,
-  }));
+  const pieData = data.map((entry, i) => {
+    const name = String(entry[nameKey]);
+    const rowColor = colorKey && entry[colorKey] ? String(entry[colorKey]) : undefined;
+    return { id: `${name}-${i}`, label: name, value: Number(entry[measureKey]) || 0, color: resolvePieColor(name, i, statusColorMap, rowColor) };
+  });
 
   return (
-    <ResponsiveContainer width="100%" height={height}>
-      <PieChart>
-        <Tooltip
-          contentStyle={tooltipStyle}
-          formatter={(value) => [valueFormatter(Number(value)), measureSeries.name]}
-        />
-        <Legend wrapperStyle={{ fontSize: 12, color: "var(--muted-foreground)" }} />
-        <Pie data={pieData} dataKey="value" nameKey="name" innerRadius={kind === "donut" ? "55%" : 0} outerRadius="80%" paddingAngle={2}>
-          {pieData.map((entry, i) => (
-            <Cell key={entry.name} fill={resolvePieColor(entry.name, i, statusColorMap, entry.color)} />
-          ))}
-        </Pie>
-      </PieChart>
-    </ResponsiveContainer>
+    <PieChart
+      height={height}
+      series={[
+        {
+          data: pieData,
+          innerRadius: kind === "donut" ? "55%" : 0,
+          outerRadius: "80%",
+          paddingAngle: 2,
+          cornerRadius: 3,
+          valueFormatter: (item) => valueFormatter(Number(item.value)),
+        },
+      ]}
+      slotProps={{ legend: { sx: { fontSize: 12, color: "var(--muted-foreground)" } } }}
+    />
   );
 }

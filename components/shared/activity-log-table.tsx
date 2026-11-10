@@ -3,7 +3,7 @@
 import { useUrlParams } from "@/hooks/use-url-params"
 import { useEffect, useMemo, useState, type ReactNode } from "react"
 import { format } from "date-fns"
-import type { DateRange } from "react-day-picker"
+import type { DateRange } from "@/components/ui/date-range-picker"
 import type { ColumnDef } from "@tanstack/react-table"
 import { DataTable } from "@/components/shared/data-table"
 import { DataTableFilterPanel } from "@/components/shared/data-table-filter-panel"
@@ -27,7 +27,7 @@ import { getActivitySoapResponse } from "@/actions/admin/activity-log"
 import { Skeleton } from "@/components/ui/skeleton"
 import { cn } from "@/utils/cn"
 import { FileText, Radio, Mail, Plug, Trash2, Maximize2, Minimize2, Eye, RotateCcw, Download, Copy } from "lucide-react"
-import { toast } from "sonner"
+import { toast } from "@/lib/toast"
 import { STATUS_SYMBOLS } from "@/lib/activity-status"
 import type { ActivityRow, ActivitySource, ActivityStatus } from "@/services/activity-log.service"
 import type { AuditLog, SoapLog, EmailLog, ApiLog, Client, Dataserver, Process } from "@/generated/prisma/client"
@@ -36,6 +36,7 @@ import type { TbcRow } from "@/services/tbc.service"
 import type { SoapEndpointTypeWithMethods } from "@/services/soap-endpoint.service"
 import { WS_NAME_LABELS, type WsName } from "@/lib/ws-names"
 import { WithTooltip } from "@/components/shared/with-tooltip"
+import { Field, FieldLabel } from "@/components/ui/field"
 
 interface TipoOption {
   value: string
@@ -265,8 +266,8 @@ export function ActivityLogTable({
 
   const filterPanel = (
     <DataTableFilterPanel onApply={applyFilters} onClear={clearFilters}>
-      <div className="space-y-2">
-        <Label>Cliente</Label>
+      <Field>
+        <FieldLabel>Cliente</FieldLabel>
         <Combobox
           items={clients.map((c) => ({ value: c.id, label: c.name }))}
           value={clientFilter}
@@ -276,9 +277,9 @@ export function ActivityLogTable({
           }}
           placeholder="Todos"
         />
-      </div>
-      <div className="space-y-2">
-        <Label>TBC</Label>
+      </Field>
+      <Field>
+        <FieldLabel>TBC</FieldLabel>
         <Combobox
           items={filteredTbcs.map((t) => ({ value: t.id, label: t.name }))}
           value={tbcFilter}
@@ -286,9 +287,9 @@ export function ActivityLogTable({
           placeholder={clientFilter ? "Todos" : "Selecione um cliente primeiro"}
           disabled={!clientFilter}
         />
-      </div>
-      <div className="space-y-2">
-        <Label>Fonte</Label>
+      </Field>
+      <Field>
+        <FieldLabel>Fonte</FieldLabel>
         <Select
           items={[{ value: "all", label: "Todas" }, ...Object.entries(SOURCE_LABELS).map(([value, label]) => ({ value, label }))]}
           value={sourceFilter || "all"}
@@ -306,9 +307,9 @@ export function ActivityLogTable({
             ))}
           </SelectContent>
         </Select>
-      </div>
-      <div className="space-y-2">
-        <Label>Tipo</Label>
+      </Field>
+      <Field>
+        <FieldLabel>Tipo</FieldLabel>
         <Select
           items={[{ value: "all", label: "Todos" }, ...tipoItems]}
           value={tipoFilter || "all"}
@@ -333,9 +334,9 @@ export function ActivityLogTable({
             ))}
           </SelectContent>
         </Select>
-      </div>
-      <div className="space-y-2">
-        <Label>Dataserver / Processo</Label>
+      </Field>
+      <Field>
+        <FieldLabel>Dataserver / Processo</FieldLabel>
         <Combobox
           items={dataserverProcessItems}
           value={dataserverProcessFilter}
@@ -343,9 +344,9 @@ export function ActivityLogTable({
           placeholder={dataserverProcessPlaceholder}
           disabled={dataserverProcessDisabled}
         />
-      </div>
-      <div className="space-y-2">
-        <Label>Método</Label>
+      </Field>
+      <Field>
+        <FieldLabel>Método</FieldLabel>
         <Select
           items={[{ value: "all", label: "Todos" }, ...methodItems]}
           value={methodFilter || "all"}
@@ -363,11 +364,11 @@ export function ActivityLogTable({
             ))}
           </SelectContent>
         </Select>
-      </div>
-      <div className="space-y-2">
-        <Label>Status</Label>
+      </Field>
+      <Field>
+        <FieldLabel>Status</FieldLabel>
         <MultiSelect items={statusItems} value={statusFilter} onValueChange={setStatusFilter} placeholder="Todos" />
-      </div>
+      </Field>
       <div className="space-y-2">
         <Label>Duração mínima: {minDuration}s</Label>
         <Slider min={0} max={60} step={1} value={minDuration} onValueChange={setMinDuration} className="pt-2" />
@@ -552,7 +553,7 @@ function ActivityDetailDialog({ open, onOpenChange, row }: { open: boolean; onOp
 
 function DetailSection({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <section className="space-y-3 rounded-lg border bg-muted/30 p-4">
+    <section className="space-y-3 rounded-xl bg-muted p-4">
       <h3 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">{title}</h3>
       {children}
     </section>
@@ -589,7 +590,7 @@ function DetailField({
 function DetailError({ error }: { error: string | null }) {
   if (!error) return null
   return (
-    <div className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-destructive">
+    <div className="rounded-lg bg-destructive/8 p-3 text-destructive">
       <p className="mb-1 text-xs font-semibold uppercase">Erro</p>
       <p className="text-sm break-words whitespace-pre-wrap">{error}</p>
     </div>

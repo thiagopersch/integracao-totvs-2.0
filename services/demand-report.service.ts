@@ -494,27 +494,29 @@ export const demandReportService = {
     return { attachments, vars: { ...realVars, attachmentNames: attachments.map((a) => a.filename).join(", ") } };
   },
 
-  /** Scheduler tick (lib/demand-report-scheduler.ts) — guarded by an advisory lock like the backups. */
+  /** Scheduler tick (`/api/cron/demand-report` or the in-process poller): one queued job per due
+   *  schedule, under a Redis lock (lib/locks.ts) instead of a pool-bound advisory lock. */
   async runDueSchedules() {
-    const [{ locked }] = await prisma.$queryRaw<{ locked: boolean }[]>`
-      SELECT pg_try_advisory_lock(hashtext(${SCHEDULER_LOCK})::bigint) AS locked
-    `;
-    if (!locked) return { processed: 0 };
-    try {
+    const { withLock } = await import("@/lib/locks");
+    const { enqueue } = await import("@/lib/jobs");
+    const outcome = await withLock(SCHEDULER_LOCK, 55_000, async () => {
       const due = await prisma.demandReportSchedule.findMany({
         where: { deletedAt: null, isActive: true, schedule: { not: "NONE" }, nextRunAt: { lte: new Date() } },
-        select: { id: true, organizationId: true, name: true },
+        select: { id: true, organizationId: true, nextRunAt: true },
       });
       for (const schedule of due) {
         try {
-          await this.run(schedule.id, schedule.organizationId, { manual: false });
+          await enqueue(
+            "demand-report.run",
+            { scheduleId: schedule.id },
+            { organizationId: schedule.organizationId, dedupeId: `demand-report:${schedule.id}:${schedule.nextRunAt?.getTime() ?? 0}` }
+          );
         } catch (error) {
-          logger.error("Falha na regra de envio de relatório", { scheduleId: schedule.id, error: (error as Error).message });
+          logger.error("Falha ao enfileirar a regra de envio de relatório", { scheduleId: schedule.id, error: (error as Error).message });
         }
       }
-      return { processed: due.length };
-    } finally {
-      await prisma.$queryRaw`SELECT pg_advisory_unlock(hashtext(${SCHEDULER_LOCK})::bigint)`;
-    }
+      return due.length;
+    });
+    return { processed: outcome.skipped ? 0 : outcome.value };
   },
 };

@@ -1,8 +1,9 @@
 "use client"
 
 import { useEffect, useMemo, useRef, useState } from "react"
+import { Skeleton } from "@/components/ui/skeleton"
 import { AlertTriangle, Link2, Loader2, Plus, Sparkles, Trash2, X } from "lucide-react"
-import { toast } from "sonner"
+import { toast } from "@/lib/toast"
 import { Button } from "@/components/ui/button"
 import { Combobox } from "@/components/ui/combobox"
 import { FieldLabel } from "@/components/ui/field"
@@ -10,7 +11,7 @@ import { Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTi
 import { ChecklistContextFields } from "@/components/tbc-checklist/checklist-context-fields"
 import { PermissionDeniedAlert } from "@/components/tbc-checklist/permission-denied-alert"
 import { WithTooltip } from "@/components/shared/with-tooltip"
-import { fetchDataserverSchema } from "@/actions/integrations/tbc-checklist"
+import { fetchDataserverSchemas } from "@/actions/integrations/tbc-checklist"
 import { toChecklistContext, type ChecklistContextForm } from "@/lib/tbc-checklist-dataservers"
 import { linkableParents, suggestLinkFields, type LinkFieldPair } from "@/lib/tbc-checklist-links"
 import type { TbcChecklistLink } from "@/schemas/tbc-checklist.schema"
@@ -122,15 +123,18 @@ export function DataserverLinksDialog({
         key,
         byCode: { ...(prev.key === key ? prev.byCode : {}), ...Object.fromEntries(codes.map((c) => [c, { status: "loading" as const }])) },
       }))
+      const byCode = await fetchDataserverSchemas({ tbcId, dataserverCodes: codes, context })
+      const states: Record<string, SchemaState> = {}
       for (const c of codes) {
-        const result = await fetchDataserverSchema({ tbcId, dataserverCode: c, context })
-        const state: SchemaState = result.success
+        const result = byCode[c]
+        if (!result) continue
+        states[c] = result.success
           ? { status: "loaded", main: result.tables[0] }
           : { status: "error", error: result.error, permissionDenied: result.permissionDenied }
         if (result.success) mainsRef.current.set(`${key}|${c}`, result.tables[0])
-        setSchemas((prev) => (prev.key === key ? { key, byCode: { ...prev.byCode, [c]: state } } : prev))
-        applySuggestionsRef.current(key)
       }
+      setSchemas((prev) => (prev.key === key ? { key, byCode: { ...prev.byCode, ...states } } : prev))
+      applySuggestionsRef.current(key)
     }, 400)
     return () => clearTimeout(timer)
   }, [missingKey, contextKey, context, tbcId])
@@ -187,10 +191,11 @@ export function DataserverLinksDialog({
           {!context ? (
             <p className="text-xs text-muted-foreground">Preencha coligada, filial e tipo de curso para buscar os campos no TOTVS.</p>
           ) : !own || own.status === "loading" ? (
-            <p className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              Buscando campos de {dataserverName(code)} no TOTVS...
-            </p>
+            <div className="space-y-2" role="status" aria-label={`Buscando campos de ${dataserverName(code)} no TOTVS`}>
+              <Skeleton className="h-8 w-full" />
+              <Skeleton className="h-8 w-full" />
+              <Skeleton className="h-8 w-3/4" />
+            </div>
           ) : own.status === "error" ? (
             own.permissionDenied ? (
               <PermissionDeniedAlert tbcUser={tbcUser} dataservers={[{ code, name: dataserverName(code) }]} />
@@ -214,7 +219,7 @@ export function DataserverLinksDialog({
               ...(below ? [link.parentCode] : []),
             ].map((c) => ({ value: c, label: `${dataserverName(c)} (${c})${c === link.parentCode && below ? " — abaixo deste" : ""}` }))
             return (
-              <div key={link.id} className="flex min-w-0 flex-col gap-3 rounded-lg border p-3">
+              <div key={link.id} className="flex min-w-0 flex-col gap-3 rounded-xl border p-3">
                 <div className="flex flex-wrap items-center gap-2">
                   <Link2 className="h-4 w-4 shrink-0 text-muted-foreground" />
                   <div className="min-w-0 flex-1 basis-48">

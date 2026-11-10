@@ -58,7 +58,13 @@ export const mapeadorService = {
   async getProjeto(id: string, organizationId: string): Promise<MapeadorProjetoDTO | null> {
     const projeto = await prisma.mapeadorProjeto.findFirst({
       where: { id, organizationId, deletedAt: null },
-      include: { etapas: { orderBy: { ordem: "asc" } } },
+      include: {
+        etapas: {
+          orderBy: { ordem: "asc" },
+          select: { id: true, ordem: true, nome: true, condicao: true, regras: true, camposPorEtapa: true, feedbacks: true },
+        },
+      },
+      omit: { prototipoConfig: false },
     });
     if (!projeto) return null;
 
@@ -69,6 +75,29 @@ export const mapeadorService = {
       prototipoConfig: (projeto.prototipoConfig as MapeadorPrototipoConfig | null) ?? {},
       etapas: projeto.etapas.map(toEtapaDTO),
     };
+  },
+
+  /** Every project with its steps in one query (the prototype's "gerar para todos" view). */
+  async listProjetosCompletos(organizationId: string): Promise<MapeadorProjetoDTO[]> {
+    const projetos = await prisma.mapeadorProjeto.findMany({
+      where: { organizationId, deletedAt: null },
+      // The prototype needs the JSON columns the global omit (lib/prisma.ts) leaves out of lists.
+      omit: { prototipoConfig: false },
+      include: {
+        etapas: {
+          orderBy: { ordem: "asc" },
+          select: { id: true, ordem: true, nome: true, condicao: true, regras: true, camposPorEtapa: true, feedbacks: true },
+        },
+      },
+      orderBy: { nome: "asc" },
+    });
+    return projetos.map((projeto) => ({
+      id: projeto.id,
+      nome: projeto.nome,
+      informacoesAdicionais: (projeto.informacoesAdicionais as MapeadorInformacoesAdicionais | null) ?? {},
+      prototipoConfig: (projeto.prototipoConfig as MapeadorPrototipoConfig | null) ?? {},
+      etapas: projeto.etapas.map(toEtapaDTO),
+    }));
   },
 
   async createProjeto(nome: string, organizationId: string, clienteId?: string | null) {
@@ -117,6 +146,7 @@ export const mapeadorService = {
   async duplicateEtapa(etapaId: string, organizationId: string) {
     const etapa = await prisma.mapeadorEtapa.findFirst({
       where: { id: etapaId, projeto: { organizationId } },
+      omit: { camposPorEtapa: false },
     });
     if (!etapa) throw new Error("Etapa não encontrada");
 

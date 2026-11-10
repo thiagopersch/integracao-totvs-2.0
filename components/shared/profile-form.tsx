@@ -1,7 +1,7 @@
 "use client"
 
 import { signOut } from "next-auth/react"
-import { useEffect, useState } from "react"
+import { useOptimistic, useState, useTransition } from "react"
 import { useForm, Controller } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { Button } from "@/components/ui/button"
@@ -13,10 +13,10 @@ import { PasswordInput } from "@/components/ui/password-input"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Loader2 } from "lucide-react"
-import { toast } from "sonner"
+import { toast } from "@/lib/toast"
 import { updateProfileAction } from "@/actions/auth/profile"
 import { changePasswordAction } from "@/actions/auth/login"
-import { getNotificationSettings, updateNotificationSetting } from "@/actions/notifications"
+import { updateNotificationSetting } from "@/actions/notifications"
 import { changePasswordSchema } from "@/schemas/auth.schema"
 import { z } from "zod"
 import type { AuthUser } from "@/types/auth"
@@ -28,29 +28,25 @@ const profileSchema = z.object({
 
 interface ProfileFormProps {
   user: AuthUser
+  /** Read by the server page — no client fetch, no flicker of the switch. */
+  initialEmailNotifications: boolean
 }
 
-export function ProfileForm({ user }: ProfileFormProps) {
+export function ProfileForm({ user, initialEmailNotifications }: ProfileFormProps) {
   const [profileLoading, setProfileLoading] = useState(false)
   const [passwordLoading, setPasswordLoading] = useState(false)
-  const [emailNotifications, setEmailNotifications] = useState(false)
-  const [notificationSettingsLoading, setNotificationSettingsLoading] = useState(false)
+  const [emailNotifications, setEmailNotifications] = useState(initialEmailNotifications)
+  const [optimisticEmail, setOptimisticEmail] = useOptimistic(emailNotifications)
+  const [, startTransition] = useTransition()
 
-  useEffect(() => {
-    getNotificationSettings().then((settings) => {
-      setEmailNotifications(settings.some((s) => s.channel === "EMAIL" && s.enabled))
+  // Optimistic: the switch flips immediately; reverted with a toast if the server refuses.
+  function handleEmailNotificationsChange(checked: boolean) {
+    startTransition(async () => {
+      setOptimisticEmail(checked)
+      const result = await updateNotificationSetting("EMAIL", checked)
+      if (result.success) setEmailNotifications(checked)
+      else toast.error(result.error || "Erro ao atualizar preferência de notificação")
     })
-  }, [])
-
-  async function handleEmailNotificationsChange(checked: boolean) {
-    setNotificationSettingsLoading(true)
-    const result = await updateNotificationSetting("EMAIL", checked)
-    if (result.success) {
-      setEmailNotifications(checked)
-    } else {
-      toast.error(result.error || "Erro ao atualizar preferência de notificação")
-    }
-    setNotificationSettingsLoading(false)
   }
 
   const profileForm = useForm<z.infer<typeof profileSchema>>({
@@ -123,10 +119,10 @@ export function ProfileForm({ user }: ProfileFormProps) {
               <Input id="name" {...profileForm.register("name")} aria-invalid={!!profileForm.formState.errors.name} />
               <FieldError errors={[profileForm.formState.errors.name]} />
             </Field>
-            <div className="space-y-2">
-              <Label>E-mail</Label>
+            <Field>
+              <FieldLabel>E-mail</FieldLabel>
               <Input value={user.email} disabled />
-            </div>
+            </Field>
             <Button type="submit" disabled={profileLoading}>
               {profileLoading && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
               Salvar
@@ -215,8 +211,7 @@ export function ProfileForm({ user }: ProfileFormProps) {
           <div className="flex items-center gap-2">
             <Checkbox
               id="emailNotifications"
-              checked={emailNotifications}
-              disabled={notificationSettingsLoading}
+              checked={optimisticEmail}
               onCheckedChange={(v) => handleEmailNotificationsChange(v === true)}
             />
             <Label htmlFor="emailNotifications">E-mail</Label>

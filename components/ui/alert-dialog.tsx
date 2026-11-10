@@ -1,171 +1,143 @@
 "use client"
 
 import * as React from "react"
-import { AlertDialog as AlertDialogPrimitive } from "@base-ui/react/alert-dialog"
+import MuiDialog from "@mui/material/Dialog"
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
+import { renderTrigger, useOpenState, type TriggerProps } from "@/components/ui/slot"
 
-function AlertDialog({ ...props }: AlertDialogPrimitive.Root.Props) {
-  return <AlertDialogPrimitive.Root data-slot="alert-dialog" {...props} />
+type Ctx = { open: boolean; setOpen: (open: boolean) => void; titleId: string; descriptionId: string }
+const AlertDialogContext = React.createContext<Ctx | null>(null)
+function useAlertDialog() {
+  const ctx = React.useContext(AlertDialogContext)
+  if (!ctx) throw new Error("AlertDialog parts must be used inside <AlertDialog>")
+  return ctx
 }
 
-function AlertDialogTrigger({ ...props }: AlertDialogPrimitive.Trigger.Props) {
-  return (
-    <AlertDialogPrimitive.Trigger data-slot="alert-dialog-trigger" {...props} />
-  )
+function AlertDialog({
+  open,
+  defaultOpen,
+  onOpenChange,
+  children,
+}: {
+  open?: boolean
+  defaultOpen?: boolean
+  onOpenChange?: (open: boolean) => void
+  children?: React.ReactNode
+}) {
+  const [isOpen, setOpen] = useOpenState(open, defaultOpen, onOpenChange)
+  const id = React.useId()
+  const value = React.useMemo(() => ({ open: isOpen, setOpen, titleId: `${id}-t`, descriptionId: `${id}-d` }), [isOpen, setOpen, id])
+  return <AlertDialogContext.Provider value={value}>{children}</AlertDialogContext.Provider>
 }
 
-function AlertDialogPortal({ ...props }: AlertDialogPrimitive.Portal.Props) {
-  return (
-    <AlertDialogPrimitive.Portal data-slot="alert-dialog-portal" {...props} />
-  )
+function AlertDialogTrigger(props: TriggerProps) {
+  const { setOpen } = useAlertDialog()
+  return renderTrigger(props, { onClick: () => setOpen(true), "data-slot": "alert-dialog-trigger" })
 }
 
-function AlertDialogOverlay({
-  className,
-  ...props
-}: AlertDialogPrimitive.Backdrop.Props) {
-  return (
-    <AlertDialogPrimitive.Backdrop
-      data-slot="alert-dialog-overlay"
-      className={cn(
-        "fixed inset-0 isolate z-50 bg-black/50 duration-100 supports-backdrop-filter:backdrop-blur-sm data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0",
-        className
-      )}
-      {...props}
-    />
-  )
+function AlertDialogPortal({ children }: { children?: React.ReactNode }) {
+  return <>{children}</>
+}
+
+function AlertDialogOverlay(_props: { className?: string }) {
+  return null
 }
 
 function AlertDialogContent({
   className,
   size = "default",
+  children,
   ...props
-}: AlertDialogPrimitive.Popup.Props & {
-  size?: "default" | "sm"
-}) {
+}: React.ComponentProps<"div"> & { size?: "default" | "sm" }) {
+  const { open, setOpen, titleId, descriptionId } = useAlertDialog()
   return (
-    <AlertDialogPortal>
-      <AlertDialogOverlay />
-      <AlertDialogPrimitive.Popup
-        data-slot="alert-dialog-content"
-        data-size={size}
-        className={cn(
-          "group/alert-dialog-content fixed top-1/2 left-1/2 z-50 grid w-full -translate-x-1/2 -translate-y-1/2 gap-4 rounded-xl bg-popover p-4 text-popover-foreground ring-1 ring-foreground/10 duration-100 outline-none data-[size=default]:max-w-xs data-[size=sm]:max-w-xs data-[size=default]:sm:max-w-sm data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
-          className
-        )}
-        {...props}
-      />
-    </AlertDialogPortal>
+    <MuiDialog
+      open={open}
+      onClose={() => setOpen(false)}
+      role="alertdialog"
+      maxWidth={false}
+      aria-labelledby={titleId}
+      aria-describedby={descriptionId}
+      slotProps={{
+        paper: {
+          "data-slot": "alert-dialog-content",
+          "data-size": size,
+          className: cn("grid w-full gap-4 p-4 text-sm", size === "sm" ? "max-w-xs" : "max-w-xs sm:max-w-sm", className),
+          sx: { m: 2, borderRadius: 4 },
+          ...props,
+        } as React.ComponentProps<"div">,
+      }}
+    >
+      {children}
+    </MuiDialog>
   )
 }
 
-function AlertDialogHeader({
-  className,
-  ...props
-}: React.ComponentProps<"div">) {
-  return (
-    <div
-      data-slot="alert-dialog-header"
-      className={cn(
-        "grid grid-rows-[auto_1fr] place-items-center gap-1.5 text-center has-data-[slot=alert-dialog-media]:grid-rows-[auto_auto_1fr] has-data-[slot=alert-dialog-media]:gap-x-4 sm:group-data-[size=default]/alert-dialog-content:place-items-start sm:group-data-[size=default]/alert-dialog-content:text-left sm:group-data-[size=default]/alert-dialog-content:has-data-[slot=alert-dialog-media]:grid-rows-[auto_1fr]",
-        className
-      )}
-      {...props}
-    />
-  )
+function AlertDialogHeader({ className, ...props }: React.ComponentProps<"div">) {
+  return <div data-slot="alert-dialog-header" className={cn("grid gap-1.5 text-left", className)} {...props} />
 }
 
-function AlertDialogFooter({
-  className,
-  ...props
-}: React.ComponentProps<"div">) {
+function AlertDialogFooter({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       data-slot="alert-dialog-footer"
-      className={cn(
-        "-mx-4 -mb-4 flex flex-col-reverse gap-2 rounded-b-xl border-t bg-muted/50 p-4 group-data-[size=sm]/alert-dialog-content:grid group-data-[size=sm]/alert-dialog-content:grid-cols-2 sm:flex-row sm:justify-end",
-        className
-      )}
+      className={cn("-mx-4 -mb-4 flex flex-col-reverse gap-2 rounded-b-xl px-4 pt-2 pb-4 sm:flex-row sm:justify-end", className)}
       {...props}
     />
   )
 }
 
-function AlertDialogMedia({
-  className,
-  ...props
-}: React.ComponentProps<"div">) {
+function AlertDialogMedia({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       data-slot="alert-dialog-media"
-      className={cn(
-        "mb-2 inline-flex size-10 items-center justify-center rounded-md bg-muted sm:group-data-[size=default]/alert-dialog-content:row-span-2 *:[svg:not([class*='size-'])]:size-6",
-        className
-      )}
+      className={cn("mb-2 inline-flex size-10 items-center justify-center rounded-md bg-muted *:[svg:not([class*='size-'])]:size-6", className)}
       {...props}
     />
   )
 }
 
-function AlertDialogTitle({
-  className,
-  ...props
-}: React.ComponentProps<typeof AlertDialogPrimitive.Title>) {
-  return (
-    <AlertDialogPrimitive.Title
-      data-slot="alert-dialog-title"
-      className={cn(
-        "font-heading text-base font-medium sm:group-data-[size=default]/alert-dialog-content:group-has-data-[slot=alert-dialog-media]/alert-dialog-content:col-start-2",
-        className
-      )}
-      {...props}
-    />
-  )
+function AlertDialogTitle({ className, ...props }: React.ComponentProps<"h2">) {
+  const { titleId } = useAlertDialog()
+  return <h2 id={titleId} data-slot="alert-dialog-title" className={cn("font-heading text-base font-semibold", className)} {...props} />
 }
 
-function AlertDialogDescription({
-  className,
-  ...props
-}: React.ComponentProps<typeof AlertDialogPrimitive.Description>) {
+function AlertDialogDescription({ className, ...props }: React.ComponentProps<"p">) {
+  const { descriptionId } = useAlertDialog()
   return (
-    <AlertDialogPrimitive.Description
+    <p
+      id={descriptionId}
       data-slot="alert-dialog-description"
-      className={cn(
-        "text-sm text-balance text-muted-foreground md:text-pretty *:[a]:underline *:[a]:underline-offset-3 *:[a]:hover:text-foreground",
-        className
-      )}
+      className={cn("text-sm text-balance text-muted-foreground md:text-pretty", className)}
       {...props}
     />
   )
 }
 
-function AlertDialogAction({
-  className,
-  ...props
-}: React.ComponentProps<typeof Button>) {
-  return (
-    <Button
-      data-slot="alert-dialog-action"
-      className={cn(className)}
-      {...props}
-    />
-  )
+function AlertDialogAction({ className, ...props }: React.ComponentProps<typeof Button>) {
+  return <Button data-slot="alert-dialog-action" className={className} {...props} />
 }
 
 function AlertDialogCancel({
   className,
   variant = "outline",
   size = "default",
+  onClick,
   ...props
-}: AlertDialogPrimitive.Close.Props &
-  Pick<React.ComponentProps<typeof Button>, "variant" | "size">) {
+}: React.ComponentProps<typeof Button>) {
+  const { setOpen } = useAlertDialog()
   return (
-    <AlertDialogPrimitive.Close
+    <Button
       data-slot="alert-dialog-cancel"
-      className={cn(className)}
-      render={<Button variant={variant} size={size} />}
+      variant={variant}
+      size={size}
+      className={className}
+      onClick={(event) => {
+        onClick?.(event)
+        setOpen(false)
+      }}
       {...props}
     />
   )

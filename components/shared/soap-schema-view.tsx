@@ -1,5 +1,9 @@
 "use client"
 
+// Memoized: the SOAP builder re-renders on every keystroke in its editors; result tables (thousands
+// of rows) only re-render when the result changes.
+
+import { memo } from "react"
 import { Star } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -14,7 +18,7 @@ interface SoapSchemaViewProps {
   showPrimaryKey: boolean
 }
 
-export function SoapSchemaView({ tables, showPrimaryKey }: SoapSchemaViewProps) {
+export const SoapSchemaView = memo(function SoapSchemaView({ tables, showPrimaryKey }: SoapSchemaViewProps) {
   if (!tables.length) {
     return (
       <p className="text-muted-foreground text-sm p-4">
@@ -94,4 +98,4 @@ export function SoapSchemaView({ tables, showPrimaryKey }: SoapSchemaViewProps) 
       ))}
     </div>
   )
-}
+})

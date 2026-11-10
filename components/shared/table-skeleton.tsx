@@ -13,7 +13,7 @@ export function TableSkeleton({ rows = 5, className }: TableSkeletonProps) {
         <Skeleton className="h-9 w-64" />
         <Skeleton className="h-9 w-28" />
       </div>
-      <div className="rounded-md border">
+      <div className="surface">
         <div className="flex items-center gap-4 border-b px-4 py-3">
           <Skeleton className="h-4 w-1/4" />
           <Skeleton className="h-4 w-1/4" />

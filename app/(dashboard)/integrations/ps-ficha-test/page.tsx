@@ -36,7 +36,7 @@ import {
   Square,
 } from "lucide-react"
 import { useMemo, useRef, useState } from "react"
-import { toast } from "sonner"
+import { toast } from "@/lib/toast"
 
 type CheckStatus = "pending" | "running" | "success" | "failed" | "skipped"
 
@@ -518,7 +518,7 @@ export default function PsFichaTestPage() {
           </CardHeader>
           <CardContent>
             {aborted && (
-              <div className="mb-4 flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+              <div className="mb-4 flex items-start gap-2 rounded-lg bg-destructive/8 p-3 text-sm text-destructive">
                 <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
                 <span>
                   Execução interrompida no primeiro erro crítico — os testes restantes não foram executados e ficam
@@ -599,7 +599,7 @@ export default function PsFichaTestPage() {
             <strong>Link da página</strong> preenchido acima.
           </p>
 
-          <div className="flex items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/5 p-3 text-sm">
+          <div className="flex items-start gap-2 rounded-lg bg-amber-500/10 p-3 text-sm">
             <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0 text-amber-600" />
             <div className="space-y-2">
               <p>
@@ -664,7 +664,7 @@ export default function PsFichaTestPage() {
               </div>
 
               {automationPaused && (
-                <div className="flex items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/5 p-3 text-sm">
+                <div className="flex items-start gap-2 rounded-lg bg-amber-500/10 p-3 text-sm">
                   <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0 text-amber-600" />
                   <span>
                     Automação pausada — o navegador continua aberto com o que já foi preenchido. Clique em
@@ -674,7 +674,7 @@ export default function PsFichaTestPage() {
               )}
 
               {automationAborted && (
-                <div className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+                <div className="flex items-start gap-2 rounded-lg bg-destructive/8 p-3 text-sm text-destructive">
                   <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
                   <span>
                     Execução interrompida — as checagens restantes não foram executadas e ficam marcadas como

@@ -36,7 +36,7 @@ import {
 import { Plus, Loader2 } from "lucide-react"
 import { deleteSentenceCategory, restoreSentenceCategory, createSentenceCategory, updateSentenceCategory, bulkDeleteSentenceCategories, setSentenceCategoryStatus } from "@/actions/admin/sentence-categories"
 import { createSentenceCategorySchema, updateSentenceCategorySchema, type CreateSentenceCategoryInput } from "@/schemas/sentence-category.schema"
-import { toast } from "sonner"
+import { toast } from "@/lib/toast"
 import { useCrudTable } from "@/hooks/use-crud-table"
 import { useHasPermission } from "@/hooks/use-permissions"
 import type { SentenceCategory } from "@/generated/prisma/client"
@@ -63,6 +63,7 @@ export function SentenceCategoryTable({ data, meta }: SentenceCategoryTableProps
     onSortChange,
     refresh,
     isPending,
+    optimisticRows,
   } = useCrudTable<SentenceCategory>({
     deleteAction: deleteSentenceCategory,
     restoreAction: restoreSentenceCategory,
@@ -203,8 +204,8 @@ export function SentenceCategoryTable({ data, meta }: SentenceCategoryTableProps
         pushParams({ status: undefined, page: 1 })
       }}
     >
-      <div className="space-y-2">
-        <Label>Status</Label>
+      <Field>
+        <FieldLabel>Status</FieldLabel>
         <Select
           items={[
             { value: "all", label: "Todos" },
@@ -223,7 +224,7 @@ export function SentenceCategoryTable({ data, meta }: SentenceCategoryTableProps
             <SelectItem value="false">Inativo</SelectItem>
           </SelectContent>
         </Select>
-      </div>
+      </Field>
     </DataTableFilterPanel>
   )
 
@@ -234,7 +235,7 @@ export function SentenceCategoryTable({ data, meta }: SentenceCategoryTableProps
       <DataTable
         refreshing={isPending}
         columns={columns}
-        data={data}
+        data={optimisticRows(data)}
         page={meta.page}
         pageSize={meta.pageSize}
         total={meta.total}

@@ -243,13 +243,12 @@ export const demandSheetSyncService = {
     });
   },
 
-  /** Scheduler tick (lib/demand-sheet-sync-scheduler.ts): due schedules and debounced demand changes. */
+  /** Scheduler tick (`/api/cron/sheet-sync` or the in-process poller): due schedules and debounced
+   *  demand changes, one queued job each, under a Redis lock (lib/locks.ts). */
   async runDue() {
-    const [{ locked }] = await prisma.$queryRaw<{ locked: boolean }[]>`
-      SELECT pg_try_advisory_lock(hashtext(${SCHEDULER_LOCK})::bigint) AS locked
-    `;
-    if (!locked) return { processed: 0 };
-    try {
+    const { withLock } = await import("@/lib/locks");
+    const { enqueue } = await import("@/lib/jobs");
+    const outcome = await withLock(SCHEDULER_LOCK, 55_000, async () => {
       const now = new Date();
       const due = await prisma.demandSheetSync.findMany({
         where: {
@@ -257,20 +256,24 @@ export const demandSheetSyncService = {
           isActive: true,
           OR: [{ schedule: { not: "NONE" }, nextRunAt: { lte: now } }, { pendingSyncAt: { lte: now } }],
         },
-        select: { id: true, organizationId: true, nextRunAt: true, schedule: true },
+        select: { id: true, organizationId: true, nextRunAt: true, pendingSyncAt: true, schedule: true },
       });
       for (const sync of due) {
         try {
           // Only a due schedule re-anchors nextRunAt; a demand-change sync leaves it as it is.
           const scheduled = sync.schedule !== "NONE" && !!sync.nextRunAt && sync.nextRunAt <= now;
-          await this.run(sync.id, sync.organizationId, { trigger: scheduled ? "schedule" : "demand" });
+          const anchor = (scheduled ? sync.nextRunAt : sync.pendingSyncAt)?.getTime() ?? 0;
+          await enqueue(
+            "sheet-sync.run",
+            { syncId: sync.id, trigger: scheduled ? "schedule" : "demand" },
+            { organizationId: sync.organizationId, dedupeId: `sheet-sync:${sync.id}:${anchor}` }
+          );
         } catch (error) {
-          logger.error("Falha na atualização da planilha Google", { syncId: sync.id, error: (error as Error).message });
+          logger.error("Falha ao enfileirar a atualização da planilha Google", { syncId: sync.id, error: (error as Error).message });
         }
       }
-      return { processed: due.length };
-    } finally {
-      await prisma.$queryRaw`SELECT pg_advisory_unlock(hashtext(${SCHEDULER_LOCK})::bigint)`;
-    }
+      return due.length;
+    });
+    return { processed: outcome.skipped ? 0 : outcome.value };
   },
 };

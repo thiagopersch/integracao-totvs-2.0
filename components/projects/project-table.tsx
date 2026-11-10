@@ -4,7 +4,7 @@ import { useMemo, useState } from "react"
 import Link from "next/link"
 import type { ColumnDef } from "@tanstack/react-table"
 import { FolderOpen, Plus, RefreshCcw } from "lucide-react"
-import { toast } from "sonner"
+import { toast } from "@/lib/toast"
 import { DataTable } from "@/components/shared/data-table"
 import { DataTableFilterPanel } from "@/components/shared/data-table-filter-panel"
 import { PageHeader } from "@/components/shared/page-header"
@@ -81,6 +81,7 @@ export function ProjectTable({ data, meta, options, defs }: ProjectTableProps) {
     sort,
     onSortChange,
     router,
+    optimisticRows,
   } = useCrudTable<ProjectRow>({
     deleteAction: deleteProject,
     deleteSuccessMessage: "Projeto excluído com sucesso",
@@ -317,7 +318,7 @@ export function ProjectTable({ data, meta, options, defs }: ProjectTableProps) {
       <DataTable
         refreshing={isPending}
         columns={columns}
-        data={data}
+        data={optimisticRows(data)}
         page={meta.page}
         pageSize={meta.pageSize}
         total={meta.total}

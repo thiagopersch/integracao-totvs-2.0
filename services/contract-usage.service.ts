@@ -1,5 +1,6 @@
 import { after } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { mapWithConcurrency } from "@/lib/concurrency";
 import { demandMinutesByAnalyst, demandMinutesByAnalystTotal } from "@/services/demand-analyst-hours.service";
 import { logger } from "@/lib/logger";
 import { sendEmail, type EmailSendStatus } from "@/lib/mailer";
@@ -80,19 +81,21 @@ async function getMonthlyUsage(organizationId: string, month: Month, clientIds?:
   if (contracts.length === 0) return [];
 
   const contractClientIds = [...new Set(contracts.map((c) => c.clientId))];
-  const minutesByClient = await prisma.demand.groupBy({
-    by: ["clientId"],
-    where: { deletedAt: null, organizationId, clientId: { in: contractClientIds }, date: range },
-    _sum: { durationMinutes: true },
-    _count: { _all: true },
-  });
-  // Demands linked to a project (Gestão de Projetos) are already in the totals above — this only
-  // breaks that share out for display ("Avulsas Xh · Projetos Yh"), never adds to it.
-  const projectMinutesByClient = await prisma.demand.groupBy({
-    by: ["clientId"],
-    where: { deletedAt: null, organizationId, clientId: { in: contractClientIds }, date: range, projectId: { not: null } },
-    _sum: { durationMinutes: true },
-  });
+  // Demands linked to a project (Gestão de Projetos) are already in the totals — the second query
+  // only breaks that share out for display ("Avulsas Xh · Projetos Yh"), never adds to it.
+  const [minutesByClient, projectMinutesByClient] = await Promise.all([
+    prisma.demand.groupBy({
+      by: ["clientId"],
+      where: { deletedAt: null, organizationId, clientId: { in: contractClientIds }, date: range },
+      _sum: { durationMinutes: true },
+      _count: { _all: true },
+    }),
+    prisma.demand.groupBy({
+      by: ["clientId"],
+      where: { deletedAt: null, organizationId, clientId: { in: contractClientIds }, date: range, projectId: { not: null } },
+      _sum: { durationMinutes: true },
+    }),
+  ]);
   const minutesByClientId = sumMinutesByClient(
     minutesByClient.map((d) => ({ clientId: d.clientId, minutes: d._sum.durationMinutes || 0 })),
     projectMinutesByClient.map((d) => ({ clientId: d.clientId, minutes: d._sum.durationMinutes || 0 }))
@@ -327,12 +330,14 @@ export type UsageCheckItem = { clientId: string; date: Date; trigger: UsageCheck
  *  client/month, not one per row. Errors are logged, never thrown, so a mail/notification failure
  *  can't break the mutation that triggered the check. */
 async function checkMany(organizationId: string, items: UsageCheckItem[]): Promise<void> {
-  const seen = new Set<string>();
-  for (const { clientId, date, trigger, demandId } of items) {
-    const month = monthOf(date);
-    const key = `${clientId}:${periodKey(month)}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
+  const unique = new Map<string, UsageCheckItem & { month: Month }>();
+  for (const item of items) {
+    const month = monthOf(item.date);
+    const key = `${item.clientId}:${periodKey(month)}`;
+    if (!unique.has(key)) unique.set(key, { ...item, month });
+  }
+  // Distinct (client, month) pairs are independent — checked a few at a time instead of serially.
+  await mapWithConcurrency([...unique.values()], 4, async ({ clientId, month, trigger, demandId }) => {
     try {
       await checkAndNotify(organizationId, clientId, month, trigger, demandId);
     } catch (error) {
@@ -343,7 +348,7 @@ async function checkMany(organizationId: string, items: UsageCheckItem[]): Promi
         error: (error as Error).message,
       });
     }
-  }
+  });
 }
 
 /**

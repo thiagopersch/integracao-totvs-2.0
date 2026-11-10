@@ -51,6 +51,12 @@ export async function createMapeadorProjetosFromTemplates(templateIds: string[],
   }
 }
 
+/** All projects with their steps, in one query (replaces list + one getMapeadorProjeto per project). */
+export async function listMapeadorProjetosCompletos() {
+  const { organizationId } = await requirePermission("mapeador_projetos", "read");
+  return mapeadorService.listProjetosCompletos(organizationId);
+}
+
 export async function getMapeadorProjeto(id: string) {
   const { organizationId } = await requirePermission("mapeador_projetos", "read");
   return mapeadorService.getProjeto(id, organizationId);

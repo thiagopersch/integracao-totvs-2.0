@@ -1,79 +1,89 @@
 "use client"
 
-import { Tooltip as TooltipPrimitive } from "@base-ui/react/tooltip"
+import * as React from "react"
+import MuiTooltip from "@mui/material/Tooltip"
 
 import { cn } from "@/lib/utils"
+import { renderTrigger, type TriggerProps } from "@/components/ui/slot"
 
-function TooltipProvider({
-  delay = 0,
-  ...props
-}: TooltipPrimitive.Provider.Props) {
-  return (
-    <TooltipPrimitive.Provider
-      data-slot="tooltip-provider"
-      delay={delay}
-      {...props}
-    />
-  )
+/** Base UI compat: MUI tooltips need no provider. */
+function TooltipProvider({ children }: { children?: React.ReactNode; delay?: number }) {
+  return <>{children}</>
 }
 
-function Tooltip({ ...props }: TooltipPrimitive.Root.Props) {
-  return <TooltipPrimitive.Root data-slot="tooltip" {...props} />
+type Side = "top" | "bottom" | "left" | "right" | "inline-start" | "inline-end"
+
+type TooltipContentProps = Omit<React.ComponentProps<"div">, "content"> & {
+  side?: Side
+  sideOffset?: number
+  align?: "start" | "center" | "end"
+  alignOffset?: number
+  /** "default" is the inverted (foreground-on-background) style used for text hints. "surface" follows the
+   *  popover palette, for rich content (images, lists). */
+  variant?: "default" | "surface"
 }
 
-function TooltipTrigger({ ...props }: TooltipPrimitive.Trigger.Props) {
-  return <TooltipPrimitive.Trigger data-slot="tooltip-trigger" {...props} />
+/** Marker part: its props are read by <Tooltip>, it never renders by itself. */
+function TooltipContent(_props: TooltipContentProps): React.ReactNode {
+  return null
 }
 
-function TooltipContent({
-  className,
-  side = "top",
-  sideOffset = 4,
-  align = "center",
-  alignOffset = 0,
-  variant = "default",
+function TooltipTrigger(props: TriggerProps) {
+  return renderTrigger(props, { "data-slot": "tooltip-trigger" })
+}
+
+function placementOf(side: Side = "top", align: "start" | "center" | "end" = "center") {
+  const base = side === "inline-start" ? "left" : side === "inline-end" ? "right" : side
+  if (align === "center") return base
+  return `${base}-${align}` as const
+}
+
+function Tooltip({
   children,
-  ...props
-}: TooltipPrimitive.Popup.Props &
-  Pick<
-    TooltipPrimitive.Positioner.Props,
-    "align" | "alignOffset" | "side" | "sideOffset"
-  > & {
-    /** "default" is the inverted (foreground-on-background) style used for text hints. "surface" follows the
-     * app's current theme background — use it for content-heavy tooltips like image previews. */
-    variant?: "default" | "surface"
-  }) {
+  open,
+  onOpenChange,
+  disabled,
+}: {
+  children?: React.ReactNode
+  open?: boolean
+  defaultOpen?: boolean
+  onOpenChange?: (open: boolean) => void
+  disabled?: boolean
+  delay?: number
+}) {
+  const parts = React.Children.toArray(children)
+  const contentEl = parts.find((child) => React.isValidElement(child) && child.type === TooltipContent) as
+    | React.ReactElement<TooltipContentProps>
+    | undefined
+  const triggerParts = parts.filter((child) => child !== contentEl)
+  const trigger = triggerParts.length === 1 && React.isValidElement(triggerParts[0]) ? triggerParts[0] : <span>{triggerParts}</span>
+
+  if (!contentEl || disabled) return <>{trigger}</>
+
+  const { children: title, className, side, align, variant = "default", style } = contentEl.props
+  const surface = variant === "surface"
+
   return (
-    <TooltipPrimitive.Portal>
-      <TooltipPrimitive.Positioner
-        align={align}
-        alignOffset={alignOffset}
-        side={side}
-        sideOffset={sideOffset}
-        className="isolate z-50"
-      >
-        <TooltipPrimitive.Popup
-          data-slot="tooltip-content"
-          className={cn(
-            "z-50 inline-flex w-fit max-w-xs origin-(--transform-origin) items-center gap-1.5 rounded-md px-3 py-1.5 text-xs has-data-[slot=kbd]:pr-1.5 data-[side=bottom]:slide-in-from-top-2 data-[side=inline-end]:slide-in-from-left-2 data-[side=inline-start]:slide-in-from-right-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 **:data-[slot=kbd]:relative **:data-[slot=kbd]:isolate **:data-[slot=kbd]:z-50 **:data-[slot=kbd]:rounded-sm data-[state=delayed-open]:animate-in data-[state=delayed-open]:fade-in-0 data-[state=delayed-open]:zoom-in-95 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
-            variant === "default" && "bg-foreground text-background",
-            variant === "surface" && "bg-popover text-popover-foreground ring-1 ring-foreground/10",
-            className
-          )}
-          {...props}
-        >
-          {children}
-          <TooltipPrimitive.Arrow
-            className={cn(
-              "z-50 size-2.5 translate-y-[calc(-50%-2px)] rotate-45 rounded-[2px] data-[side=bottom]:top-1 data-[side=inline-end]:top-1/2! data-[side=inline-end]:-left-1 data-[side=inline-end]:-translate-y-1/2 data-[side=inline-start]:top-1/2! data-[side=inline-start]:-right-1 data-[side=inline-start]:-translate-y-1/2 data-[side=left]:top-1/2! data-[side=left]:-right-1 data-[side=left]:-translate-y-1/2 data-[side=right]:top-1/2! data-[side=right]:-left-1 data-[side=right]:-translate-y-1/2 data-[side=top]:-bottom-2.5",
-              variant === "default" && "bg-foreground fill-foreground",
-              variant === "surface" && "bg-popover fill-popover"
-            )}
-          />
-        </TooltipPrimitive.Popup>
-      </TooltipPrimitive.Positioner>
-    </TooltipPrimitive.Portal>
+    <MuiTooltip
+      title={title ?? ""}
+      placement={placementOf(side, align) as React.ComponentProps<typeof MuiTooltip>["placement"]}
+      open={open}
+      onOpen={onOpenChange ? () => onOpenChange(true) : undefined}
+      onClose={onOpenChange ? () => onOpenChange(false) : undefined}
+      arrow={!surface}
+      slotProps={{
+        tooltip: {
+          className: cn("text-xs", className),
+          style,
+          sx: surface
+            ? { bgcolor: "background.paper", color: "text.primary", boxShadow: 8, p: 1, maxWidth: "none" }
+            : { bgcolor: "text.primary", color: "background.default", "& .MuiTooltip-arrow": { color: "text.primary" } },
+        },
+      }}
+    >
+      {trigger as React.ReactElement<Record<string, unknown>>}
+    </MuiTooltip>
   )
 }
 
-export { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider }
+export { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger }

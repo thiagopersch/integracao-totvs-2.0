@@ -20,7 +20,6 @@ import { ContractExtraHoursDialog } from "@/components/shared/contract-extra-hou
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
-import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Field, FieldLabel, FieldError, FieldDescription } from "@/components/ui/field"
 import {
@@ -54,7 +53,7 @@ import { createContractSchema, updateContractSchema, type CreateContractInput } 
 import { formatDecimal } from "@/lib/masks"
 import type { UsageLevel } from "@/lib/contract-usage"
 import { formatDateOnly, toDateInputValue } from "@/utils/format"
-import { toast } from "sonner"
+import { toast } from "@/lib/toast"
 import { useCrudTable } from "@/hooks/use-crud-table"
 import { useHasPermission } from "@/hooks/use-permissions"
 import type { Client } from "@/generated/prisma/client"
@@ -147,6 +146,7 @@ export function ContractTable({
     onSortChange,
     refresh,
     isPending,
+    optimisticRows,
   } = useCrudTable<ContractRow>({
     deleteAction: deleteContract,
     deleteSuccessMessage: "Contrato excluído com sucesso",
@@ -497,8 +497,8 @@ export function ContractTable({
         pushParams({ status: undefined, page: 1 })
       }}
     >
-      <div className="space-y-2">
-        <Label>Status</Label>
+      <Field>
+        <FieldLabel>Status</FieldLabel>
         <Select
           items={[{ value: "all", label: "Todos" }, ...Object.entries(STATUS_LABELS).map(([value, label]) => ({ value, label }))]}
           value={statusFilter || "all"}
@@ -524,7 +524,7 @@ export function ContractTable({
             ))}
           </SelectContent>
         </Select>
-      </div>
+      </Field>
     </DataTableFilterPanel>
   )
 
@@ -537,7 +537,7 @@ export function ContractTable({
       <DataTable
         refreshing={isPending || isPeriodPending}
         columns={columns}
-        data={data}
+        data={optimisticRows(data)}
         page={meta.page}
         pageSize={meta.pageSize}
         total={meta.total}

@@ -1,5 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
-import type { AiChatMessage, AiClientConfig, AiToolCallResult, AiToolDefinition } from "./types";
+import type { AiChatMessage, AiClientConfig, AiDeltaHandler, AiToolCallResult, AiToolDefinition } from "./types";
 
 /**
  * Claude via the Messages API with one strict tool. `tool_choice` stays "auto" (forcing a tool is
@@ -11,11 +11,13 @@ export async function anthropicToolCall(
   system: string,
   messages: AiChatMessage[],
   tool: AiToolDefinition,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  onDelta?: AiDeltaHandler
 ): Promise<AiToolCallResult> {
   const client = new Anthropic({ apiKey: config.apiKey });
   try {
-    const response = await client.beta.messages.create({
+    // Streamed so the tool input reaches the UI as it is written (input_json_delta events).
+    const stream = client.beta.messages.stream({
       model: config.model,
       max_tokens: 16000,
       betas: ["server-side-fallback-2026-07-01"],
@@ -32,6 +34,8 @@ export async function anthropicToolCall(
       ],
       tool_choice: { type: "auto" },
     }, { signal });
+    if (onDelta) stream.on("inputJson", (fragment) => onDelta(fragment));
+    const response = await stream.finalMessage();
 
     if (response.stop_reason === "refusal") {
       throw new Error("O modelo recusou a solicitação. Reformule o pedido.");

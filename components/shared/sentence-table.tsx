@@ -38,7 +38,7 @@ import {
 import { Plus, Loader2, Maximize2, Minimize2 } from "lucide-react"
 import { deleteSentence, restoreSentence, createSentence, updateSentence, bulkDeleteSentences, setSentenceStatus } from "@/actions/admin/sentences"
 import { createSentenceSchema, updateSentenceSchema, type CreateSentenceInput } from "@/schemas/sentence.schema"
-import { toast } from "sonner"
+import { toast } from "@/lib/toast"
 import { useCrudTable } from "@/hooks/use-crud-table"
 import { useHasPermission } from "@/hooks/use-permissions"
 import type { Sentence } from "@/generated/prisma/client"
@@ -72,6 +72,7 @@ export function SentenceTable({ data, meta, categories }: SentenceTableProps) {
     onSortChange,
     refresh,
     isPending,
+    optimisticRows,
   } = useCrudTable<SentenceRow>({
     deleteAction: deleteSentence,
     restoreAction: restoreSentence,
@@ -286,8 +287,8 @@ export function SentenceTable({ data, meta, categories }: SentenceTableProps) {
         pushParams({ sentenceCategoryId: undefined, page: 1 })
       }}
     >
-      <div className="space-y-2">
-        <Label>Categoria</Label>
+      <Field>
+        <FieldLabel>Categoria</FieldLabel>
         <Select
           items={[{ value: "all", label: "Todas" }, ...categories.map((c) => ({ value: c.id, label: c.name }))]}
           value={categoryFilter || "all"}
@@ -303,7 +304,7 @@ export function SentenceTable({ data, meta, categories }: SentenceTableProps) {
             ))}
           </SelectContent>
         </Select>
-      </div>
+      </Field>
     </DataTableFilterPanel>
   )
 
@@ -314,7 +315,7 @@ export function SentenceTable({ data, meta, categories }: SentenceTableProps) {
       <DataTable
         refreshing={isPending}
         columns={columns}
-        data={data}
+        data={optimisticRows(data)}
         page={meta.page}
         pageSize={meta.pageSize}
         total={meta.total}

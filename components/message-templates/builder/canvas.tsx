@@ -21,7 +21,15 @@ import {
   type RowBlock,
 } from "@/lib/message-templates/block-types"
 import { sameLocation, type BlockLocation } from "@/lib/message-templates/block-tree-utils"
-import { RichTextEditor, EMAIL_TYPOGRAPHY_CLASSES } from "../rich-text-editor"
+import dynamic from "next/dynamic"
+import { Skeleton } from "@/components/ui/skeleton"
+import { EMAIL_TYPOGRAPHY_CLASSES } from "../email-typography"
+
+// The tiptap editor (ProseMirror) is only downloaded when a text block is being edited.
+const RichTextEditor = dynamic(() => import("../rich-text-editor").then((m) => m.RichTextEditor), {
+  ssr: false,
+  loading: () => <Skeleton className="h-24 w-full" />,
+})
 import { PALETTE_ITEMS } from "./block-palette"
 import { useBuilder } from "./builder-context"
 import { WithTooltip } from "@/components/shared/with-tooltip"

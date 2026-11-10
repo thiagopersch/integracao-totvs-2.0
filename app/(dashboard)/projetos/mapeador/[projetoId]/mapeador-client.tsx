@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import { toast } from "sonner"
+import { toast } from "@/lib/toast"
 import { ArrowLeft, BookmarkPlus, CheckCircle2, Download, FileJson, Loader2, MoreVertical, Upload } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -24,7 +24,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { renameMapeadorProjeto, importMapeadorProjeto, listClientesParaMapeador, updateMapeadorProjetoCliente } from "@/actions/mapeador"
+import { renameMapeadorProjeto, importMapeadorProjeto, updateMapeadorProjetoCliente } from "@/actions/mapeador"
 import { createMapeadorTemplateModelo } from "@/actions/mapeador-template"
 import { exportMapeadorProjetoJson, exportMapeadorProjetoXlsx } from "@/actions/mapeador-export"
 import { useMapeadorStore } from "@/store/mapeador.store"
@@ -69,9 +69,11 @@ type FinalizarStep = "closed" | "pergunta" | "cliente" | "destino"
 
 interface MapeadorClientProps {
   initialProjeto: MapeadorProjetoDTO
+  /** Loaded by the server page (was a client fetch on mount). */
+  clientes: ClienteOption[]
 }
 
-export function MapeadorClient({ initialProjeto }: MapeadorClientProps) {
+export function MapeadorClient({ initialProjeto, clientes }: MapeadorClientProps) {
   const router = useRouter()
   const hydrate = useMapeadorStore((s) => s.hydrate)
   const projeto = useMapeadorStore((s) => s.projeto)
@@ -85,7 +87,6 @@ export function MapeadorClient({ initialProjeto }: MapeadorClientProps) {
   const [modeloComoPadrao, setModeloComoPadrao] = useState(false)
   const [savingModelo, setSavingModelo] = useState(false)
   const [finalizarStep, setFinalizarStep] = useState<FinalizarStep>("closed")
-  const [clientes, setClientes] = useState<ClienteOption[]>([])
   const [finalizarClienteId, setFinalizarClienteId] = useState<string | null>(null)
   const [savingFinalizar, setSavingFinalizar] = useState(false)
 
@@ -93,10 +94,6 @@ export function MapeadorClient({ initialProjeto }: MapeadorClientProps) {
     hydrate(initialProjeto)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialProjeto.id])
-
-  useEffect(() => {
-    listClientesParaMapeador().then((data) => setClientes(data as ClienteOption[]))
-  }, [])
 
   const debouncedNome = useDebounce(projeto?.nome ?? "", 600)
   const firstRenameRun = useRef(true)

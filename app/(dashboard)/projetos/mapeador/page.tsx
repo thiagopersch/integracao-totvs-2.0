@@ -1,5 +1,5 @@
 import { Suspense } from "react"
-import { listMapeadorProjetos, listMapeadorTemplates } from "@/actions/mapeador"
+import { listClientesParaMapeador, listMapeadorProjetos, listMapeadorTemplates } from "@/actions/mapeador"
 import { TableSkeleton } from "@/components/shared/table-skeleton"
 import { MapeadorProjetosList } from "@/components/mapeador/mapeador-projetos-list"
 
@@ -14,6 +14,6 @@ export default function MapeadorPage() {
 }
 
 async function MapeadorPageContent() {
-  const [projetos, templates] = await Promise.all([listMapeadorProjetos(), listMapeadorTemplates()])
-  return <MapeadorProjetosList initialProjetos={projetos} templates={templates} />
+  const [projetos, templates, clientes] = await Promise.all([listMapeadorProjetos(), listMapeadorTemplates(), listClientesParaMapeador()])
+  return <MapeadorProjetosList initialProjetos={projetos} templates={templates} clientes={clientes} />
 }

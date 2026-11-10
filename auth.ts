@@ -3,7 +3,7 @@ import Credentials from "next-auth/providers/credentials";
 import { authService } from "@/services/auth.service";
 import { loginSchema } from "@/schemas/auth.schema";
 import { AUTH_CONFIG } from "@/config/auth.config";
-import { checkRateLimit } from "@/lib/rate-limiter";
+import { rateLimit } from "@/lib/rate-limiter";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   trustHost: true,
@@ -27,7 +27,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         // Enforced here too (not only in loginAction): /api/auth/callback/credentials can be posted to
         // directly, bypassing the Server Action.
         const { window, max } = AUTH_CONFIG.RATE_LIMIT.LOGIN_PER_ACCOUNT;
-        if (!checkRateLimit(`login-account:${parsed.data.email.toLowerCase()}`, window, max).allowed) return null;
+        if (!(await rateLimit(`login-account:${parsed.data.email.toLowerCase()}`, window, max)).allowed) return null;
 
         const result = await authService.login(parsed.data);
         if (!result) return null;

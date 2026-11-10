@@ -1,3 +1,4 @@
+import { withSpan } from "@/lib/tracing";
 import https from "node:https";
 import axios from "axios";
 import { authHeaders } from "@/lib/ps-docs/api-helpers";
@@ -51,7 +52,11 @@ export function createLimiter(concurrency: number) {
   };
 }
 
-export function createRubeusClient(credentials: PsCredentials, options: { concurrency?: number; signal?: AbortSignal } = {}): RubeusClient {
+export function createRubeusClient(
+  credentials: PsCredentials,
+  /** `timeoutMs`: per-request default — the organization's RUBEUS setting (getIntegrationConfig). */
+  options: { concurrency?: number; signal?: AbortSignal; timeoutMs?: number } = {}
+): RubeusClient {
   const run = createLimiter(options.concurrency ?? 10);
   const memo = new Map<string, Promise<RubeusResponse>>();
   const baseHeaders = authHeaders(credentials);
@@ -64,16 +69,16 @@ export function createRubeusClient(credentials: PsCredentials, options: { concur
     const promise = run(async () => {
       if (options.signal?.aborted) throw new DOMException("Busca cancelada", "AbortError");
       requestCount++;
-      const res = await axios.request({
+      const res = await withSpan(`rubeus ${method}`, { integration: "RUBEUS", "http.method": method }, () => axios.request({
         method,
         url,
         data: body,
         headers: { ...baseHeaders, ...opts.headers },
         validateStatus: () => true,
-        timeout: opts.timeout ?? 30_000,
+        timeout: opts.timeout ?? options.timeoutMs ?? 30_000,
         httpsAgent: keepAliveAgent,
         signal: options.signal,
-      });
+      }));
       return { status: res.status, data: res.data };
     });
     memo.set(key, promise);

@@ -8,7 +8,7 @@ import { passwordSchema } from "@/lib/validators";
 import { getClientIp } from "@/lib/client-ip";
 import { headers } from "next/headers";
 import { AUTH_CONFIG } from "@/config/auth.config";
-import { checkRateLimit } from "@/lib/rate-limiter";
+import { rateLimit } from "@/lib/rate-limiter";
 import { logger } from "@/lib/logger";
 import { getFirstAllowedRoute } from "@/lib/nav-items";
 
@@ -21,7 +21,7 @@ export async function loginAction(formData: FormData) {
   // Keyed per source IP + account: one attacker can't lock everybody out (the old fixed
   // "login:internal" key was shared by all users), and authorize() caps attempts per account.
   const ip = getClientIp(await headers());
-  const rateCheck = checkRateLimit(
+  const rateCheck = await rateLimit(
     `login:${ip}:${String(data.email ?? "").toLowerCase()}`,
     AUTH_CONFIG.RATE_LIMIT.LOGIN.window,
     AUTH_CONFIG.RATE_LIMIT.LOGIN.max
@@ -103,7 +103,7 @@ export async function changePasswordAction(formData: FormData) {
   }
 
   const { window, max } = AUTH_CONFIG.RATE_LIMIT.CHANGE_PASSWORD;
-  if (!checkRateLimit(`change-password:${userId}`, window, max).allowed) {
+  if (!(await rateLimit(`change-password:${userId}`, window, max)).allowed) {
     return { success: false, error: "Muitas tentativas. Tente novamente mais tarde." };
   }
 

@@ -56,7 +56,7 @@ export function WhatsAppEditor({
     <div className="grid gap-4 lg:grid-cols-2">
       <div className="space-y-2">
         <Label htmlFor="whatsapp-body">Mensagem</Label>
-        <div className={cn("overflow-hidden rounded-md border", invalid && "border-destructive")}>
+        <div className={cn("overflow-hidden surface", invalid && "border-destructive")}>
           <div className="flex items-center gap-0.5 border-b bg-muted/40 p-1">
             {FORMATS.map(({ marker, title, icon: Icon }) => (
               <WithTooltip key={marker} label={title}>

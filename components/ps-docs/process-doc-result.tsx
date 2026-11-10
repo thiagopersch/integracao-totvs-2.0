@@ -5,39 +5,41 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { PsDocPreview } from "@/components/ps-docs/ps-doc-preview"
 import { Download, ClipboardCopy } from "lucide-react"
-import { toast } from "sonner"
+import { toast } from "@/lib/toast"
 import { documentToMarkdown } from "@/lib/ps-docs/export-markdown"
 import { renderDocumentHtml } from "@/lib/ps-docs/render-html"
 import { downloadBlob, slugify } from "@/lib/ps-docs/download-utils"
-import type { DocumentacaoPS, StyleConfig } from "@/lib/ps-docs/types"
+import { DEFAULT_DOC_OPTIONS, type DocOptions, type DocumentacaoPS, type StyleConfig } from "@/lib/ps-docs/types"
 
 interface ProcessDocResultProps {
   model: DocumentacaoPS
   warnings: string[]
   style: StyleConfig
+  /** "Conteúdo da documentação" answers — applied to the preview and every export. */
+  options?: DocOptions
 }
 
 /** The badge/download-buttons/warnings+preview block used to show one generated
  *  processo seletivo documentation — shared between the "processo específico" mode and each
  *  process's tab in the "portal inteiro" mode, so both stay in sync (same exports, same preview). */
-export function ProcessDocResult({ model, warnings, style }: ProcessDocResultProps) {
+export function ProcessDocResult({ model, warnings, style, options = DEFAULT_DOC_OPTIONS }: ProcessDocResultProps) {
   const hasResult = model.etapas.length > 0
 
   async function handleDownloadDocx() {
     // The docx library is only downloaded when the user actually exports.
     const { buildDocx } = await import("@/lib/ps-docs/export-docx")
-    const blob = await buildDocx(model, style)
+    const blob = await buildDocx(model, style, options)
     downloadBlob(blob, `mapeamento-ps-${slugify(model.tituloPortal)}.docx`)
   }
 
   function handleDownloadMarkdown() {
-    const markdown = documentToMarkdown(model, style)
+    const markdown = documentToMarkdown(model, style, options)
     downloadBlob(new Blob([markdown], { type: "text/markdown" }), `mapeamento-ps-${slugify(model.tituloPortal)}.md`)
   }
 
   async function handleCopyForGoogleDocs() {
-    const html = renderDocumentHtml(model, style)
-    const markdown = documentToMarkdown(model, style)
+    const html = renderDocumentHtml(model, style, options)
+    const markdown = documentToMarkdown(model, style, options)
     try {
       await navigator.clipboard.write([
         new ClipboardItem({
@@ -87,7 +89,7 @@ export function ProcessDocResult({ model, warnings, style }: ProcessDocResultPro
         </Card>
       )}
 
-      <PsDocPreview model={model} style={style} />
+      <PsDocPreview model={model} style={style} options={options} />
     </div>
   )
 }

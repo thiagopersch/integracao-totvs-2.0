@@ -16,7 +16,6 @@ import { BadgeList } from "@/components/shared/badge-list"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
-import { Label } from "@/components/ui/label"
 import { Field, FieldLabel, FieldError } from "@/components/ui/field"
 import {
   Dialog,
@@ -30,7 +29,7 @@ import {
 import { Plus, Loader2 } from "lucide-react"
 import { deleteDepartment, createDepartment, updateDepartment, bulkDeleteDepartments } from "@/actions/departments"
 import { createDepartmentSchema, updateDepartmentSchema, type CreateDepartmentInput } from "@/schemas/department.schema"
-import { toast } from "sonner"
+import { toast } from "@/lib/toast"
 import { useCrudTable } from "@/hooks/use-crud-table"
 import { useHasPermission } from "@/hooks/use-permissions"
 import type { DepartmentWithLinks } from "@/services/department.service"
@@ -64,6 +63,7 @@ export function DepartmentTable({ data, meta, clients, requesters }: DepartmentT
     onSortChange,
     refresh,
     isPending,
+    optimisticRows,
   } = useCrudTable<Department>({
     deleteAction: deleteDepartment,
     deleteSuccessMessage: "Setor excluído com sucesso",
@@ -248,8 +248,8 @@ export function DepartmentTable({ data, meta, clients, requesters }: DepartmentT
         pushParams({ clientId: undefined, page: 1 })
       }}
     >
-      <div className="space-y-2">
-        <Label>Clientes</Label>
+      <Field>
+        <FieldLabel>Clientes</FieldLabel>
         <MultiSelect
           items={clients.map((c) => ({ value: c.id, label: c.name, color: c.color }))}
           value={clientFilter}
@@ -257,7 +257,7 @@ export function DepartmentTable({ data, meta, clients, requesters }: DepartmentT
           placeholder="Todos"
           searchPlaceholder="Buscar cliente..."
         />
-      </div>
+      </Field>
     </DataTableFilterPanel>
   )
 
@@ -268,7 +268,7 @@ export function DepartmentTable({ data, meta, clients, requesters }: DepartmentT
       <DataTable
         refreshing={isPending}
         columns={columns}
-        data={data}
+        data={optimisticRows(data)}
         page={meta.page}
         pageSize={meta.pageSize}
         total={meta.total}

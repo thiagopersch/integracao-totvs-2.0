@@ -1,6 +1,7 @@
 "use client"
 
 import { createClient, deleteClient, restoreClient, updateClient, bulkDeleteClients, setClientStatus } from "@/actions/admin/clients"
+import Image from "next/image"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
 import { DataTable } from "@/components/shared/data-table"
 import { DataTableFilterPanel } from "@/components/shared/data-table-filter-panel"
@@ -30,7 +31,7 @@ import type { ColumnDef } from "@tanstack/react-table"
 import { Loader2, Pencil, Plus, Star } from "lucide-react"
 import { useMemo, useRef, useState } from "react"
 import { Controller, useForm, type Resolver } from "react-hook-form"
-import { toast } from "sonner"
+import { toast } from "@/lib/toast"
 import { useCrudTable } from "@/hooks/use-crud-table"
 import { useImageField } from "@/hooks/use-image-field"
 import { useHasPermission } from "@/hooks/use-permissions"
@@ -56,6 +57,7 @@ export function ClientTable({ data, meta }: ClientTableProps) {
     onSortChange,
     refresh,
     isPending,
+    optimisticRows,
   } = useCrudTable<Client>({
     deleteAction: deleteClient,
     restoreAction: restoreClient,
@@ -179,17 +181,18 @@ export function ClientTable({ data, meta }: ClientTableProps) {
           <Tooltip>
             <TooltipTrigger
               render={
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
+                <Image
                   src={image}
                   alt={row.original.name}
+                  width={40}
+                  height={40}
+                  sizes="40px"
                   className="h-10 w-10 rounded-md border border-input bg-muted/30 object-contain p-1"
                 />
               }
             />
             <TooltipContent variant="surface" side="right" className="max-w-none p-2">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={image} alt={row.original.name} className="h-48 w-48 rounded-md object-contain" />
+              <Image src={image} alt={row.original.name} width={192} height={192} sizes="192px" className="h-48 w-48 rounded-md object-contain" />
             </TooltipContent>
           </Tooltip>
         )
@@ -521,8 +524,8 @@ export function ClientTable({ data, meta }: ClientTableProps) {
         pushParams({ status: undefined, favorite: undefined, hasImage: undefined, page: 1 })
       }}
     >
-      <div className="space-y-2">
-        <Label>Status</Label>
+      <Field>
+        <FieldLabel>Status</FieldLabel>
         <Select
           items={[
             { value: "all", label: "Todos" },
@@ -541,9 +544,9 @@ export function ClientTable({ data, meta }: ClientTableProps) {
             <SelectItem value="false">Inativo</SelectItem>
           </SelectContent>
         </Select>
-      </div>
-      <div className="space-y-2">
-        <Label>Favoritos</Label>
+      </Field>
+      <Field>
+        <FieldLabel>Favoritos</FieldLabel>
         <Select
           items={[
             { value: "all", label: "Todos" },
@@ -562,9 +565,9 @@ export function ClientTable({ data, meta }: ClientTableProps) {
             <SelectItem value="false">Não</SelectItem>
           </SelectContent>
         </Select>
-      </div>
-      <div className="space-y-2">
-        <Label>Possui imagem</Label>
+      </Field>
+      <Field>
+        <FieldLabel>Possui imagem</FieldLabel>
         <Select
           items={[
             { value: "all", label: "Todos" },
@@ -583,7 +586,7 @@ export function ClientTable({ data, meta }: ClientTableProps) {
             <SelectItem value="false">Não</SelectItem>
           </SelectContent>
         </Select>
-      </div>
+      </Field>
     </DataTableFilterPanel>
   )
 
@@ -594,7 +597,7 @@ export function ClientTable({ data, meta }: ClientTableProps) {
       <DataTable
         refreshing={isPending}
         columns={columns}
-        data={data}
+        data={optimisticRows(data)}
         page={meta.page}
         pageSize={meta.pageSize}
         total={meta.total}

@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input"
 import { PasswordInput } from "@/components/ui/password-input"
 import { Field, FieldLabel, FieldError } from "@/components/ui/field"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { toast } from "sonner"
+import { toast } from "@/lib/toast"
 import { Loader2, LogIn } from "lucide-react"
 
 export default function LoginPage() {
@@ -40,7 +40,7 @@ export default function LoginPage() {
       // to know about it without a hard reload; a soft push would leave every permission-gated
       // component (sidebar, DataTable actions) reading the previous session until something else
       // happened to trigger a refetch.
-      window.location.href = "/dashboard"
+      window.location.assign("/dashboard")
     } else {
       toast.error(result.error ?? "Erro ao fazer login")
       setLoading(false)

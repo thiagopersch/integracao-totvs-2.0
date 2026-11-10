@@ -12,6 +12,11 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Other Claude sessions' git worktrees (own node_modules and builds).
+    ".claude/**",
+    "generated/**",
+    "test-results/**",
+    "playwright-report/**",
   ]),
 ]);
 

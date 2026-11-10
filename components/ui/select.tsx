@@ -1,24 +1,153 @@
 "use client"
 
-import { Select as SelectPrimitive } from "@base-ui/react/select"
 import * as React from "react"
+import Menu from "@mui/material/Menu"
+import MenuItem from "@mui/material/MenuItem"
+import ListSubheader from "@mui/material/ListSubheader"
+import Divider from "@mui/material/Divider"
+import FormControl from "@mui/material/FormControl"
+import InputLabel from "@mui/material/InputLabel"
+import OutlinedInput from "@mui/material/OutlinedInput"
+import { CheckIcon, ChevronDownIcon } from "lucide-react"
 
 import { cn } from "@/lib/utils"
-import { CheckIcon, ChevronDownIcon, ChevronUpIcon } from "lucide-react"
+import { popoverOrigins } from "@/components/ui/popover"
+import { useFloatingLabel } from "@/components/ui/field"
 
-const Select = SelectPrimitive.Root
-
-function SelectGroup({ className, ...props }: SelectPrimitive.Group.Props) {
-  return <SelectPrimitive.Group data-slot="select-group" className={cn("scroll-my-1 p-1", className)} {...props} />
+const BOX = /^(?:[a-z-]+:)*(?:h-|min-h-|max-h-|rounded|bg-|border)/
+function splitBoxClasses(className: string) {
+  const box: string[] = []
+  const rest: string[] = []
+  for (const token of className.split(/\s+/).filter(Boolean)) (BOX.test(token) ? box : rest).push(token)
+  return { box: box.join(" "), rest: rest.join(" ") }
 }
 
-function SelectValue({ className, ...props }: SelectPrimitive.Value.Props) {
+/**
+ * Compound Select (same API the app had on Base UI: `items`, `value`, `onValueChange`,
+ * SelectTrigger/SelectValue/SelectContent/SelectItem) rendered with MUI ButtonBase + Menu.
+ */
+type SelectItemDef = { value: string | null; label: React.ReactNode }
+type SelectGroupDef = { label: React.ReactNode; items: SelectItemDef[] }
+type SelectItems = ReadonlyArray<SelectItemDef | SelectGroupDef> | Record<string, React.ReactNode>
+
+type SelectCtx = {
+  value: string | null | undefined
+  setValue: (value: string) => void
+  open: boolean
+  setOpen: (open: boolean) => void
+  anchorEl: HTMLElement | null
+  setAnchorEl: (el: HTMLElement | null) => void
+  labelOf: (value: string | null | undefined) => React.ReactNode
+  registerLabel: (value: string, label: React.ReactNode) => void
+  disabled?: boolean
+  name?: string
+}
+const SelectContext = React.createContext<SelectCtx | null>(null)
+function useSelect() {
+  const ctx = React.useContext(SelectContext)
+  if (!ctx) throw new Error("Select parts must be used inside <Select>")
+  return ctx
+}
+
+type SelectProps = {
+  value?: string | null
+  defaultValue?: string | null
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- callers narrow the value to their own union type
+  onValueChange?: (value: any) => void
+  items?: SelectItems
+  disabled?: boolean
+  name?: string
+  required?: boolean
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
+  children?: React.ReactNode
+}
+
+function Select({ value, defaultValue, onValueChange, items, disabled, name, open, onOpenChange, children }: SelectProps) {
+  const [inner, setInner] = React.useState<string | null | undefined>(defaultValue)
+  const current = value !== undefined ? value : inner
+  const [openInner, setOpenInner] = React.useState(false)
+  const isOpen = open ?? openInner
+  const [anchorEl, setAnchorEl] = React.useState<HTMLElement | null>(null)
+  const [labels, setLabels] = React.useState<Record<string, React.ReactNode>>({})
+  const registerLabel = React.useCallback(
+    (v: string, label: React.ReactNode) => setLabels((prev) => (v in prev ? prev : { ...prev, [v]: label })),
+    []
+  )
+
+  const itemLabels = React.useMemo(() => {
+    const map = new Map<string, React.ReactNode>()
+    if (Array.isArray(items))
+      for (const entry of items as ReadonlyArray<SelectItemDef | SelectGroupDef>) {
+        if ("items" in entry) for (const item of entry.items) map.set(String(item.value), item.label)
+        else map.set(String(entry.value), entry.label)
+      }
+    else if (items) for (const [k, v] of Object.entries(items)) map.set(k, v)
+    return map
+  }, [items])
+
+  const ctx = React.useMemo<SelectCtx>(
+    () => ({
+      value: current,
+      setValue: (next) => {
+        if (value === undefined) setInner(next)
+        onValueChange?.(next)
+      },
+      open: isOpen,
+      setOpen: (next) => {
+        setOpenInner(next)
+        onOpenChange?.(next)
+      },
+      anchorEl,
+      setAnchorEl,
+      labelOf: (v) => (v == null ? undefined : (itemLabels.get(String(v)) ?? labels[String(v)])),
+      registerLabel,
+      disabled,
+      name,
+    }),
+    [current, value, onValueChange, isOpen, onOpenChange, anchorEl, itemLabels, labels, registerLabel, disabled, name]
+  )
+
   return (
-    <SelectPrimitive.Value
-      data-slot="select-value"
-      className={cn("flex flex-1 min-w-0 text-left", className)}
-      {...props}
-    />
+    <SelectContext.Provider value={ctx}>
+      {children}
+      {name && <input type="hidden" name={name} value={current ?? ""} />}
+    </SelectContext.Provider>
+  )
+}
+
+type TriggerSurfaceProps = React.HTMLAttributes<HTMLDivElement> & {
+  disabled?: boolean
+  onToggle: () => void
+  ref?: React.Ref<HTMLDivElement>
+}
+
+/** The "input" of the outlined trigger: a focusable combobox div (like MUI's own Select). */
+function TriggerSurface({ disabled, onToggle, ref, className, children, onFocus, onBlur, ...rest }: TriggerSurfaceProps & Record<string, unknown>) {
+  const aria: Record<string, unknown> = {}
+  for (const [k, v] of Object.entries(rest)) if (k.startsWith("aria-") || k.startsWith("data-") || k === "id" || k === "title" || k === "onKeyDown") aria[k] = v
+  return (
+    <div
+      ref={ref}
+      role="combobox"
+      tabIndex={disabled ? -1 : 0}
+      aria-disabled={disabled || undefined}
+      className={className}
+      onFocus={onFocus}
+      onBlur={onBlur}
+      onClick={() => !disabled && onToggle()}
+      {...aria}
+      onKeyDown={(e) => {
+        ;(aria.onKeyDown as React.KeyboardEventHandler<HTMLDivElement> | undefined)?.(e)
+        if (disabled || e.defaultPrevented) return
+        if (e.key === "Enter" || e.key === " " || e.key === "ArrowDown") {
+          e.preventDefault()
+          onToggle()
+        }
+      }}
+    >
+      {children}
+    </div>
   )
 }
 
@@ -26,23 +155,113 @@ function SelectTrigger({
   className,
   size = "default",
   children,
+  disabled,
+  id,
   ...props
-}: SelectPrimitive.Trigger.Props & {
-  size?: "sm" | "default"
-}) {
+}: Omit<React.ComponentProps<"button">, "ref"> & { size?: "sm" | "default" }) {
+  const { setAnchorEl, value, open, setOpen, disabled: ctxDisabled } = useSelect()
+  const floating = useFloatingLabel(id)
+  const isDisabled = Boolean(disabled ?? ctxDisabled)
+  const isEmpty = value == null || value === ""
+  const [focused, setFocused] = React.useState(false)
+  const invalid = props["aria-invalid"] === true || props["aria-invalid"] === "true"
+  const shrink = !!floating && (floating.static || !isEmpty || open || focused)
+  const { box, rest } = splitBoxClasses(className ?? "")
+  const height = size === "sm" ? "h-8" : floating ? "h-10" : "h-9"
+
+  const surfaceId = id ?? floating?.id
+  const labelId = React.useId()
+  const surfaceProps = {
+    ...(props as Record<string, unknown>),
+    id: surfaceId,
+    // A div combobox isn't "labelable" by <label for>: name it through the floating label.
+    ...(floating && !props["aria-label"] && !props["aria-labelledby"] ? { "aria-labelledby": labelId } : {}),
+    "aria-haspopup": "listbox",
+    "aria-expanded": open,
+    "data-slot": "select-trigger",
+    "data-size": size,
+    "data-placeholder": isEmpty ? "" : undefined,
+    disabled: isDisabled,
+    onToggle: () => setOpen(!open),
+    children,
+  } as Record<string, unknown>
+
+  const input = (
+    <OutlinedInput
+      ref={setAnchorEl}
+      disabled={isDisabled}
+      error={invalid}
+      label={floating?.label}
+      notched={floating ? shrink : undefined}
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- custom surface, like MUI's own SelectInput
+      inputComponent={TriggerSurface as any}
+      inputProps={surfaceProps}
+      onFocus={() => setFocused(true)}
+      onBlur={() => setFocused(false)}
+      endAdornment={<ChevronDownIcon className={cn("pointer-events-none mr-2 size-4 shrink-0 text-muted-foreground transition-transform", open && "rotate-180")} />}
+      className={cn("text-sm", height, floating ? "w-full" : cn("w-fit", rest), box)}
+      sx={{
+        pr: 0,
+        cursor: isDisabled ? "default" : "pointer",
+        "& .MuiInputBase-input": {
+          display: "flex",
+          alignItems: "center",
+          gap: 0.75,
+          height: "100%",
+          boxSizing: "border-box",
+          py: 0,
+          pl: 1.5,
+          pr: 1,
+          cursor: "inherit",
+          whiteSpace: "nowrap",
+          overflow: "hidden",
+          userSelect: "none",
+        },
+        "& .MuiInputBase-input[data-placeholder]": { color: "text.secondary" },
+        "& svg:not([class*='size-'])": { width: 16, height: 16 },
+      }}
+    />
+  )
+
+  if (!floating) return input
   return (
-    <SelectPrimitive.Trigger
-      data-slot="select-trigger"
-      data-size={size}
-      className={cn(
-        "flex w-fit cursor-pointer items-center justify-between gap-1.5 rounded-lg border border-input bg-transparent py-2 pr-2 pl-2.5 text-sm whitespace-nowrap transition-colors outline-none select-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 data-placeholder:text-muted-foreground data-[size=default]:h-8 data-[size=sm]:h-7 data-[size=sm]:rounded-[min(var(--radius-md),10px)] *:data-[slot=select-value]:line-clamp-1 *:data-[slot=select-value]:flex *:data-[slot=select-value]:items-center *:data-[slot=select-value]:gap-1.5 dark:bg-input/30 dark:hover:bg-input/50 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
-        className
-      )}
-      {...props}
+    <FormControl
+      variant="outlined"
+      size="small"
+      error={invalid}
+      disabled={isDisabled}
+      focused={focused || open}
+      className={cn("min-w-0", rest || "w-full")}
+      {...floating.rootProps}
     >
-      {children}
-      <SelectPrimitive.Icon render={<ChevronDownIcon className="pointer-events-none size-4 text-muted-foreground" />} />
-    </SelectPrimitive.Trigger>
+      <InputLabel id={labelId} shrink={shrink} size="small">
+        {floating.label}
+      </InputLabel>
+      {input}
+    </FormControl>
+  )
+}
+
+function SelectValue({
+  className,
+  placeholder,
+  children,
+}: {
+  className?: string
+  placeholder?: React.ReactNode
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- same as onValueChange
+  children?: React.ReactNode | ((value: any) => React.ReactNode)
+}) {
+  const ctx = useSelect()
+  const hasValue = ctx.value != null && ctx.value !== ""
+  let content: React.ReactNode
+  if (typeof children === "function") content = children(ctx.value)
+  else if (children !== undefined) content = children
+  else content = hasValue ? (ctx.labelOf(ctx.value) ?? ctx.value) : placeholder
+  return (
+    <span data-slot="select-value" className={cn("line-clamp-1 flex min-w-0 flex-1 items-center gap-1.5 text-left", className)}>
+      {content}
+    </span>
   )
 }
 
@@ -50,111 +269,109 @@ function SelectContent({
   className,
   children,
   side = "bottom",
-  sideOffset = 4,
-  align = "center",
-  alignOffset = 0,
-  alignItemWithTrigger = false,
-  ...props
-}: SelectPrimitive.Popup.Props &
-  Pick<SelectPrimitive.Positioner.Props, "align" | "alignOffset" | "side" | "sideOffset" | "alignItemWithTrigger">) {
+  align = "start",
+}: {
+  className?: string
+  children?: React.ReactNode
+  side?: "top" | "bottom" | "left" | "right"
+  sideOffset?: number
+  align?: "start" | "center" | "end"
+  alignOffset?: number
+  alignItemWithTrigger?: boolean
+}) {
+  const ctx = useSelect()
   return (
-    <SelectPrimitive.Portal>
-      <SelectPrimitive.Positioner
-        side={side}
-        sideOffset={sideOffset}
-        align={align}
-        alignOffset={alignOffset}
-        alignItemWithTrigger={alignItemWithTrigger}
-        className="isolate z-50"
-      >
-        <SelectPrimitive.Popup
-          data-slot="select-content"
-          data-align-trigger={alignItemWithTrigger}
-          className={cn(
-            "relative isolate z-50 max-h-(--available-height) min-w-(--anchor-width) w-max max-w-(--available-width) origin-(--transform-origin) overflow-y-auto rounded-lg bg-popover text-popover-foreground shadow-md ring-1 ring-foreground/10 duration-100 data-[align-trigger=true]:animate-none data-[side=bottom]:slide-in-from-top-2 data-[side=inline-end]:slide-in-from-left-2 data-[side=inline-start]:slide-in-from-right-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
-            className
-          )}
-          {...props}
-        >
-          <SelectScrollUpButton />
-          <SelectPrimitive.List>{children}</SelectPrimitive.List>
-          <SelectScrollDownButton />
-        </SelectPrimitive.Popup>
-      </SelectPrimitive.Positioner>
-    </SelectPrimitive.Portal>
+    <Menu
+      open={ctx.open && Boolean(ctx.anchorEl)}
+      anchorEl={ctx.anchorEl}
+      onClose={() => ctx.setOpen(false)}
+      // Mounted while closed so each SelectItem registers its label for <SelectValue>.
+      keepMounted
+      {...popoverOrigins(side, align)}
+      slotProps={{
+        paper: {
+          elevation: 8,
+          "data-slot": "select-content",
+          className: cn("max-h-80 text-sm", className),
+          style: { minWidth: ctx.anchorEl?.offsetWidth },
+          sx: { mt: 0.5 },
+        } as React.ComponentProps<"div">,
+        list: { dense: true, role: "listbox" },
+      }}
+    >
+      {children}
+    </Menu>
   )
 }
 
-function SelectLabel({ className, ...props }: SelectPrimitive.GroupLabel.Props) {
+function SelectGroup({ className, children }: { className?: string; children?: React.ReactNode }) {
   return (
-    <SelectPrimitive.GroupLabel
-      data-slot="select-label"
-      className={cn("px-1.5 py-1 text-xs text-muted-foreground", className)}
-      {...props}
-    />
+    <div data-slot="select-group" role="group" className={cn("py-0.5", className)}>
+      {children}
+    </div>
   )
 }
 
-function SelectItem({ className, children, ...props }: SelectPrimitive.Item.Props) {
+function SelectLabel({ className, children }: { className?: string; children?: React.ReactNode }) {
   return (
-    <SelectPrimitive.Item
+    <ListSubheader data-slot="select-label" disableSticky className={cn("text-xs leading-7", className)}>
+      {children}
+    </ListSubheader>
+  )
+}
+
+function textOf(node: React.ReactNode): React.ReactNode {
+  return node
+}
+
+function SelectItem({
+  className,
+  children,
+  value,
+  disabled,
+  label,
+}: {
+  className?: string
+  children?: React.ReactNode
+  value: string | null
+  disabled?: boolean
+  label?: string
+}) {
+  const ctx = useSelect()
+  const key = String(value)
+  const { registerLabel } = ctx
+  React.useEffect(() => {
+    registerLabel(key, label ?? textOf(children))
+  }, [registerLabel, key, label, children])
+  const selected = ctx.value != null && String(ctx.value) === key
+  return (
+    <MenuItem
       data-slot="select-item"
-      className={cn(
-        "relative flex w-full cursor-pointer items-center gap-1.5 rounded-md py-1 pr-8 pl-1.5 text-sm outline-hidden select-none focus:bg-accent focus:text-accent-foreground not-data-[variant=destructive]:focus:**:text-accent-foreground data-disabled:pointer-events-none data-disabled:cursor-not-allowed data-disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 *:[span]:last:flex *:[span]:last:items-center *:[span]:last:gap-2",
-        className
-      )}
-      {...props}
+      role="option"
+      aria-selected={selected}
+      selected={selected}
+      disabled={disabled}
+      className={cn("gap-2 pr-8 text-sm [&_svg:not([class*='size-'])]:size-4", className)}
+      onClick={() => {
+        ctx.setValue(value as string)
+        ctx.setOpen(false)
+      }}
     >
-      <SelectPrimitive.ItemText className="flex flex-1 min-w-0 gap-2 whitespace-normal break-words">
-        {children}
-      </SelectPrimitive.ItemText>
-      <SelectPrimitive.ItemIndicator
-        render={<span className="pointer-events-none absolute right-2 flex size-4 items-center justify-center" />}
-      >
-        <CheckIcon className="pointer-events-none" />
-      </SelectPrimitive.ItemIndicator>
-    </SelectPrimitive.Item>
+      <span className="flex flex-1 shrink-0 items-center gap-2 whitespace-nowrap">{children}</span>
+      {selected && <CheckIcon className="absolute right-2 size-4" />}
+    </MenuItem>
   )
 }
 
-function SelectSeparator({ className, ...props }: SelectPrimitive.Separator.Props) {
-  return (
-    <SelectPrimitive.Separator
-      data-slot="select-separator"
-      className={cn("pointer-events-none -mx-1 my-1 h-px bg-border", className)}
-      {...props}
-    />
-  )
+function SelectSeparator({ className }: { className?: string }) {
+  return <Divider data-slot="select-separator" className={className} sx={{ my: 0.5 }} />
 }
 
-function SelectScrollUpButton({ className, ...props }: React.ComponentProps<typeof SelectPrimitive.ScrollUpArrow>) {
-  return (
-    <SelectPrimitive.ScrollUpArrow
-      data-slot="select-scroll-up-button"
-      className={cn(
-        "top-0 z-10 flex w-full cursor-default items-center justify-center bg-popover py-1 [&_svg:not([class*='size-'])]:size-4",
-        className
-      )}
-      {...props}
-    >
-      <ChevronUpIcon />
-    </SelectPrimitive.ScrollUpArrow>
-  )
+function SelectScrollUpButton() {
+  return null
 }
-
-function SelectScrollDownButton({ className, ...props }: React.ComponentProps<typeof SelectPrimitive.ScrollDownArrow>) {
-  return (
-    <SelectPrimitive.ScrollDownArrow
-      data-slot="select-scroll-down-button"
-      className={cn(
-        "bottom-0 z-10 flex w-full cursor-default items-center justify-center bg-popover py-1 [&_svg:not([class*='size-'])]:size-4",
-        className
-      )}
-      {...props}
-    >
-      <ChevronDownIcon />
-    </SelectPrimitive.ScrollDownArrow>
-  )
+function SelectScrollDownButton() {
+  return null
 }
 
 export {

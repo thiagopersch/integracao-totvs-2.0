@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
-import { toast } from "sonner"
+import { toast } from "@/lib/toast"
 import { DndContext, MouseSensor, TouchSensor, useDraggable, useDroppable, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core"
 import { ChevronLeft, ChevronRight, Diamond, Plus } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -229,7 +229,7 @@ export function TaskCalendar({ projectId, tasks, stages, month, by, today, canCr
         </div>
       </div>
       <DndContext id={`calendar-${projectId}`} sensors={sensors} onDragEnd={onDragEnd}>
-        <div className="overflow-x-auto rounded-md border">
+        <div className="overflow-x-auto surface">
           <div className="grid min-w-[720px] grid-cols-7 border-l">
             {WEEKDAYS.map((d) => (
               <div key={d} className="border-b border-r bg-muted/40 px-2 py-1.5 text-xs font-medium text-muted-foreground">

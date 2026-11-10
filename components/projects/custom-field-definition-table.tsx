@@ -4,7 +4,7 @@ import { useMemo, useState } from "react"
 import type { ColumnDef } from "@tanstack/react-table"
 import { useForm, type Resolver, type UseFormReturn } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
-import { toast } from "sonner"
+import { toast } from "@/lib/toast"
 import { DndContext, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core"
 import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
@@ -20,7 +20,6 @@ import { CustomFieldPreview, type CustomFieldDraft } from "@/components/projects
 import { WithTooltip } from "@/components/shared/with-tooltip"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { DatePicker } from "@/components/ui/date-picker"
 import { TimePicker } from "@/components/ui/time-picker"
@@ -217,7 +216,7 @@ function ValidationRules({ form, type }: { form: DefinitionForm; type: CustomFie
   )
 
   return (
-    <div className="space-y-3 rounded-md border p-3">
+    <div className="space-y-3 surface p-3">
       <div>
         <p className="text-sm font-medium">Validações</p>
         <p className="text-xs text-muted-foreground">
@@ -416,6 +415,7 @@ export function CustomFieldDefinitionTable({ data, meta, orderLists }: CustomFie
     handleToggleStatus,
     sort,
     onSortChange,
+    optimisticRows,
   } = useCrudTable<CustomFieldDefinitionRow>({
     deleteAction: deleteCustomFieldDefinition,
     setStatusAction: setCustomFieldDefinitionStatus,
@@ -720,7 +720,7 @@ export function CustomFieldDefinitionTable({ data, meta, orderLists }: CustomFie
                 </Field>
               </div>
             </div>
-            <aside className="mt-4 rounded-lg border bg-muted/30 p-4 lg:sticky lg:top-0 lg:mt-0 lg:self-start">
+            <aside className="mt-4 rounded-xl bg-muted p-4 lg:sticky lg:top-0 lg:mt-0 lg:self-start">
               <CustomFieldPreview draft={form.watch() as CustomFieldDraft} />
             </aside>
           </DialogBody>
@@ -755,8 +755,8 @@ export function CustomFieldDefinitionTable({ data, meta, orderLists }: CustomFie
         pushParams({ entity: undefined, type: undefined, status: undefined, page: 1 })
       }}
     >
-      <div className="space-y-2">
-        <Label>Entidade</Label>
+      <Field>
+        <FieldLabel>Entidade</FieldLabel>
         <Select
           items={[
             { value: "all", label: "Todas" },
@@ -777,9 +777,9 @@ export function CustomFieldDefinitionTable({ data, meta, orderLists }: CustomFie
             ))}
           </SelectContent>
         </Select>
-      </div>
-      <div className="space-y-2">
-        <Label>Tipo</Label>
+      </Field>
+      <Field>
+        <FieldLabel>Tipo</FieldLabel>
         <Select
           items={[
             { value: "all", label: "Todos" },
@@ -800,9 +800,9 @@ export function CustomFieldDefinitionTable({ data, meta, orderLists }: CustomFie
             ))}
           </SelectContent>
         </Select>
-      </div>
-      <div className="space-y-2">
-        <Label>Status</Label>
+      </Field>
+      <Field>
+        <FieldLabel>Status</FieldLabel>
         <Select
           items={[
             { value: "all", label: "Todos" },
@@ -821,7 +821,7 @@ export function CustomFieldDefinitionTable({ data, meta, orderLists }: CustomFie
             <SelectItem value="false">Inativo</SelectItem>
           </SelectContent>
         </Select>
-      </div>
+      </Field>
     </DataTableFilterPanel>
   )
 
@@ -837,7 +837,7 @@ export function CustomFieldDefinitionTable({ data, meta, orderLists }: CustomFie
       <DataTable
         refreshing={isPending}
         columns={columns}
-        data={data}
+        data={optimisticRows(data)}
         page={meta.page}
         pageSize={meta.pageSize}
         total={meta.total}

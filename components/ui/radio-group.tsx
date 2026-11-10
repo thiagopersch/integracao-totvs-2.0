@@ -1,35 +1,65 @@
 "use client"
 
-import { RadioGroup as RadioGroupPrimitive } from "@base-ui/react/radio-group"
-import { Radio as RadioPrimitive } from "@base-ui/react/radio"
+import * as React from "react"
+import Radio from "@mui/material/Radio"
 
 import { cn } from "@/lib/utils"
 
-function RadioGroup({ className, ...props }: RadioGroupPrimitive.Props) {
+const RadioContext = React.createContext<{ value?: string | null; setValue: (value: string) => void; name: string; disabled?: boolean } | null>(null)
+
+function RadioGroup({
+  className,
+  value,
+  defaultValue,
+  onValueChange,
+  name,
+  disabled,
+  children,
+  ...props
+}: Omit<React.ComponentProps<"div">, "defaultValue"> & {
+  value?: string | null
+  defaultValue?: string
+  onValueChange?: (value: never) => void
+  name?: string
+  disabled?: boolean
+}) {
+  const [inner, setInner] = React.useState(defaultValue)
+  const current = value !== undefined ? value : inner
+  const fallbackName = React.useId()
   return (
-    <RadioGroupPrimitive
-      data-slot="radio-group"
-      className={cn("flex flex-col gap-2", className)}
-      {...props}
-    />
+    <RadioContext.Provider
+      value={{
+        value: current,
+        setValue: (next) => {
+          if (value === undefined) setInner(next)
+          ;(onValueChange as ((v: string) => void) | undefined)?.(next)
+        },
+        name: name ?? fallbackName,
+        disabled,
+      }}
+    >
+      <div role="radiogroup" data-slot="radio-group" className={cn("grid w-full gap-2", className)} {...props}>
+        {children}
+      </div>
+    </RadioContext.Provider>
   )
 }
 
-function RadioGroupItem({ className, ...props }: RadioPrimitive.Root.Props) {
+function RadioGroupItem({ className, value, id, disabled }: { className?: string; value: string; id?: string; disabled?: boolean }) {
+  const ctx = React.useContext(RadioContext)
   return (
-    <RadioPrimitive.Root
+    <Radio
       data-slot="radio-group-item"
-      className={cn(
-        "relative flex size-4 shrink-0 cursor-pointer items-center justify-center rounded-full border border-input transition-colors outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 data-checked:border-primary dark:bg-input/30",
-        className
-      )}
-      {...props}
-    >
-      <RadioPrimitive.Indicator
-        data-slot="radio-group-indicator"
-        className="flex items-center justify-center after:size-2 after:rounded-full after:bg-primary"
-      />
-    </RadioPrimitive.Root>
+      id={id}
+      value={value}
+      name={ctx?.name}
+      checked={ctx?.value === value}
+      disabled={disabled ?? ctx?.disabled}
+      onChange={() => ctx?.setValue(value)}
+      size="small"
+      className={cn("shrink-0", className)}
+      sx={{ p: 0.75 }}
+    />
   )
 }
 

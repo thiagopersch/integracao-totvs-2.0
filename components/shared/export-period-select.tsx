@@ -1,7 +1,7 @@
 "use client";
 
 import { format } from "date-fns";
-import type { DateRange } from "react-day-picker";
+import type { DateRange } from "@/components/ui/date-range-picker";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DateRangePicker } from "@/components/ui/date-range-picker";
 import { PeriodSelect } from "@/components/shared/period-select";

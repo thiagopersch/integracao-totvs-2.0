@@ -3,12 +3,13 @@
 import dynamic from "next/dynamic"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
+import { ChartSkeleton } from "@/components/shared/skeletons"
 import { PendingRegion } from "@/components/shared/pending-region"
 import { ChartTypeSelect } from "@/components/shared/charts/chart-type-select"
 import type { MultiTypeChartProps } from "@/components/shared/charts/multi-type-chart"
 import type { ChartKind, ChartSeries } from "@/components/shared/charts/chart-types"
 
-// recharts is only needed once a chart tab is opened — the default "Visão Geral" tab has none.
+// The chart library (MUI X Charts) is only needed once a chart tab is opened — the default "Visão Geral" tab has none.
 const MultiTypeChart = dynamic<MultiTypeChartProps>(
   () => import("@/components/shared/charts/multi-type-chart").then((m) => m.MultiTypeChart),
   { ssr: false, loading: () => <Skeleton className="h-[260px] w-full" /> }
@@ -53,7 +54,7 @@ export function ChartCard({
   pending = false,
 }: ChartCardProps) {
   return (
-    <PendingRegion pending={pending}>
+    <PendingRegion pending={pending} skeleton={<div className="h-full surface p-4"><ChartSkeleton height={height ?? 260} /></div>}>
       <Card className="h-full">
         <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2">
           <CardTitle className="min-w-0 text-sm">{title}</CardTitle>

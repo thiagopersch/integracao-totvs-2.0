@@ -1,6 +1,8 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
+import { getBackupContent } from "@/actions/admin/backups"
+import { Skeleton } from "@/components/ui/skeleton"
 import { cn } from "@/utils/cn"
 import { CodeEditor } from "@/components/shared/code-editor"
 import { Button } from "@/components/ui/button"
@@ -20,12 +22,30 @@ import { WithTooltip } from "@/components/shared/with-tooltip"
 interface ViewBackupSentenceDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  backup: Backup | null
+  /** `contentSentence` may be absent (lists omit it); the dialog then fetches it. */
+  backup: (Omit<Backup, "contentSentence"> & { contentSentence?: string | null }) | null
   onRestore: (backupId: string) => void
 }
 
 export function ViewBackupSentenceDialog({ open, onOpenChange, backup, onRestore }: ViewBackupSentenceDialogProps) {
   const [fullscreen, setFullscreen] = useState(false)
+  // The SQL text isn't part of list rows (it can be large): loaded when the dialog opens.
+  const [content, setContent] = useState<{ id: string; text: string | null } | null>(null)
+  const backupId = open ? backup?.id : undefined
+  const preloaded = backup?.contentSentence
+
+  useEffect(() => {
+    if (!backupId || preloaded !== undefined) return
+    let cancelled = false
+    getBackupContent(backupId)
+      .then((text) => !cancelled && setContent({ id: backupId, text }))
+      .catch(() => !cancelled && setContent({ id: backupId, text: null }))
+    return () => {
+      cancelled = true
+    }
+  }, [backupId, preloaded])
+
+  const sentenceText = preloaded !== undefined ? preloaded : content?.id === backup?.id ? content?.text : undefined
 
   return (
     <Dialog
@@ -88,14 +108,18 @@ export function ViewBackupSentenceDialog({ open, onOpenChange, backup, onRestore
               </div>
               <div className="space-y-1">
                 <p className="text-xs text-muted-foreground">Conteúdo</p>
-                <CodeEditor
-                  value={backup.contentSentence ?? ""}
-                  language="sql"
-                  readOnly
-                  theme="dark"
-                  resetKey={backup.id}
-                  minHeight={fullscreen ? "70vh" : "50vh"}
-                />
+                {sentenceText === undefined ? (
+                  <Skeleton className="w-full" style={{ height: fullscreen ? "70vh" : "50vh" }} />
+                ) : (
+                  <CodeEditor
+                    value={sentenceText ?? ""}
+                    language="sql"
+                    readOnly
+                    theme="dark"
+                    resetKey={`${backup.id}-${sentenceText === null ? "empty" : "loaded"}`}
+                    minHeight={fullscreen ? "70vh" : "50vh"}
+                  />
+                )}
               </div>
             </>
           )}

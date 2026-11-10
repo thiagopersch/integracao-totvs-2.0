@@ -1,3 +1,4 @@
+import { getIntegrationConfig } from "@/lib/integration-config";
 import { requirePermission } from "@/lib/rbac"
 import { logApiCall, logAndNotifyFailure, sessionErrorMessage } from "@/lib/ps-docs/api-helpers"
 import { createRubeusClient } from "@/lib/ps-docs/server/rubeus-client"
@@ -25,7 +26,7 @@ export async function POST(request: Request) {
 
   const client = createRubeusClient(
     { session: data.session, xsrf: data.xsrf, clientId: data.clientId, branch: data.branch },
-    { signal: request.signal }
+    { signal: request.signal, timeoutMs: (await getIntegrationConfig(ctx.organizationId, "RUBEUS")).timeoutMs }
   )
   const url = "https://admin.portal.apprbs.com.br/api/settings/fields (integração TOTVS dos campos)"
 

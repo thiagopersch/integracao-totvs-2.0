@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { toast } from "sonner"
+import { toast } from "@/lib/toast"
 import {
   DndContext,
   closestCenter,
@@ -16,7 +16,6 @@ import { ArrowDown, ArrowUp, ChevronDown, Copy, GripVertical, Plus, Trash2 } fro
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
-import { Label } from "@/components/ui/label"
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/components/ui/accordion"
 import { cn } from "@/lib/utils"
 import {
@@ -27,8 +26,10 @@ import {
   reorderMapeadorEtapas,
   updateMapeadorEtapa,
 } from "@/actions/mapeador"
+import { useShallow } from "zustand/react/shallow"
 import { useMapeadorStore } from "@/store/mapeador.store"
 import type { MapeadorEtapaDTO } from "@/types/mapeador"
+import { Field, FieldLabel } from "@/components/ui/field"
 
 interface EtapaRowProps {
   etapa: MapeadorEtapaDTO
@@ -46,7 +47,7 @@ function EtapaRow({ etapa, index, total, onMove, onDuplicate, onDelete, onFieldB
 
   return (
     <div ref={setNodeRef} style={style} className={cn("mb-3 last:mb-0", isDragging && "opacity-50")}>
-      <AccordionItem value={etapa.id} className="rounded-lg border px-2 last:border-b">
+      <AccordionItem value={etapa.id}>
         <div className="flex flex-wrap items-center gap-2 py-2">
           <button type="button" {...attributes} {...listeners} className="cursor-grab touch-none text-muted-foreground hover:text-foreground active:cursor-grabbing">
             <GripVertical className="h-4 w-4" />
@@ -83,15 +84,15 @@ function EtapaRow({ etapa, index, total, onMove, onDuplicate, onDelete, onFieldB
           </div>
         </div>
         <AccordionContent className="pb-3">
-          <div className="space-y-1.5 pt-1">
-            <Label className="text-xs text-muted-foreground">Regras/Validações</Label>
+          <Field className="pt-1">
+            <FieldLabel className="text-xs text-muted-foreground">Regras/Validações</FieldLabel>
             <Textarea
               defaultValue={etapa.regras ?? ""}
               placeholder="Regras/validações"
               rows={3}
               onBlur={(e) => onFieldBlur("regras", e.target.value)}
             />
-          </div>
+          </Field>
         </AccordionContent>
       </AccordionItem>
     </div>
@@ -99,7 +100,8 @@ function EtapaRow({ etapa, index, total, onMove, onDuplicate, onDelete, onFieldB
 }
 
 export function EtapasFichaSection() {
-  const projeto = useMapeadorStore((s) => s.projeto)!
+  // Only the fields this component shows: edits elsewhere in the project (e.g. prototype config) don't re-render it.
+  const projeto = useMapeadorStore(useShallow((s) => ({ id: s.projeto!.id, etapas: s.projeto!.etapas })))
   const setEtapas = useMapeadorStore((s) => s.setEtapas)
   const selectedEtapaId = useMapeadorStore((s) => s.selectedEtapaId)
   const setSelectedEtapaId = useMapeadorStore((s) => s.setSelectedEtapaId)

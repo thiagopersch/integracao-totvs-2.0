@@ -1,5 +1,5 @@
 import OpenAI from "openai";
-import type { AiChatMessage, AiClientConfig, AiToolCallResult, AiToolDefinition } from "./types";
+import type { AiChatMessage, AiClientConfig, AiDeltaHandler, AiToolCallResult, AiToolDefinition } from "./types";
 
 /** OpenAI Chat Completions with one strict function. */
 export async function openaiToolCall(
@@ -7,11 +7,13 @@ export async function openaiToolCall(
   system: string,
   messages: AiChatMessage[],
   tool: AiToolDefinition,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  onDelta?: AiDeltaHandler
 ): Promise<AiToolCallResult> {
   const client = new OpenAI({ apiKey: config.apiKey });
   try {
-    const response = await client.chat.completions.create({
+    // Streamed so the function arguments reach the UI as they are written.
+    const stream = client.chat.completions.stream({
       model: config.model,
       messages: [{ role: "system", content: system }, ...messages],
       tools: [
@@ -22,6 +24,8 @@ export async function openaiToolCall(
       ],
       tool_choice: "auto",
     }, { signal });
+    if (onDelta) stream.on("tool_calls.function.arguments.delta", (event) => event.name === tool.name && onDelta(event.arguments_delta));
+    const response = await stream.finalChatCompletion();
     const choice = response.choices[0];
     if (!choice) throw new Error("A OpenAI não retornou resposta");
     if (choice.finish_reason === "length") {

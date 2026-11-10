@@ -18,13 +18,13 @@ import { MultiSelect, type MultiSelectItem } from "@/components/ui/multi-select"
 import { Slider } from "@/components/ui/slider"
 import { DateRangePicker } from "@/components/ui/date-range-picker"
 import { format, parse } from "date-fns"
-import type { DateRange } from "react-day-picker"
+import type { DateRange } from "@/components/ui/date-range-picker"
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu"
 import { Plus, Copy, Pencil } from "lucide-react"
 import { deleteDemand, duplicateDemand, bulkDeleteDemands, type getDemandFilterOptions } from "@/actions/demands"
 import { formatDateOnly } from "@/utils/format"
 import { TruncatedText } from "@/components/shared/truncated-text"
-import { toast } from "sonner"
+import { toast } from "@/lib/toast"
 import { useCrudTable } from "@/hooks/use-crud-table"
 import { useHasPermission } from "@/hooks/use-permissions"
 import { usePeriodFilter } from "@/hooks/use-period-filter"
@@ -153,6 +153,7 @@ export function DemandTable({
     onSortChange,
     refresh,
     isPending,
+    optimisticRows,
   } = useCrudTable<DemandRow>({
     deleteAction: deleteDemand,
     deleteSuccessMessage: "Demanda excluída com sucesso",
@@ -443,7 +444,7 @@ export function DemandTable({
       <DataTable
         refreshing={isPending || isPeriodPending}
         columns={columns}
-        data={data}
+        data={optimisticRows(data)}
         page={meta.page}
         pageSize={meta.pageSize}
         total={meta.total}

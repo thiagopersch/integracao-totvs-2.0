@@ -17,7 +17,7 @@ import {
   type Over,
 } from "@dnd-kit/core"
 import { ArrowLeft, Eye, Loader2, Save, Send } from "lucide-react"
-import { toast } from "sonner"
+import { toast } from "@/lib/toast"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { Input } from "@/components/ui/input"
@@ -530,7 +530,7 @@ export function TemplateBuilder({ template, canSave }: TemplateBuilderProps) {
                 <BlockPalette onAdd={addFromPalette} />
               </aside>
               {selectedId && (
-                <aside className="rounded-lg border bg-card p-4 md:sticky md:top-4 md:max-h-[calc(100vh-6rem)] md:self-start md:overflow-y-auto">
+                <aside className="surface p-4 md:sticky md:top-4 md:max-h-[calc(100vh-6rem)] md:self-start md:overflow-y-auto">
                   <InspectorPanel />
                 </aside>
               )}

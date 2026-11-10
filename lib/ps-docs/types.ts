@@ -368,7 +368,30 @@ export const DEFAULT_STYLE: StyleConfig = {
   followAppTheme: false,
 };
 
-export const FONT_OPTIONS = ["Poppins", "Roboto", "Arial", "Times New Roman", "Calibri"] as const;
+/** The "Conteúdo da documentação" answers. The three `detalhes*` flags are applied when the document
+ *  is RENDERED (HTML/Markdown/DOCX), never when it's fetched — flipping one after generating just
+ *  re-renders. "Não" turns the matching items into a bullet with just the name, but their display
+ *  logic is always kept (it's what documents the flow). `escopoPortal` only matters in "Portal
+ *  inteiro" mode and does change the fetch: "portal" skips the selective processes entirely. */
+export interface DocOptions {
+  /** Texto, agrupamento, botão, CEP, HTML, upload and generic componentes. */
+  detalhesComponentes: boolean;
+  /** Items of categoria "campo" (and the portal overview's own campos). */
+  detalhesCampos: boolean;
+  /** A botão's ações (primeiro/segundo plano) and encaminhamentos — independent of
+   *  `detalhesComponentes`: a compact botão still lists its ações by this flag. */
+  detalhesAcoesBotao: boolean;
+  escopoPortal: "portal" | "tudo";
+}
+
+export const DEFAULT_DOC_OPTIONS: DocOptions = {
+  detalhesComponentes: true,
+  detalhesCampos: true,
+  detalhesAcoesBotao: true,
+  escopoPortal: "tudo",
+};
+
+export const FONT_OPTIONS =["Poppins", "Roboto", "Arial", "Times New Roman", "Calibri"] as const;
 
 /** Documentation model for a whole PORTAL (as opposed to a single processo seletivo) — the
  *  "Geral"/"Consultas"/"Scripts"/"Integrações"/"Segurança"/"Domínio"/"TOTVS" sections read from

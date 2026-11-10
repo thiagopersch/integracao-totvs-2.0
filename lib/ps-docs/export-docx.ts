@@ -1,5 +1,6 @@
 import { BorderStyle, Document, Packer, Paragraph, Table, TableCell, TableRow, TextRun, WidthType } from "docx";
-import type { AcaoBotaoSpec, CampoDetalhado, ColunaDataserverSpec, ConsultaSqlSpec, DocumentacaoPS, EncaminhamentoSpec, FonteDadosSpec, ItemSpec, LogicaSpec, ParametroAcaoSpec, PopupSpec, PortalOverviewSpec, RegraLogicaItem, StyleConfig } from "./types";
+import { DEFAULT_DOC_OPTIONS, type AcaoBotaoSpec, type CampoDetalhado, type ColunaDataserverSpec, type ConsultaSqlSpec, type DocOptions, type DocumentacaoPS, type EncaminhamentoSpec, type FonteDadosSpec, type ItemSpec, type LogicaSpec, type ParametroAcaoSpec, type PopupSpec, type PortalOverviewSpec, type RegraLogicaItem, type StyleConfig } from "./types";
+import { acaoNome, encaminhamentoNome, groupByDetail, isItemDetailed } from "./doc-options";
 import { logicColor } from "./logic-color";
 import { CODE_BACKGROUND, CODE_BORDER, CODE_FONT, CODE_PLAIN_COLOR, detectLang, themeFor, tokenLines, type CodeLang } from "./code-highlight";
 
@@ -45,8 +46,11 @@ const CATEGORIA_LABEL: Record<ItemSpec["categoria"], string> = {
  *  matching the **highlighted** convention used in the Markdown/HTML exports) and code-like
  *  values (regex, custom-validation JS, HTML/CSS/JS component content) render in a monospace
  *  run/block. Runs entirely in the browser via `Packer.toBlob`. */
-export async function buildDocx(doc: DocumentacaoPS, style: StyleConfig): Promise<Blob> {
+export async function buildDocx(doc: DocumentacaoPS, style: StyleConfig, opts: DocOptions = DEFAULT_DOC_OPTIONS): Promise<Blob> {
   const paragraphs: Paragraph[] = [];
+  /** Extra bullet level added to every bulleted paragraph — 0 everywhere except while a compact
+   *  botão's "Ações" block is rendered nested under its bullet (`compactItemParagraphs`). */
+  let lvl = 0;
 
   paragraphs.push(
     new Paragraph({
@@ -74,7 +78,7 @@ export async function buildDocx(doc: DocumentacaoPS, style: StyleConfig): Promis
   const body = (text: string, options: { bullet?: boolean; bold?: boolean; indent?: number } = {}) =>
     new Paragraph({
       spacing: { after: 80 },
-      bullet: options.bullet ? { level: options.indent ?? 0 } : undefined,
+      bullet: options.bullet ? { level: (options.indent ?? 0) + lvl } : undefined,
       indent: !options.bullet && options.indent ? { left: options.indent * 360 } : undefined,
       children: [new TextRun({ text, font: style.bodyFont, color: hex(style.bodyColor), size: 22, bold: options.bold })],
     });
@@ -83,7 +87,7 @@ export async function buildDocx(doc: DocumentacaoPS, style: StyleConfig): Promis
   const kv = (label: string, value: string, indent = 0) =>
     new Paragraph({
       spacing: { after: 80 },
-      bullet: { level: indent },
+      bullet: { level: indent + lvl },
       children: [
         new TextRun({ text: `${label}: `, font: style.bodyFont, color: hex(style.bodyColor), size: 22 }),
         new TextRun({ text: value, bold: true, font: style.bodyFont, color: hex(logicColor(value, style) ?? style.bodyColor), size: 22 }),
@@ -93,7 +97,7 @@ export async function buildDocx(doc: DocumentacaoPS, style: StyleConfig): Promis
   const kvCode = (label: string, value: string, indent = 0) =>
     new Paragraph({
       spacing: { after: 80 },
-      bullet: { level: indent },
+      bullet: { level: indent + lvl },
       children: [
         new TextRun({ text: `${label}: `, font: style.bodyFont, color: hex(style.bodyColor), size: 22 }),
         new TextRun({ text: value, font: "Courier New", color: hex(style.bodyColor), size: 20 }),
@@ -121,7 +125,7 @@ export async function buildDocx(doc: DocumentacaoPS, style: StyleConfig): Promis
   function logicaItemParagraph(l: RegraLogicaItem, indent = 0): Paragraph {
     const children = [...fieldRefRuns(l.campo), run(" → "), run(l.regra, { bold: true })];
     if (l.valor !== undefined) children.push(run(" → "), run(l.valor, { bold: true }));
-    return new Paragraph({ spacing: { after: 80 }, bullet: { level: indent }, children });
+    return new Paragraph({ spacing: { after: 80 }, bullet: { level: indent + lvl }, children });
   }
 
   /** Every mention of "Lógica"/"Condição" renders in the builder's own "ficha" format, per explicit
@@ -131,7 +135,7 @@ export async function buildDocx(doc: DocumentacaoPS, style: StyleConfig): Promis
     if (!spec || spec.regras.length === 0) return [];
     const header = new Paragraph({
       spacing: { after: 80 },
-      bullet: { level: indent },
+      bullet: { level: indent + lvl },
       children: [run("Ação: "), run(spec.acao ?? "não identificada", { bold: true }), run(" → Condição: "), run(spec.condicao ?? "não identificada", { bold: true })],
     });
     return [header, ...spec.regras.map((l) => logicaItemParagraph(l, indent + 1))];
@@ -146,7 +150,7 @@ export async function buildDocx(doc: DocumentacaoPS, style: StyleConfig): Promis
       if (destino.startsWith(prefixo)) {
         return new Paragraph({
           spacing: { after: 80 },
-          bullet: { level: indent },
+          bullet: { level: indent + lvl },
           children: [run("Destino: "), run(prefixo), run(destino.slice(prefixo.length), { bold: true }), run(suffix)],
         });
       }
@@ -219,7 +223,7 @@ export async function buildDocx(doc: DocumentacaoPS, style: StyleConfig): Promis
     const out = [
       new Paragraph({
         spacing: { after: 80 },
-        bullet: { level: 0 },
+        bullet: { level: lvl },
         children: [
           new TextRun({ text: `[${acao.ordem}] Tipo da ação: `, font: style.bodyFont, color: hex(style.bodyColor), size: 22 }),
           new TextRun({ text: acao.tipoAcao, bold: true, font: style.bodyFont, color: hex(style.bodyColor), size: 22 }),
@@ -283,7 +287,7 @@ export async function buildDocx(doc: DocumentacaoPS, style: StyleConfig): Promis
       kv("Largura máxima", popup.larguraMaxima ?? "Largura máxima não definida", 1),
     ];
     out.push(...consultaSqlParagraphs("Fonte de dados do pop-up", popup.consultaSql));
-    for (const item of popup.itens) out.push(...itemParagraphs(item, 0));
+    out.push(...itemsParagraphs(popup.itens, 0));
     return out;
   }
 
@@ -405,6 +409,76 @@ export async function buildDocx(doc: DocumentacaoPS, style: StyleConfig): Promis
     return out;
   }
 
+  /** "Não" to "Gerar detalhes das ações do botão": just each ação/encaminhamento's name, with its
+   *  own logic nested — the logic is always documented. */
+  function acaoNomeParagraphs(acao: AcaoBotaoSpec): Paragraph[] {
+    const children = [run(acaoNome(acao))];
+    if (!acao.ativada) children.push(new TextRun({ text: " [desativada]", bold: true, font: style.bodyFont, color: hex(style.negativeColor), size: 22 }));
+    return [new Paragraph({ spacing: { after: 80 }, bullet: { level: lvl }, children }), ...logicaSpecParagraphs(acao.logica, 1)];
+  }
+
+  function encaminhamentoNomeParagraphs(enc: EncaminhamentoSpec): Paragraph[] {
+    return [titledBullet(encaminhamentoNome(enc)), ...logicaSpecParagraphs(enc.logica, 1)];
+  }
+
+  /** A botão's "Ações" block — full detail or names only, per `opts.detalhesAcoesBotao`. */
+  function botaoAcoesParagraphs(item: ItemSpec): Paragraph[] {
+    const detalhe = opts.detalhesAcoesBotao;
+    const acao = (a: AcaoBotaoSpec) => (detalhe ? acaoParagraphs(a) : acaoNomeParagraphs(a));
+    const out = [kv("Salvar dados", sim(item.salvaDados))];
+    if (item.acoesPrimeiroPlano && item.acoesPrimeiroPlano.length > 0) {
+      out.push(titledBullet("Primeiro plano (síncrono):"));
+      for (const a of item.acoesPrimeiroPlano) out.push(...acao(a));
+    }
+    if (item.acoesSegundoPlano && item.acoesSegundoPlano.length > 0) {
+      out.push(titledBullet("Segundo plano (assíncrono):"));
+      for (const a of item.acoesSegundoPlano) out.push(...acao(a));
+    }
+    out.push(kv("Fechar pop-up", sim(item.fecharPopup)));
+    out.push(titledBullet("Encaminhar usuário:"));
+    out.push(kv("Redireciona", sim(item.redirecionaUsuario), 1));
+    for (const enc of item.encaminhamentos ?? []) out.push(...(detalhe ? encaminhamentoParagraphs(enc) : encaminhamentoNomeParagraphs(enc)));
+    return out;
+  }
+
+  /** "Não" to the item's "Gerar detalhes" question: one bullet "Categoria: Nome" with its logic
+   *  nested (always kept). A compact agrupamento nests its compact children; detailed children are
+   *  collected in `after` and rendered as headings right after the list. */
+  function compactItemParagraphs(item: ItemSpec, level: number, after: ItemSpec[]): Paragraph[] {
+    const out = [new Paragraph({ spacing: { after: 80 }, bullet: { level: level + lvl }, children: [run(`${CATEGORIA_LABEL[item.categoria]}: `), ...fieldRefRuns(item.nome)] })];
+    if (item.logica && item.logica.regras.length > 0) out.push(titledBullet("Lógica:", level + 1), ...logicaSpecParagraphs(item.logica, level + 2));
+    if (item.categoria === "agrupamento") {
+      for (const child of item.filhos ?? []) {
+        if (isItemDetailed(child, opts)) after.push(child);
+        else out.push(...compactItemParagraphs(child, level + 1, after));
+      }
+    }
+    if (item.categoria === "botao") {
+      out.push(titledBullet("Ações:", level + 1));
+      const prev = lvl;
+      lvl = level + 2;
+      out.push(...botaoAcoesParagraphs(item));
+      lvl = prev;
+    }
+    return out;
+  }
+
+  /** Sibling items: detailed ones as headings (`itemParagraphs`), runs of compact ones as bullets
+   *  (followed by any detailed descendants, one depth level deeper). */
+  function itemsParagraphs(items: ItemSpec[], depth = 0): Paragraph[] {
+    const out: Paragraph[] = [];
+    for (const group of groupByDetail(items, opts)) {
+      if (group.detailed) {
+        for (const item of group.items) out.push(...itemParagraphs(item, depth));
+        continue;
+      }
+      const after: ItemSpec[] = [];
+      for (const item of group.items) out.push(...compactItemParagraphs(item, 0, after));
+      for (const child of after) out.push(...itemParagraphs(child, depth + 1));
+    }
+    return out;
+  }
+
   /** Renders one item as its own heading — depth-based, per explicit instruction: a top-level item
    *  (direct child of a passo) is h4, an item nested one level inside another component is h5, and
    *  anything deeper is h6 (the deepest level named here — capped there rather than growing past
@@ -424,7 +498,7 @@ export async function buildDocx(doc: DocumentacaoPS, style: StyleConfig): Promis
         out.push(
           new Paragraph({
             spacing: { after: 80 },
-            bullet: { level: 0 },
+            bullet: { level: lvl },
             children: [
               new TextRun({ text: `Conteúdo: `, font: style.bodyFont, color: hex(style.bodyColor), size: 22 }),
               new TextRun({ text: item.conteudoHtml ?? "", bold: true, font: style.bodyFont, color: hex(style.bodyColor), size: 22 }),
@@ -447,7 +521,7 @@ export async function buildDocx(doc: DocumentacaoPS, style: StyleConfig): Promis
         if (item.camposAgrupados && item.camposAgrupados.length > 0) {
           out.push(h6("Conteúdo"));
           item.camposAgrupados.forEach((campo) => {
-            out.push(new Paragraph({ spacing: { after: 80 }, bullet: { level: 0 }, children: fieldRefRuns(campo.nome) }));
+            out.push(new Paragraph({ spacing: { after: 80 }, bullet: { level: lvl }, children: fieldRefRuns(campo.nome) }));
             out.push(...logicaSpecParagraphs(campo.logica, 1));
           });
         }
@@ -475,7 +549,7 @@ export async function buildDocx(doc: DocumentacaoPS, style: StyleConfig): Promis
           out.push(...logicaSpecParagraphs(item.logica));
         }
 
-        for (const child of item.filhos ?? []) out.push(...itemParagraphs(child, depth + 1));
+        out.push(...itemsParagraphs(item.filhos ?? [], depth + 1));
         break;
       }
       case "botao": {
@@ -492,21 +566,7 @@ export async function buildDocx(doc: DocumentacaoPS, style: StyleConfig): Promis
         out.push(kv("Escondido", sim(item.escondido)));
 
         out.push(h6("Ações"));
-        out.push(kv("Salvar dados", sim(item.salvaDados)));
-        if (item.acoesPrimeiroPlano && item.acoesPrimeiroPlano.length > 0) {
-          out.push(titledBullet("Primeiro plano (síncrono):"));
-          for (const acao of item.acoesPrimeiroPlano) out.push(...acaoParagraphs(acao));
-        }
-        if (item.acoesSegundoPlano && item.acoesSegundoPlano.length > 0) {
-          out.push(titledBullet("Segundo plano (assíncrono):"));
-          for (const acao of item.acoesSegundoPlano) out.push(...acaoParagraphs(acao));
-        }
-        out.push(kv("Fechar pop-up", sim(item.fecharPopup)));
-        out.push(titledBullet("Encaminhar usuário:"));
-        out.push(kv("Redireciona", sim(item.redirecionaUsuario), 1));
-        if (item.encaminhamentos && item.encaminhamentos.length > 0) {
-          for (const enc of item.encaminhamentos) out.push(...encaminhamentoParagraphs(enc));
-        }
+        out.push(...botaoAcoesParagraphs(item));
         break;
       }
       case "cep":
@@ -554,7 +614,7 @@ export async function buildDocx(doc: DocumentacaoPS, style: StyleConfig): Promis
     etapa.passos.forEach((passo) => {
       paragraphs.push(h3(`Passo: ${passo.nome}`));
       paragraphs.push(...consultaSqlParagraphs("Fonte de dados do passo", passo.consultaSql));
-      for (const item of passo.itens) paragraphs.push(...itemParagraphs(item));
+      paragraphs.push(...itemsParagraphs(passo.itens));
     });
 
     if (etapa.feedbacks.length > 0) {
@@ -702,7 +762,7 @@ function renderCampoDetalhadoDocx(detalhes: CampoDetalhado, style: StyleConfig):
 /** Builds the .docx for the portal-level "Geral/Consultas/Scripts/Integrações/Segurança/Domínio/
  *  TOTVS" overview — same visual conventions as `buildDocx` (title/h2/h4/kv), one section per
  *  heading. Runs entirely in the browser via `Packer.toBlob`. */
-export async function buildPortalOverviewDocx(overview: PortalOverviewSpec, style: StyleConfig): Promise<Blob> {
+export async function buildPortalOverviewDocx(overview: PortalOverviewSpec, style: StyleConfig, opts: DocOptions = DEFAULT_DOC_OPTIONS): Promise<Blob> {
   const sim = (v: boolean | undefined) => (v ? "Sim" : "Não");
   const paragraphs: (Paragraph | Table)[] = [];
 
@@ -750,11 +810,11 @@ export async function buildPortalOverviewDocx(overview: PortalOverviewSpec, styl
   }
   if (geral.campoOfertaCurso) {
     paragraphs.push(h4("Campo de oferta de curso"));
-    paragraphs.push(...renderCampoDetalhadoDocx(geral.campoOfertaCurso.detalhes, style));
+    paragraphs.push(...(opts.detalhesCampos ? renderCampoDetalhadoDocx(geral.campoOfertaCurso.detalhes, style) : [titledBullet(geral.campoOfertaCurso.nome)]));
   }
   if (geral.campoLocalOferta) {
     paragraphs.push(h4("Campo de local de oferta"));
-    paragraphs.push(...renderCampoDetalhadoDocx(geral.campoLocalOferta.detalhes, style));
+    paragraphs.push(...(opts.detalhesCampos ? renderCampoDetalhadoDocx(geral.campoLocalOferta.detalhes, style) : [titledBullet(geral.campoLocalOferta.nome)]));
   }
 
   if (geral.camposDetalhesInscricao && geral.camposDetalhesInscricao.length > 0) {

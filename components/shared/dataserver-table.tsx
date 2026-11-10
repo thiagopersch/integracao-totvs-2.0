@@ -33,7 +33,7 @@ import {
   bulkDeleteDataservers,
 } from "@/actions/admin/dataservers"
 import { createDataserverSchema, updateDataserverSchema, type CreateDataserverInput } from "@/schemas/dataserver.schema"
-import { toast } from "sonner"
+import { toast } from "@/lib/toast"
 import { useCrudTable } from "@/hooks/use-crud-table"
 import { useHasPermission } from "@/hooks/use-permissions"
 import type { Dataserver } from "@/generated/prisma/client"
@@ -60,6 +60,7 @@ export function DataserverTable({ data, meta, tbcs }: DataserverTableProps) {
     onSortChange,
     refresh,
     isPending,
+    optimisticRows,
   } = useCrudTable<Dataserver>({
     deleteAction: deleteDataserver,
     restoreAction: restoreDataserver,
@@ -247,7 +248,7 @@ export function DataserverTable({ data, meta, tbcs }: DataserverTableProps) {
       <DataTable
         refreshing={isPending}
         columns={columns}
-        data={data}
+        data={optimisticRows(data)}
         page={meta.page}
         pageSize={meta.pageSize}
         total={meta.total}

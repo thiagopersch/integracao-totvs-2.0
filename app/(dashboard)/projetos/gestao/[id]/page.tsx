@@ -4,7 +4,7 @@ import { getProjectById, getProjectPickerOptions, listProjectRisks } from "@/que
 import { getProjectDashboard, getProjectTaskDetail, getProjectTaskOptions, listProjectTasks } from "@/queries/project-tasks"
 import { listActiveCustomFieldDefinitions } from "@/queries/custom-fields"
 import { ProjectWorkspace } from "@/components/projects/workspace/project-workspace"
-import { TableSkeleton } from "@/components/shared/table-skeleton"
+import { DetailSkeleton } from "@/components/shared/skeletons"
 import { getRequestContext } from "@/lib/tenant"
 import { getTodayDateOnly } from "@/lib/export-period"
 import { parseWorkspaceParams } from "@/lib/project-workspace-params"
@@ -17,7 +17,7 @@ type PageProps = {
 export default function ProjectWorkspacePage({ params, searchParams }: PageProps) {
   return (
     <div className="p-4 md:p-6">
-      <Suspense fallback={<TableSkeleton />}>
+      <Suspense fallback={<DetailSkeleton />}>
         <ProjectWorkspaceContent params={params} searchParams={searchParams} />
       </Suspense>
     </div>

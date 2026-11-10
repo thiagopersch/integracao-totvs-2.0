@@ -1,7 +1,8 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { toast } from "sonner"
+import { Skeleton } from "@/components/ui/skeleton"
+import { toast } from "@/lib/toast"
 import { Download, ExternalLink, FileText, Loader2, Pencil, Ruler, TriangleAlert } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { CollapsibleSection } from "@/components/mapeador/collapsible-section"
@@ -9,7 +10,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { updateMapeadorPrototipoConfig, updateMapeadorEtapa, listMapeadorProjetos, getMapeadorProjeto } from "@/actions/mapeador"
+import { updateMapeadorPrototipoConfig, updateMapeadorEtapa, listMapeadorProjetosCompletos } from "@/actions/mapeador"
 import { exportMapeadorPrototipoHtml } from "@/actions/mapeador-export"
 import { listMapeadorTemas, checkClienteIdentidadeTema } from "@/actions/mapeador-tema"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
@@ -32,6 +33,7 @@ import {
   type MapeadorTemaDTO,
 } from "@/types/mapeador"
 import { WithTooltip } from "@/components/shared/with-tooltip"
+import { Field, FieldLabel } from "@/components/ui/field"
 
 function isVoltarButton(label: string) {
   return /voltar/i.test(label)
@@ -104,10 +106,9 @@ export function PrototipoTab() {
         return
       }
       setLoadingSiblings(true)
-      const summaries = await listMapeadorProjetos()
-      const all = await Promise.all(summaries.map((s) => getMapeadorProjeto(s.id)))
+      const all = await listMapeadorProjetosCompletos()
       if (cancelled) return
-      setSiblingProjetos(all.filter((p): p is MapeadorProjetoDTO => !!p))
+      setSiblingProjetos(all)
       setLoadingSiblings(false)
     }
 
@@ -229,8 +230,8 @@ export function PrototipoTab() {
           <div>
             <p className="mb-2 text-xs font-semibold uppercase text-muted-foreground">Conteúdo</p>
             <div className="flex flex-wrap items-end gap-4">
-              <div className="space-y-1">
-                <Label className="text-xs text-muted-foreground">Gerar para</Label>
+              <Field>
+                <FieldLabel className="text-xs text-muted-foreground">Gerar para</FieldLabel>
                 <Select
                   items={[
                     { value: "atual", label: "Somente este processo" },
@@ -247,7 +248,7 @@ export function PrototipoTab() {
                     <SelectItem value="todos">Todos os processos</SelectItem>
                   </SelectContent>
                 </Select>
-              </div>
+              </Field>
               <div className="space-y-1">
                 <Label className="text-xs text-muted-foreground">Visualização</Label>
                 <div className="flex overflow-hidden rounded-md border">
@@ -383,14 +384,14 @@ export function PrototipoTab() {
                   </WithTooltip>
                 </div>
               </div>
-              <div className="space-y-1">
-                <Label className="text-xs text-muted-foreground">Cor da marca</Label>
+              <Field>
+                <FieldLabel className="text-xs text-muted-foreground">Cor da marca</FieldLabel>
                 <Input type="color" value={config.corMarca || temaPadrao?.config.corMarca || "#0CC1AA"} onChange={(e) => saveConfig({ corMarca: e.target.value })} className="h-8 w-14 p-1" />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs text-muted-foreground">Cor da barra</Label>
+              </Field>
+              <Field>
+                <FieldLabel className="text-xs text-muted-foreground">Cor da barra</FieldLabel>
                 <Input type="color" value={config.corBarra || temaPadrao?.config.corBarra || "#0AA392"} onChange={(e) => saveConfig({ corBarra: e.target.value })} className="h-8 w-14 p-1" />
-              </div>
+              </Field>
               <ImageInput label="Logo" value={config.logoUrl} onChange={(url) => saveConfig({ logoUrl: url })} kind="logo" />
               <ImageInput label="Imagem de fundo" value={config.bgImageUrl} onChange={(url) => saveConfig({ bgImageUrl: url })} hint="Recomendado: pelo menos 1600×1000px, paisagem" kind="background" />
             </div>
@@ -423,8 +424,8 @@ export function PrototipoTab() {
       </Card>
 
       {loadingSiblings ? (
-        <div className="flex justify-center py-12">
-          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        <div className="flex justify-center py-6" role="status" aria-label="Carregando protótipo">
+          <Skeleton className="h-[480px] w-full max-w-sm rounded-3xl" />
         </div>
       ) : (
         <div className="flex justify-center">

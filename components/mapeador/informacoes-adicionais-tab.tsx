@@ -5,8 +5,9 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { updateMapeadorInformacoesAdicionais } from "@/actions/mapeador"
+import { useShallow } from "zustand/react/shallow"
 import { useMapeadorStore } from "@/store/mapeador.store"
-import { toast } from "sonner"
+import { toast } from "@/lib/toast"
 
 const CAMPOS = [
   ["idProcessoSeletivo", "Identificador (ID) do Processo Seletivo"],
@@ -46,7 +47,8 @@ const SELECT_CAMPOS: Record<string, typeof AGENDAMENTO_OPCOES | typeof CLASSIFIC
 }
 
 export function InformacoesAdicionaisTab() {
-  const projeto = useMapeadorStore((s) => s.projeto)!
+  // Only the fields this component shows: edits elsewhere in the project (e.g. prototype config) don't re-render it.
+  const projeto = useMapeadorStore(useShallow((s) => ({ id: s.projeto!.id, informacoesAdicionais: s.projeto!.informacoesAdicionais })))
   const patchInformacoesAdicionais = useMapeadorStore((s) => s.patchInformacoesAdicionais)
 
   async function handleSave(field: string, value: string) {

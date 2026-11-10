@@ -9,7 +9,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Field, FieldLabel, FieldDescription } from "@/components/ui/field"
 import { Card, CardContent } from "@/components/ui/card"
 import { Loader2, Mail } from "lucide-react"
-import { toast } from "sonner"
+import { toast } from "@/lib/toast"
 import { saveEmailSettings } from "@/actions/integrations/email-settings"
 
 type EmailSettings = {

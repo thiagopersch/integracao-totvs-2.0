@@ -4,7 +4,7 @@ import { useMemo, useState } from "react"
 import type { ColumnDef } from "@tanstack/react-table"
 import { useForm, Controller, type Resolver } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
-import { useTheme } from "next-themes"
+import { useAppTheme } from "@/hooks/use-app-theme"
 import { DataTable } from "@/components/shared/data-table"
 import { DataTableFilterPanel } from "@/components/shared/data-table-filter-panel"
 import { PageHeader } from "@/components/shared/page-header"
@@ -34,7 +34,7 @@ import { deleteAnalyst, createAnalyst, updateAnalyst, bulkDeleteAnalysts, setAna
 import { createAnalystSchema, updateAnalystSchema, type CreateAnalystInput } from "@/schemas/analyst.schema"
 import { formatPhone, formatDecimal } from "@/lib/masks"
 import { getBadgeTextColor, randomColor } from "@/lib/colors"
-import { toast } from "sonner"
+import { toast } from "@/lib/toast"
 import { useCrudTable } from "@/hooks/use-crud-table"
 import { useHasPermission } from "@/hooks/use-permissions"
 import type { Analyst } from "@/generated/prisma/client"
@@ -67,7 +67,7 @@ const ANALYST_FIELD_TAB: Record<string, AnalystTab> = {
 }
 
 export function AnalystTable({ data, meta }: AnalystTableProps) {
-  const { resolvedTheme } = useTheme()
+  const { resolvedTheme } = useAppTheme()
   const {
     searchParams,
     deleteDialog,
@@ -81,6 +81,7 @@ export function AnalystTable({ data, meta }: AnalystTableProps) {
     onSortChange,
     refresh,
     isPending,
+    optimisticRows,
   } = useCrudTable<AnalystRow>({
     deleteAction: deleteAnalyst,
     setStatusAction: setAnalystStatus,
@@ -343,8 +344,8 @@ export function AnalystTable({ data, meta }: AnalystTableProps) {
         pushParams({ status: undefined, page: 1 })
       }}
     >
-      <div className="space-y-2">
-        <Label>Status</Label>
+      <Field>
+        <FieldLabel>Status</FieldLabel>
         <Select
           items={[
             { value: "all", label: "Todos" },
@@ -363,7 +364,7 @@ export function AnalystTable({ data, meta }: AnalystTableProps) {
             <SelectItem value="false">Inativo</SelectItem>
           </SelectContent>
         </Select>
-      </div>
+      </Field>
     </DataTableFilterPanel>
   )
 
@@ -374,7 +375,7 @@ export function AnalystTable({ data, meta }: AnalystTableProps) {
       <DataTable
         refreshing={isPending}
         columns={columns}
-        data={data}
+        data={optimisticRows(data)}
         page={meta.page}
         pageSize={meta.pageSize}
         total={meta.total}

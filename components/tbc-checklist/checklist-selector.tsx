@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { FileCode, Import, Loader2, Pencil, Plus, Trash2 } from "lucide-react"
-import { toast } from "sonner"
+import { toast } from "@/lib/toast"
 import { Button } from "@/components/ui/button"
 import { Combobox } from "@/components/ui/combobox"
 import { Input } from "@/components/ui/input"

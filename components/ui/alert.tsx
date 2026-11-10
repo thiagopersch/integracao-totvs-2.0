@@ -1,78 +1,53 @@
 import * as React from "react"
-import { cva, type VariantProps } from "class-variance-authority"
+import MuiAlert from "@mui/material/Alert"
 
 import { cn } from "@/lib/utils"
 
-const alertVariants = cva(
-  "group/alert relative grid w-full gap-0.5 rounded-lg border px-2.5 py-2 text-left text-sm has-data-[slot=alert-action]:relative has-data-[slot=alert-action]:pr-18 has-[>svg]:grid-cols-[auto_1fr] has-[>svg]:gap-x-2 *:[svg]:row-span-2 *:[svg]:translate-y-0.5 *:[svg]:text-current *:[svg:not([class*='size-'])]:size-4",
-  {
-    variants: {
-      variant: {
-        default: "bg-card text-card-foreground",
-        destructive:
-          "bg-card text-destructive *:data-[slot=alert-description]:text-destructive/90 *:[svg]:text-current",
-        warning:
-          "border-amber-500/50 bg-amber-50 text-amber-800 *:data-[slot=alert-description]:text-amber-700 *:[svg]:text-amber-600 dark:border-amber-400/30 dark:bg-amber-950/40 dark:text-amber-400 dark:*:data-[slot=alert-description]:text-amber-400/90",
-      },
-    },
-    defaultVariants: {
-      variant: "default",
-    },
-  }
-)
+const SEVERITY = { default: "info", destructive: "error", warning: "warning" } as const
 
+/** MUI Alert. Keeps the old composition: an optional lucide icon as first child, then AlertTitle/AlertDescription. */
 function Alert({
   className,
-  variant,
+  variant = "default",
+  children,
   ...props
-}: React.ComponentProps<"div"> & VariantProps<typeof alertVariants>) {
+}: React.ComponentProps<"div"> & { variant?: "default" | "destructive" | "warning" | null }) {
+  const parts = React.Children.toArray(children)
+  const first = parts[0]
+  const hasIcon = React.isValidElement(first) && typeof first.type !== "string" && !(first.props as { "data-slot"?: string })["data-slot"] && !["AlertTitle", "AlertDescription", "AlertAction"].includes((first.type as { name?: string }).name ?? "")
+  const icon = hasIcon ? first : false
+  const rest = hasIcon ? parts.slice(1) : parts
   return (
-    <div
+    <MuiAlert
       data-slot="alert"
-      role="alert"
-      className={cn(alertVariants({ variant }), className)}
-      {...props}
-    />
+      severity={SEVERITY[variant ?? "default"]}
+      variant="outlined"
+      icon={icon as React.ReactNode}
+      className={cn("relative w-full text-left text-sm [&_.MuiAlert-icon_svg]:size-4", className)}
+      sx={{ py: 0.5, px: 1.25, alignItems: "flex-start", "& .MuiAlert-message": { display: "grid", gap: 0.25, width: "100%", py: 0.75 }, "& .MuiAlert-icon": { py: 1, mr: 1 } }}
+      {...(props as object)}
+    >
+      {rest}
+    </MuiAlert>
   )
 }
 
 function AlertTitle({ className, ...props }: React.ComponentProps<"div">) {
-  return (
-    <div
-      data-slot="alert-title"
-      className={cn(
-        "font-medium group-has-[>svg]/alert:col-start-2 [&_a]:underline [&_a]:underline-offset-3 [&_a]:hover:text-foreground",
-        className
-      )}
-      {...props}
-    />
-  )
+  return <div data-slot="alert-title" className={cn("font-medium [&_a]:underline [&_a]:underline-offset-3", className)} {...props} />
 }
 
-function AlertDescription({
-  className,
-  ...props
-}: React.ComponentProps<"div">) {
+function AlertDescription({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       data-slot="alert-description"
-      className={cn(
-        "text-sm text-balance text-muted-foreground md:text-pretty [&_a]:underline [&_a]:underline-offset-3 [&_a]:hover:text-foreground [&_p:not(:last-child)]:mb-4",
-        className
-      )}
+      className={cn("text-sm text-balance opacity-90 md:text-pretty [&_a]:underline [&_a]:underline-offset-3 [&_p:not(:last-child)]:mb-4", className)}
       {...props}
     />
   )
 }
 
 function AlertAction({ className, ...props }: React.ComponentProps<"div">) {
-  return (
-    <div
-      data-slot="alert-action"
-      className={cn("absolute top-2 right-2", className)}
-      {...props}
-    />
-  )
+  return <div data-slot="alert-action" className={cn("absolute top-2 right-2", className)} {...props} />
 }
 
-export { Alert, AlertTitle, AlertDescription, AlertAction }
+export { Alert, AlertAction, AlertDescription, AlertTitle }

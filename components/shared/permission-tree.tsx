@@ -1,7 +1,7 @@
 "use client"
 
-import { useMemo, useState } from "react"
-import { Collapsible } from "@base-ui/react/collapsible"
+import { useDeferredValue, useMemo, useState } from "react"
+import { Collapsible } from "@/components/ui/collapsible"
 import { ChevronRight, Search, ListChecks, ListX, ChevronsDownUp, ChevronsUpDown } from "lucide-react"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
@@ -69,13 +69,15 @@ export function PermissionTree({
   disabled,
 }: PermissionTreeProps) {
   const [search, setSearch] = useState("")
+  // Typing stays responsive; the tree re-filters at lower priority.
+  const deferredSearch = useDeferredValue(search)
   const [expandedModules, setExpandedModules] = useState<Record<string, boolean>>({})
   const [expandedResources, setExpandedResources] = useState<Record<string, boolean>>({})
 
   const tree = useMemo(() => buildTree(permissions), [permissions])
 
   const filteredTree = useMemo(() => {
-    const term = search.trim().toLowerCase()
+    const term = deferredSearch.trim().toLowerCase()
     if (!term) return tree
 
     return tree
@@ -93,7 +95,7 @@ export function PermissionTree({
         return resources.length > 0 ? { ...moduleGroup, resources, ids: resources.flatMap((r) => r.items.map((i) => i.id)) } : null
       })
       .filter((m): m is ModuleGroup => m !== null)
-  }, [tree, search])
+  }, [tree, deferredSearch])
 
   function expandAll() {
     setExpandedModules(Object.fromEntries(tree.map((m) => [m.module, true])))

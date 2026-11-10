@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@/generated/prisma/client";
-import { findBlockingReferences, formatBlockingReferences, type BlockingReference } from "@/lib/entity-relations";
+import { findBlockingReferences, findBlockingReferencesMany, formatBlockingReferences, type BlockingReference } from "@/lib/entity-relations";
 import type { ListParams, PaginationMeta, SortParams } from "@/types/common";
 import { safeOrderBy } from "@/lib/sort";
 
@@ -68,8 +68,10 @@ export class BaseRepository<T extends { id: string; deletedAt: Date | null }> {
 
     const orgClause = organizationId ? Prisma.sql`AND "organization_id" = ${organizationId}` : Prisma.sql``;
 
+    // Only live rows: buildWhere always adds `deletedAt: null`, so deleted matches were ids shipped
+    // back to Postgres for nothing (the list already filtered them out).
     const rows = await prisma.$queryRaw<{ id: string }[]>(
-      Prisma.sql`SELECT id FROM ${Prisma.raw(`"${this.tableName}"`)} WHERE (${conditions}) ${orgClause}`
+      Prisma.sql`SELECT id FROM ${Prisma.raw(`"${this.tableName}"`)} WHERE (${conditions}) ${orgClause} AND "deleted_at" IS NULL`
     );
     return rows.map((r) => r.id);
   }
@@ -236,11 +238,16 @@ export class BaseRepository<T extends { id: string; deletedAt: Date | null }> {
     const blocked: BulkDeleteBlocked[] = [];
     const deletableIds: string[] = [];
 
-    for (const id of ids) {
-      const reasons = await this.blockingReasons(id);
+    // One GROUP BY per referencing model for the whole batch, plus each repository's extra checks in parallel.
+    const [genericById, extras] = await Promise.all([
+      findBlockingReferencesMany(this.modelName, ids, { ignoreModels: this.ownedModels() }),
+      Promise.all(ids.map((id) => this.extraBlockingReferences(id))),
+    ]);
+    ids.forEach((id, i) => {
+      const reasons = [...(genericById.get(id) ?? []), ...extras[i]];
       if (reasons.length > 0) blocked.push({ id, reasons });
       else deletableIds.push(id);
-    }
+    });
 
     if (deletableIds.length > 0) {
       await this.model.updateMany({

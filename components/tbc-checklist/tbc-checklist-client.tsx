@@ -47,7 +47,7 @@ import type { TbcChecklistField, TbcChecklistLink } from "@/schemas/tbc-checklis
 import type { TbcChecklistImportSource, TbcChecklistView } from "@/services/tbc-checklist.service"
 import type { TbcRow } from "@/services/tbc.service"
 import type { Dataserver } from "@/generated/prisma/client"
-import { toast } from "sonner"
+import { toast } from "@/lib/toast"
 import { WithTooltip } from "@/components/shared/with-tooltip"
 
 /** Load state of one related (child) table for one parent row — fetched lazily the first time a
@@ -670,7 +670,7 @@ export function TbcChecklistClient({ tbc, dataservers, checklists: initialCheckl
       />
 
       {!active ? (
-        <div className="flex min-h-48 flex-1 flex-col items-center justify-center gap-3 rounded-md border p-4 text-center text-muted-foreground">
+        <div className="flex min-h-48 flex-1 flex-col items-center justify-center gap-3 surface p-4 text-center text-muted-foreground">
           <ClipboardList className="h-10 w-10" />
           <p className="max-w-sm text-sm">
             {checklists.length

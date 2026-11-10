@@ -3,13 +3,13 @@ import { notFound } from "next/navigation"
 import { getRole } from "@/actions/admin/roles"
 import { listAllPermissions } from "@/queries/admin/roles"
 import { RoleForm } from "@/components/roles/role-form"
-import { TableSkeleton } from "@/components/shared/table-skeleton"
+import { FormSkeleton } from "@/components/shared/skeletons"
 import { getRequestContext } from "@/lib/tenant"
 import { hasPermission } from "@/lib/permissions"
 
 export default function EditRolePage({ params }: { params: Promise<{ id: string }> }) {
   return (
-    <Suspense fallback={<TableSkeleton className="m-6" />}>
+    <Suspense fallback={<FormSkeleton className="m-6" />}>
       <EditRoleContent params={params} />
     </Suspense>
   )

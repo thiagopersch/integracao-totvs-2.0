@@ -1,8 +1,19 @@
 "use client"
 
-import { useMemo, useState } from "react"
-import { AlertCircle, AlertTriangle, ArrowDownToLine, CheckCircle2, Info, Loader2, Maximize2, Minimize2, Search } from "lucide-react"
-import { toast } from "sonner"
+import { useDeferredValue, useMemo, useRef, useState } from "react"
+import { VirtualRows, VIRTUALIZE_AT } from "@/components/shared/virtual-rows"
+import {
+  AlertCircle,
+  AlertTriangle,
+  ArrowDownToLine,
+  CheckCircle2,
+  Info,
+  Loader2,
+  Maximize2,
+  Minimize2,
+  Search,
+} from "lucide-react"
+import { toast } from "@/lib/toast"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Combobox, type ComboboxItem } from "@/components/ui/combobox"
@@ -31,7 +42,9 @@ const STATUS_OPTIONS: ComboboxItem[] = [
   { value: "CANCELLED", label: "Cancelada" },
 ]
 
-const PRIORITY_LABEL_BY_VALUE: Record<string, string> = Object.fromEntries(PRIORITY_OPTIONS.map((o) => [o.value, o.label]))
+const PRIORITY_LABEL_BY_VALUE: Record<string, string> = Object.fromEntries(
+  PRIORITY_OPTIONS.map((o) => [o.value, o.label])
+)
 const STATUS_LABEL_BY_VALUE: Record<string, string> = Object.fromEntries(STATUS_OPTIONS.map((o) => [o.value, o.label]))
 
 /** Columns that support "apply this cell's value to every row below it in the same column". */
@@ -107,10 +120,7 @@ function rowFieldErrors(row: EditableRow): Partial<Record<ErrorField, string>> {
 }
 
 function normalize(value: string): string {
-  return value
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
-    .toLowerCase()
+  return value.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase()
 }
 
 interface Props {
@@ -144,6 +154,8 @@ export function DemandImportReviewDialog({
   const [serverRowErrors, setServerRowErrors] = useState<Record<number, string>>({})
   const [expanded, setExpanded] = useState(false)
   const [search, setSearch] = useState("")
+  // Typing stays responsive: filtering thousands of rows runs at lower priority.
+  const deferredSearch = useDeferredValue(search)
   const [fillDownRequest, setFillDownRequest] = useState<{
     field: FillDownField
     rowNumber: number
@@ -189,7 +201,7 @@ export function DemandImportReviewDialog({
   const hasBlockingErrors = readyCount < rows.length
 
   const filteredRows = useMemo(() => {
-    const term = normalize(search.trim())
+    const term = normalize(deferredSearch.trim())
     if (!term) return rows
     return rows.filter((row) => {
       const haystack = [
@@ -210,7 +222,189 @@ export function DemandImportReviewDialog({
         .join(" ")
       return normalize(haystack).includes(term)
     })
-  }, [rows, search, clientLabels, analystLabels, requesterLabels, departmentLabels, demandTypeLabels])
+  }, [rows, deferredSearch, clientLabels, analystLabels, requesterLabels, departmentLabels, demandTypeLabels])
+
+  // Big spreadsheets: only the rows on screen are rendered (each row holds several comboboxes).
+  const tableScrollRef = useRef<HTMLDivElement>(null)
+  const virtualize = filteredRows.length >= VIRTUALIZE_AT
+  function renderRow(row: EditableRow) {
+    const { fields, messages } = errorsByRow.get(row.rowNumber) ?? { fields: {}, messages: [] }
+    const hasError = messages.length > 0
+    return (
+      <TableRow
+        key={row.rowNumber}
+        className={hasError ? "bg-red-50/60 dark:bg-red-950/20" : "bg-emerald-50/60 dark:bg-emerald-950/20"}
+      >
+        <TableCell>
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                hasError ? (
+                  <AlertCircle className="h-4 w-4 text-destructive" />
+                ) : (
+                  <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                )
+              }
+            />
+            <TooltipContent>
+              {hasError ? (
+                <div className="flex flex-col gap-0.5">
+                  <span className="font-medium">Esta linha não será importada:</span>
+                  <ul className="list-disc pl-4">
+                    {messages.map((message, index) => (
+                      <li key={index}>{message}</li>
+                    ))}
+                  </ul>
+                </div>
+              ) : (
+                "Pronta para importar"
+              )}
+            </TooltipContent>
+          </Tooltip>
+        </TableCell>
+        <TableCell className="text-xs text-muted-foreground whitespace-nowrap">{row.sourceLabel}</TableCell>
+        <TableCell className={fields.date ? INVALID_CELL_CLASS : undefined} title={fields.date}>
+          <DatePicker
+            value={row.date}
+            onValueChange={(v) => updateRow(row.rowNumber, { date: v })}
+            aria-invalid={!!fields.date}
+            className="w-36"
+          />
+        </TableCell>
+        <TableCell className={fields.clientId ? INVALID_CELL_CLASS : undefined} title={fields.clientId}>
+          <div className="flex items-center gap-1">
+            <Combobox
+              items={clients}
+              value={row.clientId}
+              onValueChange={(v) => updateRow(row.rowNumber, { clientId: v })}
+              placeholder={row.clientHint || "Selecione..."}
+              aria-invalid={!!fields.clientId}
+              className="flex-1 min-w-0"
+            />
+            {renderFillDownButton("clientId", row)}
+          </div>
+        </TableCell>
+        <TableCell className={fields.analystId ? INVALID_CELL_CLASS : undefined} title={fields.analystId}>
+          <div className="flex items-center gap-1">
+            <Combobox
+              items={analysts}
+              value={row.analystId}
+              onValueChange={(v) => updateRow(row.rowNumber, { analystId: v })}
+              placeholder={row.analystHint || "Selecione..."}
+              aria-invalid={!!fields.analystId}
+              className="flex-1 min-w-0"
+            />
+            {renderFillDownButton("analystId", row)}
+          </div>
+        </TableCell>
+        <TableCell>
+          <div className="flex items-center gap-1">
+            <Combobox
+              items={requesters}
+              value={row.requesterId}
+              onValueChange={(v) => updateRow(row.rowNumber, { requesterId: v })}
+              placeholder="Nenhum"
+              className="flex-1 min-w-0"
+            />
+            {renderFillDownButton("requesterId", row)}
+          </div>
+        </TableCell>
+        <TableCell>
+          <div className="flex items-center gap-1">
+            <Combobox
+              items={departments}
+              value={row.departmentId}
+              onValueChange={(v) => updateRow(row.rowNumber, { departmentId: v })}
+              placeholder="Nenhum"
+              className="flex-1 min-w-0"
+            />
+            {renderFillDownButton("departmentId", row)}
+          </div>
+        </TableCell>
+        <TableCell className={fields.name ? INVALID_CELL_CLASS : undefined} title={fields.name}>
+          <Input
+            value={row.name}
+            onChange={(e) => updateRow(row.rowNumber, { name: e.target.value })}
+            className="min-w-56"
+            aria-invalid={!!fields.name}
+          />
+        </TableCell>
+        <TableCell className={fields.description ? INVALID_CELL_CLASS : undefined} title={fields.description}>
+          <Input
+            value={row.description}
+            onChange={(e) => updateRow(row.rowNumber, { description: e.target.value })}
+            className="min-w-56"
+            aria-invalid={!!fields.description}
+          />
+        </TableCell>
+        <TableCell className={fields.hours ? INVALID_CELL_CLASS : undefined} title={fields.hours}>
+          <Input
+            type="text"
+            inputMode="decimal"
+            value={row.hours}
+            onChange={(e) => updateRow(row.rowNumber, { hours: e.target.value })}
+            className="w-20"
+            aria-invalid={!!fields.hours}
+          />
+        </TableCell>
+        <TableCell className={fields.demandTypeId ? INVALID_CELL_CLASS : undefined} title={fields.demandTypeId}>
+          <div className="flex items-center gap-1">
+            <Combobox
+              items={demandTypes}
+              value={row.demandTypeId}
+              onValueChange={(v) => updateRow(row.rowNumber, { demandTypeId: v })}
+              placeholder="Selecione..."
+              aria-invalid={!!fields.demandTypeId}
+              className="flex-1 min-w-0"
+            />
+            {renderFillDownButton("demandTypeId", row)}
+          </div>
+        </TableCell>
+        <TableCell>
+          <div className="flex items-center gap-1">
+            <Select
+              items={PRIORITY_OPTIONS}
+              value={row.priority}
+              onValueChange={(v) => updateRow(row.rowNumber, { priority: v || row.priority })}
+            >
+              <SelectTrigger className="flex-1 min-w-0">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {PRIORITY_OPTIONS.map((o) => (
+                  <SelectItem key={o.value} value={o.value}>
+                    {o.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {renderFillDownButton("priority", row)}
+          </div>
+        </TableCell>
+        <TableCell>
+          <div className="flex items-center gap-1">
+            <Select
+              items={STATUS_OPTIONS}
+              value={row.status}
+              onValueChange={(v) => updateRow(row.rowNumber, { status: v || row.status })}
+            >
+              <SelectTrigger className="flex-1 min-w-0">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {STATUS_OPTIONS.map((o) => (
+                  <SelectItem key={o.value} value={o.value}>
+                    {o.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {renderFillDownButton("status", row)}
+          </div>
+        </TableCell>
+      </TableRow>
+    )
+  }
 
   function requestFillDown(field: FillDownField, row: EditableRow) {
     const value = row[field]
@@ -329,8 +523,8 @@ export function DemandImportReviewDialog({
           <DialogBody className="flex flex-col gap-3">
             <p className="text-sm text-muted-foreground flex items-start gap-1.5">
               <Info className="h-4 w-4 mt-0.5 shrink-0" />
-              Linhas com data, cliente, analista, nome, horas, solicitante e setor iguais aos de uma demanda já existente
-              serão atualizadas (sobrescritas) automaticamente ao final da importação.
+              Linhas com data, cliente, analista, nome, horas, solicitante e setor iguais aos de uma demanda já
+              existente serão atualizadas (sobrescritas) automaticamente ao final da importação.
             </p>
             <div className="relative w-full max-w-sm">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -341,205 +535,44 @@ export function DemandImportReviewDialog({
                 className="pl-8"
               />
             </div>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-8"></TableHead>
-                  <TableHead className="min-w-32">Origem</TableHead>
-                  <TableHead>Data</TableHead>
-                  <TableHead className="min-w-48">Cliente</TableHead>
-                  <TableHead className="min-w-48">Analista</TableHead>
-                  <TableHead className="min-w-48">Solicitante</TableHead>
-                  <TableHead className="min-w-48">Setor</TableHead>
-                  <TableHead className="min-w-64">Nome</TableHead>
-                  <TableHead className="min-w-64">Descrição</TableHead>
-                  <TableHead className="w-24">Horas</TableHead>
-                  <TableHead className="min-w-48">Tipo de Demanda</TableHead>
-                  <TableHead className="min-w-32">Prioridade</TableHead>
-                  <TableHead className="min-w-32">Status</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredRows.map((row) => {
-                  const { fields, messages } = errorsByRow.get(row.rowNumber) ?? { fields: {}, messages: [] }
-                  const hasError = messages.length > 0
-                  return (
-                    <TableRow
-                      key={row.rowNumber}
-                      className={hasError ? "bg-red-50/60 dark:bg-red-950/20" : "bg-emerald-50/60 dark:bg-emerald-950/20"}
-                    >
-                      <TableCell>
-                        <Tooltip>
-                          <TooltipTrigger
-                            render={
-                              hasError ? (
-                                <AlertCircle className="h-4 w-4 text-destructive" />
-                              ) : (
-                                <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-                              )
-                            }
-                          />
-                          <TooltipContent>
-                            {hasError ? (
-                              <div className="flex flex-col gap-0.5">
-                                <span className="font-medium">Esta linha não será importada:</span>
-                                <ul className="list-disc pl-4">
-                                  {messages.map((message, index) => (
-                                    <li key={index}>{message}</li>
-                                  ))}
-                                </ul>
-                              </div>
-                            ) : (
-                              "Pronta para importar"
-                            )}
-                          </TooltipContent>
-                        </Tooltip>
-                      </TableCell>
-                      <TableCell className="text-xs text-muted-foreground whitespace-nowrap">{row.sourceLabel}</TableCell>
-                      <TableCell className={fields.date ? INVALID_CELL_CLASS : undefined} title={fields.date}>
-                        <DatePicker
-                          value={row.date}
-                          onValueChange={(v) => updateRow(row.rowNumber, { date: v })}
-                          aria-invalid={!!fields.date}
-                          className="w-36"
-                        />
-                      </TableCell>
-                      <TableCell className={fields.clientId ? INVALID_CELL_CLASS : undefined} title={fields.clientId}>
-                        <div className="flex items-center gap-1">
-                          <Combobox
-                            items={clients}
-                            value={row.clientId}
-                            onValueChange={(v) => updateRow(row.rowNumber, { clientId: v })}
-                            placeholder={row.clientHint || "Selecione..."}
-                            aria-invalid={!!fields.clientId}
-                            className="flex-1 min-w-0"
-                          />
-                          {renderFillDownButton("clientId", row)}
-                        </div>
-                      </TableCell>
-                      <TableCell className={fields.analystId ? INVALID_CELL_CLASS : undefined} title={fields.analystId}>
-                        <div className="flex items-center gap-1">
-                          <Combobox
-                            items={analysts}
-                            value={row.analystId}
-                            onValueChange={(v) => updateRow(row.rowNumber, { analystId: v })}
-                            placeholder={row.analystHint || "Selecione..."}
-                            aria-invalid={!!fields.analystId}
-                            className="flex-1 min-w-0"
-                          />
-                          {renderFillDownButton("analystId", row)}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-1">
-                          <Combobox
-                            items={requesters}
-                            value={row.requesterId}
-                            onValueChange={(v) => updateRow(row.rowNumber, { requesterId: v })}
-                            placeholder="Nenhum"
-                            className="flex-1 min-w-0"
-                          />
-                          {renderFillDownButton("requesterId", row)}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-1">
-                          <Combobox
-                            items={departments}
-                            value={row.departmentId}
-                            onValueChange={(v) => updateRow(row.rowNumber, { departmentId: v })}
-                            placeholder="Nenhum"
-                            className="flex-1 min-w-0"
-                          />
-                          {renderFillDownButton("departmentId", row)}
-                        </div>
-                      </TableCell>
-                      <TableCell className={fields.name ? INVALID_CELL_CLASS : undefined} title={fields.name}>
-                        <Input
-                          value={row.name}
-                          onChange={(e) => updateRow(row.rowNumber, { name: e.target.value })}
-                          className="min-w-56"
-                          aria-invalid={!!fields.name}
-                        />
-                      </TableCell>
-                      <TableCell className={fields.description ? INVALID_CELL_CLASS : undefined} title={fields.description}>
-                        <Input
-                          value={row.description}
-                          onChange={(e) => updateRow(row.rowNumber, { description: e.target.value })}
-                          className="min-w-56"
-                          aria-invalid={!!fields.description}
-                        />
-                      </TableCell>
-                      <TableCell className={fields.hours ? INVALID_CELL_CLASS : undefined} title={fields.hours}>
-                        <Input
-                          type="text"
-                          inputMode="decimal"
-                          value={row.hours}
-                          onChange={(e) => updateRow(row.rowNumber, { hours: e.target.value })}
-                          className="w-20"
-                          aria-invalid={!!fields.hours}
-                        />
-                      </TableCell>
-                      <TableCell className={fields.demandTypeId ? INVALID_CELL_CLASS : undefined} title={fields.demandTypeId}>
-                        <div className="flex items-center gap-1">
-                          <Combobox
-                            items={demandTypes}
-                            value={row.demandTypeId}
-                            onValueChange={(v) => updateRow(row.rowNumber, { demandTypeId: v })}
-                            placeholder="Selecione..."
-                            aria-invalid={!!fields.demandTypeId}
-                            className="flex-1 min-w-0"
-                          />
-                          {renderFillDownButton("demandTypeId", row)}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-1">
-                          <Select
-                            items={PRIORITY_OPTIONS}
-                            value={row.priority}
-                            onValueChange={(v) => updateRow(row.rowNumber, { priority: v || row.priority })}
-                          >
-                            <SelectTrigger className="flex-1 min-w-0">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {PRIORITY_OPTIONS.map((o) => (
-                                <SelectItem key={o.value} value={o.value}>
-                                  {o.label}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          {renderFillDownButton("priority", row)}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-1">
-                          <Select
-                            items={STATUS_OPTIONS}
-                            value={row.status}
-                            onValueChange={(v) => updateRow(row.rowNumber, { status: v || row.status })}
-                          >
-                            <SelectTrigger className="flex-1 min-w-0">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {STATUS_OPTIONS.map((o) => (
-                                <SelectItem key={o.value} value={o.value}>
-                                  {o.label}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          {renderFillDownButton("status", row)}
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  )
-                })}
-              </TableBody>
-            </Table>
+            <div ref={tableScrollRef} className={virtualize ? "max-h-[60vh] overflow-auto" : undefined}>
+              <Table>
+                <TableHeader className={virtualize ? "sticky top-0 z-10 bg-background" : undefined}>
+                  <TableRow>
+                    <TableHead className="w-8"></TableHead>
+                    <TableHead className="min-w-32">Origem</TableHead>
+                    <TableHead>Data</TableHead>
+                    <TableHead className="min-w-48">Cliente</TableHead>
+                    <TableHead className="min-w-48">Analista</TableHead>
+                    <TableHead className="min-w-48">Solicitante</TableHead>
+                    <TableHead className="min-w-48">Setor</TableHead>
+                    <TableHead className="min-w-64">Nome</TableHead>
+                    <TableHead className="min-w-64">Descrição</TableHead>
+                    <TableHead className="w-24">Horas</TableHead>
+                    <TableHead className="min-w-48">Tipo de Demanda</TableHead>
+                    <TableHead className="min-w-32">Prioridade</TableHead>
+                    <TableHead className="min-w-32">Status</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {virtualize ? (
+                    <VirtualRows
+                      count={filteredRows.length}
+                      estimateSize={56}
+                      scrollRef={tableScrollRef}
+                      renderRow={(index) => renderRow(filteredRows[index])}
+                      renderSpacer={(height, key) => (
+                        <tr key={key} aria-hidden style={{ height }}>
+                          <td colSpan={13} style={{ padding: 0, border: 0 }} />
+                        </tr>
+                      )}
+                    />
+                  ) : (
+                    filteredRows.map((row) => renderRow(row))
+                  )}
+                </TableBody>
+              </Table>
+            </div>
           </DialogBody>
           <DialogFooter className="items-center sm:justify-between">
             <p className="text-sm text-muted-foreground flex items-center gap-1.5">

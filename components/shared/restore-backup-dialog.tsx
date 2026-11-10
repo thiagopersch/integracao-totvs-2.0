@@ -44,10 +44,18 @@ export function RestoreBackupDialog({
 
   useEffect(() => {
     if (!open) return
-    setLoadingTbcs(true)
-    listAllTbcs()
-      .then(setTbcs)
-      .finally(() => setLoadingTbcs(false))
+    let cancelled = false
+    // Async from the start (no synchronous setState in the effect body).
+    Promise.resolve()
+      .then(() => {
+        if (!cancelled) setLoadingTbcs(true)
+        return listAllTbcs()
+      })
+      .then((list) => !cancelled && setTbcs(list))
+      .finally(() => !cancelled && setLoadingTbcs(false))
+    return () => {
+      cancelled = true
+    }
   }, [open])
 
   if (open !== wasOpen) {

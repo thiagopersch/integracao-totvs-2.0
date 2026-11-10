@@ -1,37 +1,30 @@
 "use client"
 
 import * as React from "react"
-import { ChevronsUpDown, X } from "lucide-react"
-import { useTheme } from "next-themes"
+import Autocomplete from "@mui/material/Autocomplete"
+import TextField from "@mui/material/TextField"
+import Chip from "@mui/material/Chip"
 
+import { useAppTheme } from "@/hooks/use-app-theme"
 import { cn } from "@/lib/utils"
+import { floatingTextFieldProps, useFloatingLabel } from "@/components/ui/field"
 import { getBadgeTextColor } from "@/lib/colors"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from "@/components/ui/command"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { VirtualListbox, VIRTUALIZE_OPTIONS_AT } from "@/components/ui/virtual-listbox"
 
 export interface MultiSelectItem {
   value: string
   label: string
-  /** Overrides how the item renders in the dropdown list (e.g. a colored badge next to the value); `label` still drives search matching and the selected-chip text. */
+  /** Overrides how the item renders in the dropdown list; `label` still drives search and the chip text. */
   render?: React.ReactNode
   /** Tints the dropdown item and the selected chip like `ColorBadge` (e.g. a tag's color). Ignored when `render` is set. */
   color?: string
-  /** Dropdown section heading the item is listed under (e.g. a requester's client); items without one go in an untitled section. */
+  /** Dropdown section heading the item is listed under (e.g. a requester's client). */
   group?: string
 }
 
-function colorBadgeStyle(color: string, isDarkTheme: boolean): React.CSSProperties {
-  return { backgroundColor: `${color}22`, borderColor: color, color: getBadgeTextColor(color, isDarkTheme) }
+function colorChipStyle(color: string, isDarkTheme: boolean): React.CSSProperties {
+  return { backgroundColor: `${color}22`, borderColor: color, color: getBadgeTextColor(color, isDarkTheme), borderWidth: 1, borderStyle: "solid" }
 }
 
 interface MultiSelectProps {
@@ -43,105 +36,76 @@ interface MultiSelectProps {
   emptyText?: string
   disabled?: boolean
   className?: string
-  /** Selected chips shown in the trigger before collapsing the rest into a "+N" chip; all shown when unset. */
+  /** Selected chips shown before collapsing the rest into a "+N" chip; all shown when unset. */
   maxVisible?: number
 }
 
+/** Searchable multi select with chips (MUI Autocomplete `multiple`). Big ungrouped lists are virtualized. */
 export function MultiSelect({
   items,
   value,
   onValueChange,
   placeholder = "Selecione...",
-  searchPlaceholder = "Buscar...",
   emptyText = "Nenhum resultado encontrado.",
   disabled,
   className,
   maxVisible,
 }: MultiSelectProps) {
-  const { resolvedTheme } = useTheme()
+  const { resolvedTheme } = useAppTheme()
+  const floating = useFloatingLabel()
   const isDarkTheme = resolvedTheme === "dark"
-  const [open, setOpen] = React.useState(false)
-  const selected = items.filter((item) => value.includes(item.value))
-  const visibleSelected = maxVisible === undefined ? selected : selected.slice(0, maxVisible)
-  const hiddenCount = selected.length - visibleSelected.length
-  const groups = React.useMemo(() => {
-    const byGroup = new Map<string, MultiSelectItem[]>()
-    for (const item of items) {
-      const key = item.group ?? ""
-      byGroup.set(key, [...(byGroup.get(key) ?? []), item])
-    }
-    return [...byGroup]
-  }, [items])
-
-  function toggle(itemValue: string) {
-    onValueChange(
-      value.includes(itemValue) ? value.filter((v) => v !== itemValue) : [...value, itemValue]
-    )
-  }
+  const byValue = React.useMemo(() => new Map(items.map((item) => [item.value, item])), [items])
+  const selected = React.useMemo(() => value.map((v) => byValue.get(v)).filter((x): x is MultiSelectItem => Boolean(x)), [value, byValue])
+  // Grouped options must stay contiguous for MUI's groupBy; sort is stable so order within a group is kept.
+  const hasGroups = items.some((item) => item.group)
+  const options = React.useMemo(
+    () => (hasGroups ? [...items].sort((a, b) => (a.group ?? "").localeCompare(b.group ?? "")) : items),
+    [items, hasGroups]
+  )
+  const virtualize = !hasGroups && options.length > VIRTUALIZE_OPTIONS_AT
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger
-        disabled={disabled}
-        render={
-          <Button
-            type="button"
-            variant="outline"
-            role="combobox"
-            aria-expanded={open}
-            className={cn("h-auto min-h-8 w-full justify-between font-normal", className)}
-          />
-        }
-      >
-        <div className="flex flex-1 flex-wrap items-center gap-1">
-          {selected.length === 0 ? (
-            <span className="text-muted-foreground">{placeholder}</span>
-          ) : (
-            visibleSelected.map((item) => (
-              <Badge
-                key={item.value}
-                variant={item.color ? "outline" : "secondary"}
-                style={item.color ? colorBadgeStyle(item.color, isDarkTheme) : undefined}
-                className="h-auto max-w-full gap-1 overflow-visible whitespace-normal break-words"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  toggle(item.value)
-                }}
-              >
-                <span className="break-words">{item.label}</span>
-                <X className="h-3 w-3 shrink-0 cursor-pointer" />
-              </Badge>
-            ))
-          )}
-          {hiddenCount > 0 && <Badge variant="secondary">+{hiddenCount}</Badge>}
-        </div>
-        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-      </PopoverTrigger>
-      <PopoverContent className="min-w-(--anchor-width) w-max max-w-(--available-width) p-0" align="start">
-        <Command>
-          <CommandInput placeholder={searchPlaceholder} />
-          <CommandList>
-            <CommandEmpty>{emptyText}</CommandEmpty>
-            {groups.map(([group, groupItems]) => (
-              <CommandGroup key={group} heading={group || undefined}>
-                {groupItems.map((item) => {
-                  const isSelected = value.includes(item.value)
-                  return (
-                    <CommandItem
-                      key={item.value}
-                      value={`${item.label} ${item.group ?? ""}`}
-                      onSelect={() => toggle(item.value)}
-                    >
-                      <Checkbox checked={isSelected} className="pointer-events-none mr-2" />
-                      {item.render ?? (item.color ? <Badge variant="outline" style={colorBadgeStyle(item.color, isDarkTheme)}>{item.label}</Badge> : item.label)}
-                    </CommandItem>
-                  )
-                })}
-              </CommandGroup>
-            ))}
-          </CommandList>
-        </Command>
-      </PopoverContent>
-    </Popover>
+    <Autocomplete
+      multiple
+      disableCloseOnSelect
+      className={cn("w-full", className)}
+      options={options}
+      value={selected}
+      disabled={disabled}
+      onChange={(_event, next) => onValueChange(next.map((item) => item.value))}
+      getOptionLabel={(option) => option.label}
+      isOptionEqualToValue={(a, b) => a.value === b.value}
+      groupBy={hasGroups ? (option) => option.group ?? "" : undefined}
+      filterOptions={(opts, state) => {
+        const q = state.inputValue.trim().toLowerCase()
+        return q ? opts.filter((o) => `${o.label} ${o.group ?? ""}`.toLowerCase().includes(q)) : opts
+      }}
+      noOptionsText={emptyText}
+      limitTags={maxVisible}
+      getLimitTagsText={(more) => `+${more}`}
+      size="small"
+      slots={virtualize ? { listbox: VirtualListbox as React.JSXElementConstructor<React.HTMLAttributes<HTMLElement>> } : undefined}
+      renderOption={({ key, ...optionProps }, option, { selected: isSelected }) => (
+        <li key={key} {...optionProps} className={cn(optionProps.className, "flex items-center gap-2 text-sm")}>
+          <Checkbox checked={isSelected} className="pointer-events-none" tabIndex={-1} />
+          {option.render ?? (option.color ? <Chip label={option.label} size="small" style={colorChipStyle(option.color, isDarkTheme)} /> : option.label)}
+        </li>
+      )}
+      renderValue={(tags, getItemProps) =>
+        tags.map((option, index) => {
+          const { key, ...itemProps } = getItemProps({ index })
+          return <Chip key={key} label={option.label} size="small" {...itemProps} style={option.color ? colorChipStyle(option.color, isDarkTheme) : undefined} />
+        })
+      }
+      renderInput={(params) => (
+        <TextField
+          {...params}
+          {...floatingTextFieldProps(floating)}
+          slotProps={{ ...params.slotProps, ...floatingTextFieldProps(floating, params.slotProps.inputLabel).slotProps }}
+          placeholder={selected.length === 0 ? placeholder : undefined}
+          sx={floating ? undefined : { "& .MuiInputBase-root": { minHeight: 36, py: "2px !important" } }}
+        />
+      )}
+    />
   )
 }

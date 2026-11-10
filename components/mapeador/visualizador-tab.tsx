@@ -1,6 +1,6 @@
 "use client"
 
-import { toast } from "sonner"
+import { toast } from "@/lib/toast"
 import { Download, Printer } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -8,6 +8,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { CollapsibleSection } from "@/components/mapeador/collapsible-section"
 import { exportMapeadorProjetoXlsx } from "@/actions/mapeador-export"
+import { useShallow } from "zustand/react/shallow"
 import { useMapeadorStore } from "@/store/mapeador.store"
 import { flattenCampos, MAPEADOR_CAMPO_TIPO_LABELS } from "@/types/mapeador"
 
@@ -33,7 +34,8 @@ function downloadBase64(base64: string, fileName: string) {
 }
 
 export function VisualizadorTab() {
-  const projeto = useMapeadorStore((s) => s.projeto)!
+  // Only the fields this component shows: edits elsewhere in the project (e.g. prototype config) don't re-render it.
+  const projeto = useMapeadorStore(useShallow((s) => ({ id: s.projeto!.id, nome: s.projeto!.nome, etapas: s.projeto!.etapas, informacoesAdicionais: s.projeto!.informacoesAdicionais })))
 
   async function handleExportXlsx() {
     const result = await exportMapeadorProjetoXlsx(projeto.id)
@@ -96,7 +98,7 @@ export function VisualizadorTab() {
               <div key={etapa.id} className="w-72 shrink-0 space-y-3">
                 <div className="rounded-md bg-muted px-2 py-1 text-center text-sm font-semibold">{etapa.nome}</div>
                 {etapa.camposPorEtapa.map((passo) => (
-                  <div key={passo.id} className="space-y-2 rounded-md border p-3">
+                  <div key={passo.id} className="space-y-2 surface p-3">
                     <div className="rounded bg-amber-100 px-1.5 py-0.5 text-xs font-semibold text-amber-900">{passo.titulo}</div>
                     {flattenCampos(passo.campos).map((campo) => (
                       <div key={campo.id} className="flex items-start justify-between gap-2 text-xs">

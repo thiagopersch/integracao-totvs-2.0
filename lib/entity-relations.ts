@@ -25,37 +25,79 @@ const SOFT_DELETED_PARENT: Record<string, string> = {
   DemandDemandType: "demand",
 };
 
-type CountDelegate = { count(args: { where: Record<string, unknown> }): Promise<number> };
+type CountDelegate = {
+  count(args: { where: Record<string, unknown> }): Promise<number>;
+  groupBy(args: { by: string[]; where: Record<string, unknown>; _count: true }): Promise<Array<Record<string, unknown> & { _count: number }>>;
+};
+
+function referenceWhere(ref: (typeof SCHEMA_RELATIONS)[number], idFilter: unknown): Record<string, unknown> {
+  const where: Record<string, unknown> = { [ref.fkField]: idFilter };
+  if (ref.hasDeletedAt) where.deletedAt = null;
+  const parent = SOFT_DELETED_PARENT[ref.modelName];
+  if (parent) where[parent] = { deletedAt: null };
+  return where;
+}
+
+function referencingDelegates(targetModelName: string, ignoreModels?: string[]) {
+  const ignore = new Set(ignoreModels ?? []);
+  return findReferencingFields(targetModelName)
+    .filter((ref) => !ignore.has(ref.modelName))
+    .map((ref) => ({ ref, delegate: (prisma as unknown as Record<string, CountDelegate>)[ref.delegateName] }))
+    .filter((entry) => Boolean(entry.delegate));
+}
 
 /**
  * Returns which other registries still hold live rows pointing at `id` —
  * an empty array means the record is free to be (soft) deleted. `ignoreModels` skips
  * child models the caller cleans up itself (e.g. a task's checklist items, which have
  * no `deletedAt` and would otherwise always block).
+ *
+ * The per-model counts run in parallel (they used to run one after another — ~20 round trips for
+ * a Client).
  */
 export async function findBlockingReferences(
   targetModelName: string,
   id: string,
   options?: { ignoreModels?: string[] },
 ): Promise<BlockingReference[]> {
-  const ignore = new Set(options?.ignoreModels ?? []);
-  const refs = findReferencingFields(targetModelName).filter((ref) => !ignore.has(ref.modelName));
+  const entries = referencingDelegates(targetModelName, options?.ignoreModels);
+  const counts = await Promise.all(entries.map(({ ref, delegate }) => delegate.count({ where: referenceWhere(ref, id) })));
   const results: BlockingReference[] = [];
-
-  for (const ref of refs) {
-    const delegate = (prisma as unknown as Record<string, CountDelegate>)[ref.delegateName];
-    if (!delegate) continue;
-
-    const where: Record<string, unknown> = { [ref.fkField]: id };
-    if (ref.hasDeletedAt) where.deletedAt = null;
-    const parent = SOFT_DELETED_PARENT[ref.modelName];
-    if (parent) where[parent] = { deletedAt: null };
-
-    const count = await delegate.count({ where });
-    if (count > 0) {
-      results.push({ model: ref.modelName, label: ENTITY_LABELS[ref.modelName] ?? ref.modelName, field: ref.fkField, count });
+  entries.forEach(({ ref }, i) => {
+    if (counts[i] > 0) {
+      results.push({ model: ref.modelName, label: ENTITY_LABELS[ref.modelName] ?? ref.modelName, field: ref.fkField, count: counts[i] });
     }
-  }
-
+  });
   return results;
+}
+
+/**
+ * Batch version of {@link findBlockingReferences} for bulk deletes: one `GROUP BY fk` query per
+ * referencing model for all ids at once, instead of one count per (id × model). Ids that are free
+ * to delete are absent from the returned map.
+ */
+export async function findBlockingReferencesMany(
+  targetModelName: string,
+  ids: string[],
+  options?: { ignoreModels?: string[] },
+): Promise<Map<string, BlockingReference[]>> {
+  const byId = new Map<string, BlockingReference[]>();
+  if (ids.length === 0) return byId;
+  const entries = referencingDelegates(targetModelName, options?.ignoreModels);
+  const grouped = await Promise.all(
+    entries.map(({ ref, delegate }) =>
+      delegate.groupBy({ by: [ref.fkField], where: referenceWhere(ref, { in: ids }), _count: true }),
+    ),
+  );
+  entries.forEach(({ ref }, i) => {
+    for (const row of grouped[i]) {
+      const id = row[ref.fkField] as string;
+      const count = typeof row._count === "number" ? row._count : Number((row._count as unknown as { _all?: number })._all ?? 0);
+      if (count <= 0) continue;
+      const list = byId.get(id) ?? [];
+      list.push({ model: ref.modelName, label: ENTITY_LABELS[ref.modelName] ?? ref.modelName, field: ref.fkField, count });
+      byId.set(id, list);
+    }
+  });
+  return byId;
 }

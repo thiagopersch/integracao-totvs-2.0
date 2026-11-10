@@ -275,7 +275,7 @@ export const dashboardService = {
     const rankingClientIds = Array.from(new Set([...contractedHoursByClientId.keys(), ...spentMinutesByClientId.keys()]));
 
     // Name/color lookups for the grouped ids — independent, so fetched together instead of one after another.
-    const [demandTypes, tags, analysts, clientsForDemands, rankingClients] = await Promise.all([
+    const [demandTypes, tags, analysts, clientsForDemands, rankingClients, untypedCount] = await Promise.all([
       demandTypeIds.length
         ? prisma.demandType.findMany({ where: { id: { in: demandTypeIds } }, select: { id: true, name: true, color: true } })
         : [],
@@ -287,14 +287,14 @@ export const dashboardService = {
       rankingClientIds.length
         ? prisma.client.findMany({ where: { id: { in: rankingClientIds } }, select: { id: true, name: true, color: true } })
         : [],
+      // Demands launched before types were required have none.
+      prisma.demand.count({ where: { ...demandWhere, demandDemandTypes: { none: {} } } }),
     ]);
     const demandTypeById = new Map(demandTypes.map((t) => [t.id, t]));
     const demandsByType = demandsByTypeRaw.map((d) => {
       const type = demandTypeById.get(d.demandTypeId);
       return { name: type?.name ?? "Desconhecido", value: d._count.demandId, color: type?.color ?? NO_DEMAND_TYPE_COLOR };
     });
-    // Demands launched before types were required have none.
-    const untypedCount = await prisma.demand.count({ where: { ...demandWhere, demandDemandTypes: { none: {} } } });
     if (untypedCount) demandsByType.push({ name: "Sem tipo", value: untypedCount, color: NO_DEMAND_TYPE_COLOR });
 
     const tagById = new Map(tags.map((t) => [t.id, t]));

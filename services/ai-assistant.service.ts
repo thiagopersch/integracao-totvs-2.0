@@ -1,6 +1,6 @@
 import { toZonedTime } from "date-fns-tz";
 import { prisma } from "@/lib/prisma";
-import { runAiToolCall, type AiChatMessage, type AiToolDefinition } from "@/lib/ai";
+import { runAiToolCall, type AiChatMessage, type AiDeltaHandler, type AiToolDefinition } from "@/lib/ai";
 import {
   AI_ENTITIES,
   validateRecord,
@@ -36,6 +36,8 @@ export interface ProposeInput {
   defaultAnalystId: string | null;
   analystScope: string | undefined;
   now?: Date;
+  /** Streams the tool-call JSON fragments as the model writes them. */
+  onDelta?: AiDeltaHandler;
 }
 
 function proposeRecordsTool(entities: AiEntityKey[]): AiToolDefinition {
@@ -297,7 +299,7 @@ export const aiAssistantService = {
     while (messages.length && messages[0].role !== "user") messages = messages.slice(1);
     if (!messages.length) throw new Error("Descreva o que deseja cadastrar");
 
-    const result = await runAiToolCall(config, system, messages, proposeRecordsTool(input.entities));
+    const result = await runAiToolCall(config, system, messages, proposeRecordsTool(input.entities), input.onDelta);
     const raw = (result.toolInput ?? {}) as { reply?: unknown; questions?: unknown };
     const proposals = toProposals(result.toolInput, input);
     const questions = Array.isArray(raw.questions) ? raw.questions.map(str).filter(Boolean) : [];

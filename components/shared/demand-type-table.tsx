@@ -4,7 +4,7 @@ import { useMemo, useState } from "react"
 import type { ColumnDef } from "@tanstack/react-table"
 import { useForm, type Resolver } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
-import { useTheme } from "next-themes"
+import { useAppTheme } from "@/hooks/use-app-theme"
 import { DataTable } from "@/components/shared/data-table"
 import { PageHeader } from "@/components/shared/page-header"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
@@ -30,7 +30,7 @@ import {
 import { Plus, Loader2 } from "lucide-react"
 import { deleteDemandType, createDemandType, updateDemandType, bulkDeleteDemandTypes } from "@/actions/demand-types"
 import { createDemandTypeSchema, updateDemandTypeSchema, type CreateDemandTypeInput } from "@/schemas/demand-type.schema"
-import { toast } from "sonner"
+import { toast } from "@/lib/toast"
 import { useCrudTable } from "@/hooks/use-crud-table"
 import { useHasPermission } from "@/hooks/use-permissions"
 import type { DemandType } from "@/generated/prisma/client"
@@ -44,7 +44,7 @@ interface DemandTypeTableProps {
 const SORTABLE_COLUMNS = ["name", "description"]
 
 export function DemandTypeTable({ data, meta }: DemandTypeTableProps) {
-  const { resolvedTheme } = useTheme()
+  const { resolvedTheme } = useAppTheme()
   const {
     deleteDialog,
     setDeleteDialog,
@@ -56,6 +56,7 @@ export function DemandTypeTable({ data, meta }: DemandTypeTableProps) {
     onSortChange,
     refresh,
     isPending,
+    optimisticRows,
   } = useCrudTable<DemandType>({
     deleteAction: deleteDemandType,
     deleteSuccessMessage: "Tipo excluído com sucesso",
@@ -208,7 +209,7 @@ export function DemandTypeTable({ data, meta }: DemandTypeTableProps) {
       <DataTable
         refreshing={isPending}
         columns={columns}
-        data={data}
+        data={optimisticRows(data)}
         page={meta.page}
         pageSize={meta.pageSize}
         total={meta.total}

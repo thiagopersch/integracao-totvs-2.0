@@ -53,7 +53,7 @@ export function ConfirmDialog({
           <AlertDialogAction
             onClick={onConfirm}
             disabled={loading}
-            className={variant === "destructive" ? "bg-destructive hover:bg-destructive/90" : undefined}
+            variant={variant === "destructive" ? "destructive" : "default"}
           >
             {loading ? (
               <>

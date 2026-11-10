@@ -1,5 +1,6 @@
 "use server"
 
+import { getCachedAnalysts } from "@/queries/registries";
 import { updateTag } from "next/cache";
 import { analystService } from "@/services/analyst.service";
 import { auditService } from "@/services/audit.service";
@@ -23,7 +24,7 @@ function parseAnalystForm(formData: FormData) {
 
 export async function listAllAnalysts() {
   const { organizationId } = await getRequestContext();
-  return analystService.listAll(organizationId);
+  return getCachedAnalysts(organizationId);
 }
 
 export async function createAnalyst(formData: FormData) {

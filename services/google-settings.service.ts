@@ -1,5 +1,6 @@
 import { decryptSecret, encryptSecret } from "@/lib/secret-box";
 import { prisma } from "@/lib/prisma";
+import { getIntegrationConfig } from "@/lib/integration-config";
 import { createSheetsClient, parseServiceAccountKey } from "@/lib/google-sheets";
 
 export interface GoogleSettingsInput {
@@ -18,7 +19,11 @@ export const googleSettingsService = {
     const settings = await this.get(organizationId);
     if (!settings) throw new Error("Configure a conta de serviço do Google em Integrações > Planilhas Google");
     if (!settings.enabled) throw new Error("A integração com o Google Sheets está desativada");
-    return { client: createSheetsClient(parseServiceAccountKey(decryptSecret(settings.serviceAccountJson))), email: settings.serviceAccountEmail };
+    const { timeoutMs } = await getIntegrationConfig(organizationId, "GOOGLE_SHEETS");
+    return {
+      client: createSheetsClient(parseServiceAccountKey(decryptSecret(settings.serviceAccountJson)), { timeoutMs }),
+      email: settings.serviceAccountEmail,
+    };
   },
 
   async save(organizationId: string, input: GoogleSettingsInput) {

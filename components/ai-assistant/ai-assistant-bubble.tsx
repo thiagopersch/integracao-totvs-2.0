@@ -1,27 +1,16 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import dynamic from "next/dynamic"
 import { useRouter } from "next/navigation"
-import { AiAssistant } from "@/components/ai-assistant/ai-assistant"
-import { getAiAssistantBubbleEnabled } from "@/actions/ai-assistant"
 
-/** Floating "Assistente IA" chat bubble on every page after login (it lives in the dashboard layout;
- *  login and password reset are outside it) — shown only when the AI assistant is enabled
- *  (Integrações > Assistente IA) and the user can create at least one of its entities. */
-export function AiAssistantBubble() {
+// The assistant (chat, proposal cards, catalogs) is only downloaded for users who have it.
+const AiAssistant = dynamic(() => import("@/components/ai-assistant/ai-assistant").then((m) => m.AiAssistant), { ssr: false })
+
+/** Floating "Assistente IA" chat bubble on every page after login — shown only when the AI assistant
+ *  is enabled (Integrações > Assistente IA) and the user can create at least one of its entities.
+ *  `enabled` is resolved by the server layout. */
+export function AiAssistantBubble({ enabled }: { enabled: boolean }) {
   const router = useRouter()
-  const [enabled, setEnabled] = useState(false)
-
-  useEffect(() => {
-    let cancelled = false
-    getAiAssistantBubbleEnabled()
-      .then((value) => !cancelled && setEnabled(value))
-      .catch(() => {})
-    return () => {
-      cancelled = true
-    }
-  }, [])
-
   if (!enabled) return null
   return <AiAssistant onCreated={() => router.refresh()} />
 }

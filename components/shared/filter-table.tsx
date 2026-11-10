@@ -43,7 +43,7 @@ import { RestorePasswordConfirmDialog } from "@/components/shared/restore-passwo
 import { deleteFilter, restoreFilter, createFilter, updateFilter, createBackupFromFilter, bulkDeleteFilters, setFilterStatus, importStandardSentencesToTbc } from "@/actions/admin/filters"
 import { BACKUP_SCHEDULE_LABELS, SCHEDULES_WITH_TIME_OF_DAY } from "@/lib/backup-schedule"
 import { createFilterSchema, updateFilterSchema, type CreateFilterInput } from "@/schemas/filter.schema"
-import { toast } from "sonner"
+import { toast } from "@/lib/toast"
 import { useCrudTable } from "@/hooks/use-crud-table"
 import { useHasPermission } from "@/hooks/use-permissions"
 import type { Filter, TotvsSystem, SentenceCategory } from "@/generated/prisma/client"
@@ -94,6 +94,7 @@ export function FilterTable({ data, meta, clients, tbcs, sistemas, categories, f
     onSortChange,
     refresh,
     isPending,
+    optimisticRows,
   } = useCrudTable<FilterRow>({
     deleteAction: deleteFilter,
     restoreAction: restoreFilter,
@@ -243,7 +244,8 @@ export function FilterTable({ data, meta, clients, tbcs, sistemas, categories, f
     try {
       const result = await createBackupFromFilter(filterId, sentenceCategoryId)
       if (result.success) {
-        toast.success("Backup realizado com sucesso")
+        // With the job queue (QStash) the backup runs in the background and a notification arrives when it ends.
+        toast.success("queued" in result && result.queued ? "Backup iniciado — você será notificado ao terminar" : "Backup realizado com sucesso")
         refresh()
       } else {
         toast.error(result.error || "Erro ao realizar backup")
@@ -576,7 +578,7 @@ export function FilterTable({ data, meta, clients, tbcs, sistemas, categories, f
             )}
           </div>
 
-          <fieldset className="space-y-3 rounded-lg border border-input p-3">
+          <fieldset className="space-y-3 rounded-xl border p-3">
             <legend className="px-1 text-sm font-medium text-muted-foreground">Contexto</legend>
             <div className="grid grid-cols-1 gap-4 md:grid-cols-5">
               <Field>
@@ -627,8 +629,8 @@ export function FilterTable({ data, meta, clients, tbcs, sistemas, categories, f
           <p className="text-sm text-muted-foreground">
             Todas as sentenças padrões ativas da categoria selecionada serão gravadas no TOTVS RM através do TBC escolhido, usando o código do sistema e o código da sentença de cada uma.
           </p>
-          <div className="space-y-2">
-            <Label>Categoria</Label>
+          <Field>
+            <FieldLabel>Categoria</FieldLabel>
             <Select
               items={categories.map((c) => ({ value: c.id, label: c.name }))}
               value={importCategoryId || null}
@@ -643,9 +645,9 @@ export function FilterTable({ data, meta, clients, tbcs, sistemas, categories, f
                 ))}
               </SelectContent>
             </Select>
-          </div>
-          <div className="space-y-2">
-            <Label>TBC de destino</Label>
+          </Field>
+          <Field>
+            <FieldLabel>TBC de destino</FieldLabel>
             <Combobox
               items={tbcs.map((t) => ({ value: t.id, label: `${t.client?.name ?? ""} | ${t.name}` }))}
               value={importTbcId}
@@ -654,7 +656,7 @@ export function FilterTable({ data, meta, clients, tbcs, sistemas, categories, f
               searchPlaceholder="Buscar TBC..."
               emptyText="Nenhum TBC encontrado."
             />
-          </div>
+          </Field>
         </DialogBody>
         <DialogFooter>
           <Button type="button" variant="outline" onClick={() => setImportDialogOpen(false)} disabled={importing}>Cancelar</Button>
@@ -695,8 +697,8 @@ export function FilterTable({ data, meta, clients, tbcs, sistemas, categories, f
         })
       }}
     >
-      <div className="space-y-2">
-        <Label>Clientes</Label>
+      <Field>
+        <FieldLabel>Clientes</FieldLabel>
         <Select
           items={[{ value: "all", label: "Todos" }, ...filterClients.map((c) => ({ value: c.id, label: c.name }))]}
           value={clientFilter || "all"}
@@ -719,9 +721,9 @@ export function FilterTable({ data, meta, clients, tbcs, sistemas, categories, f
             ))}
           </SelectContent>
         </Select>
-      </div>
-      <div className="space-y-2">
-        <Label>Ativo</Label>
+      </Field>
+      <Field>
+        <FieldLabel>Ativo</FieldLabel>
         <Select
           items={[
             { value: "all", label: "Todos" },
@@ -740,9 +742,9 @@ export function FilterTable({ data, meta, clients, tbcs, sistemas, categories, f
             <SelectItem value="false">Não</SelectItem>
           </SelectContent>
         </Select>
-      </div>
-      <div className="space-y-2">
-        <Label>Utiliza métodos sem licenças</Label>
+      </Field>
+      <Field>
+        <FieldLabel>Utiliza métodos sem licenças</FieldLabel>
         <Select
           items={[
             { value: "all", label: "Todos" },
@@ -761,9 +763,9 @@ export function FilterTable({ data, meta, clients, tbcs, sistemas, categories, f
             <SelectItem value="false">Não</SelectItem>
           </SelectContent>
         </Select>
-      </div>
-      <div className="space-y-2">
-        <Label>Código da coligada Sentença</Label>
+      </Field>
+      <Field>
+        <FieldLabel>Código da coligada Sentença</FieldLabel>
         <Select
           items={[{ value: "all", label: "Todos" }, ...sentenceCodes.codigosColigada.map((c) => ({ value: c, label: c }))]}
           value={coligadaSentencaFilter || "all"}
@@ -779,9 +781,9 @@ export function FilterTable({ data, meta, clients, tbcs, sistemas, categories, f
             ))}
           </SelectContent>
         </Select>
-      </div>
-      <div className="space-y-2">
-        <Label>Código do sistema Sentença</Label>
+      </Field>
+      <Field>
+        <FieldLabel>Código do sistema Sentença</FieldLabel>
         <Select
           items={[{ value: "all", label: "Todos" }, ...sentenceCodes.codigosSistema.map((c) => ({ value: c, label: c }))]}
           value={sistemaSentencaFilter || "all"}
@@ -797,7 +799,7 @@ export function FilterTable({ data, meta, clients, tbcs, sistemas, categories, f
             ))}
           </SelectContent>
         </Select>
-      </div>
+      </Field>
     </DataTableFilterPanel>
   )
 
@@ -808,7 +810,7 @@ export function FilterTable({ data, meta, clients, tbcs, sistemas, categories, f
       <DataTable
         refreshing={isPending}
         columns={columns}
-        data={data}
+        data={optimisticRows(data)}
         page={meta.page}
         pageSize={meta.pageSize}
         total={meta.total}
@@ -855,8 +857,8 @@ export function FilterTable({ data, meta, clients, tbcs, sistemas, categories, f
         loadingLabel="Realizando backup..."
         onConfirm={() => backupDialog.filterId && handleBackup(backupDialog.filterId, backupCategoryId || undefined)}
       >
-        <div className="space-y-2">
-          <Label>Categoria</Label>
+        <Field>
+          <FieldLabel>Categoria</FieldLabel>
           <Select
             items={categories.map((c) => ({ value: c.id, label: c.name }))}
             value={backupCategoryId || null}
@@ -871,7 +873,7 @@ export function FilterTable({ data, meta, clients, tbcs, sistemas, categories, f
               ))}
             </SelectContent>
           </Select>
-        </div>
+        </Field>
       </ConfirmDialog>
 
       <RestoreBackupDialog

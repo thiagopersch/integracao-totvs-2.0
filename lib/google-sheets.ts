@@ -1,3 +1,4 @@
+import { withSpan } from "@/lib/tracing";
 import { JWT } from "google-auth-library";
 import {
   cellA1,
@@ -92,12 +93,14 @@ interface SpreadsheetMeta {
   sheets: { properties: SheetProperties }[];
 }
 
-export function createSheetsClient(key: ServiceAccountKey) {
+export function createSheetsClient(key: ServiceAccountKey, options: { timeoutMs?: number } = {}) {
   const jwt = new JWT({ email: key.client_email, key: key.private_key, scopes: SCOPES });
 
   async function call<T>(path: string, method: "GET" | "POST" = "GET", data?: unknown): Promise<T> {
     try {
-      const res = await jwt.request<T>({ url: `${API}/${path}`, method, data });
+      const res = await withSpan(`google-sheets ${method}`, { integration: "GOOGLE_SHEETS" }, () =>
+        jwt.request<T>({ url: `${API}/${path}`, method, data, timeout: options.timeoutMs ?? 30_000 })
+      );
       return res.data;
     } catch (error) {
       throw toSheetsError(error, key.client_email);

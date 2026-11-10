@@ -1,6 +1,12 @@
 "use client"
 
 import * as React from "react"
+import MuiTable from "@mui/material/Table"
+import MuiTableHead from "@mui/material/TableHead"
+import MuiTableBody from "@mui/material/TableBody"
+import MuiTableFooter from "@mui/material/TableFooter"
+import MuiTableRow from "@mui/material/TableRow"
+import MuiTableCell from "@mui/material/TableCell"
 
 import { cn } from "@/lib/utils"
 
@@ -11,10 +17,10 @@ function Table({ className, ...props }: React.ComponentProps<"table">) {
       data-slot="table-container"
       className="relative w-full overflow-x-auto no-scrollbar"
     >
-      <table
+      <MuiTable size="small"
         data-slot="table"
         className={cn("w-full caption-bottom text-sm", className)}
-        {...props}
+        {...(props as object)}
       />
     </div>
   )
@@ -22,72 +28,72 @@ function Table({ className, ...props }: React.ComponentProps<"table">) {
 
 function TableHeader({ className, ...props }: React.ComponentProps<"thead">) {
   return (
-    <thead
+    <MuiTableHead
       data-slot="table-header"
       className={cn("[&_tr]:border-b", className)}
-      {...props}
+      {...(props as object)}
     />
   )
 }
 
 function TableBody({ className, ...props }: React.ComponentProps<"tbody">) {
   return (
-    <tbody
+    <MuiTableBody
       data-slot="table-body"
       className={cn("[&_tr:last-child]:border-0", className)}
-      {...props}
+      {...(props as object)}
     />
   )
 }
 
 function TableFooter({ className, ...props }: React.ComponentProps<"tfoot">) {
   return (
-    <tfoot
+    <MuiTableFooter
       data-slot="table-footer"
       className={cn(
-        "border-t bg-muted/50 font-medium [&>tr]:last:border-b-0",
+        "border-t font-medium [&>tr]:last:border-b-0",
         className
       )}
-      {...props}
+      {...(props as object)}
     />
   )
 }
 
 function TableRow({ className, ...props }: React.ComponentProps<"tr">) {
   return (
-    <tr
+    <MuiTableRow
       data-slot="table-row"
       className={cn(
-        "group border-b transition-colors hover:bg-muted/50 has-aria-expanded:bg-muted/50 data-[state=selected]:bg-muted",
+        "group border-b transition-colors hover:bg-foreground/4 has-aria-expanded:bg-foreground/4 data-[state=selected]:bg-primary/8",
         className
       )}
-      {...props}
+      {...(props as object)}
     />
   )
 }
 
 function TableHead({ className, ...props }: React.ComponentProps<"th">) {
   return (
-    <th
+    <MuiTableCell component="th"
       data-slot="table-head"
       className={cn(
-        "h-10 px-2 text-left align-middle font-medium whitespace-nowrap text-foreground [&:has([role=checkbox])]:pr-0",
+        "h-12 px-3 text-left align-middle whitespace-nowrap text-muted-foreground [&:has([role=checkbox])]:pr-0",
         className
       )}
-      {...props}
+      {...(props as object)}
     />
   )
 }
 
 function TableCell({ className, ...props }: React.ComponentProps<"td">) {
   return (
-    <td
+    <MuiTableCell
       data-slot="table-cell"
       className={cn(
-        "p-2 align-middle whitespace-nowrap [&:has([role=checkbox])]:pr-0",
+        "px-3 py-2.5 align-middle whitespace-nowrap [&:has([role=checkbox])]:pr-0",
         className
       )}
-      {...props}
+      {...(props as object)}
     />
   )
 }
@@ -100,7 +106,7 @@ function TableCaption({
     <caption
       data-slot="table-caption"
       className={cn("mt-4 text-sm text-muted-foreground", className)}
-      {...props}
+      {...(props as object)}
     />
   )
 }

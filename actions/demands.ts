@@ -1,6 +1,6 @@
 "use server"
 
-import { updateTag, cacheTag } from "next/cache";
+import { updateTag, cacheLife, cacheTag } from "next/cache";
 import { demandService, demandHasAnalyst } from "@/services/demand.service";
 import { contractUsageService } from "@/services/contract-usage.service";
 import { demandSheetSyncService } from "@/services/demand-sheet-sync.service";
@@ -43,9 +43,10 @@ async function getCachedDemandFilterOptions(
   analystScope: string | undefined,
   period: Period | null
 ) {
-  "use cache";
+  "use cache: remote";
   // Departments: the options carry each department's clients, edited on the departments page.
   cacheTag("demands", "departments");
+  cacheLife("aggregates");
   return demandService.getFilterOptions(organizationId, allowedClientIds, analystScope, periodToDateRange(period));
 }
 
@@ -297,6 +298,19 @@ export async function getDemandFormData() {
     getDemandFormContext(),
   ]);
   return { catalogs: { analysts, clients, requesters, departments, demandTypes, tags }, context };
+}
+
+/**
+ * Form catalogs and (optionally) the demand to edit in one round trip — Server Actions run one at a
+ * time per client, so two separate calls would always queue. `withCatalogs: false` when the client
+ * already has them.
+ */
+export async function openDemandForm(demandId: string | null, withCatalogs: boolean) {
+  const [form, demand] = await Promise.all([
+    withCatalogs ? getDemandFormData() : Promise.resolve(null),
+    demandId ? getDemandForEdit(demandId) : Promise.resolve(null),
+  ]);
+  return { form, demand };
 }
 
 /** Full demand for the shared edit form (opened from a project task's "Demandas" tab). */

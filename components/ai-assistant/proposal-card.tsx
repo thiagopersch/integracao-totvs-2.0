@@ -38,7 +38,7 @@ export function ProposalCard({ proposal: p, index, catalogs, batch, waitingFor, 
   return (
     <div
       className={cn(
-        "space-y-2 rounded-lg border p-3",
+        "space-y-2 surface p-3",
         p.created && "border-emerald-500/50 bg-emerald-500/5",
         !p.created && hasErrors && "border-amber-500/60"
       )}

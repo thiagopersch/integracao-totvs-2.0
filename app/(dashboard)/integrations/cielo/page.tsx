@@ -11,7 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { CodeEditor } from "@/components/shared/code-editor"
 import { Loader2, CreditCard } from "lucide-react"
-import { toast } from "sonner"
+import { toast } from "@/lib/toast"
 import { testCieloPayment } from "@/actions/integrations/cielo"
 
 const BRANDS = ["Visa", "Master", "Amex", "Elo", "Aura", "JCB", "Diners", "Discover"]
@@ -144,7 +144,7 @@ export default function CieloIntegrationPage() {
       <Card>
         <CardContent className="pt-6">
           <form onSubmit={handleSubmit} className="space-y-4">
-            <fieldset className="space-y-3 rounded-lg border border-input p-3">
+            <fieldset className="space-y-3 rounded-xl border p-3">
               <legend className="px-1 text-sm font-medium text-muted-foreground">Credenciais</legend>
               <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                 <Field>
@@ -174,7 +174,7 @@ export default function CieloIntegrationPage() {
               </div>
             </fieldset>
 
-            <fieldset className="space-y-3 rounded-lg border border-input p-3">
+            <fieldset className="space-y-3 rounded-xl border p-3">
               <legend className="px-1 text-sm font-medium text-muted-foreground">Pedido</legend>
               <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
                 <Field>
@@ -237,7 +237,7 @@ export default function CieloIntegrationPage() {
               </div>
             </fieldset>
 
-            <fieldset className="space-y-3 rounded-lg border border-input p-3">
+            <fieldset className="space-y-3 rounded-xl border p-3">
               <legend className="px-1 text-sm font-medium text-muted-foreground">Cliente (opcional)</legend>
               <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
                 <Field className="md:col-span-2">
@@ -310,7 +310,7 @@ export default function CieloIntegrationPage() {
               </div>
             </fieldset>
 
-            <fieldset className="space-y-3 rounded-lg border border-input p-3">
+            <fieldset className="space-y-3 rounded-xl border p-3">
               <legend className="px-1 text-sm font-medium text-muted-foreground">Cartão de crédito</legend>
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <Field>

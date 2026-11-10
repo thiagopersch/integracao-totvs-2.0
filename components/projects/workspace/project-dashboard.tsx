@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
+import { LineChart } from "@mui/x-charts/LineChart"
 import { AlertTriangle, CheckCircle2, Clock, Diamond, Gauge, Wallet } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -15,14 +15,12 @@ import { cn } from "@/lib/utils"
 import type { ProjectDashboardData, WorkspaceActions } from "@/components/projects/workspace/types"
 
 const currency = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" })
-const tooltipStyle = {
-  backgroundColor: "var(--popover)",
-  border: "1px solid var(--border)",
-  borderRadius: "var(--radius-md)",
-  color: "var(--popover-foreground)",
-  fontSize: 12,
-}
-const axisTick = { fill: "var(--muted-foreground)", fontSize: 12 }
+const chartSx = {
+  "& .MuiChartsAxis-tickLabel": { fill: "var(--muted-foreground)", fontSize: 12 },
+  "& .MuiChartsAxis-line, & .MuiChartsAxis-tick": { display: "none" },
+  "& .MuiChartsGrid-line": { stroke: "var(--border)", strokeDasharray: "3 3" },
+  '& [data-series="ideal"]': { strokeDasharray: "5 4" },
+} as const
 
 function Kpi({
   icon: Icon,
@@ -153,30 +151,31 @@ export function ProjectDashboard({ data, projectCode, actions }: { data: Project
             {data.burn.points.length === 0 ? (
               <div className="flex h-64 items-center justify-center text-sm text-muted-foreground">Sem tarefas para medir.</div>
             ) : (
-              <ResponsiveContainer width="100%" height={260}>
-                <LineChart data={data.burn.points} margin={{ left: 8, right: 16, top: 8 }}>
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-border" vertical={false} />
-                  <XAxis dataKey="date" tick={axisTick} tickFormatter={shortDate} axisLine={false} tickLine={false} minTickGap={24} />
-                  <YAxis tick={axisTick} axisLine={false} tickLine={false} width={48} unit={data.burn.unit === "hours" ? "h" : ""} />
-                  <Tooltip
-                    contentStyle={tooltipStyle}
-                    labelFormatter={(label) => formatDateOnly(String(label))}
-                    formatter={(value) => (value === null || value === undefined ? "-" : fmtUnit(Number(value)))}
-                  />
-                  <Legend wrapperStyle={{ fontSize: 12, color: "var(--muted-foreground)" }} />
-                  {burnMode === "down" ? (
-                    <>
-                      <Line type="monotone" dataKey="ideal" name="Ideal" stroke="var(--muted-foreground)" strokeDasharray="5 4" strokeWidth={2} dot={false} />
-                      <Line type="monotone" dataKey="remaining" name={`Restante (${unit.trim()})`} stroke="var(--chart-2)" strokeWidth={2} dot={false} connectNulls={false} />
-                    </>
-                  ) : (
-                    <>
-                      <Line type="stepAfter" dataKey="scope" name="Escopo total" stroke="var(--muted-foreground)" strokeWidth={2} dot={false} />
-                      <Line type="monotone" dataKey="completed" name="Concluído" stroke="var(--chart-6)" strokeWidth={2} dot={false} />
-                    </>
-                  )}
-                </LineChart>
-              </ResponsiveContainer>
+              <LineChart
+                height={260}
+                margin={{ left: 8, right: 16, top: 8 }}
+                grid={{ horizontal: true }}
+                sx={chartSx}
+                xAxis={[
+                  {
+                    scaleType: "point",
+                    data: data.burn.points.map((p) => p.date),
+                    valueFormatter: (v: string, ctx: { location: string }) => (ctx.location === "tick" ? shortDate(v) : formatDateOnly(String(v))),
+                  },
+                ]}
+                yAxis={[{ width: 48, valueFormatter: (v: number) => `${v}${data.burn.unit === "hours" ? "h" : ""}` }]}
+                series={
+                  burnMode === "down"
+                    ? [
+                        { id: "ideal", label: "Ideal", data: data.burn.points.map((p) => p.ideal ?? null), color: "var(--muted-foreground)", curve: "monotoneX", showMark: false, valueFormatter: (v) => (v == null ? "-" : fmtUnit(Number(v))) },
+                        { id: "remaining", label: `Restante (${unit.trim()})`, data: data.burn.points.map((p) => p.remaining ?? null), color: "var(--chart-2)", curve: "monotoneX", showMark: false, connectNulls: false, valueFormatter: (v) => (v == null ? "-" : fmtUnit(Number(v))) },
+                      ]
+                    : [
+                        { id: "scope", label: "Escopo total", data: data.burn.points.map((p) => p.scope ?? null), color: "var(--muted-foreground)", curve: "stepAfter", showMark: false, valueFormatter: (v) => (v == null ? "-" : fmtUnit(Number(v))) },
+                        { id: "completed", label: "Concluído", data: data.burn.points.map((p) => p.completed ?? null), color: "var(--chart-6)", curve: "monotoneX", showMark: false, valueFormatter: (v) => (v == null ? "-" : fmtUnit(Number(v))) },
+                      ]
+                }
+              />
             )}
             <p className="mt-2 text-xs text-muted-foreground">
               Medido em {data.burn.unit === "hours" ? "horas estimadas" : "quantidade de tarefas (sem estimativas)"}, considerando tarefas-folha.

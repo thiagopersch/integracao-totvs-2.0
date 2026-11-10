@@ -151,6 +151,7 @@ export const navGroups: NavGroup[] = [
       { href: "/integrations/report-schedules", label: "Envio de Relatórios", icon: "CalendarClock", resource: "report_schedules", action: "read" },
       { href: "/integrations/sheet-syncs", label: "Planilhas Google", icon: "FileSpreadsheet", resource: "sheet_syncs", action: "read" },
       { href: "/integrations/ai", label: "Assistente IA", icon: "Sparkles", resource: "integrations", action: "execute" },
+      { href: "/integrations/settings", label: "Configurações", icon: "Settings", resource: "settings", action: "manage" },
     ],
   },
   {
@@ -205,4 +206,15 @@ export function findNavItemByPathname(pathname: string): NavLeaf | undefined {
 export function getFirstAllowedRoute(permissions: string[]): string {
   const allowed = flattenNavItems().find((item) => !item.resource || hasPermission(permissions, item.resource, item.action || "read"));
   return allowed?.href ?? "/dashboard";
+}
+
+/** Sidebar groups the user may see ("Conta" lives in the avatar menu). Runs on the server layout. */
+export function visibleNavGroups(permissions: string[]): NavGroup[] {
+  return navGroups
+    .filter((g) => g.label !== "Conta")
+    .map((group) => ({
+      ...group,
+      items: group.items.filter((item) => !item.resource || hasPermission(permissions, item.resource, item.action ?? "read")),
+    }))
+    .filter((group) => group.items.length > 0);
 }

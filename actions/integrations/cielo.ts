@@ -1,5 +1,6 @@
 "use server";
 
+import { getIntegrationConfig } from "@/lib/integration-config";
 import axios from "axios";
 import { requirePermission } from "@/lib/rbac";
 import { notificationService } from "@/services/notification.service";
@@ -121,7 +122,7 @@ export async function testCieloPayment(input: CieloPaymentInput) {
         "Content-Type": "application/json",
       },
       validateStatus: () => true,
-      timeout: 30_000,
+      timeout: (await getIntegrationConfig(organizationId, "CIELO")).timeoutMs,
     });
     const duration = Date.now() - startTime;
     const failed = res.status >= 400;

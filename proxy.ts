@@ -2,13 +2,17 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { hasPermission } from "@/lib/permissions";
 import { findNavItemByPathname } from "@/lib/nav-items";
-import { checkRateLimit } from "@/lib/rate-limiter";
+import { rateLimit } from "@/lib/rate-limiter";
 import { getClientIp } from "@/lib/client-ip";
 
 const PUBLIC_ROUTES = ["/login", "/forgot-password", "/api/auth"];
+/** Machine-to-machine routes that authenticate themselves (QStash signature / CRON_SECRET, see
+ *  lib/jobs/verify.ts): no session, no per-IP rate limit (QStash calls from shared IPs). */
+const SELF_AUTHENTICATED_ROUTES = ["/api/jobs/", "/api/cron/"];
 
-export default auth((request) => {
+export default auth(async (request) => {
   const { pathname } = request.nextUrl;
+  if (SELF_AUTHENTICATED_ROUTES.some((route) => pathname.startsWith(route))) return NextResponse.next();
 
   const isPublicRoute = PUBLIC_ROUTES.some((route) => pathname.startsWith(route));
   const session = request.auth;
@@ -18,7 +22,8 @@ export default auth((request) => {
   const isPrefetch = request.headers.has("next-router-prefetch") || request.headers.get("purpose") === "prefetch";
   if (!isPrefetch) {
     const rateKey = session?.user?.id ? `api:user:${session.user.id}` : `api:ip:${getClientIp(request.headers)}`;
-    if (!checkRateLimit(rateKey).allowed) {
+    // Sliding window in Upstash Redis — one counter for all instances (per-process fallback without Redis).
+    if (!(await rateLimit(rateKey)).allowed) {
       return NextResponse.json({ error: "Too many requests" }, { status: 429 });
     }
   }

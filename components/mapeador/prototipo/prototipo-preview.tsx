@@ -7,7 +7,6 @@ import { Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter, Dia
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { cn } from "@/lib/utils"
 import {
   normalizeLargura,
@@ -20,6 +19,7 @@ import {
   type MapeadorProjetoDTO,
 } from "@/types/mapeador"
 import type { PrototipoScreen } from "@/components/mapeador/prototipo/screens"
+import { Field, FieldLabel } from "@/components/ui/field"
 
 const DEFAULT_BG =
   "https://images.unsplash.com/photo-1523240795612-9a054b0db644?auto=format&fit=crop&w=1200&q=60"
@@ -166,14 +166,14 @@ function LoginDialog({ open, onOpenChange }: LoginDialogProps) {
           <DialogTitle>Login</DialogTitle>
         </DialogHeader>
         <DialogBody className="space-y-4">
-          <div className="space-y-1.5">
-            <Label>CPF ou EMAIL*</Label>
+          <Field>
+            <FieldLabel>CPF ou EMAIL*</FieldLabel>
             <Input />
-          </div>
-          <div className="space-y-1.5">
-            <Label>Data de Nascimento*</Label>
+          </Field>
+          <Field>
+            <FieldLabel>Data de Nascimento*</FieldLabel>
             <Input type="date" />
-          </div>
+          </Field>
         </DialogBody>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
@@ -619,7 +619,7 @@ export function PrototipoPreview({
       <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
         <div className="p-topbar">
           {logoUrl ? (
-            <img src={logoUrl} alt="Logo" className="h-8" />
+            <img loading="lazy" decoding="async" src={logoUrl} alt="Logo" className="h-8" />
           ) : (
             <EditableText id="brand.fallback" value={t("brand.fallback", "EXEMPLO")} editing={editingTextos} onChange={onTextoChange} className="p-brand" />
           )}
@@ -682,7 +682,7 @@ export function PrototipoPreview({
       <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
         <div className="p-topbar">
           {logoUrl ? (
-            <img src={logoUrl} alt="Logo" className="h-8" />
+            <img loading="lazy" decoding="async" src={logoUrl} alt="Logo" className="h-8" />
           ) : (
             <EditableText id="brand.fallback" value={t("brand.fallback", "EXEMPLO")} editing={editingTextos} onChange={onTextoChange} className="p-brand" />
           )}
@@ -790,7 +790,7 @@ export function PrototipoPreview({
     <div ref={formRootRef} className="flex min-h-0 flex-1 flex-col overflow-y-auto">
       <div className="p-topbar">
         {logoUrl ? (
-          <img src={logoUrl} alt="Logo" className="h-8" />
+          <img loading="lazy" decoding="async" src={logoUrl} alt="Logo" className="h-8" />
         ) : (
           <EditableText id="brand.fallback" value={t("brand.fallback", "EXEMPLO")} editing={editingTextos} onChange={onTextoChange} className="p-brand" />
         )}

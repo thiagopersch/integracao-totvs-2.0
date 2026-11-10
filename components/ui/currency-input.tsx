@@ -1,6 +1,6 @@
 "use client"
 
-import { Input } from "@/components/ui/input"
+import { InputField } from "@/components/ui/input"
 import { formatDecimal, onlyDigits } from "@/lib/masks"
 import { cn } from "@/lib/utils"
 
@@ -25,11 +25,11 @@ export function CurrencyInput({ value, onValueChange, id, placeholder = "0,00", 
   const display = value === null || value === undefined ? "" : formatDecimal(String(Math.round(value * 100)))
   return (
     <div className={cn("relative", className)}>
-      <span className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">R$</span>
-      <Input
+      <InputField
         id={id}
         inputMode="numeric"
-        className="pl-9 text-right tabular-nums"
+        startAdornment={<span className="text-sm text-muted-foreground">R$</span>}
+        className="text-right tabular-nums"
         value={display}
         placeholder={placeholder}
         disabled={disabled}

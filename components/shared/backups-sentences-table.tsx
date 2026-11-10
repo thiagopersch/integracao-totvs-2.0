@@ -3,7 +3,7 @@
 import { useUrlParams } from "@/hooks/use-url-params"
 import { useMemo, useState } from "react"
 import { format } from "date-fns"
-import type { DateRange } from "react-day-picker"
+import type { DateRange } from "@/components/ui/date-range-picker"
 import type { ColumnDef } from "@tanstack/react-table"
 import { Eye, History, MoreHorizontal } from "lucide-react"
 import { DataTable } from "@/components/shared/data-table"
@@ -22,9 +22,10 @@ import {
 import { ViewBackupSentenceDialog } from "@/components/shared/view-backup-sentence-dialog"
 import { BackupCodeHistoryDialog } from "@/components/shared/backup-code-history-dialog"
 import { getLatestBackupForCode } from "@/actions/admin/backups"
-import { toast } from "sonner"
-import type { Backup } from "@/generated/prisma/client"
+import { toast } from "@/lib/toast"
+import type { BackupListRow as Backup } from "@/types/backup"
 import type { PaginationMeta } from "@/types/common"
+import { Field, FieldLabel } from "@/components/ui/field"
 
 const SORTABLE_COLUMNS = ["codeSentence", "codColigada", "codSystem", "nameSentence", "createdAt", "restoreStatus"]
 
@@ -139,14 +140,14 @@ export function BackupsSentencesTable({ filterId, data, meta, onRestoreSingle }:
         pushSentenceParams({ codColigada: undefined, codSystem: undefined, dateFrom: undefined, dateTo: undefined, page: 1 })
       }}
     >
-      <div className="space-y-2">
-        <Label>Coligada</Label>
+      <Field>
+        <FieldLabel>Coligada</FieldLabel>
         <Input value={coligadaFilter} onChange={(e) => setColigadaFilter(e.target.value)} placeholder="Ex: 00001" />
-      </div>
-      <div className="space-y-2">
-        <Label>Sistema</Label>
+      </Field>
+      <Field>
+        <FieldLabel>Sistema</FieldLabel>
         <Input value={sistemaFilter} onChange={(e) => setSistemaFilter(e.target.value)} placeholder="Ex: S" />
-      </div>
+      </Field>
       <div className="space-y-2">
         <Label>Data</Label>
         <DateRangePicker value={dateRange} onValueChange={setDateRange} placeholder="Selecione um período" />

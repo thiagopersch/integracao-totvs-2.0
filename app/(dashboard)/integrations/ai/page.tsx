@@ -1,13 +1,13 @@
 import { Suspense } from "react"
 import { getAiSettings } from "@/actions/integrations/ai-settings"
-import { TableSkeleton } from "@/components/shared/table-skeleton"
+import { FormSkeleton } from "@/components/shared/skeletons"
 import { MigrationPendingNotice } from "@/components/shared/migration-pending-notice"
 import { isMissingTableError, logMigrationPending } from "@/lib/prisma-errors"
 import { AiSettingsClient } from "./ai-settings-client"
 
 export default function AiSettingsPage() {
   return (
-    <Suspense fallback={<TableSkeleton className="m-6" />}>
+    <Suspense fallback={<FormSkeleton className="m-6" />}>
       <AiSettingsContent />
     </Suspense>
   )

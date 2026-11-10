@@ -4,7 +4,7 @@ import { useMemo, useState } from "react"
 import Link from "next/link"
 import type { ColumnDef } from "@tanstack/react-table"
 import { Copy, Plus, Send } from "lucide-react"
-import { toast } from "sonner"
+import { toast } from "@/lib/toast"
 import { DataTable } from "@/components/shared/data-table"
 import { DataTableFilterPanel } from "@/components/shared/data-table-filter-panel"
 import { PageHeader } from "@/components/shared/page-header"
@@ -15,7 +15,6 @@ import { ColorBadge } from "@/components/shared/color-badge"
 import { DateCell } from "@/components/shared/date-cell"
 import { buttonVariants } from "@/components/ui/button"
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu"
-import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
   bulkDeleteMessageTemplates,
@@ -37,6 +36,7 @@ import {
   type MessageTemplateScope,
 } from "@/lib/message-templates/events"
 import type { PaginationMeta } from "@/types/common"
+import { Field, FieldLabel } from "@/components/ui/field"
 
 type MessageTemplateRow = {
   id: string
@@ -66,8 +66,8 @@ function FilterSelect({
 }) {
   const items = [{ value: ALL, label: "Todos" }, ...options]
   return (
-    <div className="space-y-2">
-      <Label>{label}</Label>
+    <Field>
+      <FieldLabel>{label}</FieldLabel>
       <Select items={items} value={value || ALL} onValueChange={(v) => onChange(!v || v === ALL ? "" : v)}>
         <SelectTrigger className="w-full">
           <SelectValue />
@@ -80,13 +80,14 @@ function FilterSelect({
           ))}
         </SelectContent>
       </Select>
-    </div>
+    </Field>
   )
 }
 
 export function MessageTemplateTable({ data, meta }: { data: MessageTemplateRow[]; meta: PaginationMeta }) {
-  const { router, searchParams, deleteDialog, setDeleteDialog, pushParams, handleDelete, handleToggleStatus, sort, onSortChange, refresh, isPending } =
+  const { router, searchParams, deleteDialog, setDeleteDialog, pushParams, handleDelete, handleToggleStatus, optimisticRows, sort, onSortChange, refresh, isPending } =
     useCrudTable<MessageTemplateRow>({
+      statusKey: "isActive",
       deleteAction: deleteMessageTemplate,
       setStatusAction: setMessageTemplateActive,
       deleteSuccessMessage: "Template excluído com sucesso",
@@ -236,7 +237,7 @@ export function MessageTemplateTable({ data, meta }: { data: MessageTemplateRow[
       <DataTable
         refreshing={isPending}
         columns={columns}
-        data={data}
+        data={optimisticRows(data)}
         page={meta.page}
         pageSize={meta.pageSize}
         total={meta.total}

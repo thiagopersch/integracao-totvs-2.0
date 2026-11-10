@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { toast } from "sonner"
+import { toast } from "@/lib/toast"
 import { Loader2 } from "lucide-react"
 import {
   verifyPasswordForRestore,
@@ -10,10 +10,10 @@ import {
   restoreSingleBackup,
 } from "@/actions/admin/backups"
 import { Button } from "@/components/ui/button"
-import { Label } from "@/components/ui/label"
 import { PasswordInput } from "@/components/ui/password-input"
 import { Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import type { RestoreScope } from "@/components/shared/restore-backup-dialog"
+import { Field, FieldLabel } from "@/components/ui/field"
 
 interface RestorePasswordConfirmDialogProps {
   open: boolean
@@ -93,8 +93,8 @@ export function RestorePasswordConfirmDialog({
           <p className="text-sm text-muted-foreground">
             Esta ação irá restaurar as sentenças do filtro para backup selecionado no TOTVS RM. Digite sua senha para confirmar.
           </p>
-          <div className="space-y-2">
-            <Label htmlFor="restore-password">Senha</Label>
+          <Field>
+            <FieldLabel htmlFor="restore-password">Senha</FieldLabel>
             <PasswordInput
               value={password}
               onChange={setPassword}
@@ -103,7 +103,7 @@ export function RestorePasswordConfirmDialog({
               placeholder="Sua senha atual"
             />
             {error && <p className="text-sm text-destructive">{error}</p>}
-          </div>
+          </Field>
         </DialogBody>
         <DialogFooter>
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={loading} className="w-full sm:w-auto">
