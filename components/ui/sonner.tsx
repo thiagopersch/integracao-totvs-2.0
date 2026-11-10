@@ -33,7 +33,7 @@ function ToastCard({ item }: { item: ToastItem }) {
           width: { xs: "calc(100vw - 32px)", sm: 360 },
           boxShadow: 6,
           alignItems: "center",
-          ...(item.kind === "default" && { bgcolor: "background.paper", color: "text.primary", border: 1, borderColor: "divider" }),
+          ...(item.kind === "default" && { bgcolor: "background.paper", color: "text.primary" }),
         }}
       >
         {item.description ? <AlertTitle sx={{ mb: 0 }}>{item.message}</AlertTitle> : item.message}

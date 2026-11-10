@@ -9,10 +9,10 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { resetIntegrationSettings, saveIntegrationSettings } from "@/actions/integrations/integration-settings"
 import { INTEGRATION_LABELS, INTEGRATION_LIMITS, RETRYABLE_INTEGRATIONS } from "@/lib/integration-config-shared"
 import type { IntegrationSettingsRow } from "@/services/integration-settings.service"
+import { Field, FieldLabel } from "@/components/ui/field"
 
 const seconds = (ms: number) => String(Math.round(ms / 100) / 10)
 
@@ -86,8 +86,8 @@ function IntegrationCard({ row }: { row: IntegrationSettingsRow }) {
             <Badge variant={row.customized ? "default" : "secondary"}>{row.customized ? "Personalizado" : "Padrão"}</Badge>
           </div>
           <div className="grid gap-3 sm:grid-cols-3">
-            <div className="space-y-1">
-              <Label htmlFor={id("timeout")}>Tempo limite (s)</Label>
+            <Field>
+              <FieldLabel htmlFor={id("timeout")}>Tempo limite (s)</FieldLabel>
               <Input
                 id={id("timeout")}
                 type="number"
@@ -98,11 +98,11 @@ function IntegrationCard({ row }: { row: IntegrationSettingsRow }) {
                 value={timeoutSeconds}
                 onChange={(e) => setTimeoutSeconds(e.target.value)}
               />
-            </div>
+            </Field>
             {retryable && (
               <>
-                <div className="space-y-1">
-                  <Label htmlFor={id("retries")}>Tentativas</Label>
+                <Field>
+                  <FieldLabel htmlFor={id("retries")}>Tentativas</FieldLabel>
                   <Input
                     id={id("retries")}
                     type="number"
@@ -112,9 +112,9 @@ function IntegrationCard({ row }: { row: IntegrationSettingsRow }) {
                     value={maxRetries}
                     onChange={(e) => setMaxRetries(e.target.value)}
                   />
-                </div>
-                <div className="space-y-1">
-                  <Label htmlFor={id("delay")}>Intervalo (s)</Label>
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor={id("delay")}>Intervalo (s)</FieldLabel>
                   <Input
                     id={id("delay")}
                     type="number"
@@ -125,7 +125,7 @@ function IntegrationCard({ row }: { row: IntegrationSettingsRow }) {
                     value={retryDelaySeconds}
                     onChange={(e) => setRetryDelaySeconds(e.target.value)}
                   />
-                </div>
+                </Field>
               </>
             )}
           </div>

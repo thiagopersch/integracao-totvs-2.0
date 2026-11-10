@@ -13,7 +13,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { FieldError } from "@/components/ui/field"
+import { FieldError, Field, FieldLabel } from "@/components/ui/field"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
@@ -250,21 +250,21 @@ export function SoapEndpointTable({ data, meta, filterOptions }: SoapEndpointTab
         </DialogHeader>
         <form onSubmit={typeForm.handleSubmit(onTypeSubmit)} className="flex min-h-0 flex-1 flex-col overflow-hidden">
           <DialogBody>
-            <div className="space-y-2">
-              <Label htmlFor="type">Tipo</Label>
+            <Field>
+              <FieldLabel htmlFor="type">Tipo</FieldLabel>
               <Input id="type" className="w-full" {...typeForm.register("type")} placeholder="Ex: NOTAFISCAL" aria-invalid={!!typeForm.formState.errors.type} />
               <FieldError errors={[typeForm.formState.errors.type]} />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="label">Label</Label>
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="label">Label</FieldLabel>
               <Input id="label" className="w-full" {...typeForm.register("label")} placeholder="Ex: Nota Fiscal" aria-invalid={!!typeForm.formState.errors.label} />
               <FieldError errors={[typeForm.formState.errors.label]} />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="suffix">Suffix</Label>
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="suffix">Suffix</FieldLabel>
               <Input id="suffix" className="w-full" {...typeForm.register("suffix")} placeholder="Ex: nota_fiscal" aria-invalid={!!typeForm.formState.errors.suffix} />
               <FieldError errors={[typeForm.formState.errors.suffix]} />
-            </div>
+            </Field>
             <div className="flex items-center gap-2">
               <Checkbox
                 id="active"
@@ -307,8 +307,8 @@ export function SoapEndpointTable({ data, meta, filterOptions }: SoapEndpointTab
         pushParams({ type: undefined, suffix: undefined, method: undefined, status: undefined, page: 1 })
       }}
     >
-      <div className="space-y-2">
-        <Label>Tipo</Label>
+      <Field>
+        <FieldLabel>Tipo</FieldLabel>
         <Select
           items={[{ value: "all", label: "Todos" }, ...filterOptions.types.map((t) => ({ value: t, label: t }))]}
           value={typeFilter || "all"}
@@ -324,9 +324,9 @@ export function SoapEndpointTable({ data, meta, filterOptions }: SoapEndpointTab
             ))}
           </SelectContent>
         </Select>
-      </div>
-      <div className="space-y-2">
-        <Label>Suffix</Label>
+      </Field>
+      <Field>
+        <FieldLabel>Suffix</FieldLabel>
         <Select
           items={[{ value: "all", label: "Todos" }, ...filterOptions.suffixes.map((s) => ({ value: s, label: s }))]}
           value={suffixFilter || "all"}
@@ -342,9 +342,9 @@ export function SoapEndpointTable({ data, meta, filterOptions }: SoapEndpointTab
             ))}
           </SelectContent>
         </Select>
-      </div>
-      <div className="space-y-2">
-        <Label>Método</Label>
+      </Field>
+      <Field>
+        <FieldLabel>Método</FieldLabel>
         <Select
           items={[{ value: "all", label: "Todos" }, ...filterOptions.methods.map((m) => ({ value: m, label: m }))]}
           value={methodFilter || "all"}
@@ -360,9 +360,9 @@ export function SoapEndpointTable({ data, meta, filterOptions }: SoapEndpointTab
             ))}
           </SelectContent>
         </Select>
-      </div>
-      <div className="space-y-2">
-        <Label>Status</Label>
+      </Field>
+      <Field>
+        <FieldLabel>Status</FieldLabel>
         <Select
           items={[
             { value: "all", label: "Todos" },
@@ -381,7 +381,7 @@ export function SoapEndpointTable({ data, meta, filterOptions }: SoapEndpointTab
             <SelectItem value="false">Inativo</SelectItem>
           </SelectContent>
         </Select>
-      </div>
+      </Field>
     </DataTableFilterPanel>
   )
 
@@ -480,18 +480,18 @@ export function SoapEndpointTable({ data, meta, filterOptions }: SoapEndpointTab
           <form onSubmit={methodForm.handleSubmit(onMethodSubmit)} className="flex min-h-0 flex-1 flex-col overflow-hidden">
             <DialogBody>
               <input type="hidden" {...methodForm.register("endpointTypeId")} />
-              <div className="space-y-2">
-                <Label htmlFor="method">Método</Label>
+              <Field>
+                <FieldLabel htmlFor="method">Método</FieldLabel>
                 <Input id="method" className="w-full" {...methodForm.register("method")} placeholder="Ex: GETSCHEMA" aria-invalid={!!methodForm.formState.errors.method} />
                 <FieldError errors={[methodForm.formState.errors.method]} />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="methodLabel">Label</Label>
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="methodLabel">Label</FieldLabel>
                 <Input id="methodLabel" className="w-full" {...methodForm.register("label")} placeholder="Ex: Obter Schema" aria-invalid={!!methodForm.formState.errors.label} />
                 <FieldError errors={[methodForm.formState.errors.label]} />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="sortOrder">Ordem</Label>
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="sortOrder">Ordem</FieldLabel>
                 <Input
                   id="sortOrder"
                   type="number"
@@ -499,7 +499,7 @@ export function SoapEndpointTable({ data, meta, filterOptions }: SoapEndpointTab
                   {...methodForm.register("sortOrder", { valueAsNumber: true })}
                   placeholder="0"
                 />
-              </div>
+              </Field>
               <div className="flex items-center gap-2">
                 <Checkbox
                   id="methodActive"

@@ -6,12 +6,12 @@ import { toast } from "@/lib/toast"
 import { FileUp, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import type { ComboboxItem } from "@/components/ui/combobox"
 import { DemandImportReviewDialog } from "@/components/shared/demand-import-review-dialog"
 import { parseDemandImport } from "@/actions/import"
 import type { ParsedDemandRow } from "@/schemas/demand-import.schema"
 import type { Client, Analyst, Requester, Department, DemandType } from "@/generated/prisma/client"
+import { Field, FieldLabel } from "@/components/ui/field"
 
 interface Props {
   clients: Client[]
@@ -74,8 +74,8 @@ export function DemandImportForm({ clients, analysts, requesters, departments, d
 
   return (
     <div className="max-w-xl space-y-6">
-      <div className="space-y-2">
-        <Label htmlFor="import-file">Planilha de demandas</Label>
+      <Field>
+        <FieldLabel htmlFor="import-file">Planilha de demandas</FieldLabel>
         <Input
           id="import-file"
           ref={fileInputRef}
@@ -88,7 +88,7 @@ export function DemandImportForm({ clients, analysts, requesters, departments, d
           Data, Cliente, Analista, Solicitante, Setor, Demanda, Descrição e Horas. Planilhas com várias abas (uma por mês) são
           combinadas automaticamente.
         </p>
-      </div>
+      </Field>
 
       <Button type="button" onClick={handleAnalyze} disabled={loading || !file}>
         {loading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <FileUp className="h-4 w-4 mr-2" />}

@@ -51,7 +51,7 @@ function TableFooter({ className, ...props }: React.ComponentProps<"tfoot">) {
     <MuiTableFooter
       data-slot="table-footer"
       className={cn(
-        "border-t bg-muted/50 font-medium [&>tr]:last:border-b-0",
+        "border-t font-medium [&>tr]:last:border-b-0",
         className
       )}
       {...(props as object)}
@@ -64,7 +64,7 @@ function TableRow({ className, ...props }: React.ComponentProps<"tr">) {
     <MuiTableRow
       data-slot="table-row"
       className={cn(
-        "group border-b transition-colors hover:bg-muted/50 has-aria-expanded:bg-muted/50 data-[state=selected]:bg-muted",
+        "group border-b transition-colors hover:bg-foreground/4 has-aria-expanded:bg-foreground/4 data-[state=selected]:bg-primary/8",
         className
       )}
       {...(props as object)}
@@ -77,7 +77,7 @@ function TableHead({ className, ...props }: React.ComponentProps<"th">) {
     <MuiTableCell component="th"
       data-slot="table-head"
       className={cn(
-        "h-10 px-2 text-left align-middle font-medium whitespace-nowrap text-foreground [&:has([role=checkbox])]:pr-0",
+        "h-12 px-3 text-left align-middle whitespace-nowrap text-muted-foreground [&:has([role=checkbox])]:pr-0",
         className
       )}
       {...(props as object)}
@@ -90,7 +90,7 @@ function TableCell({ className, ...props }: React.ComponentProps<"td">) {
     <MuiTableCell
       data-slot="table-cell"
       className={cn(
-        "p-2 align-middle whitespace-nowrap [&:has([role=checkbox])]:pr-0",
+        "px-3 py-2.5 align-middle whitespace-nowrap [&:has([role=checkbox])]:pr-0",
         className
       )}
       {...(props as object)}

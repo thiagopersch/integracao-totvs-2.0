@@ -33,6 +33,7 @@ import {
   type MapeadorTemaDTO,
 } from "@/types/mapeador"
 import { WithTooltip } from "@/components/shared/with-tooltip"
+import { Field, FieldLabel } from "@/components/ui/field"
 
 function isVoltarButton(label: string) {
   return /voltar/i.test(label)
@@ -229,8 +230,8 @@ export function PrototipoTab() {
           <div>
             <p className="mb-2 text-xs font-semibold uppercase text-muted-foreground">Conteúdo</p>
             <div className="flex flex-wrap items-end gap-4">
-              <div className="space-y-1">
-                <Label className="text-xs text-muted-foreground">Gerar para</Label>
+              <Field>
+                <FieldLabel className="text-xs text-muted-foreground">Gerar para</FieldLabel>
                 <Select
                   items={[
                     { value: "atual", label: "Somente este processo" },
@@ -247,7 +248,7 @@ export function PrototipoTab() {
                     <SelectItem value="todos">Todos os processos</SelectItem>
                   </SelectContent>
                 </Select>
-              </div>
+              </Field>
               <div className="space-y-1">
                 <Label className="text-xs text-muted-foreground">Visualização</Label>
                 <div className="flex overflow-hidden rounded-md border">
@@ -383,14 +384,14 @@ export function PrototipoTab() {
                   </WithTooltip>
                 </div>
               </div>
-              <div className="space-y-1">
-                <Label className="text-xs text-muted-foreground">Cor da marca</Label>
+              <Field>
+                <FieldLabel className="text-xs text-muted-foreground">Cor da marca</FieldLabel>
                 <Input type="color" value={config.corMarca || temaPadrao?.config.corMarca || "#0CC1AA"} onChange={(e) => saveConfig({ corMarca: e.target.value })} className="h-8 w-14 p-1" />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs text-muted-foreground">Cor da barra</Label>
+              </Field>
+              <Field>
+                <FieldLabel className="text-xs text-muted-foreground">Cor da barra</FieldLabel>
                 <Input type="color" value={config.corBarra || temaPadrao?.config.corBarra || "#0AA392"} onChange={(e) => saveConfig({ corBarra: e.target.value })} className="h-8 w-14 p-1" />
-              </div>
+              </Field>
               <ImageInput label="Logo" value={config.logoUrl} onChange={(url) => saveConfig({ logoUrl: url })} kind="logo" />
               <ImageInput label="Imagem de fundo" value={config.bgImageUrl} onChange={(url) => saveConfig({ bgImageUrl: url })} hint="Recomendado: pelo menos 1600×1000px, paisagem" kind="background" />
             </div>

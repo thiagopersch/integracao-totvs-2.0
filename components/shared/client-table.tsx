@@ -524,8 +524,8 @@ export function ClientTable({ data, meta }: ClientTableProps) {
         pushParams({ status: undefined, favorite: undefined, hasImage: undefined, page: 1 })
       }}
     >
-      <div className="space-y-2">
-        <Label>Status</Label>
+      <Field>
+        <FieldLabel>Status</FieldLabel>
         <Select
           items={[
             { value: "all", label: "Todos" },
@@ -544,9 +544,9 @@ export function ClientTable({ data, meta }: ClientTableProps) {
             <SelectItem value="false">Inativo</SelectItem>
           </SelectContent>
         </Select>
-      </div>
-      <div className="space-y-2">
-        <Label>Favoritos</Label>
+      </Field>
+      <Field>
+        <FieldLabel>Favoritos</FieldLabel>
         <Select
           items={[
             { value: "all", label: "Todos" },
@@ -565,9 +565,9 @@ export function ClientTable({ data, meta }: ClientTableProps) {
             <SelectItem value="false">Não</SelectItem>
           </SelectContent>
         </Select>
-      </div>
-      <div className="space-y-2">
-        <Label>Possui imagem</Label>
+      </Field>
+      <Field>
+        <FieldLabel>Possui imagem</FieldLabel>
         <Select
           items={[
             { value: "all", label: "Todos" },
@@ -586,7 +586,7 @@ export function ClientTable({ data, meta }: ClientTableProps) {
             <SelectItem value="false">Não</SelectItem>
           </SelectContent>
         </Select>
-      </div>
+      </Field>
     </DataTableFilterPanel>
   )
 

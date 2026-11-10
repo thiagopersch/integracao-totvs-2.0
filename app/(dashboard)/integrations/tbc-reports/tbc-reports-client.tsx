@@ -316,7 +316,7 @@ export function TbcReportsClient({
 
       <Card>
         <CardContent className="pt-6 space-y-4">
-          <fieldset className="space-y-3 rounded-lg border border-input p-3">
+          <fieldset className="space-y-3 rounded-xl border p-3">
             <legend className="px-1 text-sm font-medium text-muted-foreground">Conexão</legend>
             <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
               <Field>
@@ -368,7 +368,7 @@ export function TbcReportsClient({
 
           {/* Report list/info come from the TBC — dim this block while they're being fetched. */}
           <PendingRegion pending={loading}>
-            <fieldset className="space-y-3 rounded-lg border border-input p-3">
+            <fieldset className="space-y-3 rounded-xl border p-3">
               <legend className="px-1 text-sm font-medium text-muted-foreground">Relatório</legend>
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <Field>

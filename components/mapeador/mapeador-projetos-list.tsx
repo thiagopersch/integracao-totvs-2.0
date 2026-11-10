@@ -33,6 +33,7 @@ import { deleteMapeadorTemplateModelo } from "@/actions/mapeador-template"
 import { useHasPermission } from "@/hooks/use-permissions"
 import { cn } from "@/lib/utils"
 import type { MapeadorProjetoSummary, MapeadorTemplateSummary } from "@/types/mapeador"
+import { Field, FieldLabel } from "@/components/ui/field"
 
 interface ClienteOption {
   id: string
@@ -223,8 +224,8 @@ export function MapeadorProjetosList({ initialProjetos, templates, clientes }: M
             setFiltersOpen(false)
           }}
         >
-          <div className="space-y-2">
-            <Label>Cliente</Label>
+          <Field>
+            <FieldLabel>Cliente</FieldLabel>
             <Select
               items={[{ value: "all", label: "Todos" }, ...clientes.map((c) => ({ value: c.id, label: c.name }))]}
               value={clienteFilter || "all"}
@@ -242,9 +243,9 @@ export function MapeadorProjetosList({ initialProjetos, templates, clientes }: M
                 ))}
               </SelectContent>
             </Select>
-          </div>
-          <div className="space-y-2">
-            <Label>Forma de ingresso</Label>
+          </Field>
+          <Field>
+            <FieldLabel>Forma de ingresso</FieldLabel>
             <Select
               items={[{ value: "all", label: "Todas" }, ...formasIngresso.map((nome) => ({ value: nome, label: nome }))]}
               value={formaIngressoFilter || "all"}
@@ -262,7 +263,7 @@ export function MapeadorProjetosList({ initialProjetos, templates, clientes }: M
                 ))}
               </SelectContent>
             </Select>
-          </div>
+          </Field>
         </DataTableFilterPanel>
       )}
 
@@ -346,8 +347,8 @@ export function MapeadorProjetosList({ initialProjetos, templates, clientes }: M
             </DialogDescription>
           </DialogHeader>
           <DialogBody className="space-y-4">
-            <div className="space-y-2">
-              <Label>Cliente (opcional)</Label>
+            <Field>
+              <FieldLabel>Cliente (opcional)</FieldLabel>
               <Select
                 items={[{ value: "none", label: "Nenhum cliente" }, ...clientes.map((c) => ({ value: c.id, label: c.name }))]}
                 value={dialogClienteId ?? "none"}
@@ -365,7 +366,7 @@ export function MapeadorProjetosList({ initialProjetos, templates, clientes }: M
                   ))}
                 </SelectContent>
               </Select>
-            </div>
+            </Field>
             <div className="space-y-2">
               {rubeusTemplates.map((template) => (
                 <Label
@@ -443,8 +444,8 @@ export function MapeadorProjetosList({ initialProjetos, templates, clientes }: M
             <DialogTitle>Criar processo em branco</DialogTitle>
           </DialogHeader>
           <DialogBody className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="nome">Nome do processo</Label>
+            <Field>
+              <FieldLabel htmlFor="nome">Nome do processo</FieldLabel>
               <Input
                 id="nome"
                 value={nome}
@@ -453,9 +454,9 @@ export function MapeadorProjetosList({ initialProjetos, templates, clientes }: M
                 onKeyDown={(e) => e.key === "Enter" && handleCreateBlank()}
                 autoFocus
               />
-            </div>
-            <div className="space-y-2">
-              <Label>Cliente (opcional)</Label>
+            </Field>
+            <Field>
+              <FieldLabel>Cliente (opcional)</FieldLabel>
               <Select
                 items={[{ value: "none", label: "Nenhum cliente" }, ...clientes.map((c) => ({ value: c.id, label: c.name }))]}
                 value={dialogClienteId ?? "none"}
@@ -473,7 +474,7 @@ export function MapeadorProjetosList({ initialProjetos, templates, clientes }: M
                   ))}
                 </SelectContent>
               </Select>
-            </div>
+            </Field>
           </DialogBody>
           <DialogFooter>
             <Button variant="outline" onClick={() => setStep("choice")}>
@@ -501,7 +502,7 @@ export function MapeadorProjetosList({ initialProjetos, templates, clientes }: M
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {filteredProjetos.map((projeto) => (
-            <Card key={projeto.id} className="group relative cursor-pointer hover:border-primary" onClick={() => router.push(`/projetos/mapeador/${projeto.id}`)}>
+            <Card key={projeto.id} className="group relative cursor-pointer transition-shadow hover:shadow-md" onClick={() => router.push(`/projetos/mapeador/${projeto.id}`)}>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <FolderKanban className="h-4 w-4 text-primary" /> {projeto.nome}

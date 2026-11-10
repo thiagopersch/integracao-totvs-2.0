@@ -14,7 +14,8 @@ test.beforeEach(async ({ page }, testInfo) => {
 async function signIn(page: Page) {
   await page.goto("/login")
   await page.getByLabel("E-mail").fill(EMAIL!)
-  await page.getByLabel("Senha").fill(PASSWORD!)
+  // exact: the eye button ("Mostrar senha") also matches "Senha".
+  await page.getByLabel("Senha", { exact: true }).fill(PASSWORD!)
   await page.getByRole("button", { name: "Entrar" }).click()
   await page.waitForURL((url) => !url.pathname.startsWith("/login"), { timeout: 60_000 })
 }

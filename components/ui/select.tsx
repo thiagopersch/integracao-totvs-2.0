@@ -5,11 +5,22 @@ import Menu from "@mui/material/Menu"
 import MenuItem from "@mui/material/MenuItem"
 import ListSubheader from "@mui/material/ListSubheader"
 import Divider from "@mui/material/Divider"
-import ButtonBase from "@mui/material/ButtonBase"
+import FormControl from "@mui/material/FormControl"
+import InputLabel from "@mui/material/InputLabel"
+import OutlinedInput from "@mui/material/OutlinedInput"
 import { CheckIcon, ChevronDownIcon } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { popoverOrigins } from "@/components/ui/popover"
+import { useFloatingLabel } from "@/components/ui/field"
+
+const BOX = /^(?:[a-z-]+:)*(?:h-|min-h-|max-h-|rounded|bg-|border)/
+function splitBoxClasses(className: string) {
+  const box: string[] = []
+  const rest: string[] = []
+  for (const token of className.split(/\s+/).filter(Boolean)) (BOX.test(token) ? box : rest).push(token)
+  return { box: box.join(" "), rest: rest.join(" ") }
+}
 
 /**
  * Compound Select (same API the app had on Base UI: `items`, `value`, `onValueChange`,
@@ -105,40 +116,129 @@ function Select({ value, defaultValue, onValueChange, items, disabled, name, ope
   )
 }
 
+type TriggerSurfaceProps = React.HTMLAttributes<HTMLDivElement> & {
+  disabled?: boolean
+  onToggle: () => void
+  ref?: React.Ref<HTMLDivElement>
+}
+
+/** The "input" of the outlined trigger: a focusable combobox div (like MUI's own Select). */
+function TriggerSurface({ disabled, onToggle, ref, className, children, onFocus, onBlur, ...rest }: TriggerSurfaceProps & Record<string, unknown>) {
+  const aria: Record<string, unknown> = {}
+  for (const [k, v] of Object.entries(rest)) if (k.startsWith("aria-") || k.startsWith("data-") || k === "id" || k === "title" || k === "onKeyDown") aria[k] = v
+  return (
+    <div
+      ref={ref}
+      role="combobox"
+      tabIndex={disabled ? -1 : 0}
+      aria-disabled={disabled || undefined}
+      className={className}
+      onFocus={onFocus}
+      onBlur={onBlur}
+      onClick={() => !disabled && onToggle()}
+      {...aria}
+      onKeyDown={(e) => {
+        ;(aria.onKeyDown as React.KeyboardEventHandler<HTMLDivElement> | undefined)?.(e)
+        if (disabled || e.defaultPrevented) return
+        if (e.key === "Enter" || e.key === " " || e.key === "ArrowDown") {
+          e.preventDefault()
+          onToggle()
+        }
+      }}
+    >
+      {children}
+    </div>
+  )
+}
+
 function SelectTrigger({
   className,
   size = "default",
   children,
   disabled,
+  id,
   ...props
 }: Omit<React.ComponentProps<"button">, "ref"> & { size?: "sm" | "default" }) {
   const { setAnchorEl, value, open, setOpen, disabled: ctxDisabled } = useSelect()
-  const isDisabled = disabled ?? ctxDisabled
+  const floating = useFloatingLabel(id)
+  const isDisabled = Boolean(disabled ?? ctxDisabled)
   const isEmpty = value == null || value === ""
-  return (
-    <ButtonBase
+  const [focused, setFocused] = React.useState(false)
+  const invalid = props["aria-invalid"] === true || props["aria-invalid"] === "true"
+  const shrink = !!floating && (floating.static || !isEmpty || open || focused)
+  const { box, rest } = splitBoxClasses(className ?? "")
+  const height = size === "sm" ? "h-8" : floating ? "h-10" : "h-9"
+
+  const surfaceId = id ?? floating?.id
+  const labelId = React.useId()
+  const surfaceProps = {
+    ...(props as Record<string, unknown>),
+    id: surfaceId,
+    // A div combobox isn't "labelable" by <label for>: name it through the floating label.
+    ...(floating && !props["aria-label"] && !props["aria-labelledby"] ? { "aria-labelledby": labelId } : {}),
+    "aria-haspopup": "listbox",
+    "aria-expanded": open,
+    "data-slot": "select-trigger",
+    "data-size": size,
+    "data-placeholder": isEmpty ? "" : undefined,
+    disabled: isDisabled,
+    onToggle: () => setOpen(!open),
+    children,
+  } as Record<string, unknown>
+
+  const input = (
+    <OutlinedInput
       ref={setAnchorEl}
-      data-slot="select-trigger"
-      data-size={size}
-      data-placeholder={isEmpty ? "" : undefined}
-      aria-haspopup="listbox"
-      aria-expanded={open}
       disabled={isDisabled}
-      onClick={() => setOpen(!open)}
-      className={cn(
-        "flex w-fit cursor-pointer items-center justify-between gap-1.5 rounded-lg border border-input bg-transparent py-2 pr-2 pl-2.5 text-sm whitespace-nowrap transition-colors select-none",
-        "focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50",
-        "aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 data-placeholder:text-muted-foreground",
-        "data-[size=default]:h-8 data-[size=sm]:h-7 dark:bg-input/30 dark:hover:bg-input/50",
-        "[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
-        className
-      )}
-      sx={{ justifyContent: "space-between", font: "inherit", color: "inherit" }}
-      {...(props as Record<string, unknown>)}
+      error={invalid}
+      label={floating?.label}
+      notched={floating ? shrink : undefined}
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- custom surface, like MUI's own SelectInput
+      inputComponent={TriggerSurface as any}
+      inputProps={surfaceProps}
+      onFocus={() => setFocused(true)}
+      onBlur={() => setFocused(false)}
+      endAdornment={<ChevronDownIcon className={cn("pointer-events-none mr-2 size-4 shrink-0 text-muted-foreground transition-transform", open && "rotate-180")} />}
+      className={cn("text-sm", height, floating ? "w-full" : cn("w-fit", rest), box)}
+      sx={{
+        pr: 0,
+        cursor: isDisabled ? "default" : "pointer",
+        "& .MuiInputBase-input": {
+          display: "flex",
+          alignItems: "center",
+          gap: 0.75,
+          height: "100%",
+          boxSizing: "border-box",
+          py: 0,
+          pl: 1.5,
+          pr: 1,
+          cursor: "inherit",
+          whiteSpace: "nowrap",
+          overflow: "hidden",
+          userSelect: "none",
+        },
+        "& .MuiInputBase-input[data-placeholder]": { color: "text.secondary" },
+        "& svg:not([class*='size-'])": { width: 16, height: 16 },
+      }}
+    />
+  )
+
+  if (!floating) return input
+  return (
+    <FormControl
+      variant="outlined"
+      size="small"
+      error={invalid}
+      disabled={isDisabled}
+      focused={focused || open}
+      className={cn("min-w-0", rest || "w-full")}
+      {...floating.rootProps}
     >
-      {children}
-      <ChevronDownIcon className="pointer-events-none size-4 text-muted-foreground" />
-    </ButtonBase>
+      <InputLabel id={labelId} shrink={shrink} size="small">
+        {floating.label}
+      </InputLabel>
+      {input}
+    </FormControl>
   )
 }
 
@@ -190,10 +290,11 @@ function SelectContent({
       {...popoverOrigins(side, align)}
       slotProps={{
         paper: {
+          elevation: 8,
           "data-slot": "select-content",
           className: cn("max-h-80 text-sm", className),
           style: { minWidth: ctx.anchorEl?.offsetWidth },
-          sx: { mt: 0.5, border: 1, borderColor: "divider" },
+          sx: { mt: 0.5 },
         } as React.ComponentProps<"div">,
         list: { dense: true, role: "listbox" },
       }}

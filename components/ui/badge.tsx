@@ -5,17 +5,20 @@ import { cn } from "@/lib/utils"
 
 type BadgeVariant = "default" | "secondary" | "destructive" | "success" | "outline" | "ghost" | "link"
 
-const VARIANT_CLASSES: Record<BadgeVariant, string> = {
-  default: "bg-primary text-primary-foreground",
-  secondary: "bg-secondary text-secondary-foreground",
-  destructive: "bg-destructive/10 text-destructive dark:bg-destructive/20",
-  success: "bg-emerald-500/10 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-400",
-  outline: "border border-border bg-transparent text-foreground",
-  ghost: "bg-transparent hover:bg-muted",
-  link: "bg-transparent text-primary underline-offset-4 hover:underline",
+type ChipLook = { color: "default" | "primary" | "error" | "success"; variant: "filled" | "outlined"; className: string }
+
+// Material chips: filled primary, neutral filled, outlined, and soft (tonal) error/success.
+const LOOK: Record<BadgeVariant, ChipLook> = {
+  default: { color: "primary", variant: "filled", className: "" },
+  secondary: { color: "default", variant: "filled", className: "" },
+  destructive: { color: "error", variant: "filled", className: "bg-destructive/12 text-destructive" },
+  success: { color: "success", variant: "filled", className: "bg-emerald-600/12 text-emerald-700 dark:bg-emerald-400/16 dark:text-emerald-300" },
+  outline: { color: "default", variant: "outlined", className: "" },
+  ghost: { color: "default", variant: "outlined", className: "border-transparent bg-transparent" },
+  link: { color: "primary", variant: "outlined", className: "border-transparent bg-transparent underline-offset-4 hover:underline" },
 }
 
-/** Status/label pill (MUI Chip). Tailwind classes passed in `className` still recolor it. */
+/** Status/label pill (MUI Chip, small). Tailwind classes passed in `className` still recolor it. */
 function Badge({
   className,
   variant = "default",
@@ -33,6 +36,7 @@ function Badge({
   style?: React.CSSProperties
   title?: string
 }) {
+  const look = LOOK[variant ?? "default"]
   return (
     <Chip
       data-slot="badge"
@@ -40,19 +44,22 @@ function Badge({
       {...(render && React.isValidElement(render) ? (render.props as object) : {})}
       label={children}
       onClick={onClick}
+      clickable={Boolean(onClick)}
       style={style}
       title={title}
       size="small"
-      className={cn(
-        "h-5 w-fit shrink-0 gap-1 rounded-full px-0 text-xs font-medium [&_svg:not([class*='size-'])]:size-3",
-        VARIANT_CLASSES[variant ?? "default"],
-        className
-      )}
-      sx={{ "& .MuiChip-label": { px: 1, display: "inline-flex", alignItems: "center", gap: 0.5 }, bgcolor: "unset", color: "unset" }}
+      color={look.color}
+      variant={look.variant}
+      className={cn("h-6 w-fit max-w-full shrink-0 text-xs font-medium [&_svg:not([class*='size-'])]:size-3.5", look.className, className)}
+      sx={{ "& .MuiChip-label": { px: 1, display: "inline-flex", alignItems: "center", gap: 0.5 } }}
     />
   )
 }
 
-const badgeVariants = ({ variant = "default" }: { variant?: BadgeVariant | null } = {}) => VARIANT_CLASSES[variant ?? "default"]
+const badgeVariants = ({ variant = "default" }: { variant?: BadgeVariant | null } = {}) => {
+  const look = LOOK[variant ?? "default"]
+  const base = look.variant === "outlined" ? "border border-border" : look.color === "primary" ? "bg-primary text-primary-foreground" : "bg-foreground/8"
+  return cn("rounded-lg", base, look.className)
+}
 
 export { Badge, badgeVariants }

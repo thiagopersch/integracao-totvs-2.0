@@ -85,7 +85,7 @@ export function DashboardShell({
           width,
           flexShrink: 0,
           transition: (theme) => theme.transitions.create("width"),
-          "& .MuiDrawer-paper": { width, overflowX: "hidden", position: "relative", transition: (theme) => theme.transitions.create("width"), bgcolor: "background.paper" },
+          "& .MuiDrawer-paper": { width, overflowX: "hidden", position: "relative", transition: (theme) => theme.transitions.create("width"), borderRight: 0, boxShadow: 1, zIndex: 2 },
         }}
       >
         <DashboardSidebar groups={groups} collapsed={collapsed} onToggle={toggleCollapsed} />
@@ -101,23 +101,23 @@ export function DashboardShell({
       </Drawer>
 
       <Box sx={{ display: "flex", minWidth: 0, flex: 1, flexDirection: "column", overflow: "hidden" }}>
-        <AppBar position="static" color="inherit" elevation={0} sx={{ borderBottom: 1, borderColor: "divider", bgcolor: "background.default" }}>
-          <Toolbar variant="dense" sx={{ gap: 1, minHeight: { xs: 52, md: 60 }, px: { xs: 1.5, md: 3 } }}>
+        <AppBar position="static" color="inherit" elevation={1} sx={{ zIndex: 1 }}>
+          <Toolbar sx={{ gap: 0.5, minHeight: { xs: 56, md: 64 }, px: { xs: 1, md: 2 } }}>
             <IconButton aria-label="Abrir menu" onClick={() => setMobileOpen(true)} sx={{ display: { md: "none" } }}>
               <MenuIcon className="size-5" />
             </IconButton>
             <IconButton aria-label={collapsed ? "Expandir menu" : "Recolher menu"} onClick={toggleCollapsed} sx={{ display: { xs: "none", md: "inline-flex" } }}>
-              <MenuIcon className="size-4" />
+              <MenuIcon className="size-5" />
             </IconButton>
             <Box sx={{ flex: 1 }} />
             <Tooltip title={resolvedTheme === "dark" ? "Tema claro" : "Tema escuro"}>
               <IconButton aria-label="Alternar tema" onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}>
-                {resolvedTheme === "dark" ? <Sun className="size-4" /> : <Moon className="size-4" />}
+                {resolvedTheme === "dark" ? <Sun className="size-5" /> : <Moon className="size-5" />}
               </IconButton>
             </Tooltip>
             <NotificationBell />
             <DropdownMenu>
-              <DropdownMenuTrigger aria-label="Conta" className="flex cursor-pointer items-center justify-center rounded-full p-1 hover:bg-muted">
+              <DropdownMenuTrigger aria-label="Conta" className="ml-1 flex cursor-pointer items-center justify-center rounded-full p-1 hover:bg-foreground/5">
                 <Avatar className="size-8">
                   <AvatarImage src={user.image} />
                   <AvatarFallback>{(user.name || "??").slice(0, 2).toUpperCase()}</AvatarFallback>

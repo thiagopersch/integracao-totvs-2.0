@@ -81,8 +81,13 @@ function TabsList({ className, children, variant = "default", scrollable = true 
       variant={scrollable ? "scrollable" : "standard"}
       scrollButtons="auto"
       allowScrollButtonsMobile
-      className={cn("min-h-9 max-w-full", className)}
-      sx={{ borderBottom: ctx.orientation === "horizontal" ? 1 : 0, borderColor: "divider", "& .MuiTabs-scrollButtons.Mui-disabled": { opacity: 0.3 } }}
+      indicatorColor="primary"
+      textColor="primary"
+      className={cn("max-w-full", className)}
+      sx={{
+        ...(ctx.orientation === "vertical" && { borderBottom: 0, borderRight: 1, borderColor: "divider", "& .MuiTabs-indicator": { width: 3, borderRadius: "3px 0 0 3px" } }),
+        "& .MuiTabs-scrollButtons.Mui-disabled": { opacity: 0.3 },
+      }}
     >
       {children}
     </MuiTabs>
@@ -107,7 +112,8 @@ function TabsTrigger({
       value={value}
       disabled={disabled}
       label={<span className="inline-flex items-center gap-1.5 [&_svg:not([class*='size-'])]:size-4">{children}</span>}
-      className={cn("min-h-9 px-3 py-1.5 text-sm normal-case", className)}
+      iconPosition="start"
+      className={cn("px-4 text-sm normal-case", className)}
       {...props}
     />
   )

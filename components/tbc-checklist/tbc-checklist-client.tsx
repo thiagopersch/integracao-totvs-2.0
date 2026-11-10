@@ -670,7 +670,7 @@ export function TbcChecklistClient({ tbc, dataservers, checklists: initialCheckl
       />
 
       {!active ? (
-        <div className="flex min-h-48 flex-1 flex-col items-center justify-center gap-3 rounded-md border p-4 text-center text-muted-foreground">
+        <div className="flex min-h-48 flex-1 flex-col items-center justify-center gap-3 surface p-4 text-center text-muted-foreground">
           <ClipboardList className="h-10 w-10" />
           <p className="max-w-sm text-sm">
             {checklists.length

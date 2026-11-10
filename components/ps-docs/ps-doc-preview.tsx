@@ -4,15 +4,16 @@ import DOMPurify from "dompurify"
 import { useMemo } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { renderDocumentHtml } from "@/lib/ps-docs/render-html"
-import type { DocumentacaoPS, StyleConfig } from "@/lib/ps-docs/types"
+import { DEFAULT_DOC_OPTIONS, type DocOptions, type DocumentacaoPS, type StyleConfig } from "@/lib/ps-docs/types"
 
 interface PsDocPreviewProps {
   model: DocumentacaoPS
   style: StyleConfig
+  options?: DocOptions
 }
 
-export function PsDocPreview({ model, style }: PsDocPreviewProps) {
-  const html = useMemo(() => renderDocumentHtml(model, style), [model, style])
+export function PsDocPreview({ model, style, options = DEFAULT_DOC_OPTIONS }: PsDocPreviewProps) {
+  const html = useMemo(() => renderDocumentHtml(model, style, options), [model, style, options])
 
   return (
     <Card className={style.followAppTheme ? undefined : "doc-preview-light"}>

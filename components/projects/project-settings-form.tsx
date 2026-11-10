@@ -767,7 +767,7 @@ export function ProjectSettingsForm({ project, options, defs }: ProjectSettingsF
             </CardHeader>
             <CardContent className="space-y-4">
               <StagesEditor form={form} />
-              <div className="grid grid-cols-1 gap-4 rounded-md border bg-muted/30 p-3 lg:grid-cols-[1fr_auto]">
+              <div className="grid grid-cols-1 gap-4 rounded-xl bg-muted p-3 lg:grid-cols-[1fr_auto]">
                 <div className="flex gap-2 text-xs leading-relaxed text-muted-foreground">
                   <Info className="mt-0.5 h-4 w-4 shrink-0" />
                   <p>

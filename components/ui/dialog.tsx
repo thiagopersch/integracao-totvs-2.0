@@ -99,7 +99,7 @@ function DialogContent({
             className
           ),
           style,
-          sx: { m: 0, borderRadius: 3, backgroundImage: "none" },
+          sx: { m: 0, borderRadius: 4 },
           ...props,
         } as React.ComponentProps<"div">,
       }}
@@ -120,14 +120,14 @@ function DialogContent({
 }
 
 function DialogHeader({ className, ...props }: React.ComponentProps<"div">) {
-  return <div data-slot="dialog-header" className={cn("flex shrink-0 flex-col gap-2 border-b p-4 pr-20", className)} {...props} />
+  return <div data-slot="dialog-header" className={cn("flex shrink-0 flex-col gap-2 px-6 pt-5 pb-3 pr-20", className)} {...props} />
 }
 
 function DialogBody({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       data-slot="dialog-body"
-      className={cn("min-h-0 flex-1 space-y-4 overflow-x-auto overflow-y-auto p-4", className)}
+      className={cn("min-h-0 flex-1 space-y-4 overflow-x-auto overflow-y-auto px-6 py-3", className)}
       {...props}
     />
   )
@@ -143,7 +143,7 @@ function DialogFooter({
   return (
     <div
       data-slot="dialog-footer"
-      className={cn("flex shrink-0 flex-col-reverse gap-2 border-t bg-muted/50 p-4 sm:flex-row sm:justify-end", className)}
+      className={cn("flex shrink-0 flex-col-reverse gap-2 px-6 pt-3 pb-5 sm:flex-row sm:justify-end", className)}
       {...props}
     >
       {children}

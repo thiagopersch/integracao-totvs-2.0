@@ -33,7 +33,7 @@ export function AttachmentsEditor({ value, onChange, variableGroups, allowedType
   }
 
   return (
-    <div className="max-w-3xl space-y-2 rounded-lg border bg-card p-3">
+    <div className="max-w-3xl space-y-2 surface p-3">
       <div className="flex flex-wrap items-center gap-2">
         <Paperclip className="h-4 w-4 text-muted-foreground" />
         <Label className="text-sm">Anexos</Label>

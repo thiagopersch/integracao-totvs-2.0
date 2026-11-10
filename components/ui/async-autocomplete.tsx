@@ -6,6 +6,7 @@ import TextField from "@mui/material/TextField"
 import Skeleton from "@mui/material/Skeleton"
 
 import { cn } from "@/lib/utils"
+import { floatingTextFieldProps, useFloatingLabel } from "@/components/ui/field"
 
 /** Entities served by GET /api/lookup/[entity] (paginated, permission-scoped on the server). */
 export type LookupEntity = "clients" | "requesters" | "analysts" | "departments" | "demand-types" | "tags" | "projects" | "demands"
@@ -44,6 +45,7 @@ type MultipleProps = BaseProps & { multiple: true; value: string[]; onValueChang
  */
 export function AsyncAutocomplete(props: SingleProps | MultipleProps) {
   const { entity, placeholder = "Buscar...", disabled, className, id, minChars = 0 } = props
+  const floating = useFloatingLabel(id)
   const [open, setOpen] = React.useState(false)
   const [input, setInput] = React.useState("")
   const [query, setQuery] = React.useState("")
@@ -149,7 +151,14 @@ export function AsyncAutocomplete(props: SingleProps | MultipleProps) {
         },
       }}
       renderInput={(params) => (
-        <TextField {...params} placeholder={placeholder} error={props["aria-invalid"] === true} sx={{ "& .MuiInputBase-root": { minHeight: 32, py: "2px !important" } }} />
+        <TextField
+          {...params}
+          {...floatingTextFieldProps(floating)}
+          slotProps={{ ...params.slotProps, ...floatingTextFieldProps(floating, params.slotProps.inputLabel).slotProps }}
+          placeholder={placeholder}
+          error={props["aria-invalid"] === true}
+          sx={floating ? undefined : { "& .MuiInputBase-root": { minHeight: 36, py: "2px !important" } }}
+        />
       )}
     />
   )

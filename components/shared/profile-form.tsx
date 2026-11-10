@@ -119,10 +119,10 @@ export function ProfileForm({ user, initialEmailNotifications }: ProfileFormProp
               <Input id="name" {...profileForm.register("name")} aria-invalid={!!profileForm.formState.errors.name} />
               <FieldError errors={[profileForm.formState.errors.name]} />
             </Field>
-            <div className="space-y-2">
-              <Label>E-mail</Label>
+            <Field>
+              <FieldLabel>E-mail</FieldLabel>
               <Input value={user.email} disabled />
-            </div>
+            </Field>
             <Button type="submit" disabled={profileLoading}>
               {profileLoading && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
               Salvar

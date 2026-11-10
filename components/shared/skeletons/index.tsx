@@ -30,7 +30,7 @@ export function CardGridSkeleton({ cards = 6, className }: { cards?: number; cla
   return (
     <div className={cn("grid gap-4 sm:grid-cols-2 xl:grid-cols-3", className)}>
       {Array.from({ length: cards }).map((_, i) => (
-        <div key={i} className="space-y-3 rounded-xl border p-4">
+        <div key={i} className="space-y-3 surface p-4">
           <Skeleton className="h-5 w-2/3" />
           <Skeleton className="h-4 w-full" />
           <Skeleton className="h-4 w-5/6" />
@@ -55,7 +55,7 @@ export function StatCardsSkeleton({ count = 4, className }: { count?: number; cl
   return (
     <div className={cn("grid gap-4 sm:grid-cols-2 lg:grid-cols-4", className)}>
       {Array.from({ length: count }).map((_, i) => (
-        <div key={i} className="space-y-2 rounded-xl border p-4">
+        <div key={i} className="space-y-2 surface p-4">
           <Skeleton className="h-4 w-24" />
           <Skeleton className="h-7 w-16" />
         </div>

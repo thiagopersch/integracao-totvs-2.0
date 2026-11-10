@@ -78,7 +78,7 @@ function DropdownMenuContent({
       onClose={() => setOpen(false)}
       {...popoverOrigins(side, align)}
       slotProps={{
-        paper: { "data-slot": "dropdown-menu-content", className: cn("min-w-32 text-sm", className), style, sx: { mt: side === "bottom" ? `${sideOffset}px` : 0, border: 1, borderColor: "divider" } } as React.ComponentProps<"div">,
+        paper: { "data-slot": "dropdown-menu-content", className: cn("min-w-32 text-sm", className), style, sx: { mt: side === "bottom" ? `${sideOffset}px` : 0 }, elevation: 8 } as React.ComponentProps<"div">,
         list: { dense: true, sx: { py: 0.5 } },
       }}
     >

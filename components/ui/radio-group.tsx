@@ -58,7 +58,7 @@ function RadioGroupItem({ className, value, id, disabled }: { className?: string
       onChange={() => ctx?.setValue(value)}
       size="small"
       className={cn("shrink-0", className)}
-      sx={{ p: 0.25, "& .MuiSvgIcon-root": { fontSize: 18 } }}
+      sx={{ p: 0.75 }}
     />
   )
 }

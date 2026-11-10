@@ -6,7 +6,6 @@ import { Download, Loader2, Play, RotateCw } from "lucide-react"
 import { toast } from "@/lib/toast"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { DataTable } from "@/components/shared/data-table"
 import { DataTableFilterPanel } from "@/components/shared/data-table-filter-panel"
@@ -17,6 +16,7 @@ import { validateTbcDataserver, type DataserverCheckResult } from "@/actions/int
 import type { DataserverProbe, PermissionModel } from "@/config/tbc-permission-models/types"
 import { EMPTY_CONTEXT_FORM, toChecklistContext, type ChecklistContextForm } from "@/lib/tbc-checklist-dataservers"
 import type { TbcRow } from "@/services/tbc.service"
+import { Field, FieldLabel } from "@/components/ui/field"
 
 type RowState = DataserverCheckResult | { status: "running" } | { status: "pending" }
 type Status = RowState["status"]
@@ -177,8 +177,8 @@ export function DataserversTab({ tbc, model }: DataserversTabProps) {
         setStatusFilter("")
       }}
     >
-      <div className="space-y-2">
-        <Label>Status</Label>
+      <Field>
+        <FieldLabel>Status</FieldLabel>
         <Select
           items={[{ value: "all", label: "Todos" }, ...FILTER_STATUSES.map((s) => ({ value: s, label: STATUS_LABELS[s] }))]}
           value={draftStatus || "all"}
@@ -196,13 +196,13 @@ export function DataserversTab({ tbc, model }: DataserversTabProps) {
             ))}
           </SelectContent>
         </Select>
-      </div>
+      </Field>
     </DataTableFilterPanel>
   )
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-col gap-3 rounded-md border p-4 lg:flex-row lg:items-end lg:justify-between">
+      <div className="flex flex-col gap-3 surface p-4 lg:flex-row lg:items-end lg:justify-between">
         <div className="lg:w-[520px]">
           <p className="mb-1 text-sm font-medium">Contexto (opcional)</p>
           <p className="mb-2 text-xs text-muted-foreground">Alguns Data Servers do Educacional exigem coligada/filial/tipo de curso.</p>

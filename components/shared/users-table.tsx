@@ -11,7 +11,6 @@ import { createSelectColumn } from "@/components/shared/select-column"
 import { TruncatedText } from "@/components/shared/truncated-text"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Label } from "@/components/ui/label"
 import {
   Select,
   SelectContent,
@@ -40,6 +39,7 @@ import { useHasPermission } from "@/hooks/use-permissions"
 import { toast } from "@/lib/toast"
 import type { User, Client } from "@/generated/prisma/client"
 import type { PaginationMeta } from "@/types/common"
+import { Field, FieldLabel } from "@/components/ui/field"
 
 interface UserRow extends Omit<User, "password"> {
   allowedClients: { id: string; name: string }[]
@@ -257,8 +257,8 @@ export function UsersTable({ data, meta, clients }: UsersTableProps) {
         pushParams({ role: undefined, status: undefined, page: 1 })
       }}
     >
-      <div className="space-y-2">
-        <Label>Perfil</Label>
+      <Field>
+        <FieldLabel>Perfil</FieldLabel>
         <Select
           items={[
             { value: "all", label: "Todos" },
@@ -279,9 +279,9 @@ export function UsersTable({ data, meta, clients }: UsersTableProps) {
             <SelectItem value="USER">Usuário</SelectItem>
           </SelectContent>
         </Select>
-      </div>
-      <div className="space-y-2">
-        <Label>Status</Label>
+      </Field>
+      <Field>
+        <FieldLabel>Status</FieldLabel>
         <Select
           items={[
             { value: "all", label: "Todos" },
@@ -300,7 +300,7 @@ export function UsersTable({ data, meta, clients }: UsersTableProps) {
             <SelectItem value="false">Inativo</SelectItem>
           </SelectContent>
         </Select>
-      </div>
+      </Field>
     </DataTableFilterPanel>
   )
 

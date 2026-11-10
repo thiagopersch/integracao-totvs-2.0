@@ -60,14 +60,12 @@ function AccordionItem({ className, value, children, disabled }: { className?: s
       <MuiAccordion
         data-slot="accordion-item"
         disableGutters
-        elevation={0}
-        square
+        elevation={1}
         disabled={disabled}
         expanded={ctx?.isOpen(itemValue) ?? false}
         onChange={() => ctx?.toggle(itemValue)}
         slotProps={{ transition: { unmountOnExit: true } }}
-        className={cn("border-b bg-transparent last:border-b-0 before:hidden", className)}
-        sx={{ bgcolor: "transparent", color: "inherit" }}
+        className={cn("before:hidden", className)}
       >
         {children as NonNullable<React.ReactNode>}
       </MuiAccordion>
@@ -80,9 +78,9 @@ function AccordionTrigger({ className, children, title }: { className?: string; 
     <AccordionSummary
       data-slot="accordion-trigger"
       title={title}
-      expandIcon={<ChevronDownIcon className="size-4 text-muted-foreground" />}
-      className={cn("min-h-0 px-0 py-0 text-left text-sm font-medium hover:underline", className)}
-      sx={{ minHeight: 0, px: 0, "& .MuiAccordionSummary-content": { my: 2, gap: 1 } }}
+      expandIcon={<ChevronDownIcon className="size-5 text-muted-foreground" />}
+      className={cn("text-left text-sm font-medium", className)}
+      sx={{ "& .MuiAccordionSummary-content": { gap: 1 } }}
     >
       {children}
     </AccordionSummary>
@@ -91,8 +89,8 @@ function AccordionTrigger({ className, children, title }: { className?: string; 
 
 function AccordionContent({ className, children }: { className?: string; children?: React.ReactNode }) {
   return (
-    <AccordionDetails data-slot="accordion-content" sx={{ p: 0 }} className="text-sm">
-      <div className={cn("pt-0 pb-4", className)}>{children}</div>
+    <AccordionDetails data-slot="accordion-content" className="text-sm">
+      <div className={className}>{children}</div>
     </AccordionDetails>
   )
 }

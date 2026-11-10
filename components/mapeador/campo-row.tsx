@@ -23,6 +23,7 @@ import {
   type MapeadorEtapaDTO,
 } from "@/types/mapeador"
 import { WithTooltip } from "@/components/shared/with-tooltip"
+import { Field, FieldLabel } from "@/components/ui/field"
 
 const ACAO_BOTAO_OPCOES: { value: "__nenhuma__" | MapeadorBotaoAcao; label: string }[] = [
   { value: "__nenhuma__", label: "Nenhuma" },
@@ -243,8 +244,8 @@ export function CampoRow({ campo, etapas, passoCampos, onChange, onRemove, activ
             )}
           </div>
           {!mostraColunas && (
-            <div className="space-y-1">
-              <Label className="text-xs">Ação: ir para etapa</Label>
+            <Field>
+              <FieldLabel className="text-xs">Ação: ir para etapa</FieldLabel>
               <Select
                 items={[{ value: "__default__", label: "Padrão (próximo item)" }, ...etapas.map((e) => ({ value: e.id, label: e.nome }))]}
                 value={campo.acaoDestinoEtapaId ?? "__default__"}
@@ -262,11 +263,11 @@ export function CampoRow({ campo, etapas, passoCampos, onChange, onRemove, activ
                   ))}
                 </SelectContent>
               </Select>
-            </div>
+            </Field>
           )}
           {campo.tipo === "botao" && (
-            <div className="space-y-1">
-              <Label className="text-xs">Ação especial do botão</Label>
+            <Field>
+              <FieldLabel className="text-xs">Ação especial do botão</FieldLabel>
               <Select
                 items={ACAO_BOTAO_OPCOES}
                 value={campo.acaoBotao ?? "__nenhuma__"}
@@ -283,7 +284,7 @@ export function CampoRow({ campo, etapas, passoCampos, onChange, onRemove, activ
                   ))}
                 </SelectContent>
               </Select>
-            </div>
+            </Field>
           )}
           {campo.tipo === "botao" && campo.acaoBotao === "popup" && (
             <div className="space-y-1 @sm/campo-settings:col-span-2">
@@ -312,26 +313,26 @@ export function CampoRow({ campo, etapas, passoCampos, onChange, onRemove, activ
           )}
           {campo.tipo === "botao" && campo.acaoBotao === "download" && (
             <>
-              <div className="space-y-1">
-                <Label className="text-xs">Nome do arquivo</Label>
+              <Field>
+                <FieldLabel className="text-xs">Nome do arquivo</FieldLabel>
                 <Input
                   value={campo.downloadNomeArquivo ?? ""}
                   onChange={(e) => onChange({ downloadNomeArquivo: e.target.value })}
                   placeholder="Documento.pdf"
                 />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs">Mensagem de sucesso</Label>
+              </Field>
+              <Field>
+                <FieldLabel className="text-xs">Mensagem de sucesso</FieldLabel>
                 <Input
                   value={campo.downloadMensagem ?? ""}
                   onChange={(e) => onChange({ downloadMensagem: e.target.value })}
                   placeholder="Arquivo gerado com sucesso!"
                 />
-              </div>
+              </Field>
             </>
           )}
-          <div className="space-y-1">
-            <Label className="text-xs">Largura no protótipo</Label>
+          <Field>
+            <FieldLabel className="text-xs">Largura no protótipo</FieldLabel>
             <Select
               items={LARGURA_OPCOES.map((n) => ({ value: String(n), label: `${n} ${n === 1 ? "coluna" : "colunas"} (${Math.round((n / 12) * 100)}%)` }))}
               value={String(normalizeLargura(campo.largura))}
@@ -348,10 +349,10 @@ export function CampoRow({ campo, etapas, passoCampos, onChange, onRemove, activ
                 ))}
               </SelectContent>
             </Select>
-          </div>
+          </Field>
           {mostraOpcoesLista && (
-            <div className="space-y-1 @sm/campo-settings:col-span-2">
-              <Label className="text-xs">Opções da lista (separadas por vírgula)</Label>
+            <Field className="@sm/campo-settings:col-span-2">
+              <FieldLabel className="text-xs">Opções da lista (separadas por vírgula)</FieldLabel>
               <Input
                 value={opcoesText}
                 onChange={(e) => setOpcoesText(e.target.value)}
@@ -365,7 +366,7 @@ export function CampoRow({ campo, etapas, passoCampos, onChange, onRemove, activ
                 }
                 placeholder="Opção A, Opção B, Opção C"
               />
-            </div>
+            </Field>
           )}
           {mostraAlinhamento && (
             <div className="space-y-1">

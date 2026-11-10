@@ -15,7 +15,7 @@ export function ChecklistLoadProgress({ items }: { items: DataserverLoadProgress
     items.find((p) => p.phase === "records") ?? items.find((p) => p.phase === "view") ?? items.find((p) => p.phase === "waiting")
 
   return (
-    <div className="rounded-md border bg-muted/30 px-3 py-2">
+    <div className="rounded-xl bg-muted px-3 py-2">
       <Progress value={percent} className="gap-1.5">
         <ProgressLabel className="min-w-0 truncate text-xs font-normal">
           {current ? (

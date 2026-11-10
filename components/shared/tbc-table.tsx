@@ -420,8 +420,8 @@ export function TbcTable({ data, meta, clients, filterClients }: TbcTableProps) 
         pushParams({ clientId: undefined, status: undefined, notRequiredLicense: undefined, page: 1 })
       }}
     >
-      <div className="space-y-2">
-        <Label>Clientes</Label>
+      <Field>
+        <FieldLabel>Clientes</FieldLabel>
         <Select
           items={[{ value: "all", label: "Todos" }, ...filterClients.map((c) => ({ value: c.id, label: c.name }))]}
           value={clientFilter || "all"}
@@ -444,9 +444,9 @@ export function TbcTable({ data, meta, clients, filterClients }: TbcTableProps) 
             ))}
           </SelectContent>
         </Select>
-      </div>
-      <div className="space-y-2">
-        <Label>Ativo</Label>
+      </Field>
+      <Field>
+        <FieldLabel>Ativo</FieldLabel>
         <Select
           items={[
             { value: "all", label: "Todos" },
@@ -465,9 +465,9 @@ export function TbcTable({ data, meta, clients, filterClients }: TbcTableProps) 
             <SelectItem value="false">Não</SelectItem>
           </SelectContent>
         </Select>
-      </div>
-      <div className="space-y-2">
-        <Label>Utiliza métodos sem licenças</Label>
+      </Field>
+      <Field>
+        <FieldLabel>Utiliza métodos sem licenças</FieldLabel>
         <Select
           items={[
             { value: "all", label: "Todos" },
@@ -486,7 +486,7 @@ export function TbcTable({ data, meta, clients, filterClients }: TbcTableProps) 
             <SelectItem value="false">Não</SelectItem>
           </SelectContent>
         </Select>
-      </div>
+      </Field>
     </DataTableFilterPanel>
   )
 

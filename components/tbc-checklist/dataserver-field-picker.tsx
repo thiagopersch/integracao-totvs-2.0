@@ -180,7 +180,7 @@ function PickerSectionBox({
   const contentId = `picker-section-${section.key}`
 
   return (
-    <section className="rounded-md border">
+    <section className="surface">
       <div className="flex flex-wrap items-center gap-2 px-3 py-2">
         <button
           type="button"

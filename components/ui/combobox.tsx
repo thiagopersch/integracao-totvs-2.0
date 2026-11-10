@@ -6,6 +6,7 @@ import TextField from "@mui/material/TextField"
 import { Check } from "lucide-react"
 
 import { cn } from "@/lib/utils"
+import { floatingTextFieldProps, useFloatingLabel } from "@/components/ui/field"
 import { VirtualListbox, VIRTUALIZE_OPTIONS_AT } from "@/components/ui/virtual-listbox"
 
 export interface ComboboxItem {
@@ -53,10 +54,11 @@ export function Combobox({
   }, [items])
   const selected = React.useMemo(() => options.find((item) => item.value === value) ?? null, [options, value])
   const virtualize = options.length > VIRTUALIZE_OPTIONS_AT
+  const floating = useFloatingLabel(id)
 
   return (
     <Autocomplete
-      id={id}
+      id={id ?? floating?.id}
       className={cn("w-full", className)}
       options={options}
       value={selected}
@@ -80,10 +82,15 @@ export function Combobox({
       renderInput={(params) => (
         <TextField
           {...params}
+          {...floatingTextFieldProps(floating)}
           placeholder={placeholder}
           error={props["aria-invalid"] === true}
-          slotProps={{ ...params.slotProps, htmlInput: { ...params.slotProps.htmlInput, "aria-invalid": props["aria-invalid"] } }}
-          sx={{ "& .MuiInputBase-root": { minHeight: 32, py: "0 !important" } }}
+          slotProps={{
+            ...params.slotProps,
+            ...floatingTextFieldProps(floating, params.slotProps.inputLabel).slotProps,
+            htmlInput: { ...params.slotProps.htmlInput, "aria-invalid": props["aria-invalid"] },
+          }}
+          sx={floating ? undefined : { "& .MuiInputBase-root": { minHeight: 36, py: "0 !important" } }}
         />
       )}
     />

@@ -20,6 +20,7 @@ import { createMapeadorTema, updateMapeadorTema, listClientesParaTema, getClient
 import { MAPEADOR_TEMA_PADRAO_CONFIG } from "@/lib/mapeador/tema-defaults"
 import { cn } from "@/lib/utils"
 import type { MapeadorTemaConfig, MapeadorTemaDTO } from "@/types/mapeador"
+import { Field, FieldLabel } from "@/components/ui/field"
 
 interface TemaEditorDialogProps {
   open: boolean
@@ -101,10 +102,10 @@ export function TemaEditorDialog({ open, onOpenChange, tema, onSaved }: TemaEdit
           <DialogTitle>{isPadrao ? "Editar tema padrão" : tema ? "Editar tema" : "Criar novo tema"}</DialogTitle>
         </DialogHeader>
         <DialogBody className="space-y-4">
-          <div className="space-y-1">
-            <Label>Nome do tema</Label>
+          <Field>
+            <FieldLabel>Nome do tema</FieldLabel>
             <Input value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Ex: UNISINOS" disabled={isPadrao} />
-          </div>
+          </Field>
 
           <div className="space-y-1">
             <Label className="text-xs text-muted-foreground">Origem da identidade visual</Label>
@@ -127,8 +128,8 @@ export function TemaEditorDialog({ open, onOpenChange, tema, onSaved }: TemaEdit
           </div>
 
           {origem === "cliente" ? (
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Cliente</Label>
+            <Field>
+              <FieldLabel className="text-xs text-muted-foreground">Cliente</FieldLabel>
               <Select
                 items={clientes.map((c) => ({ value: c.id, label: c.name }))}
                 value={config.clienteId ?? null}
@@ -153,41 +154,41 @@ export function TemaEditorDialog({ open, onOpenChange, tema, onSaved }: TemaEdit
                   <span className="text-xs text-muted-foreground">Cor, logo e imagem de fundo herdados do cliente selecionado.</span>
                 </div>
               )}
-            </div>
+            </Field>
           ) : (
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div className="space-y-1">
-                <Label className="text-xs text-muted-foreground">Cor da marca</Label>
+              <Field>
+                <FieldLabel className="text-xs text-muted-foreground">Cor da marca</FieldLabel>
                 <Input type="color" value={config.corMarca} onChange={(e) => patch({ corMarca: e.target.value })} className="h-8 w-full p-1" />
-              </div>
+              </Field>
             </div>
           )}
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             {origem === "manual" && (
               <>
-                <div className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">Cor da barra</Label>
+                <Field>
+                  <FieldLabel className="text-xs text-muted-foreground">Cor da barra</FieldLabel>
                   <Input type="color" value={config.corBarra} onChange={(e) => patch({ corBarra: e.target.value })} className="h-8 w-full p-1" />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">Cor do botão</Label>
+                </Field>
+                <Field>
+                  <FieldLabel className="text-xs text-muted-foreground">Cor do botão</FieldLabel>
                   <Input type="color" value={config.botaoCor} onChange={(e) => patch({ botaoCor: e.target.value })} className="h-8 w-full p-1" />
-                </div>
+                </Field>
               </>
             )}
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Raio da borda do botão (px)</Label>
+            <Field>
+              <FieldLabel className="text-xs text-muted-foreground">Raio da borda do botão (px)</FieldLabel>
               <Input type="number" min={0} max={30} value={config.botaoRaio ?? 5} onChange={(e) => patch({ botaoRaio: Number(e.target.value) })} />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Cor de fundo do campo</Label>
+            </Field>
+            <Field>
+              <FieldLabel className="text-xs text-muted-foreground">Cor de fundo do campo</FieldLabel>
               <Input value={config.campoCor ?? ""} onChange={(e) => patch({ campoCor: e.target.value })} placeholder="rgba(0,0,0,.04)" />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Raio da borda do campo (px)</Label>
+            </Field>
+            <Field>
+              <FieldLabel className="text-xs text-muted-foreground">Raio da borda do campo (px)</FieldLabel>
               <Input type="number" min={0} max={30} value={config.campoRaio ?? 0} onChange={(e) => patch({ campoRaio: Number(e.target.value) })} />
-            </div>
+            </Field>
           </div>
 
           {origem === "manual" && (

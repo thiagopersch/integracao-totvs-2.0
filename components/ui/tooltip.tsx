@@ -76,7 +76,7 @@ function Tooltip({
           className: cn("text-xs", className),
           style,
           sx: surface
-            ? { bgcolor: "background.paper", color: "text.primary", border: 1, borderColor: "divider", boxShadow: 4, p: 1, maxWidth: "none" }
+            ? { bgcolor: "background.paper", color: "text.primary", boxShadow: 8, p: 1, maxWidth: "none" }
             : { bgcolor: "text.primary", color: "background.default", "& .MuiTooltip-arrow": { color: "text.primary" } },
         },
       }}

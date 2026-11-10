@@ -324,7 +324,7 @@ export function GanttChart({ projectId, projectCode, tasks, stages, phases, zoom
         </p>
       </div>
 
-      <div ref={scrollRef} className="relative max-h-[70vh] overflow-auto rounded-md border" onPointerMove={onPointerMove}>
+      <div ref={scrollRef} className="relative max-h-[70vh] overflow-auto surface" onPointerMove={onPointerMove}>
         <div className="relative" style={{ width: LEFT_W + width, minHeight: HEADER_H + rows.length * ROW_H }}>
           {/* Header */}
           <div className="sticky top-0 z-30 flex border-b bg-background" style={{ height: HEADER_H }}>

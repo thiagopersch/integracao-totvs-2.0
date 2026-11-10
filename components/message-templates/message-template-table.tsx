@@ -15,7 +15,6 @@ import { ColorBadge } from "@/components/shared/color-badge"
 import { DateCell } from "@/components/shared/date-cell"
 import { buttonVariants } from "@/components/ui/button"
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu"
-import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
   bulkDeleteMessageTemplates,
@@ -37,6 +36,7 @@ import {
   type MessageTemplateScope,
 } from "@/lib/message-templates/events"
 import type { PaginationMeta } from "@/types/common"
+import { Field, FieldLabel } from "@/components/ui/field"
 
 type MessageTemplateRow = {
   id: string
@@ -66,8 +66,8 @@ function FilterSelect({
 }) {
   const items = [{ value: ALL, label: "Todos" }, ...options]
   return (
-    <div className="space-y-2">
-      <Label>{label}</Label>
+    <Field>
+      <FieldLabel>{label}</FieldLabel>
       <Select items={items} value={value || ALL} onValueChange={(v) => onChange(!v || v === ALL ? "" : v)}>
         <SelectTrigger className="w-full">
           <SelectValue />
@@ -80,7 +80,7 @@ function FilterSelect({
           ))}
         </SelectContent>
       </Select>
-    </div>
+    </Field>
   )
 }
 

@@ -27,16 +27,18 @@ function isGroupActive(pathname: string, group: NavGroup) {
   return group.items.some((item) => isItemActive(pathname, item.href))
 }
 
+// Material navigation drawer: full-pill items, the active one in a tonal (primary-tinted) container.
 const itemSx = {
-  borderRadius: 2,
-  py: 0.75,
-  px: 1.5,
+  borderRadius: 999,
+  minHeight: 40,
+  py: 0.5,
+  px: 2,
   color: "text.secondary",
-  "&.Mui-selected, &.Mui-selected:hover": { bgcolor: "primary.main", color: "primary.contrastText" },
-  "&.Mui-selected .MuiListItemIcon-root": { color: "primary.contrastText" },
+  "&.Mui-selected": { fontWeight: 600 },
+  "&.Mui-selected .MuiListItemIcon-root": { color: "inherit" },
 } as const
 
-const iconSx = { minWidth: 0, mr: 1.5, color: "inherit", "& svg": { width: 16, height: 16 } } as const
+const iconSx = { minWidth: 0, mr: 1.5, color: "inherit", "& svg": { width: 20, height: 20 } } as const
 
 /**
  * Sidebar navigation. `groups` arrive already filtered by permission from the server layout,
@@ -80,12 +82,12 @@ export function DashboardSidebar({
         component={Link}
         href={href}
         selected={itemActive(href)}
-        sx={{ ...itemSx, justifyContent: collapsed && !nested ? "center" : "flex-start", px: collapsed && !nested ? 1 : 1.5 }}
+        sx={{ ...itemSx, justifyContent: collapsed && !nested ? "center" : "flex-start", px: collapsed && !nested ? 1 : 2 }}
       >
         <ListItemIcon sx={{ ...iconSx, mr: collapsed && !nested ? 0 : 1.5 }}>
           <Icon />
         </ListItemIcon>
-        {(!collapsed || nested) && <ListItemText primary={label} slotProps={{ primary: { sx: { fontSize: 14 } } }} />}
+        {(!collapsed || nested) && <ListItemText primary={label} slotProps={{ primary: { sx: { fontSize: 14, fontWeight: "inherit" } } }} />}
       </ListItemButton>
     )
     return collapsed && !nested ? (
@@ -136,7 +138,7 @@ export function DashboardSidebar({
           <ChevronDown className={`size-4 shrink-0 transition-transform ${isOpen ? "rotate-180" : ""}`} />
         </ListItemButton>
         <Collapse in={isOpen} timeout="auto" unmountOnExit>
-          <List disablePadding sx={{ ml: 2, pl: 1, borderLeft: 1, borderColor: "divider", display: "grid", gap: 0.5, mt: 0.5 }}>
+          <List disablePadding sx={{ pl: 2, display: "grid", gap: 0.25, mt: 0.25 }}>
             {group.items.map((item) => renderLink(item.href, item.label, item.icon, true))}
           </List>
         </Collapse>
@@ -148,15 +150,15 @@ export function DashboardSidebar({
 
   return (
     <Box sx={{ display: "flex", flexDirection: "column", height: "100%" }}>
-      <Box sx={{ p: 2, borderBottom: 1, borderColor: "divider", display: "flex", justifyContent: collapsed ? "center" : "flex-start", minHeight: 61, alignItems: "center" }}>
+      <Box sx={{ px: collapsed ? 1 : 3, display: "flex", justifyContent: collapsed ? "center" : "flex-start", minHeight: 64, alignItems: "center" }}>
         {collapsed ? (
           <Radio className="size-6 text-primary" />
         ) : (
           <h2 className="font-(family-name:--font-orbitron) text-lg font-bold tracking-wider text-primary">PerschTech</h2>
         )}
       </Box>
-      <Box component="nav" sx={{ flex: 1, minHeight: 0, overflowY: "auto", px: 1, py: 1 }}>
-        <List disablePadding sx={{ display: "grid", gap: 0.5 }}>
+      <Box component="nav" sx={{ flex: 1, minHeight: 0, overflowY: "auto", px: 1.5, py: 1 }}>
+        <List disablePadding sx={{ display: "grid", gap: 0.25 }}>
           {groups.map((group, index) => {
             const startsSection = group.section && group.section !== groups[index - 1]?.section
             return (
@@ -165,7 +167,7 @@ export function DashboardSidebar({
                   (collapsed ? (
                     <Divider sx={{ my: 1, mx: 1 }} />
                   ) : (
-                    <ListSubheader disableSticky sx={{ bgcolor: "transparent", lineHeight: "28px", pt: 1.5, fontSize: 10, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase" }}>
+                    <ListSubheader disableSticky sx={(theme) => ({ ...theme.typography.overline, bgcolor: "transparent", lineHeight: "32px", pt: 1.5, px: 2, color: "text.secondary" })}>
                       {group.section}
                     </ListSubheader>
                   ))}
@@ -175,7 +177,8 @@ export function DashboardSidebar({
           })}
         </List>
       </Box>
-      <Box sx={{ p: 1.5, borderTop: 1, borderColor: "divider" }}>
+      <Divider />
+      <Box sx={{ p: 1.5 }}>
         <Button variant="ghost" size="sm" className={collapsed ? "w-full justify-center" : "w-full justify-start"} onClick={onToggle} aria-label={collapsed ? "Expandir menu" : "Recolher menu"}>
           {collapsed ? <ChevronRight /> : (<><ChevronLeft /> Recolher</>)}
         </Button>

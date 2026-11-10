@@ -10,6 +10,7 @@ import { exportDemandsXlsx, getDemandExportData } from "@/actions/export"
 import type { Client } from "@/generated/prisma/client"
 import { Loader2, FileSpreadsheet, FileText } from "lucide-react"
 import { toast } from "@/lib/toast"
+import { Field, FieldLabel } from "@/components/ui/field"
 
 // jspdf + jspdf-autotable + html-to-image + the charts only load when a PDF is actually generated.
 const DemandExportPdfBuilder = dynamic(
@@ -101,8 +102,8 @@ export function DemandExportForm({ clients, years, monthsByYear }: Props) {
 
   return (
     <div className="max-w-xl space-y-6">
-      <div className="space-y-2">
-        <Label>Cliente(s)</Label>
+      <Field>
+        <FieldLabel>Cliente(s)</FieldLabel>
         <MultiSelect
           items={clientMultiSelectItems}
           value={clientIds}
@@ -111,7 +112,7 @@ export function DemandExportForm({ clients, years, monthsByYear }: Props) {
           searchPlaceholder="Buscar cliente..."
           emptyText="Nenhum cliente encontrado."
         />
-      </div>
+      </Field>
 
       <div className="space-y-2">
         <Label>Período</Label>

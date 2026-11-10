@@ -160,7 +160,7 @@ function ExtraHoursPanel({
     <>
       <form onSubmit={handleAdd} className="flex min-h-0 flex-1 flex-col overflow-hidden">
         <DialogBody>
-          <div className="space-y-2 rounded-md border p-3">
+          <div className="space-y-2 rounded-xl border p-3">
             <p className="text-sm font-medium">{contract.client.name}</p>
             <p className="text-sm text-muted-foreground tabular-nums">
               Franquia {formatHours(baseHours)} + extras {formatHours(extraTotal)} ={" "}

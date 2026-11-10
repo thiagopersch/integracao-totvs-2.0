@@ -7,6 +7,7 @@ import Chip from "@mui/material/Chip"
 
 import { useAppTheme } from "@/hooks/use-app-theme"
 import { cn } from "@/lib/utils"
+import { floatingTextFieldProps, useFloatingLabel } from "@/components/ui/field"
 import { getBadgeTextColor } from "@/lib/colors"
 import { Checkbox } from "@/components/ui/checkbox"
 import { VirtualListbox, VIRTUALIZE_OPTIONS_AT } from "@/components/ui/virtual-listbox"
@@ -51,6 +52,7 @@ export function MultiSelect({
   maxVisible,
 }: MultiSelectProps) {
   const { resolvedTheme } = useAppTheme()
+  const floating = useFloatingLabel()
   const isDarkTheme = resolvedTheme === "dark"
   const byValue = React.useMemo(() => new Map(items.map((item) => [item.value, item])), [items])
   const selected = React.useMemo(() => value.map((v) => byValue.get(v)).filter((x): x is MultiSelectItem => Boolean(x)), [value, byValue])
@@ -96,7 +98,13 @@ export function MultiSelect({
         })
       }
       renderInput={(params) => (
-        <TextField {...params} placeholder={selected.length === 0 ? placeholder : undefined} sx={{ "& .MuiInputBase-root": { minHeight: 32, py: "2px !important" } }} />
+        <TextField
+          {...params}
+          {...floatingTextFieldProps(floating)}
+          slotProps={{ ...params.slotProps, ...floatingTextFieldProps(floating, params.slotProps.inputLabel).slotProps }}
+          placeholder={selected.length === 0 ? placeholder : undefined}
+          sx={floating ? undefined : { "& .MuiInputBase-root": { minHeight: 36, py: "2px !important" } }}
+        />
       )}
     />
   )

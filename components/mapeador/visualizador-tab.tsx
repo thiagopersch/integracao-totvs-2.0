@@ -98,7 +98,7 @@ export function VisualizadorTab() {
               <div key={etapa.id} className="w-72 shrink-0 space-y-3">
                 <div className="rounded-md bg-muted px-2 py-1 text-center text-sm font-semibold">{etapa.nome}</div>
                 {etapa.camposPorEtapa.map((passo) => (
-                  <div key={passo.id} className="space-y-2 rounded-md border p-3">
+                  <div key={passo.id} className="space-y-2 surface p-3">
                     <div className="rounded bg-amber-100 px-1.5 py-0.5 text-xs font-semibold text-amber-900">{passo.titulo}</div>
                     {flattenCampos(passo.campos).map((campo) => (
                       <div key={campo.id} className="flex items-start justify-between gap-2 text-xs">

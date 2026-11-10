@@ -66,7 +66,7 @@ function ContextMenuContent({ className, children, onClick, style }: { className
         anchorReference="anchorPosition"
         anchorPosition={position ?? undefined}
         onClick={onClick}
-        slotProps={{ paper: { "data-slot": "context-menu-content", className: cn("min-w-36 text-sm", className), style, sx: { border: 1, borderColor: "divider" } } as React.ComponentProps<"div">, list: { dense: true } }}
+        slotProps={{ paper: { "data-slot": "context-menu-content", className: cn("min-w-36 text-sm", className), style, elevation: 8 } as React.ComponentProps<"div">, list: { dense: true } }}
       >
         {children}
       </Menu>

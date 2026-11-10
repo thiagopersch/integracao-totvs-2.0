@@ -20,7 +20,6 @@ import { ContractExtraHoursDialog } from "@/components/shared/contract-extra-hou
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
-import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Field, FieldLabel, FieldError, FieldDescription } from "@/components/ui/field"
 import {
@@ -498,8 +497,8 @@ export function ContractTable({
         pushParams({ status: undefined, page: 1 })
       }}
     >
-      <div className="space-y-2">
-        <Label>Status</Label>
+      <Field>
+        <FieldLabel>Status</FieldLabel>
         <Select
           items={[{ value: "all", label: "Todos" }, ...Object.entries(STATUS_LABELS).map(([value, label]) => ({ value, label }))]}
           value={statusFilter || "all"}
@@ -525,7 +524,7 @@ export function ContractTable({
             ))}
           </SelectContent>
         </Select>
-      </div>
+      </Field>
     </DataTableFilterPanel>
   )
 

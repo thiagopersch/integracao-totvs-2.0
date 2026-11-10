@@ -13,6 +13,7 @@ import { countActiveFilters, filterParamKeys, type Swimlane, type TaskFilters, t
 import { PRIORITIES, PRIORITY_COLORS, PRIORITY_LABELS, type PhaseRef, type StageRef } from "@/lib/projects"
 import type { ParamUpdates } from "@/hooks/use-url-params"
 import type { TaskOptions, TeamMember } from "@/components/projects/workspace/types"
+import { Field, FieldLabel } from "@/components/ui/field"
 
 const FILTERABLE_TYPES = new Set(["SELECT", "MULTISELECT", "CHECKBOX_GROUP", "BOOLEAN", "CHECKBOX", "USER", "TEXT"])
 
@@ -116,15 +117,15 @@ export function WorkspaceFilters({ view, filters, stages, phases, swimlane, team
           <Filter className="mr-1.5 h-4 w-4" /> Mais filtros
         </PopoverTrigger>
         <PopoverContent className="w-80 space-y-3" align="start">
-          <div className="space-y-1.5">
-            <Label>Prioridade</Label>
+          <Field>
+            <FieldLabel>Prioridade</FieldLabel>
             <MultiSelect
               items={PRIORITIES.map((p) => ({ value: p, label: PRIORITY_LABELS[p], color: PRIORITY_COLORS[p] }))}
               value={filters.priority}
               onValueChange={(v) => set({ priority: v.join(",") || undefined })}
               placeholder="Todas"
             />
-          </div>
+          </Field>
           <div className="space-y-1.5">
             <Label>Tag</Label>
             <OptionSelect options={tags.map((t) => ({ value: t.id, label: t.name, color: t.color }))} value={filters.tag} onChange={(v) => set({ tag: v || undefined })} emptyLabel="Todas" />

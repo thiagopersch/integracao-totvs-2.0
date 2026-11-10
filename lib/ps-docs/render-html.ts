@@ -1,4 +1,5 @@
-import type { AcaoBotaoSpec, CampoDetalhado, ColunaDataserverSpec, ConsultaSqlSpec, DocumentacaoPS, EncaminhamentoSpec, FonteDadosSpec, ItemSpec, LogicaSpec, ParametroAcaoSpec, PopupSpec, PortalOverviewSpec, RegraLogicaItem, StyleConfig } from "./types";
+import { DEFAULT_DOC_OPTIONS, type AcaoBotaoSpec, type CampoDetalhado, type ColunaDataserverSpec, type ConsultaSqlSpec, type DocOptions, type DocumentacaoPS, type EncaminhamentoSpec, type FonteDadosSpec, type ItemSpec, type LogicaSpec, type ParametroAcaoSpec, type PopupSpec, type PortalOverviewSpec, type RegraLogicaItem, type StyleConfig } from "./types";
+import { acaoNome, encaminhamentoNome, groupByDetail, isItemDetailed } from "./doc-options";
 import { logicColor } from "./logic-color";
 import { codeBlockHtml, detectLang } from "./code-highlight";
 
@@ -53,7 +54,7 @@ const CATEGORIA_LABEL: Record<ItemSpec["categoria"], string> = {
  *  Ações/Configuração for a componente) — h3-h6 all use `subheadingColor` at decreasing sizes.
  *  Every value is highlighted in `<strong>` — code-like values (regex, custom-validation JS,
  *  HTML/CSS/JS component content) go in `<code>` instead. */
-export function renderDocumentHtml(doc: DocumentacaoPS, style: StyleConfig): string {
+export function renderDocumentHtml(doc: DocumentacaoPS, style: StyleConfig, opts: DocOptions = DEFAULT_DOC_OPTIONS): string {
   const titleStyle = `font-family:'${style.titleFont}',sans-serif;color:${style.titleColor};font-size:26pt;font-weight:900;`;
   const stageStyle = `font-family:'${style.bodyFont}',sans-serif;color:${style.stageColor};font-size:15pt;font-weight:700;margin-top:28pt;`;
   const h3Style = `font-family:'${style.bodyFont}',sans-serif;color:${style.subheadingColor};font-size:13pt;font-weight:700;margin-top:20pt;`;
@@ -221,7 +222,7 @@ export function renderDocumentHtml(doc: DocumentacaoPS, style: StyleConfig): str
       kv("Largura máxima", popup.larguraMaxima ?? "Largura máxima não definida"),
     ]);
     const fonteDados = consultaSqlHtml("Fonte de dados do pop-up", popup.consultaSql);
-    const conteudo = popup.itens.map((item) => itemHtml(item, 0)).join("");
+    const conteudo = itemsParts(popup.itens, 0).join("");
     return `${esc("Pop-up")}${config}${fonteDados}${conteudo}`;
   }
 
@@ -328,6 +329,74 @@ export function renderDocumentHtml(doc: DocumentacaoPS, style: StyleConfig): str
     return `${identidade}${basico}${multivalorado}${validacoes}${dados}${propriedades}${vinculos}`;
   }
 
+  /** "Não" to "Gerar detalhes das ações do botão": just each ação/encaminhamento's name, with its
+   *  own logic nested — the logic is always documented. */
+  function acaoNomeHtml(acao: AcaoBotaoSpec): string {
+    const off = acao.ativada ? "" : ` <strong style="color:${style.negativeColor}">[desativada]</strong>`;
+    return `<li style="${bodyStyle}">${esc(acaoNome(acao))}${off}${acao.logica ? subList([logicaSpecHtml(acao.logica)]) : ""}</li>`;
+  }
+
+  function encaminhamentoNomeHtml(enc: EncaminhamentoSpec): string {
+    return `<li style="${bodyStyle}">${esc(encaminhamentoNome(enc))}${enc.logica ? subList([logicaSpecHtml(enc.logica)]) : ""}</li>`;
+  }
+
+  /** A botão's "Ações" block — full detail or names only, per `opts.detalhesAcoesBotao`. Used by
+   *  both the detailed botão (under its "Ações" h6) and the compact one (nested in its bullet). */
+  function botaoAcoesHtml(item: ItemSpec): string {
+    const detalhe = opts.detalhesAcoesBotao;
+    const primeiro = (item.acoesPrimeiroPlano ?? []).map(detalhe ? acaoHtml : acaoNomeHtml).join("");
+    const segundo = (item.acoesSegundoPlano ?? []).map(detalhe ? acaoHtml : acaoNomeHtml).join("");
+    const encaminhamentos = (item.encaminhamentos ?? []).map(detalhe ? encaminhamentoHtml : encaminhamentoNomeHtml).join("");
+    return (
+      subList([kv("Salvar dados", sim(item.salvaDados))]) +
+      (primeiro ? `<p style="${bodyStyle}"><strong>Primeiro plano (síncrono)</strong></p><ul style="${ulStyle}">${primeiro}</ul>` : "") +
+      (segundo ? `<p style="${bodyStyle}"><strong>Segundo plano (assíncrono)</strong></p><ul style="${ulStyle}">${segundo}</ul>` : "") +
+      subList([kv("Fechar pop-up", sim(item.fecharPopup))]) +
+      `<p style="${bodyStyle}"><strong>Encaminhar usuário</strong></p>` +
+      subList([kv("Redireciona", sim(item.redirecionaUsuario))]) +
+      (encaminhamentos ? `<ul style="${ulStyle}">${encaminhamentos}</ul>` : "")
+    );
+  }
+
+  /** "Não" to the item's "Gerar detalhes" question: one bullet "Categoria: Nome" with its logic
+   *  nested (always kept). A compact agrupamento nests its compact children; detailed children
+   *  come back in `after`, rendered as headings right after the list. A compact botão still lists
+   *  its ações (per `opts.detalhesAcoesBotao`, which is independent). */
+  function compactItem(item: ItemSpec, depth: number): { li: string; after: string[] } {
+    const after: string[] = [];
+    const children: string[] = [];
+    if (item.logica && item.logica.regras.length > 0) children.push(`${esc("Lógica")}${subList([logicaSpecHtml(item.logica)])}`);
+    if (item.categoria === "agrupamento") {
+      for (const child of item.filhos ?? []) {
+        if (isItemDetailed(child, opts)) after.push(itemHtml(child, depth + 1));
+        else {
+          const nested = compactItem(child, depth + 1);
+          children.push(nested.li);
+          after.push(...nested.after);
+        }
+      }
+    }
+    if (item.categoria === "botao") children.push(`${esc("Ações")}${botaoAcoesHtml(item)}`);
+    const li = `${esc(CATEGORIA_LABEL[item.categoria])}: ${fieldRefHtml(item.nome)}${subList(children)}`;
+    return { li, after };
+  }
+
+  /** Renders a list of sibling items: detailed ones as today (`itemHtml`), runs of compact ones as
+   *  one bullet list. One entry per block, so the passo can keep pushing them one per line. */
+  function itemsParts(items: ItemSpec[], depth: number): string[] {
+    const out: string[] = [];
+    for (const run of groupByDetail(items, opts)) {
+      if (run.detailed) {
+        out.push(...run.items.map((item) => itemHtml(item, depth)));
+        continue;
+      }
+      const compact = run.items.map((item) => compactItem(item, depth));
+      out.push(subList(compact.map((c) => c.li)));
+      for (const c of compact) out.push(...c.after);
+    }
+    return out;
+  }
+
   /** Renders one item as its own heading — depth-based, per explicit instruction: a top-level item
    *  (direct child of a passo) is `<h4>`, an item nested one level inside another component (e.g. a
    *  field/component inside an agrupamento) is `<h5>`, and anything deeper is `<h6>` (the deepest
@@ -380,7 +449,7 @@ export function renderDocumentHtml(doc: DocumentacaoPS, style: StyleConfig): str
             ])
           : "";
         const logica = item.logica ? subList([logicaSpecHtml(item.logica)]) : "";
-        const filhos = (item.filhos ?? []).map((child) => itemHtml(child, depth + 1)).join("");
+        const filhos = itemsParts(item.filhos ?? [], depth + 1).join("");
         return heading + h6("Geral", geral) + h6("Conteúdo", campos) + h6("Personalização", personalizacao) + h6("Alinhamento", alinhamento) + h6("Lógica", logica) + filhos;
       }
       case "botao": {
@@ -393,18 +462,7 @@ export function renderDocumentHtml(doc: DocumentacaoPS, style: StyleConfig): str
           kv("Ícone", sim(item.temIcone)),
           kv("Escondido", sim(item.escondido)),
         ]);
-        const primeiro = (item.acoesPrimeiroPlano ?? []).map(acaoHtml).join("");
-        const segundo = (item.acoesSegundoPlano ?? []).map(acaoHtml).join("");
-        const encaminhamentos = (item.encaminhamentos ?? []).map(encaminhamentoHtml).join("");
-        const acoes =
-          subList([kv("Salvar dados", sim(item.salvaDados))]) +
-          (primeiro ? `<p style="${bodyStyle}"><strong>Primeiro plano (síncrono)</strong></p><ul style="${ulStyle}">${primeiro}</ul>` : "") +
-          (segundo ? `<p style="${bodyStyle}"><strong>Segundo plano (assíncrono)</strong></p><ul style="${ulStyle}">${segundo}</ul>` : "") +
-          subList([kv("Fechar pop-up", sim(item.fecharPopup))]) +
-          `<p style="${bodyStyle}"><strong>Encaminhar usuário</strong></p>` +
-          subList([kv("Redireciona", sim(item.redirecionaUsuario))]) +
-          (encaminhamentos ? `<ul style="${ulStyle}">${encaminhamentos}</ul>` : "");
-        return heading + h6("Geral", geral) + h6("Personalização", personalizacao) + h6("Ações", acoes);
+        return heading + h6("Geral", geral) + h6("Personalização", personalizacao) + h6("Ações", botaoAcoesHtml(item));
       }
       case "cep": {
         const geral = subList([item.classeCss ? kvCode("Classe CSS", item.classeCss) : null]);
@@ -444,7 +502,7 @@ export function renderDocumentHtml(doc: DocumentacaoPS, style: StyleConfig): str
     etapa.passos.forEach((passo) => {
       parts.push(`<h3 style="${h3Style}">Passo: ${esc(passo.nome)}</h3>`);
       parts.push(consultaSqlHtml("Fonte de dados do passo", passo.consultaSql));
-      for (const item of passo.itens) parts.push(itemHtml(item));
+      parts.push(...itemsParts(passo.itens, 0));
     });
 
     if (etapa.feedbacks.length > 0) {
@@ -587,7 +645,7 @@ export function renderCampoDetalhadoHtml(detalhes: CampoDetalhado, style: StyleC
 /** Renders the "PortalOverview" documentation (Geral/Consultas/Scripts/Integrações/Segurança/
  *  Domínio/TOTVS) as styled HTML — same styling convention as `renderDocumentHtml`, used for both
  *  the on-screen preview and the .docx/.md/clipboard exports of the portal-level section. */
-export function renderPortalOverviewHtml(overview: PortalOverviewSpec, style: StyleConfig): string {
+export function renderPortalOverviewHtml(overview: PortalOverviewSpec, style: StyleConfig, opts: DocOptions = DEFAULT_DOC_OPTIONS): string {
   const titleStyle = `font-family:'${style.titleFont}',sans-serif;color:${style.titleColor};font-size:26pt;font-weight:900;`;
   const h3Style = `font-family:'${style.bodyFont}',sans-serif;color:${style.subheadingColor};font-size:13pt;font-weight:700;margin-top:20pt;`;
   const h4Style = `font-family:'${style.bodyFont}',sans-serif;color:${style.subheadingColor};font-size:12pt;font-weight:700;margin-top:14pt;`;
@@ -634,11 +692,11 @@ export function renderPortalOverviewHtml(overview: PortalOverviewSpec, style: St
   }
   if (geral.campoOfertaCurso) {
     parts.push(`<h4 style="${h4Style}">Campo de oferta de curso</h4>`);
-    parts.push(renderCampoDetalhadoHtml(geral.campoOfertaCurso.detalhes, style));
+    parts.push(opts.detalhesCampos ? renderCampoDetalhadoHtml(geral.campoOfertaCurso.detalhes, style) : subList([fieldRefHtml(geral.campoOfertaCurso.nome)]));
   }
   if (geral.campoLocalOferta) {
     parts.push(`<h4 style="${h4Style}">Campo de local de oferta</h4>`);
-    parts.push(renderCampoDetalhadoHtml(geral.campoLocalOferta.detalhes, style));
+    parts.push(opts.detalhesCampos ? renderCampoDetalhadoHtml(geral.campoLocalOferta.detalhes, style) : subList([fieldRefHtml(geral.campoLocalOferta.nome)]));
   }
 
   if (geral.camposDetalhesInscricao && geral.camposDetalhesInscricao.length > 0) {

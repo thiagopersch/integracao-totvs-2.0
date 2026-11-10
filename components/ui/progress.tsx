@@ -14,14 +14,13 @@ function Progress({ className, children, value }: { className?: string; children
         variant={value == null ? "indeterminate" : "determinate"}
         value={value ?? undefined}
         className="w-full"
-        sx={{ height: 4, borderRadius: 999 }}
       />
     </div>
   )
 }
 
 function ProgressTrack({ className, children }: { className?: string; children?: React.ReactNode }) {
-  return <div className={cn("relative h-1 w-full overflow-hidden rounded-full bg-muted", className)}>{children}</div>
+  return <div className={cn("relative h-1 w-full overflow-hidden rounded-full bg-primary/16", className)}>{children}</div>
 }
 
 function ProgressIndicator({ className, style }: { className?: string; style?: React.CSSProperties }) {

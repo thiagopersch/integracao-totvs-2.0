@@ -64,7 +64,7 @@ export function DemandDeleteImpact({ ids }: { ids: string[] }) {
       <p className="text-sm font-medium">
         {impact.demandCount > 1 ? `As ${impact.demandCount} demandas estão vinculadas a:` : "Esta demanda está vinculada a:"}
       </p>
-      <dl className="max-h-72 space-y-2 overflow-y-auto rounded-md border p-3 text-sm">
+      <dl className="max-h-72 space-y-2 overflow-y-auto rounded-xl border p-3 text-sm">
         {visibleGroups.map(([label, items]) => (
           <div key={label} className="grid grid-cols-[8rem_1fr] items-start gap-2">
             <dt className="pt-0.5 text-muted-foreground">{label}</dt>

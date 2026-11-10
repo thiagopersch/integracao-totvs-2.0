@@ -90,7 +90,7 @@ export function PreviewDialog({
 
           {channel === "EMAIL" ? (
             <>
-              <div className="rounded-md border bg-muted/40 px-3 py-2 text-sm">
+              <div className="rounded-xl bg-muted px-3 py-2 text-sm">
                 <span className="text-muted-foreground">Assunto: </span>
                 <span className="font-medium">{fill(subject, false) || "(sem assunto)"}</span>
               </div>

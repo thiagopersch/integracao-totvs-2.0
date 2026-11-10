@@ -16,7 +16,6 @@ import { BadgeList } from "@/components/shared/badge-list"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
-import { Label } from "@/components/ui/label"
 import { Field, FieldLabel, FieldError } from "@/components/ui/field"
 import {
   Dialog,
@@ -249,8 +248,8 @@ export function DepartmentTable({ data, meta, clients, requesters }: DepartmentT
         pushParams({ clientId: undefined, page: 1 })
       }}
     >
-      <div className="space-y-2">
-        <Label>Clientes</Label>
+      <Field>
+        <FieldLabel>Clientes</FieldLabel>
         <MultiSelect
           items={clients.map((c) => ({ value: c.id, label: c.name, color: c.color }))}
           value={clientFilter}
@@ -258,7 +257,7 @@ export function DepartmentTable({ data, meta, clients, requesters }: DepartmentT
           placeholder="Todos"
           searchPlaceholder="Buscar cliente..."
         />
-      </div>
+      </Field>
     </DataTableFilterPanel>
   )
 

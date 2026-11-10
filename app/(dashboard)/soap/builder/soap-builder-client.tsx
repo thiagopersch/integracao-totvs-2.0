@@ -60,6 +60,7 @@ import {
 import { formatDuration } from "@/utils/format"
 import { useSoapStore } from "@/store/soap.store"
 import { buildPkFiltro } from "@/lib/tbc-checklist-filtro"
+import { Field, FieldLabel } from "@/components/ui/field"
 
 type EndpointMethod = {
   id: string
@@ -988,11 +989,11 @@ export function SoapBuilderClient({
 
       <Card>
         <CardContent className="pt-6 space-y-4">
-          <fieldset className="space-y-3 rounded-lg border border-input p-3">
+          <fieldset className="space-y-3 rounded-xl border p-3">
             <legend className="px-1 text-sm font-medium text-muted-foreground">Destino da chamada</legend>
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
-              <div className="space-y-2">
-                <Label>Tipo</Label>
+              <Field>
+                <FieldLabel>Tipo</FieldLabel>
                 <Select
                   items={endpointTypes.map((t) => ({ value: t.id, label: `${t.label} (${t.type})` }))}
                   value={selectedTypeId || null}
@@ -1012,10 +1013,10 @@ export function SoapBuilderClient({
                     ))}
                   </SelectContent>
                 </Select>
-              </div>
+              </Field>
               {selectedType?.type === "dataserver" && (
-                <div className="space-y-2">
-                  <Label>Dataserver</Label>
+                <Field>
+                  <FieldLabel>Dataserver</FieldLabel>
                   <Combobox
                     items={dataservers.map((d) => ({ value: d.id, label: `${d.name} (${d.code})` }))}
                     value={selectedDataserverId}
@@ -1024,11 +1025,11 @@ export function SoapBuilderClient({
                     searchPlaceholder="Buscar dataserver..."
                     emptyText="Nenhum dataserver encontrado."
                   />
-                </div>
+                </Field>
               )}
               {selectedType?.type === "process" && (
-                <div className="space-y-2">
-                  <Label>Processo</Label>
+                <Field>
+                  <FieldLabel>Processo</FieldLabel>
                   <Combobox
                     items={processes.map((p) => ({ value: p.id, label: `${p.name} (${p.code})` }))}
                     value={selectedProcessId}
@@ -1037,10 +1038,10 @@ export function SoapBuilderClient({
                     searchPlaceholder="Buscar processo..."
                     emptyText="Nenhum processo encontrado."
                   />
-                </div>
+                </Field>
               )}
-              <div className="space-y-2">
-                <Label>Método</Label>
+              <Field>
+                <FieldLabel>Método</FieldLabel>
                 <Select
                   items={methods.map((m) => ({ value: m.id, label: `${m.label} (${m.method})` }))}
                   value={selectedMethodId || null}
@@ -1057,9 +1058,9 @@ export function SoapBuilderClient({
                     ))}
                   </SelectContent>
                 </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Sistema TOTVS</Label>
+              </Field>
+              <Field>
+                <FieldLabel>Sistema TOTVS</FieldLabel>
                 <Select
                   items={sistemas.map((s) => ({ value: s.id, label: `${s.code} - ${s.internalName}` }))}
                   value={selectedSistemaId || null}
@@ -1076,11 +1077,11 @@ export function SoapBuilderClient({
                     ))}
                   </SelectContent>
                 </Select>
-              </div>
+              </Field>
             </div>
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <div className="space-y-2">
-                <Label>Cliente</Label>
+              <Field>
+                <FieldLabel>Cliente</FieldLabel>
                 <Combobox
                   items={clients.map((c) => ({ value: c.id, label: c.name }))}
                   value={selectedClientId}
@@ -1089,9 +1090,9 @@ export function SoapBuilderClient({
                   searchPlaceholder="Buscar cliente..."
                   emptyText="Nenhum cliente encontrado."
                 />
-              </div>
-              <div className="space-y-2">
-                <Label>TBC</Label>
+              </Field>
+              <Field>
+                <FieldLabel>TBC</FieldLabel>
                 <Combobox
                   items={tbcsForClient.map((t) => ({
                     value: t.id,
@@ -1103,35 +1104,35 @@ export function SoapBuilderClient({
                   searchPlaceholder="Buscar TBC..."
                   emptyText="Nenhum TBC encontrado."
                 />
-              </div>
+              </Field>
             </div>
             <div className="grid grid-cols-1 gap-4 md:grid-cols-[1fr_auto]">
-              <div className="space-y-2">
-                <Label>URL da requisição</Label>
+              <Field>
+                <FieldLabel>URL da requisição</FieldLabel>
                 <Input
                   value={fullUrl}
                   readOnly
                   className="w-full font-mono text-xs"
                   placeholder="Selecione o sistema e o TBC..."
                 />
-              </div>
-              <div className="space-y-2">
-                <Label>Tempo limite (ms)</Label>
+              </Field>
+              <Field>
+                <FieldLabel>Tempo limite (ms)</FieldLabel>
                 <Input
                   type="number"
                   value={timeout}
                   onChange={(e) => setTimeout_(Number(e.target.value))}
                   className="w-full md:w-40"
                 />
-              </div>
+              </Field>
             </div>
           </fieldset>
 
-          <fieldset className="space-y-3 rounded-lg border border-input p-3">
+          <fieldset className="space-y-3 rounded-xl border p-3">
             <legend className="px-1 text-sm font-medium text-muted-foreground">Contexto de execução</legend>
             <div className="grid grid-cols-1 gap-4 md:grid-cols-3 lg:grid-cols-5">
-              <div className="space-y-2">
-                <Label>Coligada</Label>
+              <Field>
+                <FieldLabel>Coligada</FieldLabel>
                 <Input
                   type="number"
                   value={context.coligate ?? ""}
@@ -1139,9 +1140,9 @@ export function SoapBuilderClient({
                   onBlur={maybeAutoExecute}
                   className="w-full"
                 />
-              </div>
-              <div className="space-y-2">
-                <Label>Filial</Label>
+              </Field>
+              <Field>
+                <FieldLabel>Filial</FieldLabel>
                 <Input
                   type="number"
                   value={context.branch ?? ""}
@@ -1149,9 +1150,9 @@ export function SoapBuilderClient({
                   onBlur={maybeAutoExecute}
                   className="w-full"
                 />
-              </div>
-              <div className="space-y-2">
-                <Label>Nível de Ensino</Label>
+              </Field>
+              <Field>
+                <FieldLabel>Nível de Ensino</FieldLabel>
                 <Input
                   type="number"
                   value={context.levelEducation ?? ""}
@@ -1159,30 +1160,30 @@ export function SoapBuilderClient({
                   onBlur={maybeAutoExecute}
                   className="w-full"
                 />
-              </div>
-              <div className="space-y-2">
-                <Label>Código do Sistema</Label>
+              </Field>
+              <Field>
+                <FieldLabel>Código do Sistema</FieldLabel>
                 <Input
                   value={context.codSystem}
                   onChange={(e) => setContext({ codSystem: e.target.value })}
                   onBlur={maybeAutoExecute}
                   className="w-full"
                 />
-              </div>
-              <div className="space-y-2">
-                <Label>Usuário</Label>
+              </Field>
+              <Field>
+                <FieldLabel>Usuário</FieldLabel>
                 <Input
                   value={context.user}
                   onChange={(e) => setContext({ user: e.target.value })}
                   onBlur={maybeAutoExecute}
                   className="w-full"
                 />
-              </div>
+              </Field>
             </div>
           </fieldset>
 
           {(isReadViewMethod || isDataserverPkMethod || isXmlParamMethod || isConsultaSqlMethod) && (
-            <fieldset className="space-y-3 rounded-lg border border-input p-3">
+            <fieldset className="space-y-3 rounded-xl border p-3">
               <legend className="px-1 text-sm font-medium text-muted-foreground">Parâmetros do método</legend>
 
               {isConsultaSqlMethod && (
@@ -1218,14 +1219,14 @@ export function SoapBuilderClient({
                       <Input value={selectedSistemaCode} readOnly required className="w-full" />
                     </div>
                     {isConsultaSqlContextoMethod && (
-                      <div className="space-y-2">
-                        <Label>Contexto (ex.: CODCOLIGADA=1)</Label>
+                      <Field>
+                        <FieldLabel>Contexto (ex.: CODCOLIGADA=1)</FieldLabel>
                         <Input
                           value={sqlContext}
                           onChange={(e) => handleSqlFieldChange("context", e.target.value)}
                           className="w-full"
                         />
-                      </div>
+                      </Field>
                     )}
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
@@ -1291,8 +1292,8 @@ export function SoapBuilderClient({
                   ) : sentenceFound === true ? (
                     <p className="text-sm text-muted-foreground">Esta sentença não possui parâmetros.</p>
                   ) : (
-                    <div className="space-y-2">
-                      <Label>Parâmetros (ex.: CODUSUARIO=MESTRE — múltiplos separados por &quot;;&quot;)</Label>
+                    <Field>
+                      <FieldLabel>Parâmetros (ex.: CODUSUARIO=MESTRE — múltiplos separados por &quot;;&quot;)</FieldLabel>
                       <Input
                         value={sqlParameters}
                         onChange={(e) => handleSqlFieldChange("parameters", e.target.value)}
@@ -1301,7 +1302,7 @@ export function SoapBuilderClient({
                       <p className="text-xs text-muted-foreground">
                         Ou use &quot;Buscar sentença&quot; acima para identificar os parâmetros automaticamente.
                       </p>
-                    </div>
+                    </Field>
                   )}
                   {!selectedSistemaCode && (
                     <p className="text-xs text-muted-foreground">

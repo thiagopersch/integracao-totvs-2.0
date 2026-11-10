@@ -3,6 +3,7 @@
 import { fetchStageDocumentation, listSelectiveProcessStages } from "@/actions/integrations/ps-docs"
 import { fetchPortalOverview, listPortalSelectiveProcesses } from "@/actions/integrations/ps-portal-docs"
 import { CredentialsFormFields } from "@/components/ps-docs/credentials-form-fields"
+import { DocOptionsPanel, docOptionsSummary } from "@/components/ps-docs/doc-options-panel"
 import { PortalOverviewPreview } from "@/components/ps-docs/portal-overview-preview"
 import { ProcessDocResult } from "@/components/ps-docs/process-doc-result"
 import { StylePanel } from "@/components/ps-docs/style-panel"
@@ -12,14 +13,14 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Field, FieldError, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Progress } from "@/components/ui/progress"
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { parseCookieString, type PsCredentials } from "@/lib/ps-docs/credential"
 import {
+  DEFAULT_DOC_OPTIONS,
   DEFAULT_STYLE,
+  type DocOptions,
   type DocumentacaoPS,
   type PortalOverviewSpec,
   type PortalProcessDocState,
@@ -28,7 +29,10 @@ import {
 } from "@/lib/ps-docs/types"
 import { psDocsSchema, type PsDocsFormInput } from "@/schemas/ps-docs.schema"
 import { zodResolver } from "@hookform/resolvers/zod"
-import { AlertCircle, CheckCircle2, FileText, Info, Loader2 } from "lucide-react"
+import Chip from "@mui/material/Chip"
+import ToggleButton from "@mui/material/ToggleButton"
+import ToggleButtonGroup from "@mui/material/ToggleButtonGroup"
+import { AlertCircle, CheckCircle2, FileText, Globe, Info, Loader2, Sparkles, Workflow } from "lucide-react"
 import { useState } from "react"
 import { useForm, useWatch, type Resolver } from "react-hook-form"
 import { toast } from "@/lib/toast"
@@ -58,6 +62,9 @@ export default function PsDocsPage() {
   const idPsValue = useWatch({ control, name: "idPs" })
   const idPortalValue = useWatch({ control, name: "idPortal" })
   const [style, setStyle] = useState<StyleConfig>(DEFAULT_STYLE)
+  // "Conteúdo da documentação": the detail flags only affect rendering (preview + exports), so they
+  // apply instantly even after generating; `escopoPortal` is read when the portal is submitted.
+  const [docOptions, setDocOptions] = useState<DocOptions>(DEFAULT_DOC_OPTIONS)
   // The parameters form starts open and collapses once the documentation renders, so the result
   // gets the room; the user can reopen it from the header.
   const [formOpen, setFormOpen] = useState(true)
@@ -202,6 +209,18 @@ export default function PsDocsPage() {
     setProcessDocs([])
 
     try {
+      // "Apenas o portal": only the portal configuration — the selective processes aren't even listed.
+      if (docOptions.escopoPortal === "portal") {
+        const overviewRes = await fetchPortalOverview({ credentials, idPortal, localId })
+        setPortalOverviewLoading(false)
+        if (overviewRes.success && overviewRes.overview) {
+          setPortalOverview(overviewRes.overview)
+          setFormOpen(false)
+          toast.success("Documentação do portal gerada com sucesso")
+        } else toast.error(overviewRes.error || "Erro ao consultar os dados gerais do portal")
+        return
+      }
+
       const [overviewRes, listRes] = await Promise.all([
         fetchPortalOverview({ credentials, idPortal, localId }),
         listPortalSelectiveProcesses({ credentials, idPortal }),
@@ -266,11 +285,12 @@ export default function PsDocsPage() {
           controlsId="ps-docs-form"
           expandLabel="Expandir parâmetros"
           collapseLabel="Recolher parâmetros"
-          summary={
-            docMode === "portal"
-              ? `Portal inteiro · ${idPortalValue || "—"}`
-              : `Processo seletivo · ${idPsValue || "—"}`
-          }
+          summary={[
+            docMode === "portal" ? `Portal inteiro · ${idPortalValue || "—"}` : `Processo seletivo · ${idPsValue || "—"}`,
+            docOptionsSummary(docOptions, docMode === "portal"),
+          ]
+            .filter(Boolean)
+            .join(" · ")}
         />
         <CardContent id="ps-docs-form" hidden={!formOpen}>
           <form
@@ -282,25 +302,24 @@ export default function PsDocsPage() {
               <FieldLabel>
                 Deseja realizar a documentação de um processo seletivo específico ou do portal inteiro?
               </FieldLabel>
-              <RadioGroup
+              <ToggleButtonGroup
+                exclusive
+                color="primary"
                 value={docMode}
-                onValueChange={(v) => setValue("docMode", v as DocMode, { shouldValidate: true })}
-                className="flex-row gap-6 pt-1"
+                onChange={(_e, v: DocMode | null) => v && setValue("docMode", v, { shouldValidate: true })}
+                aria-label="Tipo de documentação"
+                sx={{ flexWrap: "wrap", "& .MuiToggleButton-root": { gap: 1, px: 2, textTransform: "none" } }}
               >
-                <div className="flex items-center gap-2">
-                  <RadioGroupItem value="processo" id="mode-processo" />
-                  <Label htmlFor="mode-processo" className="font-normal cursor-pointer">
-                    Processo seletivo específico
-                  </Label>
-                </div>
-                <div className="flex items-center gap-2">
-                  <RadioGroupItem value="portal" id="mode-portal" />
-                  <Label htmlFor="mode-portal" className="font-normal cursor-pointer">
-                    Portal inteiro
-                  </Label>
-                </div>
-              </RadioGroup>
+                <ToggleButton value="processo">
+                  <Workflow className="h-4 w-4" /> Processo seletivo específico
+                </ToggleButton>
+                <ToggleButton value="portal">
+                  <Globe className="h-4 w-4" /> Portal inteiro
+                </ToggleButton>
+              </ToggleButtonGroup>
             </Field>
+
+            <DocOptionsPanel value={docOptions} onChange={setDocOptions} showScope={docMode === "portal"} />
 
             <div className="space-y-4">
               <CredentialsFormFields control={control} errors={errors} />
@@ -380,9 +399,16 @@ export default function PsDocsPage() {
             </div>
 
             <div className="flex flex-col items-center gap-2">
-              <Button type="submit" disabled={!isValid || (docMode === "processo" ? loading : portalSubmitting)}>
-                {(docMode === "processo" ? loading : portalSubmitting) && (
+              <Button
+                type="submit"
+                size="lg"
+                disabled={!isValid || (docMode === "processo" ? loading : portalSubmitting)}
+                sx={{ px: 4, borderRadius: 6 }}
+              >
+                {(docMode === "processo" ? loading : portalSubmitting) ? (
                   <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                ) : (
+                  <Sparkles className="h-4 w-4 mr-2" />
                 )}
                 Gerar documentação
               </Button>
@@ -401,7 +427,7 @@ export default function PsDocsPage() {
 
       {showStylePanel && <StylePanel style={style} onChange={setStyle} />}
 
-      {docMode === "processo" && model && <ProcessDocResult model={model} warnings={warnings} style={style} />}
+      {docMode === "processo" && model && <ProcessDocResult model={model} warnings={warnings} style={style} options={docOptions} />}
 
       {docMode === "processo" && error && (
         <Card>
@@ -429,7 +455,7 @@ export default function PsDocsPage() {
       )}
 
       {docMode === "portal" && !portalOverviewLoading && portalOverview && (
-        <PortalOverviewPreview overview={portalOverview} style={style} />
+        <PortalOverviewPreview overview={portalOverview} style={style} options={docOptions} />
       )}
 
       {docMode === "portal" && processDocs.length > 0 && (
@@ -447,19 +473,11 @@ export default function PsDocsPage() {
               {processDocs.map((p) => (
                 <AccordionItem key={p.ref.id} value={p.ref.id}>
                   <AccordionTrigger className="gap-1.5">
-                    <span className="flex flex-1 flex-wrap items-center gap-1.5">
-                      {p.status === "pending" && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
-                      {p.status === "loading" && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-                      {p.status === "done" && <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />}
-                      {p.status === "error" && <AlertCircle className="h-3.5 w-3.5 text-destructive" />}
+                    <span className="flex flex-1 flex-wrap items-center gap-2">
                       <span>
                         {p.ref.identifier} | {p.ref.name}
                       </span>
-                      {p.status === "loading" && p.progress && (
-                        <span className="text-xs text-muted-foreground">
-                          ({p.progress.done}/{p.progress.total})
-                        </span>
-                      )}
+                      <ProcessStatusChip doc={p} />
                     </span>
                   </AccordionTrigger>
                   <AccordionContent>
@@ -484,7 +502,7 @@ export default function PsDocsPage() {
                             </p>
                           </div>
                         )}
-                        <ProcessDocResult model={p.doc} warnings={p.warnings} style={style} />
+                        <ProcessDocResult model={p.doc} warnings={p.warnings} style={style} options={docOptions} />
                       </div>
                     )}
                   </AccordionContent>
@@ -496,4 +514,25 @@ export default function PsDocsPage() {
       )}
     </div>
   )
+}
+
+/** Material status chip for one process of the "portal inteiro" list. */
+function ProcessStatusChip({ doc }: { doc: PortalProcessDocState }) {
+  switch (doc.status) {
+    case "pending":
+      return <Chip variant="outlined" label="Na fila" icon={<Loader2 className="h-3.5 w-3.5 animate-spin" />} />
+    case "loading":
+      return (
+        <Chip
+          color="info"
+          variant="outlined"
+          label={doc.progress ? `Gerando ${doc.progress.done}/${doc.progress.total}` : "Gerando"}
+          icon={<Loader2 className="h-3.5 w-3.5 animate-spin" />}
+        />
+      )
+    case "done":
+      return <Chip color="success" label="Concluído" icon={<CheckCircle2 className="h-3.5 w-3.5" />} />
+    case "error":
+      return <Chip color="error" label="Erro" icon={<AlertCircle className="h-3.5 w-3.5" />} />
+  }
 }

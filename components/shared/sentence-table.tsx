@@ -287,8 +287,8 @@ export function SentenceTable({ data, meta, categories }: SentenceTableProps) {
         pushParams({ sentenceCategoryId: undefined, page: 1 })
       }}
     >
-      <div className="space-y-2">
-        <Label>Categoria</Label>
+      <Field>
+        <FieldLabel>Categoria</FieldLabel>
         <Select
           items={[{ value: "all", label: "Todas" }, ...categories.map((c) => ({ value: c.id, label: c.name }))]}
           value={categoryFilter || "all"}
@@ -304,7 +304,7 @@ export function SentenceTable({ data, meta, categories }: SentenceTableProps) {
             ))}
           </SelectContent>
         </Select>
-      </div>
+      </Field>
     </DataTableFilterPanel>
   )
 

@@ -102,8 +102,8 @@ function PopoverContent({
           "data-slot": "popover-content",
           className: cn("flex w-72 flex-col gap-2.5 p-2.5 text-sm", className),
           style,
-          sx: { ...offset, borderRadius: 2, border: 1, borderColor: "divider" },
-          elevation: 4,
+          sx: { ...offset, borderRadius: 2 },
+          elevation: 8,
           ...props,
         } as React.ComponentProps<"div">,
       }}

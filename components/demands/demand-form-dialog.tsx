@@ -373,7 +373,7 @@ function DemandFormBody({ onOpenChange, catalogs, context, demand, defaults = {}
           </TabsContent>
 
           <TabsContent value="atribuicao" className="mt-4 space-y-4">
-            <div className="grid grid-cols-1 gap-4 rounded-md border p-3 md:grid-cols-2">
+            <div className="grid grid-cols-1 gap-4 rounded-xl border p-3 md:grid-cols-2">
               <Field>
                 <FieldLabel>Projeto (opcional)</FieldLabel>
                 {lockProject && project ? (

@@ -294,7 +294,7 @@ export function DashboardClient({
                         key={c.clientId}
                         href="/contracts"
                         className={cn(
-                          "flex flex-col gap-2 rounded-lg border p-3 transition-opacity hover:opacity-80",
+                          "flex flex-col gap-2 surface p-3 transition-opacity hover:opacity-80",
                           USAGE_TONE_CLASSES[usageTone(c.percent)]
                         )}
                       >

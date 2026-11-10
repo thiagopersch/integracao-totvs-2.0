@@ -15,6 +15,7 @@ import {
 } from "@tanstack/react-table"
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import type { Row } from "@tanstack/react-table"
+import Paper from "@mui/material/Paper"
 import TableSortLabel from "@mui/material/TableSortLabel"
 import { useVirtualizer } from "@tanstack/react-virtual"
 import { Trash2 } from "lucide-react"
@@ -112,7 +113,7 @@ const DataTableRow = memo(
                 key={cell.id}
                 className={
                   cell.column.id === "actions"
-                    ? "sticky right-0 z-10 border-l bg-background group-hover:bg-muted/50 group-data-[state=selected]:bg-muted"
+                    ? "sticky right-0 z-10 border-l bg-card group-hover:bg-muted/50 group-data-[state=selected]:bg-muted"
                     : undefined
                 }
                 onMouseEnter={COLUMNS_WITHOUT_TITLE.has(cell.column.id) ? undefined : showCellTitle}
@@ -380,7 +381,7 @@ export function DataTable<TData, TValue>({
       />
       {filterPanel && filtersOpen && <div>{filterPanel}</div>}
       {(bulkDelete || bulkActions) && selectedCount > 0 && (
-        <div className="flex items-center justify-between rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2">
+        <div className="flex items-center justify-between rounded-lg bg-destructive/8 px-4 py-2">
           <span className="text-sm text-muted-foreground">{selectedCount} registro(s) selecionado(s)</span>
           <div className="flex items-center gap-2">
             {bulkActions?.(selectedRows.map((row) => row.original), () => setRowSelection({}))}
@@ -393,8 +394,9 @@ export function DataTable<TData, TValue>({
         </div>
       )}
       <div className="space-y-4" aria-busy={refreshing || loading || undefined}>
-          <div
+          <Paper
             ref={scrollContainerRef}
+            elevation={1}
             className={
               virtualizationEnabled
                 ? // `<Table>`'s own wrapper div sets only `overflow-x-auto` — per the CSS overflow spec,
@@ -403,8 +405,8 @@ export function DataTable<TData, TValue>({
                   // the sticky header, which then sticks to that (never-scrolling) box instead of to this
                   // one. Forcing it back to `overflow-visible` here restores this div as the single real
                   // scroll container.
-                  "no-scrollbar rounded-md border max-h-[70vh] overflow-auto [&_[data-slot=table-container]]:overflow-visible"
-                : "rounded-md border"
+                  "no-scrollbar rounded-xl max-h-[70vh] overflow-auto [&_[data-slot=table-container]]:overflow-visible"
+                : "overflow-hidden rounded-xl"
             }
           >
             <Table style={virtualizationEnabled ? { display: "block" } : undefined}>
@@ -415,7 +417,7 @@ export function DataTable<TData, TValue>({
               the right within that already-vertically-pinned header row. */}
               <TableHeader
                 style={virtualizationEnabled ? { display: "block", position: "sticky", top: 0, zIndex: 20 } : undefined}
-                className={virtualizationEnabled ? "bg-background" : undefined}
+                className={virtualizationEnabled ? "bg-card" : undefined}
               >
                 {table.getHeaderGroups().map((headerGroup) => (
                   <TableRow
@@ -425,7 +427,7 @@ export function DataTable<TData, TValue>({
                     {headerGroup.headers.map((header) => {
                       const isActionsColumn = header.column.id === "actions"
                       const stickyActionsClass = isActionsColumn
-                        ? "sticky right-0 z-10 border-l bg-background"
+                        ? "sticky right-0 z-10 border-l bg-card"
                         : undefined
                       const virtualStyle = virtualizationEnabled ? virtualCellStyle(header.column.id) : undefined
                       if (header.isPlaceholder)
@@ -493,7 +495,7 @@ export function DataTable<TData, TValue>({
                       {columns.map((col, j) => (
                         <TableCell
                           key={j}
-                          className={col.id === "actions" ? "sticky right-0 z-10 border-l bg-background" : undefined}
+                          className={col.id === "actions" ? "sticky right-0 z-10 border-l bg-card" : undefined}
                         >
                           <Skeleton className="h-4 w-full" />
                         </TableCell>
@@ -532,7 +534,7 @@ export function DataTable<TData, TValue>({
                             key={cell.id}
                             className={
                               cell.column.id === "actions"
-                                ? "sticky right-0 z-10 border-l bg-background group-hover:bg-muted/50 group-data-[state=selected]:bg-muted"
+                                ? "sticky right-0 z-10 border-l bg-card group-hover:bg-muted/50 group-data-[state=selected]:bg-muted"
                                 : undefined
                             }
                             style={virtualCellStyle(cell.column.id)}
@@ -564,7 +566,7 @@ export function DataTable<TData, TValue>({
                 )}
               </TableBody>
             </Table>
-          </div>
+          </Paper>
           {footer}
           {manual ? (
             <DataTablePagination

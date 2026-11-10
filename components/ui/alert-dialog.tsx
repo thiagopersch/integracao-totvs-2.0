@@ -65,7 +65,7 @@ function AlertDialogContent({
           "data-slot": "alert-dialog-content",
           "data-size": size,
           className: cn("grid w-full gap-4 p-4 text-sm", size === "sm" ? "max-w-xs" : "max-w-xs sm:max-w-sm", className),
-          sx: { m: 2, borderRadius: 3 },
+          sx: { m: 2, borderRadius: 4 },
           ...props,
         } as React.ComponentProps<"div">,
       }}
@@ -83,7 +83,7 @@ function AlertDialogFooter({ className, ...props }: React.ComponentProps<"div">)
   return (
     <div
       data-slot="alert-dialog-footer"
-      className={cn("-mx-4 -mb-4 flex flex-col-reverse gap-2 rounded-b-xl border-t bg-muted/50 p-4 sm:flex-row sm:justify-end", className)}
+      className={cn("-mx-4 -mb-4 flex flex-col-reverse gap-2 rounded-b-xl px-4 pt-2 pb-4 sm:flex-row sm:justify-end", className)}
       {...props}
     />
   )

@@ -23,9 +23,8 @@ function Switch({
       checked={checked}
       defaultChecked={defaultChecked}
       onChange={(_event, value) => onCheckedChange?.(value)}
-      size="small"
+      size={size === "sm" ? "small" : "medium"}
       className={cn("shrink-0", className)}
-      sx={size === "sm" ? { transform: "scale(0.85)", transformOrigin: "left center" } : undefined}
       {...props}
     />
   )

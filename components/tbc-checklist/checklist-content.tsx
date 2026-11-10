@@ -700,7 +700,7 @@ export function ChecklistContent({
 
   if (!selectedProcesso) {
     return (
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-y-auto rounded-md border p-3 sm:p-4">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-y-auto surface p-3 sm:p-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-base font-semibold">{checklist.name}</h2>
           {addButton}
@@ -725,7 +725,7 @@ export function ChecklistContent({
 
   return (
     <TbcUserContext.Provider value={tbcUser}>
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-y-auto rounded-md border p-3 sm:p-4">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-y-auto surface p-3 sm:p-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-base font-semibold">Processo: {selectedProcesso.label}</h2>
           <div className="flex flex-wrap items-center gap-2">

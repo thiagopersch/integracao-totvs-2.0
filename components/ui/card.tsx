@@ -1,9 +1,10 @@
 import * as React from "react"
 import Paper from "@mui/material/Paper"
+import Typography from "@mui/material/Typography"
 
 import { cn } from "@/lib/utils"
 
-/** MUI Paper (outlined). Layout of the parts below stays in Tailwind. */
+/** Material card: MUI Paper with elevation 1, 12px corners, no border. Layout of the parts stays in Tailwind. */
 function Card({
   className,
   size = "default",
@@ -11,11 +12,11 @@ function Card({
 }: React.ComponentProps<"div"> & { size?: "default" | "sm" }) {
   return (
     <Paper
-      variant="outlined"
+      elevation={1}
       data-slot="card"
       data-size={size}
       className={cn(
-        "group/card flex flex-col gap-4 overflow-hidden rounded-xl py-4 text-sm has-data-[slot=card-footer]:pb-0 has-[>img:first-child]:pt-0 data-[size=sm]:gap-3 data-[size=sm]:py-3 data-[size=sm]:has-data-[slot=card-footer]:pb-0 *:[img:first-child]:rounded-t-xl *:[img:last-child]:rounded-b-xl",
+        "group/card flex flex-col gap-4 overflow-hidden rounded-xl border-0 py-4 text-sm has-data-[slot=card-footer]:pb-0 has-[>img:first-child]:pt-0 data-[size=sm]:gap-3 data-[size=sm]:py-3 data-[size=sm]:has-data-[slot=card-footer]:pb-0 *:[img:first-child]:rounded-t-xl *:[img:last-child]:rounded-b-xl",
         className
       )}
       {...(props as object)}
@@ -38,13 +39,12 @@ function CardHeader({ className, ...props }: React.ComponentProps<"div">) {
 
 function CardTitle({ className, ...props }: React.ComponentProps<"div">) {
   return (
-    <div
+    <Typography
+      variant="h6"
+      component="div"
       data-slot="card-title"
-      className={cn(
-        "font-heading text-base leading-snug font-medium group-data-[size=sm]/card:text-sm",
-        className
-      )}
-      {...props}
+      className={cn("leading-snug group-data-[size=sm]/card:text-[0.9375rem]", className)}
+      {...(props as object)}
     />
   )
 }
@@ -87,7 +87,7 @@ function CardFooter({ className, ...props }: React.ComponentProps<"div">) {
     <div
       data-slot="card-footer"
       className={cn(
-        "flex items-center rounded-b-xl border-t bg-muted/50 p-4 group-data-[size=sm]/card:p-3",
+        "flex items-center gap-2 rounded-b-xl p-4 pt-2 group-data-[size=sm]/card:p-3 group-data-[size=sm]/card:pt-1",
         className
       )}
       {...props}

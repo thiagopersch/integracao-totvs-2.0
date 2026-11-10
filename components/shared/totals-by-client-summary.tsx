@@ -12,7 +12,7 @@ export function TotalsByClientSummary({ totals }: { totals: Totals }) {
   const grandTotal = totals.reduce((acc, t) => acc + t.hours, 0);
 
   return (
-    <div className="rounded-md border bg-muted/30 p-3">
+    <div className="rounded-xl bg-muted p-3">
       <p className="mb-2 text-xs font-medium text-muted-foreground">Total de horas por cliente (filtro atual)</p>
       <div className="flex flex-wrap gap-2">
         {totals.map((t) => (

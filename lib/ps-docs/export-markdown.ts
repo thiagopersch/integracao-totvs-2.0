@@ -1,5 +1,6 @@
 import type { AcaoBotaoSpec, CampoDetalhado, ColunaDataserverSpec, ConsultaSqlSpec, DocumentacaoPS, EncaminhamentoSpec, FonteDadosSpec, ItemSpec, LogicaSpec, ParametroAcaoSpec, PopupSpec, PortalOverviewSpec, RegraLogicaItem, StyleConfig } from "./types";
-import { DEFAULT_STYLE } from "./types";
+import { DEFAULT_DOC_OPTIONS, DEFAULT_STYLE, type DocOptions } from "./types";
+import { acaoNome, encaminhamentoNome, groupByDetail, isItemDetailed } from "./doc-options";
 import { logicColor } from "./logic-color";
 import { detectLang, fenceTag } from "./code-highlight";
 
@@ -18,6 +19,9 @@ const colorValue = (value: string) => {
   const color = logicColor(value, logicColors);
   return color ? `<span style="color:${color}">${value}</span>` : value;
 };
+
+/** The "Conteúdo da documentação" answers — set by each exported entry point, like `logicColors`. */
+let docOpts: DocOptions = DEFAULT_DOC_OPTIONS;
 
 const kv = (indent: string, label: string, value: string) => `${indent}- ${label}: **${colorValue(value)}**`;
 const kvCode = (indent: string, label: string, value: string) => `${indent}- ${label}: \`${value}\``;
@@ -199,7 +203,7 @@ function popupLines(popup: PopupSpec, indent: string): string[] {
     if (consulta.usaCache) lines.push(kv(inner + "  ", "Frequência do cache", consulta.frequenciaCache ?? "não informada"));
     lines.push(...parametroLines(consulta.parametros, inner + "  "));
   }
-  for (const item of popup.itens) renderItem(item, lines, 0);
+  renderItems(popup.itens, lines, 0);
   return lines;
 }
 
@@ -339,6 +343,70 @@ const CATEGORIA_LABEL: Record<ItemSpec["categoria"], string> = {
   componente: "Componente",
 };
 
+/** "Não" to "Gerar detalhes das ações do botão": just each ação/encaminhamento's name, with its
+ *  own logic nested — the logic is always documented. */
+function acaoNomeLines(acao: AcaoBotaoSpec, indent: string): string[] {
+  const off = acao.ativada ? "" : ` **<span style="color:${logicColors.negativeColor}">[desativada]</span>**`;
+  return [`${indent}- ${acaoNome(acao)}${off}`, ...logicaSpecLines(acao.logica, indent + "  ")];
+}
+
+function encaminhamentoNomeLines(enc: EncaminhamentoSpec, indent: string): string[] {
+  return [`${indent}- ${encaminhamentoNome(enc)}`, ...logicaSpecLines(enc.logica, indent + "  ")];
+}
+
+/** A botão's "Ações" bullets — full detail or names only, per `docOpts.detalhesAcoesBotao`. Used by
+ *  the detailed botão (under "###### Ações") and the compact one (nested in its bullet). */
+function botaoAcoesLines(item: ItemSpec, indent: string): string[] {
+  const detalhe = docOpts.detalhesAcoesBotao;
+  const acao = (a: AcaoBotaoSpec, i: string) => (detalhe ? acaoLines(a, i) : acaoNomeLines(a, i));
+  const lines = [kv(indent, "Salvar dados", sim(item.salvaDados))];
+  if (item.acoesPrimeiroPlano && item.acoesPrimeiroPlano.length > 0) {
+    lines.push(`${indent}- Primeiro plano (síncrono):`);
+    for (const a of item.acoesPrimeiroPlano) lines.push(...acao(a, indent + "  "));
+  }
+  if (item.acoesSegundoPlano && item.acoesSegundoPlano.length > 0) {
+    lines.push(`${indent}- Segundo plano (assíncrono):`);
+    for (const a of item.acoesSegundoPlano) lines.push(...acao(a, indent + "  "));
+  }
+  lines.push(kv(indent, "Fechar pop-up", sim(item.fecharPopup)));
+  lines.push(`${indent}- Encaminhar usuário:`);
+  lines.push(kv(indent + "  ", "Redireciona", sim(item.redirecionaUsuario)));
+  for (const enc of item.encaminhamentos ?? []) lines.push(...(detalhe ? encaminhamentoLines(enc, indent + "  ") : encaminhamentoNomeLines(enc, indent + "  ")));
+  return lines;
+}
+
+/** "Não" to the item's "Gerar detalhes" question: one bullet "Categoria: Nome" with its logic
+ *  nested (always kept). A compact agrupamento nests its compact children; detailed children are
+ *  pushed to `after` and rendered as headings right after the list. */
+function compactItemLines(item: ItemSpec, indent: string, depth: number, after: ItemSpec[][]): string[] {
+  const lines = [`${indent}- ${CATEGORIA_LABEL[item.categoria]}: ${fieldRefMd(item.nome)}`];
+  const inner = indent + "  ";
+  if (item.logica && item.logica.regras.length > 0) lines.push(`${inner}- Lógica:`, ...logicaSpecLines(item.logica, inner + "  "));
+  if (item.categoria === "agrupamento") {
+    for (const child of item.filhos ?? []) {
+      if (isItemDetailed(child, docOpts)) after.push([child]);
+      else lines.push(...compactItemLines(child, inner, depth + 1, after));
+    }
+  }
+  if (item.categoria === "botao") lines.push(`${inner}- Ações:`, ...botaoAcoesLines(item, inner + "  "));
+  return lines;
+}
+
+/** Renders sibling items: detailed ones as headings (`renderItem`), runs of compact ones as one
+ *  bullet list (followed by any detailed descendants, one depth level deeper). */
+function renderItems(items: ItemSpec[], out: string[], depth = 0): void {
+  for (const run of groupByDetail(items, docOpts)) {
+    if (run.detailed) {
+      for (const item of run.items) renderItem(item, out, depth);
+      continue;
+    }
+    const after: ItemSpec[][] = [];
+    for (const item of run.items) out.push(...compactItemLines(item, BASE, depth, after));
+    out.push("");
+    for (const [child] of after) renderItem(child, out, depth + 1);
+  }
+}
+
 /** Renders one item's heading — depth-based, per explicit instruction: a top-level item (direct
  *  child of a passo) is `####` (h4), an item nested one level inside another component is `#####`
  *  (h5), and anything deeper is `######` (h6 — the deepest level named here, capped there rather
@@ -402,7 +470,7 @@ function renderItem(item: ItemSpec, out: string[], depth = 0): void {
 
       if (item.logica) out.push("###### Lógica", "", ...logicaSpecLines(item.logica, BASE), "");
 
-      for (const child of item.filhos ?? []) renderItem(child, out, depth + 1);
+      renderItems(item.filhos ?? [], out, depth + 1);
       break;
     }
     case "botao": {
@@ -424,21 +492,7 @@ function renderItem(item: ItemSpec, out: string[], depth = 0): void {
       );
 
       out.push("###### Ações", "");
-      out.push(kv(BASE, "Salvar dados", sim(item.salvaDados)));
-      if (item.acoesPrimeiroPlano && item.acoesPrimeiroPlano.length > 0) {
-        out.push(`${BASE}- Primeiro plano (síncrono):`);
-        for (const acao of item.acoesPrimeiroPlano) out.push(...acaoLines(acao, BASE + "  "));
-      }
-      if (item.acoesSegundoPlano && item.acoesSegundoPlano.length > 0) {
-        out.push(`${BASE}- Segundo plano (assíncrono):`);
-        for (const acao of item.acoesSegundoPlano) out.push(...acaoLines(acao, BASE + "  "));
-      }
-      out.push(kv(BASE, "Fechar pop-up", sim(item.fecharPopup)));
-      out.push(`${BASE}- Encaminhar usuário:`);
-      out.push(kv(BASE + "  ", "Redireciona", sim(item.redirecionaUsuario)));
-      if (item.encaminhamentos && item.encaminhamentos.length > 0) {
-        for (const enc of item.encaminhamentos) out.push(...encaminhamentoLines(enc, BASE + "  "));
-      }
+      out.push(...botaoAcoesLines(item, BASE));
       out.push("");
       break;
     }
@@ -479,8 +533,9 @@ function renderItem(item: ItemSpec, out: string[], depth = 0): void {
  *  (regex, custom-validation scripts, HTML/CSS/JS component content) use code blocks/backticks.
  *  Markdown carries no color/font, only this structural emphasis. Used for the ".md" download and
  *  as the `text/plain` fallback when copying for Google Docs. */
-export function documentToMarkdown(doc: DocumentacaoPS, style: StyleConfig = DEFAULT_STYLE): string {
+export function documentToMarkdown(doc: DocumentacaoPS, style: StyleConfig = DEFAULT_STYLE, opts: DocOptions = DEFAULT_DOC_OPTIONS): string {
   logicColors = style;
+  docOpts = opts;
   const lines: string[] = [];
   lines.push(`# ${doc.tituloPortal}`, "");
 
@@ -498,7 +553,7 @@ export function documentToMarkdown(doc: DocumentacaoPS, style: StyleConfig = DEF
     etapa.passos.forEach((passo) => {
       lines.push(`### Passo: ${passo.nome}`, "");
       lines.push(...consultaSqlLines("Fonte de dados do passo", passo.consultaSql));
-      for (const item of passo.itens) renderItem(item, lines);
+      renderItems(passo.itens, lines);
     });
 
     if (etapa.feedbacks.length > 0) {
@@ -516,8 +571,9 @@ export function documentToMarkdown(doc: DocumentacaoPS, style: StyleConfig = DEF
 
 /** Same idea as `documentToMarkdown`, but for the portal-level "Geral/Consultas/Scripts/
  *  Integrações/Segurança/Domínio/TOTVS" overview instead of a single processo seletivo. */
-export function portalOverviewToMarkdown(overview: PortalOverviewSpec, style: StyleConfig = DEFAULT_STYLE): string {
+export function portalOverviewToMarkdown(overview: PortalOverviewSpec, style: StyleConfig = DEFAULT_STYLE, opts: DocOptions = DEFAULT_DOC_OPTIONS): string {
   logicColors = style;
+  docOpts = opts;
   const sim = (v: boolean | undefined) => (v ? "Sim" : "Não");
   const lines: string[] = [];
   const { geral, consultas, scripts, integracoes, seguranca, dominio, totvs } = overview;
@@ -551,11 +607,13 @@ export function portalOverviewToMarkdown(overview: PortalOverviewSpec, style: St
   }
   if (geral.campoOfertaCurso) {
     lines.push("#### Campo de oferta de curso", "");
-    campoDetalhesBlock(geral.campoOfertaCurso.detalhes, lines);
+    if (opts.detalhesCampos) campoDetalhesBlock(geral.campoOfertaCurso.detalhes, lines);
+    else lines.push(`${BASE}- ${fieldRefMd(geral.campoOfertaCurso.nome)}`, "");
   }
   if (geral.campoLocalOferta) {
     lines.push("#### Campo de local de oferta", "");
-    campoDetalhesBlock(geral.campoLocalOferta.detalhes, lines);
+    if (opts.detalhesCampos) campoDetalhesBlock(geral.campoLocalOferta.detalhes, lines);
+    else lines.push(`${BASE}- ${fieldRefMd(geral.campoLocalOferta.nome)}`, "");
   }
 
   if (geral.camposDetalhesInscricao && geral.camposDetalhesInscricao.length > 0) {

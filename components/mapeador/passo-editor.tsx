@@ -127,7 +127,7 @@ export function PassoEditor({ passo, etapas, onChange, onRemove, onMove, canMove
   }
 
   return (
-    <div className="rounded-lg border p-3">
+    <div className="surface p-3">
       <div className={cn("flex items-center gap-2", !collapsed && "mb-2")}>
         <Button
           variant="ghost"

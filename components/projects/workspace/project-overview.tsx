@@ -284,7 +284,7 @@ export function ProjectOverview({ project, tasks, dashboard, risks, defs, usersB
               {risks.map((risk) => {
                 const severity = riskSeverity(risk.probability, risk.impact)
                 return (
-                  <div key={risk.id} className={cn("group rounded-md border p-3", risk.status === "CLOSED" && "opacity-60")}>
+                  <div key={risk.id} className={cn("group surface p-3", risk.status === "CLOSED" && "opacity-60")}>
                     <div className="flex flex-wrap items-center gap-2">
                       <ColorBadge label={`${severity.label} · ${risk.probability * risk.impact}`} color={severity.color} />
                       <span className="flex-1 text-sm font-medium">{risk.title}</span>

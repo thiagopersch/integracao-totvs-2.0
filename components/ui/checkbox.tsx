@@ -22,7 +22,7 @@ function Checkbox({ className, checked, indeterminate, onCheckedChange, "data-in
       onChange={(_event, value) => onCheckedChange?.(value)}
       size="small"
       className={cn("shrink-0", className)}
-      sx={{ p: 0.25, "& .MuiSvgIcon-root": { fontSize: 18 } }}
+      sx={{ p: 0.75 }}
       {...props}
     />
   )

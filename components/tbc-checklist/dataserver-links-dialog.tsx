@@ -219,7 +219,7 @@ export function DataserverLinksDialog({
               ...(below ? [link.parentCode] : []),
             ].map((c) => ({ value: c, label: `${dataserverName(c)} (${c})${c === link.parentCode && below ? " — abaixo deste" : ""}` }))
             return (
-              <div key={link.id} className="flex min-w-0 flex-col gap-3 rounded-lg border p-3">
+              <div key={link.id} className="flex min-w-0 flex-col gap-3 rounded-xl border p-3">
                 <div className="flex flex-wrap items-center gap-2">
                   <Link2 className="h-4 w-4 shrink-0 text-muted-foreground" />
                   <div className="min-w-0 flex-1 basis-48">
