@@ -13,6 +13,7 @@ import {
   pendingThresholds,
   periodKey,
   periodKeysInRange,
+  round2,
   usageLevel,
   usagePercent,
   type UsageLevel,
@@ -48,8 +49,6 @@ export type ClientMonthlyUsage = {
   /** Demands launched for the client in the month. */
   demandsCount: number;
 };
-
-const round2 = (n: number) => Math.round(n * 100) / 100;
 
 /**
  * Monthly consumption per client: `contractedHours` is a monthly allowance, summed across every

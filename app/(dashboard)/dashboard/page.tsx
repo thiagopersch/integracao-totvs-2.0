@@ -25,6 +25,8 @@ async function DashboardData({ searchParams }: { searchParams: Promise<Record<st
   const { organizationId, userId, allowedClientIds, permissions } = await getRequestContext()
   // Projects/tasks block only for who can see the Gestão de Projetos module.
   const canSeeProjects = hasPermission(permissions, "projects", "read")
+  // Analysts' hours/billing breakdown only for who can see the Analistas module.
+  const canSeeAnalystsDashboard = hasPermission(permissions, "analysts", "read")
 
   const [
     {
@@ -44,6 +46,7 @@ async function DashboardData({ searchParams }: { searchParams: Promise<Record<st
       clientHoursRanking,
       contractsUsage,
       contractsUsageMonthLabel,
+      analystsUsage,
     },
     periodOptions,
     projectPortfolio,
@@ -71,6 +74,8 @@ async function DashboardData({ searchParams }: { searchParams: Promise<Record<st
       clientHoursRanking={clientHoursRanking}
       contractsUsage={contractsUsage}
       contractsUsageMonthLabel={contractsUsageMonthLabel}
+      analystsUsage={canSeeAnalystsDashboard ? analystsUsage : []}
+      canSeeAnalystsDashboard={canSeeAnalystsDashboard}
       period={period}
       years={periodOptions.years}
       monthsByYear={periodOptions.monthsByYear}

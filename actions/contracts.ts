@@ -17,6 +17,7 @@ function parseContractForm(formData: FormData) {
     status: (formData.get("status") as string) || "ACTIVE",
     notifyClient: formData.get("notifyClient") === "true",
     notes: (formData.get("notes") as string) || undefined,
+    analystIds: formData.has("analystIds") ? (formData.getAll("analystIds") as string[]) : undefined,
   };
 }
 

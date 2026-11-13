@@ -19,6 +19,7 @@ import { ContractUsageBar } from "@/components/shared/contract-usage-bar"
 import { ContractExtraHoursDialog } from "@/components/shared/contract-extra-hours-dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { MultiSelect } from "@/components/ui/multi-select"
 import { Textarea } from "@/components/ui/textarea"
 import { Switch } from "@/components/ui/switch"
 import { Field, FieldLabel, FieldError, FieldDescription } from "@/components/ui/field"
@@ -52,11 +53,11 @@ import { DropdownMenuItem } from "@/components/ui/dropdown-menu"
 import { createContractSchema, updateContractSchema, type CreateContractInput } from "@/schemas/contract.schema"
 import { formatDecimal } from "@/lib/masks"
 import type { UsageLevel } from "@/lib/contract-usage"
-import { formatDateOnly, toDateInputValue } from "@/utils/format"
+import { formatCurrency, formatDateOnly, toDateInputValue } from "@/utils/format"
 import { toast } from "@/lib/toast"
 import { useCrudTable } from "@/hooks/use-crud-table"
 import { useHasPermission } from "@/hooks/use-permissions"
-import type { Client } from "@/generated/prisma/client"
+import type { Client, Analyst } from "@/generated/prisma/client"
 import type { PaginationMeta } from "@/types/common"
 
 type ContractRow = {
@@ -68,6 +69,7 @@ type ContractRow = {
   notifyClient: boolean
   notes: string | null
   client: { id: string; name: string; color: string; email: string | null }
+  contractAnalysts: { analyst: Pick<Analyst, "id" | "name" | "color" | "hourlyRate" | "excessHourlyRate"> }[]
   /** This contract's extra hours launched for the month being viewed (added to that month only). */
   monthExtraHours: number
   /** Consumption (per client) of the month being viewed — null when the contract isn't in force that month. */
@@ -87,6 +89,7 @@ interface ContractTableProps {
   data: ContractRow[]
   meta: PaginationMeta
   clients: Client[]
+  analysts: Analyst[]
   /** Month the "Consumo" column refers to (selected period's month, or the current month). */
   usageMonth: { year: number; month: number }
   usageMonthLabel: string
@@ -122,12 +125,14 @@ const CONTRACT_FIELD_TAB: Record<string, ContractTab> = {
   endDate: "vigencia",
   notifyClient: "notificacoes",
   notes: "complementares",
+  analystIds: "identificacao",
 }
 
 export function ContractTable({
   data,
   meta,
   clients,
+  analysts,
   usageMonth,
   usageMonthLabel,
   period: initialPeriod,
@@ -185,6 +190,7 @@ export function ContractTable({
           status: editDialog.entity.status as CreateContractInput["status"],
           notifyClient: editDialog.entity.notifyClient,
           notes: editDialog.entity.notes || "",
+          analystIds: editDialog.entity.contractAnalysts.map((ca) => ca.analyst.id),
         }
       : {
           clientId: "",
@@ -194,8 +200,11 @@ export function ContractTable({
           status: "ACTIVE",
           notifyClient: false,
           notes: "",
+          analystIds: [],
         },
   })
+
+  const selectedAnalysts = analysts.filter((a) => (form.watch("analystIds") || []).includes(a.id))
 
   const selectedClient = clients.find((c) => c.id === form.watch("clientId"))
 
@@ -203,7 +212,8 @@ export function ContractTable({
     setLoading(true)
     const formData = new FormData()
     Object.entries(data).forEach(([key, value]) => {
-      if (value !== undefined) formData.append(key, String(value))
+      if (Array.isArray(value)) value.forEach((v) => formData.append(key, v))
+      else if (value !== undefined) formData.append(key, String(value))
     })
 
     const result = editDialog.entity
@@ -418,6 +428,31 @@ export function ContractTable({
                   </Select>
                 </Field>
               </div>
+              <Field>
+                <FieldLabel htmlFor="analystIds">Analistas</FieldLabel>
+                <MultiSelect
+                  items={analysts.map((a) => ({ value: a.id, label: a.name, color: a.color }))}
+                  value={form.watch("analystIds") || []}
+                  onValueChange={(v) => form.setValue("analystIds", v, { shouldValidate: true })}
+                  placeholder="Selecione os analistas"
+                  searchPlaceholder="Buscar analista..."
+                  emptyText="Nenhum analista encontrado."
+                />
+                <FieldError errors={[form.formState.errors.analystIds]} />
+              </Field>
+              {selectedAnalysts.length > 0 && (
+                <div className="space-y-1 rounded-xl border p-3 text-sm">
+                  <p className="text-xs text-muted-foreground">Valor/hora dos analistas selecionados (informativo):</p>
+                  {selectedAnalysts.map((a) => (
+                    <div key={a.id} className="flex items-center justify-between gap-2">
+                      <ColorBadge label={a.name} color={a.color} />
+                      <span className="text-muted-foreground">
+                        Normal: {formatCurrency(a.hourlyRate ?? 0)} · Excedente: {formatCurrency(a.excessHourlyRate ?? 0)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </TabsContent>
             <TabsContent value="vigencia" className="mt-4 space-y-4">
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">

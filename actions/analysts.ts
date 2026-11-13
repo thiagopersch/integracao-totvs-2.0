@@ -15,6 +15,7 @@ function parseAnalystForm(formData: FormData) {
     phone: (formData.get("phone") as string) || "",
     role: (formData.get("role") as string) || undefined,
     hourlyRate: formData.get("hourlyRate") ? Number(formData.get("hourlyRate")) : undefined,
+    excessHourlyRate: formData.get("excessHourlyRate") ? Number(formData.get("excessHourlyRate")) : undefined,
     team: (formData.get("team") as string) || undefined,
     color: (formData.get("color") as string) || "#6366f1",
     level: formData.get("level") ? Number(formData.get("level")) : 1,

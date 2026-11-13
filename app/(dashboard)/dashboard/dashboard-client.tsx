@@ -26,6 +26,8 @@ import { cn } from "@/lib/utils"
 import { PendingRegion } from "@/components/shared/pending-region"
 import { ProjectDashboardTab, ProjectKpiCards } from "@/components/projects/dashboard/project-dashboard-tab"
 import type { ProjectPortfolio } from "@/services/project-portfolio.service"
+import { AnalystDashboardTab } from "@/components/analysts/dashboard/analyst-dashboard-tab"
+import type { AnalystUsageRow } from "@/services/analyst-dashboard.service"
 
 type NamedValue = {
   name: string
@@ -77,6 +79,9 @@ interface DashboardClientProps {
     level: UsageLevel
   }>
   contractsUsageMonthLabel: string
+  analystsUsage: AnalystUsageRow[]
+  /** False (and `analystsUsage` empty) when the user can't see the Analistas module. */
+  canSeeAnalystsDashboard: boolean
   period: Period | null
   years: number[]
   monthsByYear: Record<number, number[]>
@@ -108,6 +113,8 @@ export function DashboardClient({
   clientHoursRanking,
   contractsUsage,
   contractsUsageMonthLabel,
+  analystsUsage,
+  canSeeAnalystsDashboard,
   period: initialPeriod,
   years,
   monthsByYear,
@@ -155,6 +162,7 @@ export function DashboardClient({
           <TabsTrigger value="clients">Clientes/TBCs/Filtros para backup</TabsTrigger>
           <TabsTrigger value="demands">Demandas</TabsTrigger>
           {projectPortfolio && <TabsTrigger value="projects">Projetos</TabsTrigger>}
+          {canSeeAnalystsDashboard && <TabsTrigger value="analysts">Analistas</TabsTrigger>}
         </ScrollableTabsList>
 
         <TabsContent value="overview" className="pt-4">
@@ -523,6 +531,12 @@ export function DashboardClient({
         {projectPortfolio && (
           <TabsContent value="projects" className="pt-4">
             <ProjectDashboardTab data={projectPortfolio} today={today} />
+          </TabsContent>
+        )}
+
+        {canSeeAnalystsDashboard && (
+          <TabsContent value="analysts" className="pt-4">
+            <AnalystDashboardTab data={analystsUsage} periodLabel={contractsUsageMonthLabel} pending={isPending} />
           </TabsContent>
         )}
       </Tabs>

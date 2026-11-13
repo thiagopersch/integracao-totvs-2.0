@@ -62,6 +62,7 @@ const ANALYST_FIELD_TAB: Record<string, AnalystTab> = {
   role: "funcao",
   team: "funcao",
   hourlyRate: "funcao",
+  excessHourlyRate: "funcao",
   level: "funcao",
   color: "visual",
 }
@@ -106,12 +107,24 @@ export function AnalystTable({ data, meta }: AnalystTableProps) {
           phone: editDialog.entity.phone || "",
           role: editDialog.entity.role || "",
           hourlyRate: editDialog.entity.hourlyRate ?? 0,
+          excessHourlyRate: editDialog.entity.excessHourlyRate ?? 0,
           team: editDialog.entity.team || "",
           color: editDialog.entity.color,
           level: editDialog.entity.level,
           status: editDialog.entity.status,
         }
-      : { name: "", email: "", phone: "", role: "", hourlyRate: 0, team: "", color: newColor, level: 1, status: true },
+      : {
+          name: "",
+          email: "",
+          phone: "",
+          role: "",
+          hourlyRate: 0,
+          excessHourlyRate: 0,
+          team: "",
+          color: newColor,
+          level: 1,
+          status: true,
+        },
   })
 
   async function onSubmit(data: CreateAnalystInput) {
@@ -273,7 +286,7 @@ export function AnalystTable({ data, meta }: AnalystTableProps) {
                   <Input id="team" {...form.register("team")} placeholder="Ex: Suporte" />
                 </Field>
               </div>
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                 <Field>
                   <FieldLabel htmlFor="hourlyRate">Valor/hora</FieldLabel>
                   <Controller
@@ -294,6 +307,27 @@ export function AnalystTable({ data, meta }: AnalystTableProps) {
                     )}
                   />
                   <FieldError errors={[form.formState.errors.hourlyRate]} />
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor="excessHourlyRate">Valor/hora excedente</FieldLabel>
+                  <Controller
+                    control={form.control}
+                    name="excessHourlyRate"
+                    render={({ field }) => (
+                      <Input
+                        id="excessHourlyRate"
+                        inputMode="decimal"
+                        value={formatDecimal(String(Math.round((field.value || 0) * 100)))}
+                        onChange={(e) => {
+                          const digits = e.target.value.replace(/\D/g, "")
+                          field.onChange(digits ? Number(digits) / 100 : 0)
+                        }}
+                        placeholder="0,00"
+                        aria-invalid={!!form.formState.errors.excessHourlyRate}
+                      />
+                    )}
+                  />
+                  <FieldError errors={[form.formState.errors.excessHourlyRate]} />
                 </Field>
                 <Field>
                   <FieldLabel htmlFor="level">Nível</FieldLabel>

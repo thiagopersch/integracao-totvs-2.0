@@ -23,7 +23,9 @@ export const USAGE_LEVEL_LABELS: Record<UsageLevel, string> = {
   exceeded: "Excedido",
 };
 
-const round2 = (n: number) => Math.round(n * 100) / 100;
+export function round2(n: number): number {
+  return Math.round(n * 100) / 100;
+}
 
 export function usagePercent(usedHours: number, contractedHours: number): number {
   if (contractedHours <= 0) return 0;

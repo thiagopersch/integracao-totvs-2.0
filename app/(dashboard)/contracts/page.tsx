@@ -3,6 +3,7 @@ import { cookies } from "next/headers"
 import { listContracts } from "@/queries/contracts"
 import { getDemandPeriodOptions } from "@/actions/demands"
 import { listAllClients } from "@/actions/admin/clients"
+import { listAllAnalysts } from "@/actions/analysts"
 import { ContractTable } from "@/components/shared/contract-table"
 import { TableSkeleton } from "@/components/shared/table-skeleton"
 import { getRequestContext } from "@/lib/tenant"
@@ -27,7 +28,7 @@ async function ContractsContent({ searchParams }: { searchParams: Promise<Record
   // Consumption is shown for the selected month (current month for a year-only/no period), so a
   // contract created after the client's demands still shows the hours already logged that month.
   const usageMonth = monthForPeriod(period)
-  const [{ data, meta }, clients, periodOptions] = await Promise.all([
+  const [{ data, meta }, clients, analysts, periodOptions] = await Promise.all([
     listContracts(
       {
         page: Number(params.page) || 1,
@@ -41,6 +42,7 @@ async function ContractsContent({ searchParams }: { searchParams: Promise<Record
       usageMonth
     ),
     listAllClients(),
+    listAllAnalysts(),
     getDemandPeriodOptions(),
   ])
 
@@ -49,6 +51,7 @@ async function ContractsContent({ searchParams }: { searchParams: Promise<Record
       data={data}
       meta={meta}
       clients={clients}
+      analysts={analysts}
       usageMonth={usageMonth}
       usageMonthLabel={formatMonthLabel(usageMonth)}
       period={period}

@@ -2,6 +2,7 @@
 
 import { cacheLife, cacheTag } from "next/cache";
 import { dashboardService } from "@/services/dashboard.service";
+import { analystDashboardService } from "@/services/analyst-dashboard.service";
 import { getRequestContext } from "@/lib/tenant";
 import { periodToDateRange, type Period } from "@/lib/period";
 import { monthForPeriod } from "@/lib/contract-usage";
@@ -27,5 +28,9 @@ async function getCachedDashboardStats(
   "use cache: remote";
   cacheTag("dashboard");
   cacheLife("aggregates");
-  return dashboardService.getStats(organizationId, allowedClientIds, periodToDateRange(period), attentionMonth, analystId);
+  const [stats, analystsUsage] = await Promise.all([
+    dashboardService.getStats(organizationId, allowedClientIds, periodToDateRange(period), attentionMonth, analystId),
+    analystDashboardService.getMonthlyAnalystUsage(organizationId, allowedClientIds, attentionMonth),
+  ]);
+  return { ...stats, analystsUsage };
 }

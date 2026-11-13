@@ -10,12 +10,14 @@ export const createContractSchema = z.object({
   status: z.enum(CONTRACT_STATUSES),
   notifyClient: z.boolean().default(false),
   notes: z.string().max(2000, "Observações devem ter no máximo 2000 caracteres").optional(),
+  analystIds: z.array(z.string().min(1)).default([]),
 });
 
 export const updateContractSchema = createContractSchema.partial({
   clientId: true,
   contractedHours: true,
   startDate: true,
+  analystIds: true,
 });
 
 export const addExtraHoursSchema = z.object({

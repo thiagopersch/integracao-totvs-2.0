@@ -884,7 +884,8 @@ model Analyst {
   email          String?
   phone          String?
   role           String?
-  hourlyRate     Float?    @map("hourly_rate")
+  hourlyRate       Float?    @map("hourly_rate")
+  excessHourlyRate Float?    @map("excess_hourly_rate")
   status         Boolean   @default(true)
   photo          String?
   team           String?
@@ -894,9 +895,10 @@ model Analyst {
   updatedAt      DateTime  @updatedAt @map("updated_at")
   deletedAt      DateTime? @map("deleted_at")
 
-  organization   Organization    @relation(fields: [organizationId], references: [id])
-  user           User?           @relation(fields: [userId], references: [id])
-  demandAnalysts DemandAnalyst[]
+  organization     Organization      @relation(fields: [organizationId], references: [id])
+  user             User?             @relation(fields: [userId], references: [id])
+  demandAnalysts   DemandAnalyst[]
+  contractAnalysts ContractAnalyst[]
 
   @@index([organizationId, deletedAt])
   @@map("analysts")
@@ -914,12 +916,29 @@ model ClientContract {
   createdAt       DateTime       @default(now()) @map("created_at")
   updatedAt       DateTime       @updatedAt @map("updated_at")
 
-  client     Client               @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  projects   Project[]
-  extraHours ContractExtraHours[]
+  client           Client               @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  projects         Project[]
+  extraHours       ContractExtraHours[]
+  contractAnalysts ContractAnalyst[]
 
   @@index([clientId, status])
   @@map("client_contracts")
+}
+
+/// Many-to-many: quais analistas atendem um contrato. Informativo — o valor de hora usado no
+/// cálculo de horas/rateio é sempre o valor ATUAL do cadastro do analista, nunca um snapshot aqui.
+model ContractAnalyst {
+  id         String   @id @default(uuid())
+  contractId String   @map("contract_id")
+  analystId  String   @map("analyst_id")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  contract ClientContract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  analyst  Analyst        @relation(fields: [analystId], references: [id])
+
+  @@unique([contractId, analystId])
+  @@index([analystId])
+  @@map("contract_analysts")
 }
 
 /// Additional hours bought for one specific month — added to that month's allowance without

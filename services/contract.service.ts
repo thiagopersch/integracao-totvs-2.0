@@ -10,6 +10,9 @@ import { safeOrderBy } from "@/lib/sort";
 
 const includeRelations = {
   client: { select: { id: true, name: true, color: true, email: true } },
+  contractAnalysts: {
+    select: { analyst: { select: { id: true, name: true, color: true, hourlyRate: true, excessHourlyRate: true } } },
+  },
 } as const;
 
 /** Field the contracts table sorts the "Consumo (mês)" column by — computed, so sorted in memory. */
@@ -22,8 +25,16 @@ type ContractUsage = Pick<
 
 type Month = { year: number; month: number };
 
-/** Extra hours rows are part of the contract (deleted with it), so they never block its deletion. */
-const DELETE_IGNORED_MODELS = ["ContractExtraHours"];
+/** Extra hours and analyst links are part of the contract (deleted with it), so they never block its deletion. */
+const DELETE_IGNORED_MODELS = ["ContractExtraHours", "ContractAnalyst"];
+
+/** Nested write for the contract's analysts. `replace` (update) swaps the whole list; create only
+ *  adds. `undefined` leaves existing links untouched (e.g. a partial update that omits the field). */
+function contractAnalystLinks(analystIds: string[] | undefined, replace = false) {
+  if (analystIds === undefined) return undefined;
+  const unique = [...new Set(analystIds.filter(Boolean))];
+  return { ...(replace ? { deleteMany: {} } : {}), create: unique.map((analystId) => ({ analystId })) };
+}
 
 /** Attaches `month`'s consumption to every contract in force that month (consumption is per client,
  *  so contracts of the same client share it — and demands launched before the contract existed still
@@ -136,9 +147,14 @@ export const contractService = {
     const client = await prisma.client.findFirst({ where: { id: input.clientId, organizationId, deletedAt: null } });
     if (!client) throw new Error("Cliente não encontrado");
 
-    const { startDate, endDate, ...rest } = input;
+    const { startDate, endDate, analystIds, ...rest } = input;
     return prisma.clientContract.create({
-      data: { ...rest, startDate: new Date(startDate), endDate: endDate ? new Date(endDate) : null },
+      data: {
+        ...rest,
+        startDate: new Date(startDate),
+        endDate: endDate ? new Date(endDate) : null,
+        contractAnalysts: contractAnalystLinks(analystIds),
+      },
       include: includeRelations,
     });
   },
@@ -149,7 +165,7 @@ export const contractService = {
     });
     if (!existing) throw new Error("Contrato não encontrado");
 
-    const { startDate, endDate, ...rest } = input;
+    const { startDate, endDate, analystIds, ...rest } = input;
     // Clearing the end date removes the reason for expiration, so an expired contract goes back to active.
     const endDateCleared = existing.endDate !== null && endDate !== undefined && !endDate;
     if (endDateCleared && (rest.status ?? existing.status) === "EXPIRED") rest.status = "ACTIVE";
@@ -159,6 +175,7 @@ export const contractService = {
         ...rest,
         ...(startDate ? { startDate: new Date(startDate) } : {}),
         ...(endDate !== undefined ? { endDate: endDate ? new Date(endDate) : null } : {}),
+        contractAnalysts: contractAnalystLinks(analystIds, true),
       },
       include: includeRelations,
     });
