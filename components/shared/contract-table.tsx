@@ -69,7 +69,13 @@ type ContractRow = {
   notifyClient: boolean
   notes: string | null
   client: { id: string; name: string; color: string; email: string | null }
-  contractAnalysts: { analyst: Pick<Analyst, "id" | "name" | "color" | "hourlyRate" | "excessHourlyRate"> }[]
+  contractAnalysts: {
+    analyst: Pick<Analyst, "id" | "name" | "color" | "hourlyRate" | "excessHourlyRate">
+    /** Contract's full allowance (contracted + this month's extra hours) at this analyst's rate,
+     *  plus their prorated share of the contract's real excess hours (when they have an excess
+     *  rate parameterized) — NOT based on how much they actually worked. */
+    value: { normal: number; excess: number; total: number }
+  }[]
   /** This contract's extra hours launched for the month being viewed (added to that month only). */
   monthExtraHours: number
   /** Consumption (per client) of the month being viewed — null when the contract isn't in force that month. */
@@ -254,6 +260,47 @@ export function ContractTable({
       cell: ({ row }) => (
         <ColorBadge label={row.original.client.name} color={row.original.client.color} solid />
       ),
+    },
+    {
+      id: "analysts",
+      header: "Analistas",
+      cell: ({ row }) => {
+        const contractAnalysts = row.original.contractAnalysts
+        if (!contractAnalysts.length) return <span className="text-muted-foreground">-</span>
+        return (
+          <div className="flex flex-col gap-1">
+            {contractAnalysts.map(({ analyst }) => (
+              <div key={analyst.id} className="flex items-center gap-2 text-xs">
+                <ColorBadge label={analyst.name} color={analyst.color} />
+                <span className="text-muted-foreground">
+                  {formatCurrency(analyst.hourlyRate ?? 0)}
+                  {analyst.excessHourlyRate != null && ` + Exced.: ${formatCurrency(analyst.excessHourlyRate)}`}
+                </span>
+              </div>
+            ))}
+          </div>
+        )
+      },
+    },
+    {
+      id: "analystsValue",
+      header: "Valor",
+      cell: ({ row }) => {
+        const contractAnalysts = row.original.contractAnalysts
+        if (!contractAnalysts.length) return <span className="text-muted-foreground">-</span>
+        return (
+          <div className="flex flex-col gap-1">
+            {contractAnalysts.map(({ analyst, value }) => (
+              <div key={analyst.id} className="text-xs">
+                <span className="font-medium tabular-nums">{formatCurrency(value.total)}</span>
+                {value.excess > 0 && (
+                  <div className="text-muted-foreground">+ {formatCurrency(value.excess)} exced.</div>
+                )}
+              </div>
+            ))}
+          </div>
+        )
+      },
     },
     {
       accessorKey: "contractedHours",

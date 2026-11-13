@@ -10,11 +10,11 @@ import type { AnalystUsageRow } from "@/services/analyst-dashboard.service"
 
 const HOURS_SERIES: ChartSeries[] = [
   { key: "normal", name: "Horas normais", color: "var(--chart-1)" },
-  { key: "excedente", name: "Horas excedentes", color: "var(--chart-critical)" },
+  { key: "excedente", name: "Horas excedentes", color: "var(--chart-critical)", fixedColor: true },
 ]
 const VALUE_SERIES: ChartSeries[] = [
   { key: "valorNormal", name: "Valor normal (R$)", color: "var(--chart-2)" },
-  { key: "valorExcedente", name: "Valor excedente (R$)", color: "var(--chart-critical)" },
+  { key: "valorExcedente", name: "Valor excedente (R$)", color: "var(--chart-critical)", fixedColor: true },
 ]
 
 interface AnalystDashboardTabProps {
@@ -32,14 +32,17 @@ export function AnalystDashboardTab({ data, periodLabel, pending }: AnalystDashb
       name: `${analyst.analystName} — ${c.clientName}`,
       normal: c.hoursNormal,
       excedente: c.hoursExcess,
+      color: c.clientColor,
     }))
   )
-  const valueByAnalyst = data.map((analyst) => ({
-    name: analyst.analystName,
-    color: analyst.analystColor,
-    valorNormal: analyst.totals.valueNormal,
-    valorExcedente: analyst.totals.valueExcess,
-  }))
+  const valueByContract = data.flatMap((analyst) =>
+    analyst.contracts.map((c) => ({
+      name: `${analyst.analystName} — ${c.clientName}`,
+      valorNormal: c.valueNormal,
+      valorExcedente: c.valueExcess,
+      color: c.clientColor,
+    }))
+  )
 
   return (
     <div className="space-y-6">
@@ -51,20 +54,21 @@ export function AnalystDashboardTab({ data, periodLabel, pending }: AnalystDashb
           series={HOURS_SERIES}
           kind={hoursKind}
           onKindChange={setHoursKind}
+          colorKey="color"
           valueFormatter={(v) => `${formatNumber(v)}h`}
           emptyMessage="Nenhum contrato com analistas vinculados no período."
           pending={pending}
         />
         <ChartCard
-          title={`Valor normal x excedente por analista (${periodLabel})`}
-          data={valueByAnalyst}
+          title={`Valor normal x excedente por contrato (${periodLabel})`}
+          data={valueByContract}
           nameKey="name"
           series={VALUE_SERIES}
           kind={valueKind}
           onKindChange={setValueKind}
           colorKey="color"
           valueFormatter={(v) => formatCurrency(v)}
-          emptyMessage="Nenhum analista com contratos no período."
+          emptyMessage="Nenhum contrato com analistas vinculados no período."
           pending={pending}
         />
       </div>

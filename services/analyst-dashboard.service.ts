@@ -31,6 +31,55 @@ function emptyTotals() {
   return { hoursNormal: 0, hoursExcess: 0, valueNormal: 0, valueExcess: 0, valueTotal: 0 };
 }
 
+export type ContractAnalystExcess = { hoursWorked: number; excessHours: number };
+
+/**
+ * Per analyst linked to `contract`, their real worked hours in `range` and their share of the
+ * contract's excess (used hours beyond `contractedHours` + that month's extra hours), prorated by
+ * each analyst's participation in the contract's total worked hours. Reused by
+ * `getMonthlyAnalystUsage` (billing based on real work) and by `contract.service.ts`'s contracts
+ * listing (billing based on the contract's full contracted hours) — only the excess share differs
+ * between those use cases, never how it's computed.
+ */
+export async function getContractAnalystExcess(
+  organizationId: string,
+  contract: {
+    id: string;
+    clientId: string;
+    contractedHours: number;
+    extraHours: { hours: number }[];
+    contractAnalysts: { analystId: string }[];
+    projects: { id: string }[];
+  },
+  range: { gte: Date; lt: Date }
+): Promise<Map<string, ContractAnalystExcess>> {
+  const projectIds = contract.projects.map((p) => p.id);
+  const minutesPerAnalyst = await demandMinutesByAnalyst({
+    deletedAt: null,
+    organizationId,
+    date: range,
+    OR: [{ clientId: contract.clientId, projectId: null }, ...(projectIds.length ? [{ projectId: { in: projectIds } }] : [])],
+  });
+
+  const linkedIds = new Set(contract.contractAnalysts.map((ca) => ca.analystId));
+  const hoursByAnalyst = new Map(
+    minutesPerAnalyst.filter((m) => linkedIds.has(m.analystId)).map((m) => [m.analystId, round2(m.minutes / 60)])
+  );
+
+  const totalUsedHours = round2([...hoursByAnalyst.values()].reduce((sum, h) => sum + h, 0));
+  const extraHours = round2(contract.extraHours.reduce((sum, e) => sum + e.hours, 0));
+  const allowance = round2(contract.contractedHours + extraHours);
+  const contractExcessHours = Math.max(0, round2(totalUsedHours - allowance));
+
+  const result = new Map<string, ContractAnalystExcess>();
+  for (const analystId of linkedIds) {
+    const hoursWorked = hoursByAnalyst.get(analystId) ?? 0;
+    const excessHours = totalUsedHours > 0 ? round2(contractExcessHours * (hoursWorked / totalUsedHours)) : 0;
+    result.set(analystId, { hoursWorked, excessHours });
+  }
+  return result;
+}
+
 /**
  * Per analyst, per contract, monthly hours/value breakdown: each analyst's "horas normais" are
  * their own demand hours on that contract, up to the contract's monthly allowance; hours beyond the
@@ -78,27 +127,11 @@ async function getMonthlyAnalystUsage(organizationId: string, allowedClientIds: 
   const byAnalyst = new Map<string, AnalystUsageRow>();
 
   for (const contract of contracts) {
-    const projectIds = contract.projects.map((p) => p.id);
-    const minutesPerAnalyst = await demandMinutesByAnalyst({
-      deletedAt: null,
-      organizationId,
-      date: range,
-      OR: [{ clientId: contract.clientId, projectId: null }, ...(projectIds.length ? [{ projectId: { in: projectIds } }] : [])],
-    });
-
+    const excessByAnalyst = await getContractAnalystExcess(organizationId, contract, range);
     const linkedIds = new Set(contract.contractAnalysts.map((ca) => ca.analystId));
-    const hoursByAnalyst = new Map(
-      minutesPerAnalyst.filter((m) => linkedIds.has(m.analystId)).map((m) => [m.analystId, round2(m.minutes / 60)])
-    );
-
-    const totalUsedHours = round2([...hoursByAnalyst.values()].reduce((sum, h) => sum + h, 0));
-    const extraHours = round2(contract.extraHours.reduce((sum, e) => sum + e.hours, 0));
-    const allowance = round2(contract.contractedHours + extraHours);
-    const contractExcessHours = Math.max(0, round2(totalUsedHours - allowance));
 
     for (const analystId of linkedIds) {
-      const analystHours = hoursByAnalyst.get(analystId) ?? 0;
-      const excessHours = totalUsedHours > 0 ? round2(contractExcessHours * (analystHours / totalUsedHours)) : 0;
+      const { hoursWorked: analystHours, excessHours } = excessByAnalyst.get(analystId) ?? { hoursWorked: 0, excessHours: 0 };
       const normalHours = round2(analystHours - excessHours);
 
       const analyst = analystById.get(analystId);

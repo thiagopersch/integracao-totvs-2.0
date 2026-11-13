@@ -55,8 +55,10 @@ function resolveColor(
   fallback: string | undefined,
   colorByIndex: boolean,
   statusColorMap?: Record<string, string>,
-  rowColor?: string
+  rowColor?: string,
+  fixedColor?: string
 ) {
+  if (fixedColor) return fixedColor;
   if (rowColor) return rowColor;
   if (colorByIndex) return CATEGORY_COLORS[index % CATEGORY_COLORS.length];
   return statusColorMap?.[name] ?? fallback ?? CATEGORY_COLORS[0];
@@ -65,9 +67,9 @@ function resolveColor(
 /** Pie/donut slices always need visually distinct colors — unlike bars, a flat single
  * fallback color would make every slice indistinguishable, so this ignores `colorByIndex`
  * and always cycles the categorical palette (statusColorMap and a per-row `colorKey` color
- * still take priority). */
-function resolvePieColor(name: string, index: number, statusColorMap?: Record<string, string>, rowColor?: string) {
-  return rowColor || statusColorMap?.[name] || CATEGORY_COLORS[index % CATEGORY_COLORS.length];
+ * still take priority). A series marked `fixedColor` (e.g. "excedente") wins over all of that. */
+function resolvePieColor(name: string, index: number, statusColorMap?: Record<string, string>, rowColor?: string, fixedColor?: string) {
+  return fixedColor || rowColor || statusColorMap?.[name] || CATEGORY_COLORS[index % CATEGORY_COLORS.length];
 }
 
 export function MultiTypeChart({
@@ -150,7 +152,7 @@ export function MultiTypeChart({
                 colorGetter: ({ dataIndex }: { dataIndex: number }) => {
                   const entry = data[dataIndex];
                   const rowColor = colorKey && entry?.[colorKey] ? shadeColor(String(entry[colorKey]), si === 0 ? 0 : -18 * si) : undefined;
-                  return resolveColor(categories[dataIndex] ?? "", dataIndex, s.color, colorByIndex, statusColorMap, rowColor);
+                  return resolveColor(categories[dataIndex] ?? "", dataIndex, s.color, colorByIndex, statusColorMap, rowColor, s.fixedColor ? s.color : undefined);
                 },
               }
             : {}),
@@ -161,10 +163,12 @@ export function MultiTypeChart({
 
   // pie / donut
   const measureKey = series.length > 1 ? (pieSeriesKey ?? series[0].key) : series[0].key;
+  const measureSeries = series.find((s) => s.key === measureKey);
+  const fixedColor = measureSeries?.fixedColor ? measureSeries.color : undefined;
   const pieData = data.map((entry, i) => {
     const name = String(entry[nameKey]);
     const rowColor = colorKey && entry[colorKey] ? String(entry[colorKey]) : undefined;
-    return { id: `${name}-${i}`, label: name, value: Number(entry[measureKey]) || 0, color: resolvePieColor(name, i, statusColorMap, rowColor) };
+    return { id: `${name}-${i}`, label: name, value: Number(entry[measureKey]) || 0, color: resolvePieColor(name, i, statusColorMap, rowColor, fixedColor) };
   });
 
   return (

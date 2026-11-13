@@ -1,8 +1,11 @@
 import { prisma } from "@/lib/prisma";
+import type { Prisma } from "@/generated/prisma/client";
 import { contractUsageService, type ClientMonthlyUsage } from "@/services/contract-usage.service";
-import { currentMonth, periodKey } from "@/lib/contract-usage";
+import { currentMonth, periodKey, round2 } from "@/lib/contract-usage";
+import { periodToDateRange } from "@/lib/period";
 import { findBlockingReferences, formatBlockingReferences, type BlockingReference } from "@/lib/entity-relations";
 import { assertClientAllowed } from "@/lib/client-access";
+import { getContractAnalystExcess } from "@/services/analyst-dashboard.service";
 import type { AddExtraHoursInput, CreateContractInput, UpdateContractInput } from "@/schemas/contract.schema";
 import type { ListParams } from "@/types/common";
 import type { BulkDeleteResult } from "@/repositories/base.repository";
@@ -13,6 +16,7 @@ const includeRelations = {
   contractAnalysts: {
     select: { analyst: { select: { id: true, name: true, color: true, hourlyRate: true, excessHourlyRate: true } } },
   },
+  projects: { select: { id: true } },
 } as const;
 
 /** Field the contracts table sorts the "Consumo (mês)" column by — computed, so sorted in memory. */
@@ -71,6 +75,50 @@ async function withMonthlyUsage<T extends { id: string; clientId: string }>(orga
   return contracts.map((c) => ({ ...c, monthExtraHours: extraByContractId.get(c.id) ?? 0, usage: usageByContractId.get(c.id) ?? null }));
 }
 
+type ContractAnalystLink = Prisma.ClientContractGetPayload<{ include: typeof includeRelations }>["contractAnalysts"][number];
+type ContractAnalystValue = { normal: number; excess: number; total: number };
+
+/** Attaches, per analyst linked to the contract, how much the contract would be worth at that
+ *  analyst's rate — `value.normal` is the contract's full allowance (contracted + this month's
+ *  extra hours) at the analyst's `hourlyRate`, regardless of how much they actually worked; this is
+ *  intentionally NOT the real-work-based billing shown in the "Analistas" dashboard tab. `value.excess`
+ *  only applies when the analyst has an `excessHourlyRate` set — otherwise it's left at 0, even if
+ *  that analyst does have excess hours — priced on their prorated share of the contract's real
+ *  excess hours that month (same proration as the dashboard, via `getContractAnalystExcess`). */
+async function withAnalystValues<
+  T extends { id: string; clientId: string; contractedHours: number; monthExtraHours: number; contractAnalysts: ContractAnalystLink[]; projects: { id: string }[] },
+>(organizationId: string, contracts: T[], month: Month) {
+  const range = periodToDateRange(month)!;
+  return Promise.all(
+    contracts.map(async (c) => {
+      const { contractAnalysts: links, ...rest } = c;
+      if (links.length === 0) {
+        return { ...rest, contractAnalysts: [] as (ContractAnalystLink & { value: ContractAnalystValue })[] };
+      }
+      const excessByAnalyst = await getContractAnalystExcess(
+        organizationId,
+        {
+          id: c.id,
+          clientId: c.clientId,
+          contractedHours: c.contractedHours,
+          extraHours: [{ hours: c.monthExtraHours }],
+          contractAnalysts: links.map((ca) => ({ analystId: ca.analyst.id })),
+          projects: c.projects,
+        },
+        range
+      );
+      const allowance = round2(c.contractedHours + c.monthExtraHours);
+      const contractAnalysts = links.map((ca) => {
+        const excessHours = excessByAnalyst.get(ca.analyst.id)?.excessHours ?? 0;
+        const normal = round2(allowance * (ca.analyst.hourlyRate ?? 0));
+        const excess = ca.analyst.excessHourlyRate != null ? round2(excessHours * ca.analyst.excessHourlyRate) : 0;
+        return { ...ca, value: { normal, excess, total: round2(normal + excess) } satisfies ContractAnalystValue };
+      });
+      return { ...rest, contractAnalysts };
+    })
+  );
+}
+
 export const contractService = {
   async syncExpiredStatuses(organizationId: string, allowedClientIds: string[]) {
     await prisma.clientContract.updateMany({
@@ -120,7 +168,8 @@ export const contractService = {
         return b.contractedHours - a.contractedHours;
       });
       const total = sorted.length;
-      const data = sorted.slice((page - 1) * pageSize, (page - 1) * pageSize + pageSize);
+      const page1 = sorted.slice((page - 1) * pageSize, (page - 1) * pageSize + pageSize);
+      const data = await withAnalystValues(organizationId, page1, month);
       return { data, meta: { page, pageSize, total, totalPages: Math.ceil(total / pageSize) } };
     }
 
@@ -130,16 +179,20 @@ export const contractService = {
       prisma.clientContract.findMany({ where, orderBy, skip: (page - 1) * pageSize, take: pageSize, include: includeRelations }),
       prisma.clientContract.count({ where }),
     ]);
-    const data = await withMonthlyUsage(organizationId, rows, month);
+    const data = await withAnalystValues(organizationId, await withMonthlyUsage(organizationId, rows, month), month);
 
     return { data, meta: { page, pageSize, total, totalPages: Math.ceil(total / pageSize) } };
   },
 
-  async getById(id: string, organizationId: string, allowedClientIds: string[]) {
-    return prisma.clientContract.findFirst({
+  async getById(id: string, organizationId: string, allowedClientIds: string[], month: Month = currentMonth()) {
+    const contract = await prisma.clientContract.findFirst({
       where: { id, clientId: { in: allowedClientIds }, client: { organizationId } },
       include: includeRelations,
     });
+    if (!contract) return null;
+    const [withUsage] = await withMonthlyUsage(organizationId, [contract], month);
+    const [withValues] = await withAnalystValues(organizationId, [withUsage], month);
+    return withValues;
   },
 
   async create(input: CreateContractInput, organizationId: string, allowedClientIds: string[]) {
