@@ -1,10 +1,9 @@
 "use client"
 
-import { useState } from "react"
 import { ChartCard } from "@/components/shared/charts/chart-card"
-import type { ChartKind, ChartSeries } from "@/components/shared/charts/chart-types"
+import type { ChartSeries } from "@/components/shared/charts/chart-types"
 import { ColorBadge } from "@/components/shared/color-badge"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import { formatCurrency, formatNumber } from "@/utils/format"
 import type { AnalystUsageRow } from "@/services/analyst-dashboard.service"
 
@@ -24,66 +23,66 @@ interface AnalystDashboardTabProps {
 }
 
 export function AnalystDashboardTab({ data, periodLabel, pending }: AnalystDashboardTabProps) {
-  const [hoursKind, setHoursKind] = useState<ChartKind>("bar-v")
-  const [valueKind, setValueKind] = useState<ChartKind>("bar-v")
-
-  const hoursByContract = data.flatMap((analyst) =>
-    analyst.contracts.map((c) => ({
-      name: `${analyst.analystName} — ${c.clientName}`,
-      normal: c.hoursNormal,
-      excedente: c.hoursExcess,
-      color: c.clientColor,
-    }))
-  )
-  const valueByContract = data.flatMap((analyst) =>
-    analyst.contracts.map((c) => ({
-      name: `${analyst.analystName} — ${c.clientName}`,
-      valorNormal: c.valueNormal,
-      valorExcedente: c.valueExcess,
-      color: c.clientColor,
-    }))
-  )
+  if (data.length === 0) {
+    return <p className="text-sm text-muted-foreground">Nenhum contrato com analistas vinculados no período.</p>
+  }
 
   return (
-    <div className="space-y-6">
-      <div className="grid gap-4 lg:grid-cols-2">
-        <ChartCard
-          title={`Horas normais x excedentes por contrato (${periodLabel})`}
-          data={hoursByContract}
-          nameKey="name"
-          series={HOURS_SERIES}
-          kind={hoursKind}
-          onKindChange={setHoursKind}
-          colorKey="color"
-          valueFormatter={(v) => `${formatNumber(v)}h`}
-          emptyMessage="Nenhum contrato com analistas vinculados no período."
-          pending={pending}
-        />
-        <ChartCard
-          title={`Valor normal x excedente por contrato (${periodLabel})`}
-          data={valueByContract}
-          nameKey="name"
-          series={VALUE_SERIES}
-          kind={valueKind}
-          onKindChange={setValueKind}
-          colorKey="color"
-          valueFormatter={(v) => formatCurrency(v)}
-          emptyMessage="Nenhum contrato com analistas vinculados no período."
-          pending={pending}
-        />
-      </div>
+    <Accordion multiple className="space-y-3">
+      {data.map((analyst) => {
+        const hoursByContract = analyst.contracts.map((c) => ({
+          name: c.clientName,
+          normal: c.hoursNormal,
+          excedente: c.hoursExcess,
+          color: c.clientColor,
+        }))
+        const valueByContract = analyst.contracts.map((c) => ({
+          name: c.clientName,
+          valorNormal: c.valueNormal,
+          valorExcedente: c.valueExcess,
+          color: c.clientColor,
+        }))
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-sm">Detalhe por analista e contrato — {periodLabel}</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {data.length === 0 && (
-            <p className="text-sm text-muted-foreground">Nenhum contrato com analistas vinculados no período.</p>
-          )}
-          {data.map((analyst) => (
-            <div key={analyst.analystId} className="space-y-2 rounded-xl border p-3">
-              <ColorBadge label={analyst.analystName} color={analyst.analystColor} solid />
+        return (
+          <AccordionItem key={analyst.analystId} value={analyst.analystId}>
+            <AccordionTrigger>
+              <div className="flex flex-1 flex-wrap items-center justify-between gap-2 pr-2">
+                <ColorBadge label={analyst.analystName} color={analyst.analystColor} solid />
+                <span className="text-xs text-muted-foreground">
+                  {analyst.contracts.length} contrato(s) · {formatCurrency(analyst.totals.valueTotal)} ({periodLabel})
+                </span>
+              </div>
+            </AccordionTrigger>
+            <AccordionContent className="space-y-4">
+              <div className="grid gap-4 lg:grid-cols-2">
+                <ChartCard
+                  title={`Horas normais x excedentes por contrato (${periodLabel})`}
+                  data={hoursByContract}
+                  nameKey="name"
+                  series={HOURS_SERIES}
+                  kind="bar-v"
+                  onKindChange={() => {}}
+                  allowedKinds={["bar-v"]}
+                  colorKey="color"
+                  valueFormatter={(v) => `${formatNumber(v)}h`}
+                  emptyMessage="Nenhum contrato no período."
+                  pending={pending}
+                />
+                <ChartCard
+                  title={`Valor normal x excedente por contrato (${periodLabel})`}
+                  data={valueByContract}
+                  nameKey="name"
+                  series={VALUE_SERIES}
+                  kind="bar-h"
+                  onKindChange={() => {}}
+                  allowedKinds={["bar-h"]}
+                  colorKey="color"
+                  valueFormatter={(v) => formatCurrency(v)}
+                  emptyMessage="Nenhum contrato no período."
+                  pending={pending}
+                />
+              </div>
+
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead className="text-xs text-muted-foreground">
@@ -122,10 +121,10 @@ export function AnalystDashboardTab({ data, periodLabel, pending }: AnalystDashb
                   </tfoot>
                 </table>
               </div>
-            </div>
-          ))}
-        </CardContent>
-      </Card>
-    </div>
+            </AccordionContent>
+          </AccordionItem>
+        )
+      })}
+    </Accordion>
   )
 }
