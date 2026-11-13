@@ -7,6 +7,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { MultiSelect } from "@/components/ui/multi-select"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { DataTable } from "@/components/shared/data-table"
 import { CollapsibleCardHeader } from "@/components/shared/collapsible-card-header"
@@ -17,6 +18,7 @@ import {
   auditRowsToSheetRows,
   pendingMessage,
   TOTVS_AUDIT_STATUSES,
+  type TotvsAuditItem,
   type TotvsAuditStatus,
   type TotvsFieldAuditRow,
 } from "@/lib/ps-docs/totvs-field-audit"
@@ -148,6 +150,11 @@ export function TotvsFieldAuditResults({ audit }: { audit: TotvsFieldAuditState 
   const { rows, loading, warnings } = audit
   const [statusFilter, setStatusFilter] = useState("")
   const [textFilter, setTextFilter] = useState("")
+  const [tabelaPsFilter, setTabelaPsFilter] = useState("")
+  const [tabelaFilter, setTabelaFilter] = useState("")
+  const [campoFilter, setCampoFilter] = useState("")
+  const [nomeAlternativoFilter, setNomeAlternativoFilter] = useState("")
+  const [faltandoFilter, setFaltandoFilter] = useState<string[]>([])
   const [open, setOpen] = useState(true)
 
   const counts = useMemo(() => {
@@ -156,17 +163,38 @@ export function TotvsFieldAuditResults({ audit }: { audit: TotvsFieldAuditState 
     return result
   }, [rows])
 
+  // Distinct values seen across all rows (not the filtered set), so picking one filter never hides options for another.
+  const tabelaOptions = useMemo(
+    () =>
+      Array.from(new Set(rows.map((r) => r.tabela).filter((v): v is string => !!v))).sort((a, b) =>
+        a.localeCompare(b, "pt-BR")
+      ),
+    [rows]
+  )
+  const campoOptions = useMemo(
+    () =>
+      Array.from(new Set(rows.map((r) => r.campo).filter((v): v is string => !!v))).sort((a, b) =>
+        a.localeCompare(b, "pt-BR")
+      ),
+    [rows]
+  )
+
   const filteredRows = useMemo(() => {
     const text = textFilter.trim().toLowerCase()
     return rows.filter(
       (r) =>
         (!statusFilter || r.status === statusFilter) &&
+        (!tabelaPsFilter || r.tabelaPs === tabelaPsFilter) &&
+        (!tabelaFilter || r.tabela === tabelaFilter) &&
+        (!campoFilter || r.campo === campoFilter) &&
+        (!nomeAlternativoFilter || (nomeAlternativoFilter === "true" ? !!r.nomeAlternativo : !r.nomeAlternativo)) &&
+        (faltandoFilter.length === 0 || faltandoFilter.some((item) => r.faltando.includes(item as TotvsAuditItem))) &&
         (!text ||
           [String(r.id), r.nome, r.tipo, r.tabela, r.campo, r.nomeAlternativo]
             .filter(Boolean)
             .some((v) => v!.toLowerCase().includes(text)))
     )
-  }, [rows, statusFilter, textFilter])
+  }, [rows, statusFilter, textFilter, tabelaPsFilter, tabelaFilter, campoFilter, nomeAlternativoFilter, faltandoFilter])
 
   const columns = useMemo<ColumnDef<TotvsFieldAuditRow>[]>(
     () => [
@@ -239,7 +267,7 @@ export function TotvsFieldAuditResults({ audit }: { audit: TotvsFieldAuditState 
   }
 
   const filterPanel = (
-    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+    <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
       <div className="space-y-2">
         <Label>Status</Label>
         <Select
@@ -259,6 +287,101 @@ export function TotvsFieldAuditResults({ audit }: { audit: TotvsFieldAuditState 
             ))}
           </SelectContent>
         </Select>
+      </div>
+      <div className="space-y-2">
+        <Label>Tabela do PS</Label>
+        <Select
+          items={[
+            { value: "all", label: "Todos" },
+            { value: "Pessoa", label: "Pessoa" },
+            { value: "Inscrição", label: "Inscrição" },
+          ]}
+          value={tabelaPsFilter || "all"}
+          onValueChange={(v) => setTabelaPsFilter(!v || v === "all" ? "" : v)}
+        >
+          <SelectTrigger className="w-full">
+            <SelectValue placeholder="Todos" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos</SelectItem>
+            <SelectItem value="Pessoa">Pessoa</SelectItem>
+            <SelectItem value="Inscrição">Inscrição</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="space-y-2">
+        <Label>Nome alternativo</Label>
+        <Select
+          items={[
+            { value: "all", label: "Todos" },
+            { value: "true", label: "Possui" },
+            { value: "false", label: "Não possui" },
+          ]}
+          value={nomeAlternativoFilter || "all"}
+          onValueChange={(v) => setNomeAlternativoFilter(!v || v === "all" ? "" : v)}
+        >
+          <SelectTrigger className="w-full">
+            <SelectValue placeholder="Todos" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos</SelectItem>
+            <SelectItem value="true">Possui</SelectItem>
+            <SelectItem value="false">Não possui</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="space-y-2">
+        <Label>Tabela TOTVS</Label>
+        <Select
+          items={[{ value: "all", label: "Todos" }, ...tabelaOptions.map((t) => ({ value: t, label: t }))]}
+          value={tabelaFilter || "all"}
+          onValueChange={(v) => setTabelaFilter(!v || v === "all" ? "" : v)}
+        >
+          <SelectTrigger className="w-full">
+            <SelectValue placeholder="Todos" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos</SelectItem>
+            {tabelaOptions.map((t) => (
+              <SelectItem key={t} value={t}>
+                {t}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="space-y-2">
+        <Label>Campo TOTVS</Label>
+        <Select
+          items={[{ value: "all", label: "Todos" }, ...campoOptions.map((c) => ({ value: c, label: c }))]}
+          value={campoFilter || "all"}
+          onValueChange={(v) => setCampoFilter(!v || v === "all" ? "" : v)}
+        >
+          <SelectTrigger className="w-full">
+            <SelectValue placeholder="Todos" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos</SelectItem>
+            {campoOptions.map((c) => (
+              <SelectItem key={c} value={c}>
+                {c}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="space-y-2">
+        <Label>O que falta</Label>
+        <MultiSelect
+          items={[
+            { value: "tabela", label: "Tabela" },
+            { value: "campo", label: "Campo" },
+            { value: "nome alternativo", label: "Nome alternativo" },
+          ]}
+          value={faltandoFilter}
+          onValueChange={setFaltandoFilter}
+          placeholder="Todos"
+        />
       </div>
     </div>
   )
