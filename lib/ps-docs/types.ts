@@ -524,3 +524,70 @@ export interface PortalProcessDocState {
   warnings: string[];
   error?: string;
 }
+
+/** Readable "where this trail lives" path (Etapa > Passo > Item > ...), in builder order — used
+ *  both to show "onde isso está" and to group/sort trails in the UI/exports. */
+export interface TrilhaBreadcrumb {
+  etapa: string;
+  passo?: string;
+  /** Nested agrupamento path leading to the element (e.g. ["Agrupamento Endereço", "CEP"]). */
+  itens?: string[];
+  /** Present only when the trail belongs to a botão's own ação or encaminhamento. */
+  botao?: string;
+  acao?: string; // e.g. "[2] Realizar consulta"
+  encaminhamento?: string; // e.g. "Abrir pop-up → Confirmação"
+}
+
+export type TrilhaTipo =
+  | "logica-elemento" // Mostrar/Ocultar etapa, item, componente, campo
+  | "logica-acao" // Executar/Não executar ação de botão ou encaminhamento
+  | "origem-consulta-sql" // ConsultaSqlSpec (etapa/passo/popup) ou FonteDadosSpec (ação de botão)
+  | "origem-campo-totvs" // CampoDados.opcoesPredefinidas.fonte === "TOTVS"
+  | "origem-externa"; // CampoDados.fonteExterna configurado
+
+/** A LOGIC trail (mostrar/ocultar/executar) — start = breadcrumb of where the rule is configured,
+ *  middle = `logica` (regras + condição), end = the element the rule affects (a display/execution
+ *  rule always decides the visibility/execution of its OWN element, never a different one). */
+export interface TrilhaLogica {
+  tipo: "logica-elemento" | "logica-acao";
+  breadcrumb: TrilhaBreadcrumb;
+  /** Name of the affected etapa/item/ação/encaminhamento — shown as the trail's end. */
+  elementoAfetado: string;
+  logica: LogicaSpec;
+}
+
+/** A DATA ORIGIN trail — start = breadcrumb of where the field/ação sits, middle = the source
+ *  detail (a real TOTVS query, a campo's own "fonte TOTVS" flag, or an external API), end = the
+ *  campo/ação that receives the value. */
+export type TrilhaOrigem =
+  | {
+      tipo: "origem-consulta-sql";
+      breadcrumb: TrilhaBreadcrumb;
+      elementoAlimentado: string;
+      /** Where the query is actually configured/returns to, e.g. "Etapa", "Passo", "Pop-up",
+       *  "Ação de botão", "Consulta do portal", "Integração do portal". */
+      configuradaEm: string;
+      consultaSql?: ConsultaSqlSpec;
+      fonteDados?: FonteDadosSpec;
+    }
+  | {
+      tipo: "origem-campo-totvs";
+      breadcrumb: TrilhaBreadcrumb;
+      elementoAlimentado: string;
+      opcoesPredefinidas: NonNullable<CampoDados["opcoesPredefinidas"]>;
+    }
+  | {
+      tipo: "origem-externa";
+      breadcrumb: TrilhaBreadcrumb;
+      elementoAlimentado: string;
+      fonteExterna: NonNullable<CampoDados["fonteExterna"]>;
+    };
+
+export type TrilhaEntry = TrilhaLogica | TrilhaOrigem;
+
+/** Result of the logic-trail transformer for a single processo seletivo. */
+export interface LogicTrailDoc {
+  tituloPortal: string;
+  idPs: string;
+  trilhas: TrilhaEntry[];
+}

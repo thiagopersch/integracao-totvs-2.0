@@ -43,6 +43,7 @@ import {
   CalendarClock,
   FileSpreadsheet,
   Sparkles,
+  GitBranch,
   type LucideIcon,
 } from "lucide-react";
 
@@ -91,4 +92,5 @@ export const NAV_ICONS: Record<string, LucideIcon> = {
   CalendarClock,
   FileSpreadsheet,
   Sparkles,
+  GitBranch,
 };

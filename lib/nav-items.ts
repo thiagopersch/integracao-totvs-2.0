@@ -135,6 +135,7 @@ export const navGroups: NavGroup[] = [
     forceCollapsible: true,
     items: [
       { href: "/integrations/ps-docs", label: "Gerar documentação", icon: "FileText", resource: "ps_docs", action: "execute" },
+      { href: "/integrations/ps-logic-docs", label: "Trilhas de lógica", icon: "GitBranch", resource: "ps_docs", action: "execute" },
       { href: "/integrations/ps-field-search", label: "Buscar elementos", icon: "SearchCode", resource: "ps_field_search", action: "execute" },
       { href: "/integrations/ps-ficha-test", label: "Testes automatizados", icon: "FlaskConical", resource: "ps_ficha_test", action: "execute" },
     ],
