@@ -56,7 +56,7 @@ export function ChecklistSqlDialog({ tbcId, checklist, context, onOpenChange }: 
 
   return (
     <Dialog open onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent size="lg">
         <DialogHeader>
           <DialogTitle>SQL do checklist &quot;{checklist.name}&quot;</DialogTitle>
           <DialogDescription>

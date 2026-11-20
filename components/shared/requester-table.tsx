@@ -164,7 +164,7 @@ export function RequesterTable({ data, meta, clients }: RequesterTableProps) {
   const newDialog = (
     <Dialog open={editDialog.open} onOpenChange={(open) => { setEditDialog({ open, entity: open ? editDialog.entity : undefined }); if (open && !editDialog.entity) setNewColor(randomColor()); if (!open) form.reset() }}>
       <DialogTrigger render={<Button><Plus className="h-4 w-4 mr-2" /> Novo Solicitante</Button>} />
-      <DialogContent className="h-auto max-h-[85vh] sm:max-w-lg">
+      <DialogContent size="sm">
         <DialogHeader>
           <DialogTitle>{editDialog.entity ? "Editar Solicitante" : "Novo Solicitante"}</DialogTitle>
         </DialogHeader>

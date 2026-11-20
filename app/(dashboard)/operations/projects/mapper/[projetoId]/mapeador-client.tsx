@@ -134,7 +134,7 @@ export function MapeadorClient({ initialProjeto, clientes }: MapeadorClientProps
     const text = await file.text()
     const result = await importMapeadorProjeto(text)
     if (!result.success) return toast.error(result.error || "Erro ao importar JSON")
-    router.push(`/projetos/mapeador/${result.data.id}`)
+    router.push(`/operations/projects/mapper/${result.data.id}`)
   }
 
   async function handleSaveModelo() {
@@ -190,7 +190,7 @@ export function MapeadorClient({ initialProjeto, clientes }: MapeadorClientProps
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as typeof activeTab)} className="flex h-full flex-col">
         <div className="sticky top-0 z-10 flex flex-wrap items-center justify-between gap-3 border-b bg-background p-4">
           <div className="flex min-w-0 max-w-full flex-wrap items-center gap-3">
-            <Button variant="ghost" size="icon" onClick={() => router.push("/projetos/mapeador")}>
+            <Button variant="ghost" size="icon" onClick={() => router.push("/operations/projects/mapper")}>
               <ArrowLeft className="h-4 w-4" />
             </Button>
             <Input

@@ -44,7 +44,7 @@ export async function createMapeadorProjetosFromTemplates(templateIds: string[],
     for (const projeto of created) {
       await auditService.log({ action: "CREATE", entity: "MapeadorProjeto", entityId: projeto.id, newData: { nome: projeto.nome, fromTemplate: true } });
     }
-    revalidatePath("/projetos/mapeador");
+    revalidatePath("/operations/projects/mapper");
     return { success: true as const, data: created };
   } catch (error) {
     return fail(error);
@@ -70,7 +70,7 @@ export async function createMapeadorProjeto(nome: string, clienteId?: string | n
   try {
     const projeto = await mapeadorService.createProjeto(parsed.data.nome, organizationId, parsed.data.clienteId ?? null);
     await auditService.log({ action: "CREATE", entity: "MapeadorProjeto", entityId: projeto.id, newData: { nome: projeto.nome } });
-    revalidatePath("/projetos/mapeador");
+    revalidatePath("/operations/projects/mapper");
     return { success: true as const, data: projeto };
   } catch (error) {
     return fail(error);
@@ -84,8 +84,8 @@ export async function renameMapeadorProjeto(id: string, nome: string) {
 
   try {
     const projeto = await mapeadorService.renameProjeto(id, parsed.data.nome, organizationId);
-    revalidatePath("/projetos/mapeador");
-    revalidatePath(`/projetos/mapeador/${id}`);
+    revalidatePath("/operations/projects/mapper");
+    revalidatePath(`/operations/projects/mapper/${id}`);
     return { success: true as const, data: projeto };
   } catch (error) {
     return fail(error);
@@ -96,8 +96,8 @@ export async function updateMapeadorProjetoCliente(id: string, clienteId: string
   const { organizationId } = await requirePermission("mapeador_projetos", "update");
   try {
     const projeto = await mapeadorService.updateCliente(id, clienteId, organizationId);
-    revalidatePath("/projetos/mapeador");
-    revalidatePath(`/projetos/mapeador/${id}`);
+    revalidatePath("/operations/projects/mapper");
+    revalidatePath(`/operations/projects/mapper/${id}`);
     return { success: true as const, data: projeto };
   } catch (error) {
     return fail(error);
@@ -109,7 +109,7 @@ export async function deleteMapeadorProjeto(id: string) {
   try {
     await mapeadorService.softDeleteProjeto(id, organizationId);
     await auditService.log({ action: "DELETE", entity: "MapeadorProjeto", entityId: id });
-    revalidatePath("/projetos/mapeador");
+    revalidatePath("/operations/projects/mapper");
     return { success: true as const };
   } catch (error) {
     return fail(error);
@@ -123,7 +123,7 @@ export async function updateMapeadorInformacoesAdicionais(id: string, data: Reco
 
   try {
     await mapeadorService.updateInformacoesAdicionais(id, parsed.data, organizationId);
-    revalidatePath(`/projetos/mapeador/${id}`);
+    revalidatePath(`/operations/projects/mapper/${id}`);
     return { success: true as const };
   } catch (error) {
     return fail(error);
@@ -137,7 +137,7 @@ export async function updateMapeadorPrototipoConfig(id: string, data: Record<str
 
   try {
     await mapeadorService.updatePrototipoConfig(id, parsed.data, organizationId);
-    revalidatePath(`/projetos/mapeador/${id}`);
+    revalidatePath(`/operations/projects/mapper/${id}`);
     return { success: true as const };
   } catch (error) {
     return fail(error);
@@ -151,7 +151,7 @@ export async function createMapeadorEtapa(projetoId: string, nome: string) {
 
   try {
     const etapa = await mapeadorService.createEtapa(projetoId, parsed.data.nome, organizationId);
-    revalidatePath(`/projetos/mapeador/${projetoId}`);
+    revalidatePath(`/operations/projects/mapper/${projetoId}`);
     return { success: true as const, data: etapa };
   } catch (error) {
     return fail(error);
@@ -162,7 +162,7 @@ export async function duplicateMapeadorEtapa(etapaId: string, projetoId: string)
   const { organizationId } = await requirePermission("mapeador_projetos", "update");
   try {
     const etapa = await mapeadorService.duplicateEtapa(etapaId, organizationId);
-    revalidatePath(`/projetos/mapeador/${projetoId}`);
+    revalidatePath(`/operations/projects/mapper/${projetoId}`);
     return { success: true as const, data: etapa };
   } catch (error) {
     return fail(error);
@@ -180,7 +180,7 @@ export async function updateMapeadorEtapa(
 
   try {
     await mapeadorService.updateEtapa(etapaId, parsed.data as never, organizationId);
-    revalidatePath(`/projetos/mapeador/${projetoId}`);
+    revalidatePath(`/operations/projects/mapper/${projetoId}`);
     return { success: true as const };
   } catch (error) {
     return fail(error);
@@ -191,7 +191,7 @@ export async function deleteMapeadorEtapa(etapaId: string, projetoId: string) {
   const { organizationId } = await requirePermission("mapeador_projetos", "update");
   try {
     await mapeadorService.deleteEtapa(etapaId, organizationId);
-    revalidatePath(`/projetos/mapeador/${projetoId}`);
+    revalidatePath(`/operations/projects/mapper/${projetoId}`);
     return { success: true as const };
   } catch (error) {
     return fail(error);
@@ -205,7 +205,7 @@ export async function reorderMapeadorEtapas(projetoId: string, ids: string[]) {
 
   try {
     await mapeadorService.reorderEtapas(projetoId, parsed.data.ids, organizationId);
-    revalidatePath(`/projetos/mapeador/${projetoId}`);
+    revalidatePath(`/operations/projects/mapper/${projetoId}`);
     return { success: true as const };
   } catch (error) {
     return fail(error);
@@ -220,7 +220,7 @@ export async function importMapeadorProjeto(json: string) {
 
     const projeto = await mapeadorService.importProjeto(data, organizationId);
     await auditService.log({ action: "CREATE", entity: "MapeadorProjeto", entityId: projeto.id, newData: { nome: projeto.nome, imported: true } });
-    revalidatePath("/projetos/mapeador");
+    revalidatePath("/operations/projects/mapper");
     return { success: true as const, data: projeto };
   } catch (error) {
     return fail(error);

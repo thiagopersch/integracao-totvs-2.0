@@ -361,7 +361,7 @@ export function FilterTable({ data, meta, clients, tbcs, sistemas, categories, f
                 disabled={isNavigatingBackups && navigatingFilterId === row.original.id}
                 onClick={() => {
                   setNavigatingFilterId(row.original.id)
-                  startNavigatingBackups(() => router.push(`/admin/backups/${row.original.id}`))
+                  startNavigatingBackups(() => router.push(`/totvs/backups/${row.original.id}`))
                 }}
               >
                 {isNavigatingBackups && navigatingFilterId === row.original.id ? (

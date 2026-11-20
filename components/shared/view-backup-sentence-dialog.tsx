@@ -56,10 +56,7 @@ export function ViewBackupSentenceDialog({ open, onOpenChange, backup, onRestore
       }}
     >
       <DialogContent
-        className={cn(
-          "transition-[width,height]",
-          fullscreen && "h-[95vh]! max-h-[95vh]! w-[95vw]! max-w-[95vw]!"
-        )}
+        size={fullscreen ? "fullscreen" : "lg"}
         headerActions={
           <WithTooltip label={fullscreen ? "Tamanho normal" : "Expandir"}>
             <Button

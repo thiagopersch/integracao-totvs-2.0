@@ -68,7 +68,7 @@ export function ImportChecklistDialog({ target, onOpenChange, onImported }: Impo
 
   return (
     <Dialog open onOpenChange={(open) => !importing && onOpenChange(open)}>
-      <DialogContent className="h-auto max-h-[85vh] sm:max-w-xl">
+      <DialogContent size="sm">
         <DialogHeader>
           <DialogTitle>Importar estrutura para &quot;{target.name}&quot;</DialogTitle>
         </DialogHeader>

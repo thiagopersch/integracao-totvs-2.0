@@ -451,7 +451,7 @@ export function SheetSyncsClient({ syncs, clients, analysts, google, canManageGo
       </Card>
 
       <Dialog open={editing.open} onOpenChange={(open) => setEditing((e) => ({ ...e, open }))}>
-        <DialogContent className="h-auto max-w-2xl sm:w-[42rem]">
+        <DialogContent>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <FileSpreadsheet className="h-4 w-4" /> {editing.id ? "Editar planilha" : "Nova planilha"}

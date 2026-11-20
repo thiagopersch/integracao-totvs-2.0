@@ -122,7 +122,7 @@ export function ProjectTable({ data, meta, options, defs }: ProjectTableProps) {
         header: "Projeto",
         cell: ({ row }) => (
           <Link
-            href={`/projetos/gestao/${row.original.id}`}
+            href={`/operations/projects/${row.original.id}`}
             className="flex items-center gap-2 font-medium hover:underline"
             onClick={(e) => e.stopPropagation()}
           >
@@ -211,7 +211,7 @@ export function ProjectTable({ data, meta, options, defs }: ProjectTableProps) {
         <EntityActionsCell
           beforeEdit={
             <>
-              <DropdownMenuItem onClick={() => router.push(`/projetos/gestao/${row.original.id}`)}>
+              <DropdownMenuItem onClick={() => router.push(`/operations/projects/${row.original.id}`)}>
                 <FolderOpen className="mr-2 h-4 w-4" /> Abrir projeto
               </DropdownMenuItem>
               {canUpdate && (
@@ -230,7 +230,7 @@ export function ProjectTable({ data, meta, options, defs }: ProjectTableProps) {
               )}
             </>
           }
-          onEdit={canUpdate ? () => router.push(`/projetos/gestao/${row.original.id}/configuracoes`) : undefined}
+          onEdit={canUpdate ? () => router.push(`/operations/projects/${row.original.id}/configuracoes`) : undefined}
           editLabel="Configurações"
           onDelete={canDelete ? () => setDeleteDialog({ open: true, id: row.original.id }) : undefined}
         />
@@ -328,10 +328,10 @@ export function ProjectTable({ data, meta, options, defs }: ProjectTableProps) {
         searchPlaceholder="Buscar por nome, código ou patrocinador..."
         searchDefaultValue={searchParams.get("search") ?? ""}
         onSearch={(v) => pushParams({ search: v || undefined, page: 1 })}
-        onRowClick={(row) => router.push(`/projetos/gestao/${row.id}`)}
+        onRowClick={(row) => router.push(`/operations/projects/${row.id}`)}
         toolbarActions={
           canCreate ? (
-            <Button onClick={() => router.push("/projetos/gestao/novo")}>
+            <Button onClick={() => router.push("/operations/projects/novo")}>
               <Plus className="mr-2 h-4 w-4" /> Novo Projeto
             </Button>
           ) : undefined

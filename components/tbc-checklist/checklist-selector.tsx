@@ -176,7 +176,7 @@ export function ChecklistSelector({
       </Tooltip>
 
       <Dialog open={nameDialog !== null} onOpenChange={(open) => !open && !saving && setNameDialog(null)}>
-        <DialogContent className="h-auto max-h-[85vh] sm:max-w-lg">
+        <DialogContent size="sm">
           <DialogHeader>
             <DialogTitle>{nameDialog?.kind === "rename" ? "Renomear checklist" : "Novo checklist"}</DialogTitle>
           </DialogHeader>

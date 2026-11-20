@@ -623,7 +623,7 @@ export function TbcChecklistClient({ tbc, dataservers, checklists: initialCheckl
   return (
     <div className="flex h-full flex-col gap-4">
       <div className="flex min-w-0 items-center gap-3">
-        <Link href="/admin/tbcs">
+        <Link href="/totvs/tbcs">
           <WithTooltip label="Voltar">
             <Button variant="ghost" size="icon" aria-label="Voltar">
               <ArrowLeft className="h-4 w-4" />

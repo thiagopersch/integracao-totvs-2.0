@@ -197,7 +197,7 @@ interface PopupCampoDialogProps {
 function PopupCampoDialog({ passo, onClose, renderCampo, container }: PopupCampoDialogProps) {
   return (
     <Dialog open={!!passo} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent container={container} className="h-auto max-h-[85vh] w-auto max-w-xl">
+      <DialogContent container={container} size="sm">
         <DialogHeader>
           <DialogTitle>{passo?.titulo || "Pop-up"}</DialogTitle>
         </DialogHeader>
@@ -257,7 +257,7 @@ interface DownloadSuccessDialogProps {
 function DownloadSuccessDialog({ open, mensagem, onClose, onContinuar, container }: DownloadSuccessDialogProps) {
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent container={container} className="h-auto max-h-[85vh] w-auto max-w-md">
+      <DialogContent container={container} size="sm">
         <DialogHeader>
           <DialogTitle>{mensagem}</DialogTitle>
           <DialogDescription>Download realizado com sucesso, caso precise, você poderá voltar e baixar novamente.</DialogDescription>
@@ -281,7 +281,7 @@ interface DocumentoPreviewDialogProps {
 function DocumentoPreviewDialog({ open, nomeArquivo, onClose, container }: DocumentoPreviewDialogProps) {
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent container={container} className="h-auto max-h-[85vh] w-auto max-w-md">
+      <DialogContent container={container} size="sm">
         <DialogHeader>
           <DialogTitle>{nomeArquivo}</DialogTitle>
         </DialogHeader>

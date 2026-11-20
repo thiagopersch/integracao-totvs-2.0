@@ -78,7 +78,7 @@ function RiskDialog({
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent size="sm">
         <DialogHeader>
           <DialogTitle>{risk ? "Editar risco" : "Novo risco"}</DialogTitle>
         </DialogHeader>

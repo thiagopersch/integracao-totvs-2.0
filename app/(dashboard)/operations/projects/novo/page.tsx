@@ -19,7 +19,7 @@ export default function NewProjectPage() {
 
 async function NewProjectContent() {
   const { organizationId, allowedClientIds, permissions } = await getRequestContext()
-  // The route prefix (/projetos/gestao) only requires projects:read — creating needs its own grant.
+  // The route prefix (/operations/projects) only requires projects:read — creating needs its own grant.
   if (!hasPermission(permissions, "projects", "create")) notFound()
   const [options, defs] = await Promise.all([
     getProjectPickerOptions(organizationId, allowedClientIds),

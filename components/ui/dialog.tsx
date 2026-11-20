@@ -56,11 +56,26 @@ function DialogOverlay(_props: { className?: string }) {
   return null
 }
 
+type DialogSize = "sm" | "md" | "lg" | "fullscreen"
+
+const SIZE_CLASSES: Record<DialogSize, string> = {
+  sm: "h-auto max-h-[70vh] w-auto min-w-[min(24rem,90vw)] max-w-[70vw]",
+  md: "h-auto max-h-[70vh] w-auto min-w-[min(40rem,90vw)] max-w-[70vw]",
+  lg: "h-auto max-h-[70vh] w-auto min-w-[min(60vw,90vw)] max-w-[70vw]",
+  fullscreen: "h-[95vh] max-h-[95vh] w-[95vw] max-w-[95vw]",
+}
+
 type DialogContentProps = Omit<React.ComponentProps<"div">, "title"> & {
   showCloseButton?: boolean
   headerActions?: React.ReactNode
   /** Portal target — defaults to document.body. Pass an element scoped to a CSS-scoped subtree (e.g. the mapeador prototipo preview) so descendant-selector styles still apply to the dialog's content. */
   container?: Element | React.RefObject<Element | null> | null
+  /**
+   * Width preset. All sizes are capped at 70vw × 70vh with automatic height;
+   * `sm`/`md`/`lg` only change the minimum width. `fullscreen` (95vw × 95vh,
+   * fixed height) is reserved for editors/previews and "maximize" toggles.
+   */
+  size?: DialogSize
   /** Base UI compat. */
   initialFocus?: unknown
   finalFocus?: unknown
@@ -72,6 +87,7 @@ function DialogContent({
   showCloseButton = true,
   headerActions,
   container,
+  size = "md",
   initialFocus: _initialFocus,
   finalFocus: _finalFocus,
   style,
@@ -92,10 +108,11 @@ function DialogContent({
       slotProps={{
         paper: {
           "data-slot": "dialog-content",
+          "data-size": size,
           className: cn(
             "relative flex flex-col overflow-hidden text-sm",
-            "h-[80vh] max-h-[80vh] w-[80vw] max-w-[80vw]",
-            "max-sm:h-[90vh]! max-sm:max-h-[90vh]! max-sm:w-[90vw]! max-sm:max-w-[90vw]!",
+            SIZE_CLASSES[size],
+            size !== "fullscreen" && "max-sm:max-h-[90vh]! max-sm:w-[95vw]! max-sm:min-w-0! max-sm:max-w-[95vw]!",
             className
           ),
           style,

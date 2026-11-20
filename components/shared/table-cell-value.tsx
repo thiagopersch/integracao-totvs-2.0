@@ -55,9 +55,7 @@ export function TableCellValue({ value }: TableCellValueProps) {
         <TooltipContent>Ver valor completo</TooltipContent>
       </Tooltip>
       <DialogContent
-        className={
-          expanded ? "h-[90vh] max-h-[90vh] w-[90vw] max-w-[90vw]" : "h-[70vh] max-h-[70vh] w-[70vw] max-w-[70vw]"
-        }
+        size={expanded ? "fullscreen" : "lg"}
       >
         <DialogHeader className="flex-row items-center justify-between">
           <DialogTitle>Valor completo</DialogTitle>

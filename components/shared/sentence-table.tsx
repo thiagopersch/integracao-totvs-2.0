@@ -175,10 +175,7 @@ export function SentenceTable({ data, meta, categories }: SentenceTableProps) {
     <Dialog open={editDialog.open} onOpenChange={(open) => { setEditDialog({ open, entity: open ? editDialog.entity : undefined }); if (!open) { form.reset(); setFullscreen(false) } }}>
       <DialogTrigger render={<Button><Plus className="h-4 w-4 mr-2" /> Nova Sentença</Button>} />
       <DialogContent
-        className={cn(
-          "transition-[width,height]",
-          fullscreen && "h-[95vh]! max-h-[95vh]! w-[95vw]! max-w-[95vw]!"
-        )}
+        size={fullscreen ? "fullscreen" : "lg"}
         headerActions={
           <WithTooltip label={fullscreen ? "Tamanho normal" : "Expandir"}>
             <Button

@@ -8,6 +8,7 @@ import Divider from "@mui/material/Divider"
 import FormControl from "@mui/material/FormControl"
 import InputLabel from "@mui/material/InputLabel"
 import OutlinedInput from "@mui/material/OutlinedInput"
+import FilledInput from "@mui/material/FilledInput"
 import { CheckIcon, ChevronDownIcon } from "lucide-react"
 
 import { cn } from "@/lib/utils"
@@ -151,6 +152,17 @@ function TriggerSurface({ disabled, onToggle, ref, className, children, onFocus,
   )
 }
 
+function containsPlaceholder(node: React.ReactNode): boolean {
+  let found = false
+  React.Children.forEach(node, (child) => {
+    if (found || !React.isValidElement(child)) return
+    const props = child.props as { placeholder?: React.ReactNode; children?: React.ReactNode }
+    if (child.type === SelectValue) found = props.placeholder != null && props.placeholder !== ""
+    else if (props.children) found = containsPlaceholder(props.children)
+  })
+  return found
+}
+
 function SelectTrigger({
   className,
   size = "default",
@@ -165,9 +177,13 @@ function SelectTrigger({
   const isEmpty = value == null || value === ""
   const [focused, setFocused] = React.useState(false)
   const invalid = props["aria-invalid"] === true || props["aria-invalid"] === "true"
-  const shrink = !!floating && (floating.static || !isEmpty || open || focused)
+  // A visible placeholder (SelectValue placeholder) must never sit under the label: shrink it into the notch.
+  const hasPlaceholder = React.useMemo(() => containsPlaceholder(children), [children])
+  const shrink = !!floating && (floating.static || !isEmpty || open || focused || hasPlaceholder)
   const { box, rest } = splitBoxClasses(className ?? "")
-  const height = size === "sm" ? "h-8" : floating ? "h-10" : "h-9"
+  const isFilled = floating?.variant === "filled"
+  const Control = isFilled ? FilledInput : OutlinedInput
+  const height = size === "sm" ? "h-8" : isFilled ? "h-12" : floating ? "h-10" : "h-9"
 
   const surfaceId = id ?? floating?.id
   const labelId = React.useId()
@@ -187,12 +203,11 @@ function SelectTrigger({
   } as Record<string, unknown>
 
   const input = (
-    <OutlinedInput
+    <Control
       ref={setAnchorEl}
       disabled={isDisabled}
       error={invalid}
-      label={floating?.label}
-      notched={floating ? shrink : undefined}
+      {...(floating && !isFilled ? { label: floating.label, notched: shrink } : {})}
       // eslint-disable-next-line @typescript-eslint/no-explicit-any -- custom surface, like MUI's own SelectInput
       inputComponent={TriggerSurface as any}
       inputProps={surfaceProps}
@@ -209,7 +224,7 @@ function SelectTrigger({
           gap: 0.75,
           height: "100%",
           boxSizing: "border-box",
-          py: 0,
+          ...(isFilled ? { pt: 2.5, pb: 0.5 } : { py: 0 }),
           pl: 1.5,
           pr: 1,
           cursor: "inherit",
@@ -226,7 +241,7 @@ function SelectTrigger({
   if (!floating) return input
   return (
     <FormControl
-      variant="outlined"
+      variant={floating.variant}
       size="small"
       error={invalid}
       disabled={isDisabled}

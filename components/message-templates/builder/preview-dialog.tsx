@@ -54,7 +54,7 @@ export function PreviewDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className="h-[90vh]! max-h-[90vh]! max-w-[95vw]!"
+        size="fullscreen"
         style={{ width: `min(${Math.max(960, emailWidth + 160)}px, 95vw)` }}
       >
         <DialogHeader>

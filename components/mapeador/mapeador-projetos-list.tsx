@@ -104,7 +104,7 @@ export function MapeadorProjetosList({ initialProjetos, templates, clientes }: M
         return
       }
       setStep("closed")
-      router.push(`/projetos/mapeador/${result.data.id}`)
+      router.push(`/operations/projects/mapper/${result.data.id}`)
     } finally {
       setLoading(false)
     }
@@ -120,7 +120,7 @@ export function MapeadorProjetosList({ initialProjetos, templates, clientes }: M
         return
       }
       setStep("closed")
-      router.push(`/projetos/mapeador/${result.data[0].id}`)
+      router.push(`/operations/projects/mapper/${result.data[0].id}`)
     } finally {
       setLoading(false)
     }
@@ -160,7 +160,7 @@ export function MapeadorProjetosList({ initialProjetos, templates, clientes }: M
       toast.error(result.error || "Erro ao importar JSON")
       return
     }
-    router.push(`/projetos/mapeador/${result.data.id}`)
+    router.push(`/operations/projects/mapper/${result.data.id}`)
   }
 
   const formasIngresso = Array.from(new Set(projetos.map((p) => p.nome))).sort((a, b) => a.localeCompare(b, "pt-BR"))
@@ -268,7 +268,7 @@ export function MapeadorProjetosList({ initialProjetos, templates, clientes }: M
       )}
 
       <Dialog open={step === "choice"} onOpenChange={(open) => !open && setStep("closed")}>
-        <DialogContent className="h-auto max-h-[90vh] sm:max-w-4xl">
+        <DialogContent size="lg">
           <DialogHeader>
             <DialogTitle>Novo projeto</DialogTitle>
             <DialogDescription>Como você quer começar este mapeamento?</DialogDescription>
@@ -502,7 +502,7 @@ export function MapeadorProjetosList({ initialProjetos, templates, clientes }: M
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {filteredProjetos.map((projeto) => (
-            <Card key={projeto.id} className="group relative cursor-pointer transition-shadow hover:shadow-md" onClick={() => router.push(`/projetos/mapeador/${projeto.id}`)}>
+            <Card key={projeto.id} className="group relative cursor-pointer transition-shadow hover:shadow-md" onClick={() => router.push(`/operations/projects/mapper/${projeto.id}`)}>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <FolderKanban className="h-4 w-4 text-primary" /> {projeto.nome}

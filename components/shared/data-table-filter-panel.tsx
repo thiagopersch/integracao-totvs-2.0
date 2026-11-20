@@ -1,6 +1,7 @@
 "use client"
 
 import { Button } from "@/components/ui/button"
+import { InputVariantProvider } from "@/components/ui/field"
 import { cn } from "@/lib/utils"
 
 interface DataTableFilterPanelProps {
@@ -21,7 +22,8 @@ export function DataTableFilterPanel({ children, onApply, onClear, singleColumn 
           singleColumn ? "max-h-[50vh] overflow-y-auto pr-1" : "md:grid-cols-2 lg:grid-cols-4"
         )}
       >
-        {children}
+        {/* Filters are secondary controls: keep them outlined (forms elsewhere are filled). */}
+        <InputVariantProvider value="outlined">{children}</InputVariantProvider>
       </div>
       <div className="flex items-center justify-end gap-2">
         <Button type="button" variant="ghost" className="text-destructive hover:text-destructive" onClick={onClear}>

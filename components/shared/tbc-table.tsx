@@ -230,11 +230,11 @@ export function TbcTable({ data, meta, clients, filterClients }: TbcTableProps) 
                 )}
                 Validar TBC
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => router.push(`/admin/tbcs/${row.original.id}/checklist`)}>
+              <DropdownMenuItem onClick={() => router.push(`/totvs/tbcs/${row.original.id}/checklist`)}>
                 <ListChecks className="h-4 w-4 mr-2" />
                 Checklist
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => router.push(`/admin/tbcs/${row.original.id}/permissoes`)}>
+              <DropdownMenuItem onClick={() => router.push(`/totvs/tbcs/${row.original.id}/permissoes`)}>
                 <KeyRound className="h-4 w-4 mr-2" />
                 Validar permissões
               </DropdownMenuItem>

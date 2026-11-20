@@ -499,10 +499,8 @@ export function DemandImportReviewDialog({
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent
-          className={cn(
-            expanded ? "h-[99vh]! max-h-[99vh]! w-[99vw]! max-w-[99vw]!" : "w-[95vw] max-w-[95vw]",
-            "[&_[data-slot=dialog-close]]:text-red-500 [&_[data-slot=dialog-close]]:hover:text-red-600"
-          )}
+          size={expanded ? "fullscreen" : "lg"}
+          className="[&_[data-slot=dialog-close]]:text-red-500 [&_[data-slot=dialog-close]]:hover:text-red-600"
           headerActions={
             <WithTooltip label={expanded ? "Tamanho normal" : "Expandir"}>
               <Button

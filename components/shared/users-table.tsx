@@ -234,7 +234,7 @@ export function UsersTable({ data, meta, clients }: UsersTableProps) {
   const newDialog = (
     <Dialog open={editDialog.open} onOpenChange={(open) => setEditDialog({ open, entity: open ? editDialog.entity : undefined })}>
       <DialogTrigger render={<Button><Plus className="h-4 w-4 mr-2" /> Novo Usuário</Button>} />
-      <DialogContent className="h-auto max-h-[85vh] sm:max-w-lg">
+      <DialogContent size="sm">
         <DialogHeader>
           <DialogTitle>{editDialog.entity ? "Editar Usuário" : "Novo Usuário"}</DialogTitle>
         </DialogHeader>
@@ -355,7 +355,7 @@ export function UsersTable({ data, meta, clients }: UsersTableProps) {
       />
 
       <Dialog open={resetResult.open} onOpenChange={(open) => setResetResult({ open, tempPassword: open ? resetResult.tempPassword : undefined })}>
-        <DialogContent className="max-w-md">
+        <DialogContent size="sm">
           <DialogHeader>
             <DialogTitle>Senha temporária gerada</DialogTitle>
           </DialogHeader>
@@ -380,7 +380,7 @@ export function UsersTable({ data, meta, clients }: UsersTableProps) {
         open={clientsDialog.open}
         onOpenChange={(open) => setClientsDialog({ open, selected: open ? clientsDialog.selected : new Set() })}
       >
-        <DialogContent className="h-[50vh]! max-h-[50vh]! w-[50vw]! max-w-[50vw]! max-sm:h-[90vh]! max-sm:max-h-[90vh]! max-sm:w-[90vw]! max-sm:max-w-[90vw]!">
+        <DialogContent>
           <DialogHeader>
             <DialogTitle>Clientes de {clientsDialog.userName}</DialogTitle>
           </DialogHeader>

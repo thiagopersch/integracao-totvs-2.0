@@ -51,7 +51,7 @@ interface ActivityLogTableProps {
   endpointTypes: SoapEndpointTypeWithMethods[]
   tipoOptions: { crud: TipoOption[]; deletion: TipoOption[]; api: TipoOption[] }
   methodOptions: TipoOption[]
-  /** From the same `Dataserver`/`Process` catalogs the SOAP Builder page (`/soap/builder`) lets the
+  /** From the same `Dataserver`/`Process` catalogs the SOAP Builder page (`/totvs/soap/builder`) lets the
    *  user pick from — not distinct values scraped out of SoapLog. */
   dataservers: Dataserver[]
   processes: Process[]
@@ -384,6 +384,7 @@ export function ActivityLogTable({
     {
       id: "source",
       header: "Fonte",
+      meta: { width: 120 },
       cell: ({ row }) => {
         const Icon = SOURCE_ICONS[row.original.source]
         return (
@@ -394,38 +395,49 @@ export function ActivityLogTable({
         )
       },
     },
-    { accessorKey: "summary", header: "Resumo", cell: ({ row }) => <span className="line-clamp-1">{row.original.summary}</span> },
-    { accessorKey: "actorName", header: "Usuário", cell: ({ row }) => row.original.actorName || "Sistema" },
+    {
+      accessorKey: "summary",
+      header: "Resumo",
+      meta: { flex: 3, minWidth: 260 },
+      cell: ({ row }) => <span className="line-clamp-2 break-all">{row.original.summary}</span>,
+    },
+    { accessorKey: "actorName", header: "Usuário", meta: { flex: 1, minWidth: 180 }, cell: ({ row }) => row.original.actorName || "Sistema" },
     {
       id: "status",
       header: "Status",
+      meta: { width: 110 },
       cell: ({ row }) => <Badge variant={statusVariant(row.original.status)}>{statusLabel(row.original.status)}</Badge>,
     },
     {
       accessorKey: "durationMs",
       header: "Duração",
+      meta: { width: 110, align: "right" },
       cell: ({ row }) => (row.original.durationMs ? formatDuration(row.original.durationMs) : "-"),
     },
     {
       accessorKey: "createdAt",
       header: "Data",
-      cell: ({ row }) => formatDate(row.original.createdAt),
+      meta: { width: 200 },
+      cell: ({ row }) => (
+        <span className="whitespace-nowrap tabular-nums">{formatDate(row.original.createdAt)}</span>
+      ),
     },
     {
       id: "actions",
+      meta: { width: 96 },
       cell: ({ row }) => {
         if (row.original.source !== "SOAP" || !canReexecuteSoap) return null
         return (
           <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
             <WithTooltip label="Ver detalhes">
-              <Button variant="ghost" size="sm" onClick={() => setDetail(row.original)} aria-label="Ver detalhes">
+              <Button variant="ghost" size="icon-sm" onClick={() => setDetail(row.original)} aria-label="Ver detalhes">
                 <Eye className="h-4 w-4" />
               </Button>
             </WithTooltip>
             <WithTooltip label="Reexecutar" disabledSafe>
               <Button
                 variant="ghost"
-                size="sm"
+                size="icon-sm"
                 disabled={executing === row.original.id}
                 onClick={() => setReexecuteRow(row.original)}
                 aria-label="Reexecutar"
@@ -494,9 +506,7 @@ function ActivityDetailDialog({ open, onOpenChange, row }: { open: boolean; onOp
   return (
     <Dialog open={open} onOpenChange={(next) => { onOpenChange(next); if (!next) setExpanded(false) }}>
       <DialogContent
-        className={cn(
-          expanded ? "h-[90vh]! max-h-[90vh]! w-[90vw]! max-w-[90vw]!" : "h-[70vh]! max-h-[70vh]! w-[70vw]! max-w-[70vw]!"
-        )}
+        size={expanded ? "fullscreen" : "lg"}
         headerActions={
           <WithTooltip label={expanded ? "Tamanho normal" : "Expandir"}>
             <Button

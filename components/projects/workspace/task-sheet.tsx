@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useState } from "react"
 import { toast } from "@/lib/toast"
 import {
   CalendarCheck,
@@ -306,9 +306,12 @@ export function TaskSheet({
   const [newPredecessor, setNewPredecessor] = useState("")
   const [width, setWidth] = useState(DEFAULT_WIDTH)
 
-  useEffect(() => {
+  // Restore the saved width each time the sheet opens (state adjusted during render, not in an effect).
+  const [wasOpen, setWasOpen] = useState(false)
+  if (open !== wasOpen) {
+    setWasOpen(open)
     if (open) setWidth(storedWidth())
-  }, [open])
+  }
 
   /** Drag the panel's left edge to resize it (up to 90% of the screen). */
   function startResize(event: React.PointerEvent<HTMLDivElement>) {

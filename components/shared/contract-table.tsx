@@ -384,7 +384,7 @@ export function ContractTable({
       }}
     >
       <DialogTrigger render={<Button><Plus className="h-4 w-4 mr-2" /> Novo Contrato</Button>} />
-      <DialogContent className="h-auto max-h-[70vh] w-auto min-w-[min(40rem,90vw)] max-w-[70vw]">
+      <DialogContent>
         <DialogHeader>
           <DialogTitle>{editDialog.entity ? "Editar Contrato" : "Novo Contrato"}</DialogTitle>
         </DialogHeader>

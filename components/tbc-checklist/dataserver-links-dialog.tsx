@@ -174,7 +174,7 @@ export function DataserverLinksDialog({
 
   return (
     <Dialog open={open} onOpenChange={(next) => !saving && onOpenChange(next)}>
-      <DialogContent className="sm:max-w-3xl">
+      <DialogContent size="lg">
         <DialogHeader>
           <DialogTitle>Vínculos — {dataserverName(code)}</DialogTitle>
         </DialogHeader>

@@ -78,9 +78,7 @@ export function NotificationDetailDialog({ open, onOpenChange, notification }: N
   return (
     <Dialog open={open} onOpenChange={(next) => { onOpenChange(next); if (!next) setExpanded(false) }}>
       <DialogContent
-        className={cn(
-          expanded ? "h-[90vh]! max-h-[90vh]! w-[90vw]! max-w-[90vw]!" : "h-[70vh]! max-h-[70vh]! w-[70vw]! max-w-[70vw]!"
-        )}
+        size={expanded ? "fullscreen" : "lg"}
         headerActions={
           <WithTooltip label={expanded ? "Tamanho normal" : "Expandir"}>
             <Button

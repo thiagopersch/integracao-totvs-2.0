@@ -210,7 +210,7 @@ export function PrototipoTab() {
   }
 
   function handleOpenNewTab() {
-    window.open(`/projetos/mapeador/${projeto.id}/prototipo/preview?gerarPara=${gerarPara}`, "_blank")
+    window.open(`/operations/projects/mapper/${projeto.id}/prototipo/preview?gerarPara=${gerarPara}`, "_blank")
   }
 
   return (

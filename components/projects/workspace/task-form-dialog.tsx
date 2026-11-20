@@ -112,7 +112,7 @@ export function TaskFormDialog(props: TaskFormDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       {/* Fixed height so switching tabs doesn't resize the dialog; each tab fits without scrolling. */}
-      <DialogContent className="h-[min(600px,90dvh)] sm:max-w-2xl max-sm:h-[90dvh]! max-sm:max-h-[90dvh]!">
+      <DialogContent>
         <DialogHeader>
           <DialogTitle>{task ? `Editar ${projectCode}-${task.number}` : "Nova tarefa"}</DialogTitle>
         </DialogHeader>

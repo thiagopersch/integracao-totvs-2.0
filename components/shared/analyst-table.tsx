@@ -216,7 +216,7 @@ export function AnalystTable({ data, meta }: AnalystTableProps) {
       }}
     >
       <DialogTrigger render={<Button><Plus className="h-4 w-4 mr-2" /> Novo Analista</Button>} />
-      <DialogContent className="h-auto max-h-[70vh] w-auto min-w-[min(40rem,90vw)] max-w-[70vw]">
+      <DialogContent>
         <DialogHeader>
           <DialogTitle>{editDialog.entity ? "Editar Analista" : "Novo Analista"}</DialogTitle>
         </DialogHeader>

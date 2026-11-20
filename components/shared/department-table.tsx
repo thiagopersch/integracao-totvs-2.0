@@ -179,7 +179,7 @@ export function DepartmentTable({ data, meta, clients, requesters }: DepartmentT
   const newDialog = (
     <Dialog open={editDialog.open} onOpenChange={(open) => { setEditDialog({ open, entity: open ? editDialog.entity : undefined }); if (open && !editDialog.entity) setNewColor(randomColor()); if (!open) form.reset() }}>
       <DialogTrigger render={<Button><Plus className="h-4 w-4 mr-2" /> Novo Setor</Button>} />
-      <DialogContent className="h-auto max-h-[85vh] sm:max-w-2xl">
+      <DialogContent>
         <DialogHeader>
           <DialogTitle>{editDialog.entity ? "Editar Setor" : "Novo Setor"}</DialogTitle>
         </DialogHeader>

@@ -5,6 +5,7 @@ import FormControl from "@mui/material/FormControl"
 import InputLabel from "@mui/material/InputLabel"
 import InputAdornment from "@mui/material/InputAdornment"
 import OutlinedInput from "@mui/material/OutlinedInput"
+import FilledInput from "@mui/material/FilledInput"
 import InputBase from "@mui/material/InputBase"
 
 import { cn } from "@/lib/utils"
@@ -83,7 +84,7 @@ type ExtraProps = {
   endAdornment?: React.ReactNode
 }
 
-/** Outlined text field with a Material floating label taken from the surrounding <Field>. */
+/** Text field (filled or outlined) with a Material floating label taken from the surrounding <Field>. */
 function FloatingInput({
   floating,
   className,
@@ -108,7 +109,9 @@ function FloatingInput({
   const [focused, setFocused] = React.useState(false)
   const { filled, setFilled, trackRef } = useFilled(props.value, props.defaultValue)
   const id = props.id ?? floating.id
-  const shrink = floating.static || focused || filled || Boolean(startAdornment) || ALWAYS_SHRINK.has(type ?? "")
+  // With a placeholder the label goes to the notch so the hint stays visible and never overlaps it.
+  const shrink =
+    floating.static || focused || filled || Boolean(props.placeholder) || Boolean(startAdornment) || ALWAYS_SHRINK.has(type ?? "")
   const { onFocus, onBlur, onChange, onAnimationStart, ...native } = props as NativeInputProps & React.ComponentProps<"textarea">
 
   const setRef = React.useCallback(
@@ -119,9 +122,13 @@ function FloatingInput({
     [ref, trackRef]
   )
 
+  const isFilled = floating.variant === "filled"
+  const Control = isFilled ? FilledInput : OutlinedInput
+  const inputSel = isFilled ? "& .MuiFilledInput-input" : "& .MuiOutlinedInput-input"
+
   return (
     <FormControl
-      variant="outlined"
+      variant={floating.variant}
       size="small"
       fullWidth
       error={invalid}
@@ -133,17 +140,16 @@ function FloatingInput({
       <InputLabel htmlFor={floating.namedByField ? undefined : id} shrink={shrink} size="small">
         {floating.label}
       </InputLabel>
-      <OutlinedInput
+      <Control
         data-slot={multiline ? "textarea" : "input"}
         type={type}
-        label={floating.label}
-        notched={shrink}
+        {...(isFilled ? {} : { label: floating.label, notched: shrink })}
         multiline={multiline}
         rows={rows}
         inputRef={setRef}
         startAdornment={startAdornment ? <InputAdornment position="start">{startAdornment}</InputAdornment> : undefined}
         endAdornment={endAdornment ? <InputAdornment position="end">{endAdornment}</InputAdornment> : undefined}
-        className={cn(multiline ? "text-sm" : "h-10 text-sm", box)}
+        className={cn(multiline ? "text-sm" : isFilled ? "h-12 text-sm" : "h-10 text-sm", box)}
         inputProps={
           {
             ...native,
@@ -172,9 +178,15 @@ function FloatingInput({
             ),
           } as React.InputHTMLAttributes<HTMLInputElement>
         }
-        sx={{
-          ...(multiline ? { p: 0, alignItems: "stretch", "& .MuiOutlinedInput-input": { px: 1.75 } } : { "& .MuiOutlinedInput-input": { height: "100%", boxSizing: "border-box", py: 0 } }),
-        }}
+        sx={
+          isFilled
+            ? multiline
+              ? { p: 0, alignItems: "stretch", [inputSel]: { pt: 2.75, pb: 1, px: 1.5 } }
+              : { [inputSel]: { height: "100%", boxSizing: "border-box", pt: "21px", pb: "4px", px: 1.5 } }
+            : multiline
+              ? { p: 0, alignItems: "stretch", [inputSel]: { px: 1.75 } }
+              : { [inputSel]: { height: "100%", boxSizing: "border-box", py: 0 } }
+        }
       />
     </FormControl>
   )

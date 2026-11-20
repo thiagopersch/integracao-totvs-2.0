@@ -17,7 +17,7 @@ import type { ProjectPortfolio } from "@/services/project-portfolio.service"
 
 type PortfolioTask = ProjectPortfolio["myTasks"][number]
 
-const PROJECTS_HREF = "/projetos/gestao"
+const PROJECTS_HREF = "/operations/projects"
 const VALUE_SERIES: ChartSeries[] = [{ key: "value", name: "Quantidade" }]
 const ASSIGNEE_SERIES: ChartSeries[] = [{ key: "value", name: "Tarefas abertas", color: "var(--chart-1)" }]
 const HOURS_SERIES: ChartSeries[] = [

@@ -61,7 +61,7 @@ export async function deleteSoapTemplate(id: string) {
 /**
  * Reruns a SOAP History entry exactly as it was sent. A log only stores the TBC's link/wsName —
  * not their ids — so this recovers the TBC by link and the endpoint type by its ws folder
- * (SoapLog.process), then resolves the method from /admin/soap-endpoints like every other call.
+ * (SoapLog.process), then resolves the method from /totvs/soap/endpoints like every other call.
  */
 export async function reexecuteSoapLog(logId: string) {
   const { organizationId, userId, allowedClientIds } = await requirePermission("soap", "execute");

@@ -46,11 +46,11 @@ test.describe("signed in", () => {
 
   test("demands: debounced search shows skeleton rows then results", async ({ page }) => {
     await signIn(page)
-    await page.goto("/demands")
+    await page.goto("/operations/demands")
     const search = page.getByPlaceholder(/Buscar/).first()
     await expect(search).toBeVisible()
     const requests: string[] = []
-    page.on("request", (request) => request.url().includes("/demands") && requests.push(request.url()))
+    page.on("request", (request) => request.url().includes("/operations/demands") && requests.push(request.url()))
     await search.pressSequentially("teste", { delay: 40 })
     // One navigation for the whole word, not one per keystroke (300 ms debounce).
     await page.waitForTimeout(1200)

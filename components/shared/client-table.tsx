@@ -251,7 +251,7 @@ export function ClientTable({ data, meta }: ClientTableProps) {
           </Button>
         }
       />
-      <DialogContent className="h-auto max-h-[70vh] w-auto min-w-[min(40rem,90vw)] max-w-[70vw]">
+      <DialogContent>
         <DialogHeader>
           <DialogTitle>{editDialog.entity ? "Editar Cliente" : "Novo Cliente"}</DialogTitle>
         </DialogHeader>

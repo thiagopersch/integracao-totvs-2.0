@@ -214,7 +214,7 @@ export function DemandTable({
       cell: ({ row }) =>
         row.original.project ? (
           <Link
-            href={`/projetos/gestao/${row.original.project.id}${row.original.projectTask ? `?task=${row.original.projectTask.id}` : ""}`}
+            href={`/operations/projects/${row.original.project.id}${row.original.projectTask ? `?task=${row.original.projectTask.id}` : ""}`}
             className="flex max-w-56 flex-col text-xs hover:underline"
             onClick={(e) => e.stopPropagation()}
           >

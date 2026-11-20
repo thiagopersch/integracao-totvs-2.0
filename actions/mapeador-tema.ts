@@ -23,7 +23,7 @@ export async function createMapeadorTema(nome: string, config: MapeadorTemaConfi
 
   try {
     const tema = await mapeadorTemaService.create(parsed.data.nome, parsed.data.config, organizationId);
-    revalidatePath("/projetos/mapeador", "layout");
+    revalidatePath("/operations/projects/mapper", "layout");
     return { success: true as const, data: tema };
   } catch (error) {
     return fail(error);
@@ -37,7 +37,7 @@ export async function updateMapeadorTema(id: string, data: { nome?: string; conf
 
   try {
     const tema = await mapeadorTemaService.update(id, parsed.data, organizationId);
-    revalidatePath("/projetos/mapeador", "layout");
+    revalidatePath("/operations/projects/mapper", "layout");
     return { success: true as const, data: tema };
   } catch (error) {
     return fail(error);
@@ -69,7 +69,7 @@ export async function deleteMapeadorTema(id: string) {
   const { organizationId } = await requirePermission("mapeador_temas", "delete");
   try {
     await mapeadorTemaService.delete(id, organizationId);
-    revalidatePath("/projetos/mapeador", "layout");
+    revalidatePath("/operations/projects/mapper", "layout");
     return { success: true as const };
   } catch (error) {
     return fail(error);

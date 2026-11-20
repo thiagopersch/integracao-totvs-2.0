@@ -90,8 +90,10 @@ function Button({ variant = "default", size = "default", render, nativeButton: _
       sx={[
         {
           height,
-          minWidth: isIcon ? height : 0,
+          // Icon buttons: no min-width + square aspect, so a `h-8 w-8` override never turns them into ovals.
+          minWidth: 0,
           width: isIcon ? height : undefined,
+          ...(isIcon && { aspectRatio: "1 / 1", flexShrink: 0 }),
           px: isIcon ? 0 : size === "xs" ? 1.25 : size === "sm" ? 1.5 : 2,
           gap: size === "xs" || size === "sm" ? 0.75 : 1,
           fontSize: size === "xs" ? "0.75rem" : size === "sm" ? "0.8125rem" : "0.875rem",

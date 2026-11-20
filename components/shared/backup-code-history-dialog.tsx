@@ -85,7 +85,7 @@ export function BackupCodeHistoryDialog({
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent>
+        <DialogContent size="lg">
           <DialogHeader>
             <DialogTitle>Histórico de alterações — {codeSentence}</DialogTitle>
           </DialogHeader>

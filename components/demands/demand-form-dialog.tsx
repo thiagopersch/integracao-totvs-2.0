@@ -200,7 +200,7 @@ export function DemandFormDialog(props: DemandFormDialogProps) {
       }}
     >
       <DialogContent
-        className={expanded ? "h-[99vh]! max-h-[99vh]! w-[99vw]! max-w-[99vw]!" : "h-auto max-h-[70vh] w-auto min-w-[min(40rem,90vw)] max-w-[70vw]"}
+        size={expanded ? "fullscreen" : "md"}
         headerActions={
           <WithTooltip label={expanded ? "Tamanho normal" : "Expandir"}>
             <Button type="button" variant="ghost" size="icon-sm" onClick={() => setExpanded((v) => !v)} aria-label={expanded ? "Tamanho normal" : "Expandir"}>

@@ -22,7 +22,7 @@ export default function ProjectSettingsPage({ params }: PageProps) {
 async function ProjectSettingsContent({ params }: PageProps) {
   const { id } = await params
   const { organizationId, allowedClientIds, permissions } = await getRequestContext()
-  // The route prefix (/projetos/gestao) only requires projects:read — editing needs its own grant.
+  // The route prefix (/operations/projects) only requires projects:read — editing needs its own grant.
   if (!hasPermission(permissions, "projects", "update")) notFound()
   const [project, options, defs] = await Promise.all([
     getProjectById(id, organizationId, allowedClientIds),

@@ -80,7 +80,7 @@ export function BackupRunSentencesDialog({
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent>
+        <DialogContent size="lg">
           <DialogHeader>
             <DialogTitle>
               Visualizando consultas do backup realizado em {startedAt ? new Date(startedAt).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" }) : ""}

@@ -102,7 +102,7 @@ function LinkField({
         value={href}
         onChange={(value) => onChange({ linkType, href: isApp && /^https?:\/\//i.test(value.trim()) ? toAppPath(value) : value })}
         groups={variableGroups}
-        placeholder={isApp ? "/contracts" : "https://…"}
+        placeholder={isApp ? "/operations/contracts" : "https://…"}
       />
       <p className="text-[11px] break-all text-muted-foreground">
         {finalHref ? (

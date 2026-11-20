@@ -50,7 +50,7 @@ export function BackupsDetailClient({ filter, sentences, sentencesMeta, runs, ru
   return (
     <div className="space-y-4">
       <div className="flex min-w-0 items-start gap-3">
-        <Link href="/admin/filters">
+        <Link href="/totvs/backups">
           <WithTooltip label="Voltar">
             <Button variant="ghost" size="icon" aria-label="Voltar">
               <ArrowLeft className="h-4 w-4" />

@@ -1435,7 +1435,7 @@ export function SoapBuilderClient({
                   </Button>
                 }
               />
-              <DialogContent>
+              <DialogContent size="lg">
                 <DialogHeader>
                   <DialogTitle>Requisição SOAP</DialogTitle>
                 </DialogHeader>

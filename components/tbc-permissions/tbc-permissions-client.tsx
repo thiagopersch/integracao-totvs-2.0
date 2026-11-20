@@ -25,7 +25,7 @@ export function TbcPermissionsClient({ tbc, models }: TbcPermissionsClientProps)
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
-          <Link href="/admin/tbcs">
+          <Link href="/totvs/tbcs">
             <WithTooltip label="Voltar">
               <Button variant="ghost" size="icon" aria-label="Voltar">
                 <ArrowLeft className="h-4 w-4" />

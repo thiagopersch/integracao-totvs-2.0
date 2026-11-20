@@ -90,7 +90,7 @@ export function DataserverFieldsDialog({
   return (
     <Dialog open={open} onOpenChange={(next) => !saving && onOpenChange(next)}>
       <DialogContent
-        className={cn("transition-[width,height]", maximized && "h-[99vh]! max-h-[99vh]! w-[99vw]! max-w-[99vw]!")}
+        size={maximized ? "fullscreen" : "lg"}
         headerActions={
           <WithTooltip label={maximized ? "Tamanho normal" : "Maximizar"}>
             <Button

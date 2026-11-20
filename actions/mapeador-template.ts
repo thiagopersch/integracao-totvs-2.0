@@ -21,7 +21,7 @@ export async function createMapeadorTemplateModelo(projetoId: string, nome: stri
 
     let modelo = await mapeadorTemplateService.createFromProjeto(projeto, nome.trim(), organizationId);
     if (definirComoPadrao) modelo = await mapeadorTemplateService.setPadrao(modelo.id, organizationId);
-    revalidatePath("/projetos/mapeador");
+    revalidatePath("/operations/projects/mapper");
     return { success: true as const, data: modelo };
   } catch (error) {
     return fail(error);
@@ -32,7 +32,7 @@ export async function deleteMapeadorTemplateModelo(id: string) {
   const { organizationId } = await requirePermission("mapeador_projetos", "delete");
   try {
     await mapeadorTemplateService.delete(id, organizationId);
-    revalidatePath("/projetos/mapeador");
+    revalidatePath("/operations/projects/mapper");
     return { success: true as const };
   } catch (error) {
     return fail(error);

@@ -422,7 +422,7 @@ export function ReportSchedulesClient({ schedules, templates, clients, permissio
       </Card>
 
       <Dialog open={editing.open} onOpenChange={(open) => setEditing((e) => ({ ...e, open }))}>
-        <DialogContent className="h-auto max-w-2xl sm:w-[42rem]">
+        <DialogContent>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <CalendarClock className="h-4 w-4" /> {editing.id ? "Editar regra de envio" : "Nova regra de envio"}

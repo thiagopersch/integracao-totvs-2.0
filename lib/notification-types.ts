@@ -44,7 +44,7 @@ export function buildBackupRunFailedNotification(params: {
     body: `O backup do filtro para backup "${params.filterLabel}" falhou: ${params.errorMessage}`,
     data: {
       filterId: params.filterId,
-      href: `/admin/backups/${params.filterId}`,
+      href: `/totvs/backups/${params.filterId}`,
       filterLabel: params.filterLabel,
       source: "filter",
       sourceLabel: "Filtro para backup",
@@ -70,7 +70,7 @@ export function buildBackupRunSucceededNotification(params: {
     body: `O backup agendado do filtro para backup "${params.filterLabel}" foi concluído com sucesso.`,
     data: {
       filterId: params.filterId,
-      href: `/admin/backups/${params.filterId}`,
+      href: `/totvs/backups/${params.filterId}`,
       filterLabel: params.filterLabel,
       source: "filter",
       sourceLabel: "Filtro para backup",
@@ -203,7 +203,7 @@ export function buildContractUsageThresholdNotification(params: {
         : ""
     }.`,
     data: {
-      href: "/contracts",
+      href: "/operations/contracts",
       source: "contract",
       sourceLabel: "Contrato (Consumo de horas)",
       clientId: params.clientId,
@@ -229,7 +229,7 @@ type ProjectTaskRef = {
 };
 
 function projectTaskHref(ref: Pick<ProjectTaskRef, "projectId" | "taskId">) {
-  return `/projetos/gestao/${ref.projectId}?task=${ref.taskId}`;
+  return `/operations/projects/${ref.projectId}?task=${ref.taskId}`;
 }
 
 function projectTaskData(ref: ProjectTaskRef, extra: Record<string, unknown> = {}) {
@@ -284,6 +284,6 @@ export function buildProjectTaskDueDigestNotification(params: { dueSoon: number;
     type: NOTIFICATION_TYPES.PROJECT_TASK_DUE_DIGEST,
     title: `Prazos de projetos: ${parts.join(" e ")}`,
     body: `Você tem ${parts.join(" e ")}: ${params.tasks.slice(0, 5).join("; ")}${params.tasks.length > 5 ? "; …" : ""}.`,
-    data: { href: "/projetos/gestao?mine=true", source: "project", sourceLabel: "Gestão de Projetos" },
+    data: { href: "/operations/projects?mine=true", source: "project", sourceLabel: "Gestão de Projetos" },
   };
 }

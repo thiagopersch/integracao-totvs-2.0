@@ -101,7 +101,22 @@ function isPlainText(node: React.ReactNode): boolean {
   return false
 }
 
+export type InputVariant = "filled" | "outlined"
+
+/**
+ * Variant of labeled form controls (inside a <Field>). Form fields are Material "filled"; wrap
+ * secondary areas (e.g. table filter panels) in `<InputVariantProvider value="outlined">`.
+ * Label-less controls (toolbar search, header selects) are always outlined.
+ */
+const InputVariantContext = React.createContext<InputVariant>("filled")
+
+function InputVariantProvider({ value, children }: { value: InputVariant; children: React.ReactNode }) {
+  return <InputVariantContext.Provider value={value}>{children}</InputVariantContext.Provider>
+}
+
 export type FloatingLabel = {
+  /** Material variant the labeled control renders with. */
+  variant: InputVariant
   /** The label content (text, or a node when `static`). */
   label: React.ReactNode
   /** Label has non-text content (icon, tooltip, asterisk element): keep it shrunk in the notch. */
@@ -120,6 +135,7 @@ export type FloatingLabel = {
 /** For text-like controls: the label of the surrounding <Field>, claimed by the first control that asks. */
 function useFloatingLabel(id?: string): FloatingLabel | null {
   const ctx = React.useContext(FieldContext)
+  const variant = React.useContext(InputVariantContext)
   const me = React.useId()
   const store = ctx?.store
   React.useEffect(() => (store ? () => store.release(me) : undefined), [store, me])
@@ -129,6 +145,7 @@ function useFloatingLabel(id?: string): FloatingLabel | null {
   if (info.htmlFor && id && info.htmlFor !== id) return null
   if (!store.claim(me)) return null
   return {
+    variant,
     label: info.node,
     static: !isPlainText(info.node),
     id: id ?? info.htmlFor,
@@ -141,10 +158,11 @@ function useFloatingLabel(id?: string): FloatingLabel | null {
 function floatingTextFieldProps(
   floating: FloatingLabel | null,
   inputLabel?: object
-): { label?: React.ReactNode; slotProps?: { inputLabel: object }; "data-floating-label"?: "" } {
+): { label?: React.ReactNode; variant?: InputVariant; slotProps?: { inputLabel: object }; "data-floating-label"?: "" } {
   if (!floating) return {}
   return {
     ...floating.rootProps,
+    variant: floating.variant,
     label: floating.label,
     slotProps: {
       inputLabel: { ...inputLabel, ...(floating.static ? { shrink: true } : {}), ...(floating.namedByField ? { htmlFor: undefined } : {}) },
@@ -301,6 +319,7 @@ function FieldError({
 
 export {
   floatingTextFieldProps,
+  InputVariantProvider,
   useFloatingLabel,
   Field,
   FieldLabel,

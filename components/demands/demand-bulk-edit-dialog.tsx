@@ -52,7 +52,7 @@ interface DemandBulkEditDialogProps {
 export function DemandBulkEditDialog(props: DemandBulkEditDialogProps) {
   return (
     <Dialog open={props.open} onOpenChange={props.onOpenChange}>
-      <DialogContent className="h-auto max-h-[85vh] sm:max-w-2xl">
+      <DialogContent>
         {props.open && <DemandBulkEditBody {...props} />}
       </DialogContent>
     </Dialog>

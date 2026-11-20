@@ -127,6 +127,32 @@ export const theme = createTheme(
           }),
         },
       },
+      // Labeled form fields (inside <Field>) are Material "filled": tonal surface + underline that
+      // lights up in the brand color (with a soft glow) on focus.
+      MuiFilledInput: {
+        defaultProps: { size: "small" },
+        styleOverrides: {
+          root: ({ theme }) => {
+            const ink = (a: number) => `rgba(${theme.vars.palette.text.primaryChannel} / ${a})`
+            return {
+              borderRadius: "6px 6px 0 0",
+              backgroundColor: ink(0.05),
+              transition: theme.transitions.create(["background-color", "box-shadow"], { duration: theme.transitions.duration.short }),
+              "&:hover:not(.Mui-disabled)": { backgroundColor: ink(0.08) },
+              "&.Mui-focused": { backgroundColor: tonal(0.08) },
+              "&.Mui-focused:not(.Mui-error)": { boxShadow: `0 4px 10px -6px ${tonal(0.6)}` },
+              "&.Mui-disabled": { backgroundColor: ink(0.03) },
+              "&::before": { borderBottomColor: theme.vars.palette.divider },
+              "&:hover:not(.Mui-disabled, .Mui-error)::before": { borderBottomColor: theme.vars.palette.text.secondary },
+              ...theme.applyStyles("dark", {
+                backgroundColor: "rgba(255 255 255 / 0.06)",
+                "&:hover:not(.Mui-disabled)": { backgroundColor: "rgba(255 255 255 / 0.09)" },
+                "&.Mui-focused": { backgroundColor: tonal(0.1) },
+              }),
+            }
+          },
+        },
+      },
       MuiInputLabel: { styleOverrides: { root: { fontSize: "0.875rem" } } },
       MuiFormHelperText: { styleOverrides: { root: { marginLeft: 14, marginRight: 14 } } },
       MuiFormControl: { defaultProps: { size: "small" } },

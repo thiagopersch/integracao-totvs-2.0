@@ -300,7 +300,7 @@ export function DashboardClient({
                     {contractsUsage.map((c) => (
                       <Link
                         key={c.clientId}
-                        href="/contracts"
+                        href="/operations/contracts"
                         className={cn(
                           "flex flex-col gap-2 surface p-3 transition-opacity hover:opacity-80",
                           USAGE_TONE_CLASSES[usageTone(c.percent)]

@@ -93,6 +93,7 @@ export function MarkdownEditor({
       <Dialog open={expanded} onOpenChange={setExpanded}>
         <DialogContent
           showCloseButton={false}
+          size="fullscreen"
           className={cn(
             "top-0 left-0 h-dvh max-h-none w-screen max-w-none translate-x-0 translate-y-0 rounded-none bg-background p-0 ring-0",
             "max-sm:h-dvh! max-sm:max-h-none! max-sm:w-screen! max-sm:max-w-none!"

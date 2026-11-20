@@ -186,7 +186,7 @@ export function ProjectWorkspace({
   return (
     <div className="space-y-4">
       <div className="space-y-3">
-        <Link href="/projetos/gestao" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
+        <Link href="/operations/projects" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
           <ArrowLeft className="h-4 w-4" /> Projetos
         </Link>
         <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
@@ -230,7 +230,7 @@ export function ProjectWorkspace({
             <div className="flex flex-wrap gap-2">
               {logTimeButton}
               {can.updateProject && (
-                <Button variant="outline" size="sm" nativeButton={false} render={<Link href={`/projetos/gestao/${project.id}/configuracoes`} />}>
+                <Button variant="outline" size="sm" nativeButton={false} render={<Link href={`/operations/projects/${project.id}/configuracoes`} />}>
                   <Settings className="mr-1.5 h-4 w-4" /> Configurações
                 </Button>
               )}

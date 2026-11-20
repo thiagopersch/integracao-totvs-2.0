@@ -26,7 +26,7 @@ export function PermissionSentenceDialog({ open, onOpenChange }: PermissionSente
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl">
+      <DialogContent>
         <DialogHeader>
           <DialogTitle>Como configurar a consulta de perfis</DialogTitle>
           <DialogDescription>

@@ -377,7 +377,7 @@ export function ProjectSettingsForm({ project, options, defs }: ProjectSettingsF
   const watchedMemberIds = form.watch("memberIds")
   const managerId = form.watch("managerId") || ""
   const settings = form.watch("settings")
-  const backHref = project ? `/projetos/gestao/${project.id}` : "/projetos/gestao"
+  const backHref = project ? `/operations/projects/${project.id}` : "/operations/projects"
 
   const clientContracts = useMemo(() => options.contracts.filter((c) => c.clientId === clientId), [options.contracts, clientId])
   const usersWithoutAccess = useMemo(() => {
@@ -396,7 +396,7 @@ export function ProjectSettingsForm({ project, options, defs }: ProjectSettingsF
     }
     toast.success(project ? "Projeto atualizado" : "Projeto criado")
     const id = project?.id ?? (result as { data?: { id: string } }).data?.id
-    router.push(id ? `/projetos/gestao/${id}` : "/projetos/gestao")
+    router.push(id ? `/operations/projects/${id}` : "/operations/projects")
   }
 
   function onInvalid(fieldErrors: FieldErrors<FormValues>) {

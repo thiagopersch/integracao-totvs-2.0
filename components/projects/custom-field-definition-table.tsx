@@ -583,7 +583,7 @@ export function CustomFieldDefinitionTable({ data, meta, orderLists }: CustomFie
           </Button>
         }
       />
-      <DialogContent className="sm:max-w-lg lg:max-w-5xl">
+      <DialogContent size="lg">
         <DialogHeader>
           <DialogTitle>{editing ? "Editar Propriedade" : "Nova Propriedade"}</DialogTitle>
         </DialogHeader>

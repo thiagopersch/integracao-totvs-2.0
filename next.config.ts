@@ -23,6 +23,41 @@ const IMMUTABLE = [{ key: "Cache-Control", value: "public, max-age=31536000, imm
 /** Other public/ files (logos, icons) can be replaced in place under the same name: a day, then revalidate. */
 const PUBLIC_ASSET = [{ key: "Cache-Control", value: "public, max-age=86400, stale-while-revalidate=604800" }];
 
+/**
+ * URLs from before the sidebar was regrouped by section (/operations, /registry, /totvs, /rubeus).
+ * Kept as redirects because old links live on in stored notifications, saved message-template app
+ * links, bookmarks and e-mails. Order matters: more specific sources first.
+ */
+const LEGACY_ROUTES: Array<[string, string]> = [
+  ["/demands", "/operations/demands"],
+  ["/contracts", "/operations/contracts"],
+  ["/projetos/gestao/campos", "/operations/projects/properties"],
+  ["/projetos/gestao", "/operations/projects"],
+  ["/projetos/mapeador", "/operations/projects/mapper"],
+  ["/admin/clients", "/registry/clients"],
+  ["/analysts", "/registry/analysts"],
+  ["/requesters", "/registry/requesters"],
+  ["/departments", "/registry/departments"],
+  ["/demand-types", "/registry/demand-types"],
+  ["/tags", "/registry/tags"],
+  ["/admin/tbcs", "/totvs/tbcs"],
+  ["/admin/filters", "/totvs/backups"],
+  ["/admin/backups", "/totvs/backups"],
+  ["/admin/sentence-categories", "/totvs/sentence-categories"],
+  ["/admin/sentences", "/totvs/sentences"],
+  ["/admin/dataservers", "/totvs/dataservers"],
+  ["/admin/processes", "/totvs/processes"],
+  ["/admin/sistemas", "/totvs/systems"],
+  ["/admin/soap-endpoints", "/totvs/soap/endpoints"],
+  ["/soap", "/totvs/soap"],
+  ["/integrations/tbc-reports", "/totvs/reports"],
+  ["/integrations/ps-docs", "/rubeus/docs"],
+  ["/integrations/ps-logic-docs", "/rubeus/logic-docs"],
+  ["/integrations/ps-field-search", "/rubeus/field-search"],
+  ["/integrations/ps-ficha-test", "/rubeus/form-tests"],
+  ["/integrations/settings", "/admin/settings"],
+];
+
 const nextConfig: NextConfig = {
   cacheComponents: true,
   // next/image serves AVIF (WebP fallback), resized per `sizes`, lazy-loaded off-screen and cached
@@ -60,6 +95,9 @@ const nextConfig: NextConfig = {
       dynamic: 30,
       static: 300,
     },
+  },
+  async redirects() {
+    return LEGACY_ROUTES.map(([from, to]) => ({ source: `${from}/:path*`, destination: `${to}/:path*`, permanent: false }));
   },
   async headers() {
     return [
