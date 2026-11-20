@@ -2,6 +2,13 @@ import { createTheme } from "@mui/material/styles"
 import { ptBR as corePtBR } from "@mui/material/locale"
 import { ptBR as pickersPtBR } from "@mui/x-date-pickers/locales"
 
+// Chip "soft" variant: tonal fill + colored label (subtler than filled, louder than outlined).
+declare module "@mui/material/Chip" {
+  interface ChipPropsVariantOverrides {
+    soft: true
+  }
+}
+
 // Material Design theme. The brand green stays the primary color; surfaces, elevation, shapes and
 // type follow Material (tinted background + white paper with elevation, 8px corners / 12px cards,
 // ripple, 36px buttons, floating outlined labels). app/globals.css maps its Tailwind tokens onto
@@ -11,6 +18,14 @@ const fontHeading = "var(--font-poppins), var(--font-inter), ui-sans-serif, syst
 
 /** Tonal fill (Material "secondary container"-like) built from the primary color channel. */
 const tonal = (alpha: number) => `rgba(var(--mui-palette-primary-mainChannel) / ${alpha})`
+
+/** Hairline border of the "outlined surface" look (Paper, Card, Accordion): faint primary tint. */
+const hairline = `1px solid ${tonal(0.12)}`
+/** Focus halo shared by fields and buttons. */
+const focusRing = `0 0 0 3px ${tonal(0.25)}`
+const fontMono = "var(--font-jetbrains-mono), ui-monospace, SFMono-Regular, Menlo, monospace"
+
+const chipColors = ["primary", "secondary", "error", "warning", "success", "info"] as const
 
 export const theme = createTheme(
   {
@@ -37,9 +52,9 @@ export const theme = createTheme(
           warning: { main: "#ffa726" },
           success: { main: "#66bb6a" },
           info: { main: "#4fc3f7" },
-          // Material dark: one #121212 base; elevated surfaces get lighter through Paper's
-          // white overlay (backgroundImage is left on for that).
-          background: { default: "#121212", paper: "#121212" },
+          // Deep green-black base; surfaces are a step lighter and outlined by a primary hairline.
+          // Elevated surfaces (menus, dialogs) still lighten through Paper's white overlay.
+          background: { default: "#0a0e0d", paper: "#0f1513" },
           text: { primary: "rgba(255, 255, 255, 0.92)", secondary: "rgba(255, 255, 255, 0.7)" },
           divider: "rgba(255, 255, 255, 0.12)",
         },
@@ -68,11 +83,31 @@ export const theme = createTheme(
       MuiButton: {
         defaultProps: { size: "medium" },
         styleOverrides: {
-          root: { whiteSpace: "nowrap", minWidth: 0, borderRadius: 8 },
+          root: ({ theme }) => ({
+            whiteSpace: "nowrap",
+            minWidth: 0,
+            borderRadius: 8,
+            transition: theme.transitions.create(["background-color", "box-shadow", "border-color", "color"], { duration: theme.transitions.duration.short }),
+            "&.Mui-focusVisible": { boxShadow: focusRing },
+          }),
           sizeSmall: { height: 32, padding: "0 12px" },
           sizeMedium: { height: 36, padding: "0 16px" },
           sizeLarge: { height: 40, padding: "0 22px" },
         },
+        variants: [
+          {
+            // Subtle vertical gradient + inner top highlight on the primary call to action.
+            props: { variant: "contained", color: "primary" },
+            style: ({ theme }) => ({
+              backgroundImage: `linear-gradient(180deg, ${theme.vars.palette.primary.light} -40%, ${theme.vars.palette.primary.main} 55%, ${theme.vars.palette.primary.dark} 160%)`,
+              boxShadow: `inset 0 1px 0 rgba(255 255 255 / 0.18), 0 1px 2px rgba(0 0 0 / 0.2)`,
+              "&:hover": { boxShadow: `inset 0 1px 0 rgba(255 255 255 / 0.22), 0 2px 10px -2px ${tonal(0.5)}` },
+              "&.Mui-focusVisible": { boxShadow: `inset 0 1px 0 rgba(255 255 255 / 0.18), ${focusRing}` },
+              "&.Mui-disabled": { backgroundImage: "none", boxShadow: "none" },
+            }),
+          },
+          { props: { variant: "outlined", color: "primary" }, style: { borderColor: tonal(0.4) } },
+        ],
       },
       MuiIconButton: { defaultProps: { size: "small" } },
       MuiFab: { defaultProps: { color: "primary" } },
@@ -84,8 +119,11 @@ export const theme = createTheme(
             // Light: white field on the tinted page; dark: transparent (Material outlined) so it sits
             // on whatever elevated surface (card, dialog) holds it.
             backgroundColor: theme.vars.palette.background.paper,
-            ...theme.applyStyles("dark", { backgroundColor: "transparent" }),
-            "&:hover:not(.Mui-disabled):not(.Mui-error) .MuiOutlinedInput-notchedOutline": { borderColor: theme.vars.palette.text.primary },
+            ...theme.applyStyles("dark", { backgroundColor: "rgba(255 255 255 / 0.02)" }),
+            transition: theme.transitions.create(["box-shadow", "border-color"], { duration: theme.transitions.duration.short }),
+            "&.Mui-focused:not(.Mui-error)": { boxShadow: focusRing },
+            "&.Mui-focused.Mui-error": { boxShadow: `0 0 0 3px rgba(${theme.vars.palette.error.mainChannel} / 0.2)` },
+            "&:hover:not(.Mui-disabled):not(.Mui-error):not(.Mui-focused) .MuiOutlinedInput-notchedOutline": { borderColor: theme.vars.palette.text.primary },
           }),
         },
       },
@@ -95,26 +133,67 @@ export const theme = createTheme(
       MuiSelect: { defaultProps: { size: "small" } },
       MuiAutocomplete: { defaultProps: { size: "small" } },
       MuiTooltip: { defaultProps: { arrow: false, enterDelay: 150 }, styleOverrides: { tooltip: { fontSize: "0.75rem", borderRadius: 4 } } },
+      // Outlined-surface look: flat (elevation 0) with a primary-tinted hairline. Floating surfaces
+      // (menus, popovers, dialogs) keep their own elevation shadow on top of the hairline.
       MuiPaper: {
-        defaultProps: { elevation: 1 },
-        styleOverrides: { rounded: { borderRadius: 12 } },
+        defaultProps: { elevation: 0 },
+        styleOverrides: {
+          root: { "&:not(.MuiAlert-root):not(.MuiAppBar-root):not(.MuiSnackbarContent-root):not(.MuiDrawer-paper)": { border: hairline } },
+          rounded: { borderRadius: 12 },
+        },
       },
-      MuiCard: { defaultProps: { elevation: 1 }, styleOverrides: { root: { borderRadius: 12 } } },
+      MuiCard: { defaultProps: { elevation: 0 }, styleOverrides: { root: { borderRadius: 12 } } },
       MuiMenu: { styleOverrides: { paper: { borderRadius: 8 } } },
       MuiPopover: { styleOverrides: { paper: { borderRadius: 8 } } },
       MuiMenuItem: { styleOverrides: { root: { fontSize: "0.875rem", minHeight: 40 } } },
       MuiDialog: {
         defaultProps: { fullWidth: true, maxWidth: "sm" },
-        styleOverrides: { paper: { borderRadius: 16 } },
+        styleOverrides: {
+          paper: ({ theme }) => ({
+            borderRadius: 16,
+            // Dark: a gentler lift than Material's elevation-24 overlay, so dialogs stay in the deep palette.
+            ...theme.applyStyles("dark", { backgroundImage: "linear-gradient(rgba(255 255 255 / 0.045), rgba(255 255 255 / 0.045))" }),
+          }),
+        },
       },
       MuiDialogTitle: { styleOverrides: { root: { fontFamily: fontHeading, fontWeight: 500, fontSize: "1.25rem", lineHeight: 1.6 } } },
       MuiDialogActions: { styleOverrides: { root: { padding: "8px 24px 20px", gap: 8 } } },
       MuiChip: {
         defaultProps: { size: "small" },
         styleOverrides: {
-          root: { borderRadius: 8, fontWeight: 500 },
+          root: { borderRadius: 8, fontWeight: 500, fontVariantNumeric: "tabular-nums" },
           sizeSmall: { height: 24, fontSize: "0.75rem" },
+          outlined: ({ theme }) => ({ borderColor: theme.vars.palette.divider }),
         },
+        variants: [
+          {
+            props: { variant: "soft" },
+            style: ({ theme }) => ({
+              border: "1px solid transparent",
+              backgroundColor: theme.vars.palette.action.selected,
+              color: theme.vars.palette.text.primary,
+            }),
+          },
+          ...chipColors.flatMap((color) => [
+            {
+              props: { variant: "soft" as const, color },
+              style: {
+                backgroundColor: `rgba(var(--mui-palette-${color}-mainChannel) / 0.14)`,
+                borderColor: `rgba(var(--mui-palette-${color}-mainChannel) / 0.24)`,
+                color: `var(--mui-palette-${color}-dark)`,
+                ".dark &": { color: `var(--mui-palette-${color}-light)` },
+                "& .MuiChip-icon, & .MuiChip-deleteIcon": { color: "inherit" },
+              },
+            },
+            {
+              props: { variant: "outlined" as const, color },
+              style: {
+                borderColor: `rgba(var(--mui-palette-${color}-mainChannel) / 0.5)`,
+                backgroundColor: `rgba(var(--mui-palette-${color}-mainChannel) / 0.04)`,
+              },
+            },
+          ]),
+        ],
       },
       MuiTabs: {
         styleOverrides: {
@@ -163,7 +242,7 @@ export const theme = createTheme(
         },
       },
       MuiAccordion: {
-        defaultProps: { elevation: 1, disableGutters: true },
+        defaultProps: { elevation: 0, disableGutters: true },
         styleOverrides: {
           root: {
             border: 0,
@@ -177,7 +256,7 @@ export const theme = createTheme(
       MuiAccordionSummary: { styleOverrides: { root: { minHeight: 48, padding: "0 16px" }, content: { margin: "12px 0" } } },
       MuiAccordionDetails: { styleOverrides: { root: { padding: "0 16px 16px" } } },
       MuiAppBar: {
-        defaultProps: { elevation: 1, color: "inherit" },
+        defaultProps: { elevation: 0, color: "inherit" },
         styleOverrides: { root: ({ theme }) => ({ backgroundColor: theme.vars.palette.background.paper }) },
       },
       MuiDrawer: {
@@ -198,6 +277,7 @@ export const theme = createTheme(
           head: ({ theme }) => ({ ...theme.typography.overline, lineHeight: 1.5, color: theme.vars.palette.text.secondary }),
         },
       },
+      MuiBadge: { styleOverrides: { badge: { fontFamily: fontMono, fontVariantNumeric: "tabular-nums", fontWeight: 600 } } },
       MuiAlert: { styleOverrides: { root: { borderRadius: 8 } } },
       MuiSkeleton: { defaultProps: { animation: "wave" } },
     },

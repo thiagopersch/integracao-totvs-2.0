@@ -60,7 +60,7 @@ function AccordionItem({ className, value, children, disabled }: { className?: s
       <MuiAccordion
         data-slot="accordion-item"
         disableGutters
-        elevation={1}
+        elevation={0}
         disabled={disabled}
         expanded={ctx?.isOpen(itemValue) ?? false}
         onChange={() => ctx?.toggle(itemValue)}

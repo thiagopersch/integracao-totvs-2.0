@@ -101,21 +101,23 @@
   --sidebar-ring: var(--mui-palette-primary-main);
   --background: var(--mui-palette-background-default);
   --foreground: var(--mui-palette-text-primary);
+  --hairline: rgba(var(--mui-palette-primary-mainChannel) / 0.12);
+  --grid-dot: rgba(0, 0, 0, 0.07);
 }
 
 .dark {
   --background: var(--mui-palette-background-default);
   --foreground: var(--mui-palette-text-primary);
-  /* Material dark elevation: the surface MUI Paper paints at elevation 1 (cards) and 8 (menus). */
-  --card: color-mix(in srgb, #fff 5%, #121212);
+  /* Flat outlined surfaces: cards are the paper color (elevation 0); menus get Paper's overlay. */
+  --card: var(--mui-palette-background-paper);
   --card-foreground: var(--mui-palette-text-primary);
-  --popover: color-mix(in srgb, #fff 12%, #121212);
+  --popover: color-mix(in srgb, #fff 9%, #0f1513);
   --popover-foreground: var(--mui-palette-text-primary);
   --primary: var(--mui-palette-primary-main);
   --primary-foreground: var(--mui-palette-primary-contrastText);
-  --secondary: color-mix(in srgb, #fff 9%, #121212);
+  --secondary: color-mix(in srgb, #fff 8%, #0f1513);
   --secondary-foreground: var(--mui-palette-text-primary);
-  --muted: color-mix(in srgb, #fff 7%, #121212);
+  --muted: color-mix(in srgb, #fff 5%, #0f1513);
   --muted-foreground: var(--mui-palette-text-secondary);
   --accent: rgba(var(--mui-palette-primary-mainChannel) / 0.14);
   --accent-foreground: var(--mui-palette-primary-light);
@@ -143,6 +145,7 @@
   --sidebar-accent-foreground: var(--accent-foreground);
   --sidebar-border: var(--mui-palette-divider);
   --sidebar-ring: var(--mui-palette-primary-main);
+  --grid-dot: rgba(255, 255, 255, 0.045);
 }
 
 @layer base {
@@ -256,11 +259,61 @@
   }
 }
 
-/* Material surface for hand-built blocks (same look as <Card>/<Paper elevation={1}>): 12px corners,
-   card color (dark: elevation-1 overlay), elevation-1 shadow, no border. */
+/* Outlined surface for hand-built blocks (same look as <Card>/<Paper>): 12px corners, card color,
+   flat, primary-tinted hairline border. */
 @utility surface {
   border-radius: calc(var(--radius) * 1.5);
   background-color: var(--card);
   color: var(--card-foreground);
-  box-shadow: var(--mui-shadows-1);
+  border: 1px solid var(--hairline);
+}
+
+/* Numeric displays (KPIs, counters, totals): JetBrains Mono with tabular figures so digits align. */
+@utility font-mono-num {
+  font-family: var(--font-jetbrains-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-variant-numeric: tabular-nums slashed-zero;
+  letter-spacing: -0.01em;
+}
+/* Tabular figures only, keeping the current font (table columns, inline numbers). */
+@utility tabular-nums-only {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Main content backdrop (dashboard shell): a faint dot grid + soft primary glow at the top.
+   Painted on a fixed layer so it doesn't scroll and never sits above content. */
+@utility tech-backdrop {
+  background-color: var(--background);
+  background-image:
+    radial-gradient(ellipse 80% 320px at 50% -80px, rgba(var(--mui-palette-primary-mainChannel) / 0.1), transparent 70%),
+    radial-gradient(circle at 1px 1px, var(--grid-dot) 1px, transparent 0);
+  background-size: 100% 100%, 22px 22px;
+  background-repeat: no-repeat, repeat;
+  background-attachment: local, local;
+}
+
+/* Glassy app bar: translucent paper, blurred backdrop, primary→transparent hairline at the bottom. */
+@utility glass-bar {
+  background-color: color-mix(in srgb, var(--mui-palette-background-paper) 72%, transparent);
+  backdrop-filter: saturate(160%) blur(12px);
+  -webkit-backdrop-filter: saturate(160%) blur(12px);
+  position: relative;
+  &::after {
+    content: "";
+    position: absolute;
+    inset: auto 0 0 0;
+    height: 1px;
+    background: linear-gradient(90deg, rgba(var(--mui-palette-primary-mainChannel) / 0.55), rgba(var(--mui-palette-primary-mainChannel) / 0.12) 45%, transparent);
+    pointer-events: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

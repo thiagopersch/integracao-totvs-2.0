@@ -27,7 +27,8 @@ import type { NavGroup } from "@/lib/nav-items"
 import { toast } from "@/lib/toast"
 
 export const SIDEBAR_COOKIE = "sidebar-collapsed"
-const WIDTH = 256
+// Wide enough for the longest labels ("Inscrições e matrículas", nested) on one line.
+const WIDTH = 288
 const MINI_WIDTH = 64
 
 type ShellUser = { name: string; email: string; image: string | null }
@@ -85,7 +86,7 @@ export function DashboardShell({
           width,
           flexShrink: 0,
           transition: (theme) => theme.transitions.create("width"),
-          "& .MuiDrawer-paper": { width, overflowX: "hidden", position: "relative", transition: (theme) => theme.transitions.create("width"), borderRight: 0, boxShadow: 1, zIndex: 2 },
+          "& .MuiDrawer-paper": { width, overflowX: "hidden", position: "relative", transition: (theme) => theme.transitions.create("width"), border: 0, borderRight: "1px solid var(--hairline)", borderRadius: 0, zIndex: 2 },
         }}
       >
         <DashboardSidebar groups={groups} collapsed={collapsed} onToggle={toggleCollapsed} />
@@ -101,7 +102,7 @@ export function DashboardShell({
       </Drawer>
 
       <Box sx={{ display: "flex", minWidth: 0, flex: 1, flexDirection: "column", overflow: "hidden" }}>
-        <AppBar position="static" color="inherit" elevation={1} sx={{ zIndex: 1 }}>
+        <AppBar position="static" color="inherit" elevation={0} className="glass-bar" sx={{ zIndex: 1, bgcolor: "transparent", borderRadius: 0 }}>
           <Toolbar sx={{ gap: 0.5, minHeight: { xs: 56, md: 64 }, px: { xs: 1, md: 2 } }}>
             <IconButton aria-label="Abrir menu" onClick={() => setMobileOpen(true)} sx={{ display: { md: "none" } }}>
               <MenuIcon className="size-5" />
@@ -140,7 +141,7 @@ export function DashboardShell({
             </DropdownMenu>
           </Toolbar>
         </AppBar>
-        <Box component="main" sx={{ flex: 1, overflow: "auto" }}>
+        <Box component="main" className="tech-backdrop" sx={{ flex: 1, overflow: "auto" }}>
           {children}
         </Box>
       </Box>

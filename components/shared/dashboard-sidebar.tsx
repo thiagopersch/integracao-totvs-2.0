@@ -27,14 +27,30 @@ function isGroupActive(pathname: string, group: NavGroup) {
   return group.items.some((item) => isItemActive(pathname, item.href))
 }
 
-// Material navigation drawer: full-pill items, the active one in a tonal (primary-tinted) container.
+// Navigation items: rounded rows; the active one sits in a tonal (primary-tinted) container with a
+// glowing accent bar on its left edge.
 const itemSx = {
-  borderRadius: 999,
+  position: "relative",
+  borderRadius: 2,
   minHeight: 40,
   py: 0.5,
-  px: 2,
+  px: 1.75,
   color: "text.secondary",
-  "&.Mui-selected": { fontWeight: 600 },
+  "&::before": {
+    content: '""',
+    position: "absolute",
+    left: 0,
+    top: 8,
+    bottom: 8,
+    width: 3,
+    borderRadius: 3,
+    bgcolor: "primary.main",
+    opacity: 0,
+    transform: "scaleY(0.4)",
+    transition: "opacity 150ms ease, transform 150ms ease",
+  },
+  "&.Mui-selected": { fontWeight: 600, boxShadow: "inset 0 0 0 1px rgba(var(--mui-palette-primary-mainChannel) / 0.18), 0 0 18px -6px rgba(var(--mui-palette-primary-mainChannel) / 0.45)" },
+  "&.Mui-selected::before": { opacity: 1, transform: "none", boxShadow: "0 0 8px rgba(var(--mui-palette-primary-mainChannel) / 0.8)" },
   "&.Mui-selected .MuiListItemIcon-root": { color: "inherit" },
 } as const
 
@@ -82,12 +98,12 @@ export function DashboardSidebar({
         component={Link}
         href={href}
         selected={itemActive(href)}
-        sx={{ ...itemSx, justifyContent: collapsed && !nested ? "center" : "flex-start", px: collapsed && !nested ? 1 : 2 }}
+        sx={{ ...itemSx, justifyContent: collapsed && !nested ? "center" : "flex-start", px: collapsed && !nested ? 1 : 1.75 }}
       >
         <ListItemIcon sx={{ ...iconSx, mr: collapsed && !nested ? 0 : 1.5 }}>
           <Icon />
         </ListItemIcon>
-        {(!collapsed || nested) && <ListItemText primary={label} slotProps={{ primary: { sx: { fontSize: 14, fontWeight: "inherit" } } }} />}
+        {(!collapsed || nested) && <ListItemText primary={label} slotProps={{ primary: { noWrap: true, title: label, sx: { fontSize: 14, fontWeight: "inherit" } } }} />}
       </ListItemButton>
     )
     return collapsed && !nested ? (
@@ -134,7 +150,7 @@ export function DashboardSidebar({
           <ListItemIcon sx={iconSx}>
             <GroupIcon />
           </ListItemIcon>
-          <ListItemText primary={group.label} slotProps={{ primary: { sx: { fontSize: 14, fontWeight: 500 } } }} />
+          <ListItemText primary={group.label} slotProps={{ primary: { noWrap: true, title: group.label, sx: { fontSize: 14, fontWeight: 500 } } }} />
           <ChevronDown className={`size-4 shrink-0 transition-transform ${isOpen ? "rotate-180" : ""}`} />
         </ListItemButton>
         <Collapse in={isOpen} timeout="auto" unmountOnExit>
@@ -157,7 +173,7 @@ export function DashboardSidebar({
           <h2 className="font-(family-name:--font-orbitron) text-lg font-bold tracking-wider text-primary">PerschTech</h2>
         )}
       </Box>
-      <Box component="nav" sx={{ flex: 1, minHeight: 0, overflowY: "auto", px: 1.5, py: 1 }}>
+      <Box component="nav" sx={{ flex: 1, minHeight: 0, overflowY: "auto", px: 1, py: 1 }}>
         <List disablePadding sx={{ display: "grid", gap: 0.25 }}>
           {groups.map((group, index) => {
             const startsSection = group.section && group.section !== groups[index - 1]?.section
