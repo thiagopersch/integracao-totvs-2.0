@@ -1,7 +1,14 @@
-import { BorderStyle, Document, Packer, Paragraph, Table, TableCell, TableRow, TextRun, WidthType } from "docx";
+import { BorderStyle, Document, Packer, Paragraph, ShadingType, Table, TableCell, TableRow, TextRun, WidthType } from "docx";
 import { DEFAULT_DOC_OPTIONS, type AcaoBotaoSpec, type CampoDetalhado, type ColunaDataserverSpec, type ConsultaSqlSpec, type DocOptions, type DocumentacaoPS, type EncaminhamentoSpec, type FonteDadosSpec, type ItemSpec, type LogicaSpec, type ParametroAcaoSpec, type PopupSpec, type PortalOverviewSpec, type RegraLogicaItem, type StyleConfig } from "./types";
 import { acaoNome, encaminhamentoNome, groupByDetail, isItemDetailed } from "./doc-options";
 import { logicColor } from "./logic-color";
+import { HIDDEN_GROUP_HINT, HIDDEN_GROUP_SUFFIX, hiddenGroupReason } from "./hidden-group";
+
+/** Amber, shaded " — campos ocultos" run appended to a hidden agrupamento's name. */
+function hiddenBadgeRun(item: ItemSpec, font: string): TextRun[] {
+  if (!hiddenGroupReason(item)) return [];
+  return [new TextRun({ text: ` — ${HIDDEN_GROUP_SUFFIX} (${HIDDEN_GROUP_HINT})`, bold: true, font, color: "904d00", size: 20, shading: { type: ShadingType.CLEAR, fill: "ffede2", color: "auto" } })];
+}
 import { CODE_BACKGROUND, CODE_BORDER, CODE_FONT, CODE_PLAIN_COLOR, detectLang, themeFor, tokenLines, type CodeLang } from "./code-highlight";
 
 const hex = (color: string) => color.replace("#", "");
@@ -445,7 +452,7 @@ export async function buildDocx(doc: DocumentacaoPS, style: StyleConfig, opts: D
    *  nested (always kept). A compact agrupamento nests its compact children; detailed children are
    *  collected in `after` and rendered as headings right after the list. */
   function compactItemParagraphs(item: ItemSpec, level: number, after: ItemSpec[]): Paragraph[] {
-    const out = [new Paragraph({ spacing: { after: 80 }, bullet: { level: level + lvl }, children: [run(`${CATEGORIA_LABEL[item.categoria]}: `), ...fieldRefRuns(item.nome)] })];
+    const out = [new Paragraph({ spacing: { after: 80 }, bullet: { level: level + lvl }, children: [run(`${CATEGORIA_LABEL[item.categoria]}: `), ...fieldRefRuns(item.nome), ...hiddenBadgeRun(item, style.bodyFont)] })];
     if (item.logica && item.logica.regras.length > 0) out.push(titledBullet("Lógica:", level + 1), ...logicaSpecParagraphs(item.logica, level + 2));
     if (item.categoria === "agrupamento") {
       for (const child of item.filhos ?? []) {
@@ -487,6 +494,8 @@ export async function buildDocx(doc: DocumentacaoPS, style: StyleConfig, opts: D
   function itemParagraphs(item: ItemSpec, depth = 0): Paragraph[] {
     const headingFn = depth <= 0 ? h4 : depth === 1 ? h5 : h6;
     const out: Paragraph[] = [headingFn(`${CATEGORIA_LABEL[item.categoria]}: ${item.nome}`)];
+    // A hidden agrupamento's heading gets the amber badge appended (headingFn takes plain text).
+    if (hiddenGroupReason(item)) out[0].addChildElement(hiddenBadgeRun(item, style.bodyFont)[0]);
     const totvs = item.integracaoTotvs && item.categoria !== "campo" ? [item.integracaoTotvs.tabela, item.integracaoTotvs.campo, item.integracaoTotvs.sentenca].filter(Boolean).join(".") : "";
 
     switch (item.categoria) {
@@ -511,6 +520,8 @@ export async function buildDocx(doc: DocumentacaoPS, style: StyleConfig, opts: D
       }
       case "agrupamento": {
         out.push(h6("Geral"));
+        const motivoOculto = hiddenGroupReason(item);
+        if (motivoOculto) out.push(kv("Agrupamento de campos ocultos", `Sim (${motivoOculto})`));
         if (item.classeCss) out.push(kvCode("Classe CSS", item.classeCss));
         if (totvs) out.push(kv("TOTVS", totvs));
         if (item.cssCodigo) {

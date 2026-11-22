@@ -1,5 +1,6 @@
 import { encaminhamentoNome } from "./doc-options";
 import { describeCustomValidation } from "./script-validation-text";
+import { hiddenGroupReason, hiddenGroupTitle } from "./hidden-group";
 import type { AcaoBotaoSpec, ConsultaSqlSpec, DocOptions, DocumentacaoPS, EtapaSpec, ItemSpec, LogicaSpec, RegraLogicaItem } from "./types";
 
 /** Renderer-neutral form of the "Resumido (RB-33)" model — one line per field, numbered sections
@@ -21,10 +22,26 @@ export interface Rb33Item {
   notas: Rb33Nota[];
 }
 
+/** An "agrupamento de campos ocultos": its fields are listed together in a highlighted block
+ *  instead of mixed into the visible ones, each tagged "Oculto". */
+export interface Rb33GrupoOculto {
+  tipo: "grupoOculto";
+  nome: string;
+  /** "Agrupamento: X — campos ocultos (…)", or just "Agrupamento: X (…)" when X already says "oculto". */
+  titulo: string;
+  motivo: string;
+  cond?: string;
+  itens: Rb33Item[];
+}
+
+export type Rb33Entrada = Rb33Item | Rb33GrupoOculto;
+
+export const isGrupoOculto = (e: Rb33Entrada): e is Rb33GrupoOculto => "tipo" in e && e.tipo === "grupoOculto";
+
 export interface Rb33Passo {
   nome: string;
   fonteDados?: string;
-  itens: Rb33Item[];
+  itens: Rb33Entrada[];
 }
 
 export interface Rb33AcaoLinha {
@@ -201,6 +218,8 @@ interface Ctx {
   byQuery: Map<string, ItemSpec[]>;
 }
 
+const CAMPO_OCULTO_NOTA = "Campo oculto na tela.";
+
 function campoNotas(item: ItemSpec, ctx: Ctx): Rb33Nota[] {
   const notas: Rb33Nota[] = [];
   const det = item.detalhes;
@@ -233,7 +252,7 @@ function campoNotas(item: ItemSpec, ctx: Ctx): Rb33Nota[] {
   if (dados?.tipoValorPadrao === "dinamico" && dados.valorPadrao) notas.push({ texto: `Valor padrão dinâmico: parâmetro “${dados.valorPadrao}”.` });
   else if (dados?.tipoValorPadrao === "simples" && dados.valorPadrao) notas.push({ texto: `Valor padrão: ${dados.valorPadrao}.` });
   if (dados?.somenteLeitura || det?.basico.desabilitar) notas.push({ texto: "Somente leitura." });
-  if (det?.basico.esconder) notas.push({ texto: "Campo oculto na tela." });
+  if (det?.basico.esconder) notas.push({ texto: CAMPO_OCULTO_NOTA });
   return notas;
 }
 
@@ -272,11 +291,30 @@ function mergeCond(parent: LogicaSpec | undefined, own: LogicaSpec | undefined):
 
 /** Flattens agrupamentos (their logic is carried to the children) and drops buttons, which only
  *  appear in section 5. */
-function flattenItems(items: ItemSpec[], ctx: Ctx, parentLogic?: LogicaSpec): Rb33Item[] {
-  const out: Rb33Item[] = [];
+function flattenItems(items: ItemSpec[], ctx: Ctx, parentLogic?: LogicaSpec): Rb33Entrada[] {
+  const out: Rb33Entrada[] = [];
   for (const item of items) {
     if (item.categoria === "botao") continue;
     if (item.categoria === "agrupamento") {
+      const motivo = hiddenGroupReason(item);
+      if (motivo) {
+        out.push({
+          tipo: "grupoOculto",
+          nome: stripFieldId(item.nome),
+          titulo: hiddenGroupTitle(stripFieldId(item.nome)),
+          motivo,
+          cond: mergeCond(parentLogic, item.logica),
+          // Nested groups (hidden or not) all go into this one block; the group's own condition
+          // is in the block header, so the children only show theirs.
+          itens: flattenPlain(item.filhos ?? [], ctx).map((i) => ({
+            ...i,
+            tag: i.tag ? `Oculto · ${i.tag}` : "Oculto",
+            // Already said by the block and the tag.
+            notas: i.notas.filter((n) => n.texto !== CAMPO_OCULTO_NOTA),
+          })),
+        });
+        continue;
+      }
       out.push(...flattenItems(item.filhos ?? [], ctx, combineLogic(parentLogic, item.logica)));
       continue;
     }
@@ -290,6 +328,11 @@ function flattenItems(items: ItemSpec[], ctx: Ctx, parentLogic?: LogicaSpec): Rb
     });
   }
   return out;
+}
+
+/** Every item under an agrupamento as plain lines (nested hidden groups lose their own block). */
+function flattenPlain(items: ItemSpec[], ctx: Ctx, parentLogic?: LogicaSpec): Rb33Item[] {
+  return flattenItems(items, ctx, parentLogic).flatMap((e) => (isGrupoOculto(e) ? e.itens : [e]));
 }
 
 /** An agrupamento inside another one: both conditions must hold. Kept simple — rules are

@@ -3,6 +3,9 @@ import { DEFAULT_DOC_OPTIONS, DEFAULT_STYLE, type DocOptions } from "./types";
 import { acaoNome, encaminhamentoNome, groupByDetail, isItemDetailed } from "./doc-options";
 import { logicColor } from "./logic-color";
 import { detectLang, fenceTag } from "./code-highlight";
+import { HIDDEN_GROUP_HINT, HIDDEN_GROUP_SUFFIX, hiddenGroupReason } from "./hidden-group";
+
+const hiddenBadgeMd = (item: ItemSpec) => (hiddenGroupReason(item) ? ` — **⚠ ${HIDDEN_GROUP_SUFFIX.toUpperCase()}** _(${HIDDEN_GROUP_HINT})_` : "");
 
 const sim = (v: boolean | undefined) => (v ? "Sim" : "Não");
 
@@ -379,7 +382,7 @@ function botaoAcoesLines(item: ItemSpec, indent: string): string[] {
  *  nested (always kept). A compact agrupamento nests its compact children; detailed children are
  *  pushed to `after` and rendered as headings right after the list. */
 function compactItemLines(item: ItemSpec, indent: string, depth: number, after: ItemSpec[][]): string[] {
-  const lines = [`${indent}- ${CATEGORIA_LABEL[item.categoria]}: ${fieldRefMd(item.nome)}`];
+  const lines = [`${indent}- ${CATEGORIA_LABEL[item.categoria]}: ${fieldRefMd(item.nome)}${hiddenBadgeMd(item)}`];
   const inner = indent + "  ";
   if (item.logica && item.logica.regras.length > 0) lines.push(`${inner}- Lógica:`, ...logicaSpecLines(item.logica, inner + "  "));
   if (item.categoria === "agrupamento") {
@@ -415,7 +418,7 @@ function renderItems(items: ItemSpec[], out: string[], depth = 0): void {
  *  rendered the same way right after, one depth level deeper. */
 function renderItem(item: ItemSpec, out: string[], depth = 0): void {
   const level = depth <= 0 ? "####" : depth === 1 ? "#####" : "######";
-  out.push(`${level} ${CATEGORIA_LABEL[item.categoria]}: ${item.nome}`, "");
+  out.push(`${level} ${CATEGORIA_LABEL[item.categoria]}: ${item.nome}${hiddenBadgeMd(item)}`, "");
 
   const totvs = item.integracaoTotvs && item.categoria !== "campo" ? [item.integracaoTotvs.tabela, item.integracaoTotvs.campo, item.integracaoTotvs.sentenca].filter(Boolean).join(".") : "";
 
@@ -434,6 +437,8 @@ function renderItem(item: ItemSpec, out: string[], depth = 0): void {
     }
     case "agrupamento": {
       out.push("###### Geral", "");
+      const motivoOculto = hiddenGroupReason(item);
+      if (motivoOculto) out.push(kv(BASE, "Agrupamento de campos ocultos", `Sim (${motivoOculto})`));
       if (item.classeCss) out.push(kvCode(BASE, "Classe CSS", item.classeCss));
       if (totvs) out.push(kv(BASE, "TOTVS", totvs));
       if (item.cssCodigo) out.push(`${BASE}- CSS:`, `${BASE}  \`\`\`css`, `${BASE}  ${item.cssCodigo.split("\n").join(`\n${BASE}  `)}`, `${BASE}  \`\`\``);

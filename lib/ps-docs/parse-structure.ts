@@ -1,3 +1,4 @@
+import { detectHiddenGroup } from "./hidden-group";
 import type {
   AcaoBotaoSpec,
   BackgroundAgrupamentoSpec,
@@ -1041,13 +1042,15 @@ export function mapItem(item: Raw, fieldCatalog: Map<number, string>, catalogs: 
       }
       return { nome, logica: describeLogica(c, fieldCatalog, "elemento") };
     });
-    return {
+    const agrupamento: ItemSpec = {
       ...base,
       nome: describeAgrupamentoNome(item, nome),
       categoria: "agrupamento",
       camposAgrupados: camposAgrupados.length > 0 ? camposAgrupados : undefined,
       filhos,
     };
+    const motivoOculto = detectHiddenGroup(agrupamento, formBuild.hidden === true);
+    return { ...agrupamento, agrupamentoOculto: !!motivoOculto, motivoOculto };
   }
 
   if (item.field_id_to_save_cep) {

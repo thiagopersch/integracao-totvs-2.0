@@ -2,6 +2,14 @@ import { DEFAULT_DOC_OPTIONS, type AcaoBotaoSpec, type CampoDetalhado, type Colu
 import { acaoNome, encaminhamentoNome, groupByDetail, isItemDetailed } from "./doc-options";
 import { logicColor } from "./logic-color";
 import { codeBlockHtml, detectLang } from "./code-highlight";
+import { HIDDEN_GROUP_HINT, HIDDEN_GROUP_SUFFIX, hiddenGroupReason } from "./hidden-group";
+
+/** Amber " — campos ocultos" badge appended to a hidden agrupamento's name. */
+function hiddenBadgeHtml(item: ItemSpec): string {
+  return hiddenGroupReason(item)
+    ? ` <span style="color:#904d00;background:#ffede2;border:1px solid #ffba3d;border-radius:4px;padding:0 6px;font-size:0.85em;">— ${HIDDEN_GROUP_SUFFIX} (${HIDDEN_GROUP_HINT})</span>`
+    : "";
+}
 
 function logicStyleAttr(value: string, style: StyleConfig): string {
   const color = logicColor(value, style);
@@ -377,7 +385,7 @@ export function renderDocumentHtml(doc: DocumentacaoPS, style: StyleConfig, opts
       }
     }
     if (item.categoria === "botao") children.push(`${esc("Ações")}${botaoAcoesHtml(item)}`);
-    const li = `${esc(CATEGORIA_LABEL[item.categoria])}: ${fieldRefHtml(item.nome)}${subList(children)}`;
+    const li = `${esc(CATEGORIA_LABEL[item.categoria])}: ${fieldRefHtml(item.nome)}${hiddenBadgeHtml(item)}${subList(children)}`;
     return { li, after };
   }
 
@@ -405,7 +413,7 @@ export function renderDocumentHtml(doc: DocumentacaoPS, style: StyleConfig, opts
    *  — its children right after, one depth level deeper. */
   function itemHtml(item: ItemSpec, depth = 0): string {
     const [level, tag] = depth <= 0 ? [h4Style, "h4"] : depth === 1 ? [h5Style, "h5"] : [h6Style, "h6"];
-    const heading = `<${tag} style="${level}">${esc(CATEGORIA_LABEL[item.categoria])}: ${esc(item.nome)}</${tag}>`;
+    const heading = `<${tag} style="${level}">${esc(CATEGORIA_LABEL[item.categoria])}: ${esc(item.nome)}${hiddenBadgeHtml(item)}</${tag}>`;
     const totvs = item.integracaoTotvs && item.categoria !== "campo" ? [item.integracaoTotvs.tabela, item.integracaoTotvs.campo, item.integracaoTotvs.sentenca].filter(Boolean).join(".") : "";
 
     switch (item.categoria) {
@@ -420,7 +428,9 @@ export function renderDocumentHtml(doc: DocumentacaoPS, style: StyleConfig, opts
         return heading + h6("Geral", geral);
       }
       case "agrupamento": {
+        const motivoOculto = hiddenGroupReason(item);
         const geral = subList([
+          motivoOculto ? kv("Agrupamento de campos ocultos", `Sim (${motivoOculto})`) : null,
           item.classeCss ? kvCode("Classe CSS", item.classeCss) : null,
           totvs ? kv("TOTVS", totvs) : null,
           item.cssCodigo ? `${esc("CSS")}${codeBlockHtml(item.cssCodigo, "css")}` : null,

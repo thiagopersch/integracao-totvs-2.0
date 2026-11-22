@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { buildRb33Doc, logicaLines, ruleText } from "./rb33-format"
+import { buildRb33Doc, logicaLines, ruleText, type Rb33Item } from "./rb33-format"
 import { describeCustomValidation } from "./script-validation-text"
 import { renderRb33Fragment, renderRb33StandaloneHtml } from "./render-rb33-html"
 import { rb33ToMarkdown } from "./export-rb33-markdown"
@@ -18,7 +18,7 @@ describe("buildRb33Doc", () => {
   it("flattens agrupamentos and carries their display logic to the children", () => {
     const names = etapa.passos[0].itens.map((i) => i.nome)
     expect(names).toEqual(["Nome completo", "Laudo", "Aviso"])
-    const laudo = etapa.passos[0].itens[1]
+    const laudo = etapa.passos[0].itens[1] as Rb33Item
     expect(laudo.cond).toContain("exibido se Possui deficiência igual a Sim")
   })
 
@@ -52,7 +52,7 @@ describe("buildRb33Doc", () => {
     })
     const check: ItemSpec = { categoria: "campo", nome: "Aceite", tipo: "checkbox", detalhes: { ...sampleDetalhes, identidade: { ...sampleDetalhes.identidade, tipoCampo: "Checkbox" }, validacoes: [] } }
     const doc: DocumentacaoPS = { ...sampleDoc, etapas: [{ ...sampleDoc.etapas[0], passos: [{ nome: "Curso", consultaSql: { configurada: false }, itens: [campo("Curso", 1, "Curso"), campo("Em que horário", 2, "Turno"), check] }] }] }
-    const [curso, , aceite] = buildRb33Doc(doc, opts).etapas[0].passos[0].itens
+    const [curso, , aceite] = buildRb33Doc(doc, opts).etapas[0].passos[0].itens as Rb33Item[]
     expect(curso.obrigatorio).toBe(true)
     expect(curso.notas.map((n) => n.texto)).toContain("Opções carregadas dinamicamente via consulta TOTVS RB.PS.IM.006 (SCURSO.CODCURSO) — em cascata com: Turno.")
     expect(aceite.tag).toBe("Check")

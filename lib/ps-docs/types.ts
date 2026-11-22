@@ -291,6 +291,9 @@ export interface ItemSpec {
   detalhes?: CampoDetalhado;
 
   // categoria "agrupamento"
+  /** "Agrupamento de campos ocultos" (see `hidden-group.ts`) and why it was classified so. */
+  agrupamentoOculto?: boolean;
+  motivoOculto?: string;
   camposAgrupados?: CampoAgrupadoSpec[]; // one entry per direct child field, per explicit instruction
   filhos?: ItemSpec[];
 

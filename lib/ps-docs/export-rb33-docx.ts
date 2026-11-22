@@ -1,5 +1,5 @@
 import { BorderStyle, Document, HeadingLevel, Packer, Paragraph, ShadingType, Table, TableCell, TableRow, TextRun, WidthType } from "docx";
-import { RB33_SECTION, buildRb33Doc, type Rb33Doc, type Rb33Etapa } from "./rb33-format";
+import { RB33_SECTION, buildRb33Doc, isGrupoOculto, type Rb33Doc, type Rb33Etapa, type Rb33Item } from "./rb33-format";
 import { DEFAULT_DOC_OPTIONS, type DocOptions, type DocumentacaoPS, type StyleConfig } from "./types";
 
 /** .docx for the "Resumido (RB-33)" model — same structure as the RB-33 HTML: numbered section
@@ -12,6 +12,10 @@ const MUTED = "505353";
 const BORDER = "c5c7c6";
 const HEADER_FILL = "eff1f0";
 const REQUIRED = "7e0007";
+const AMBER_BG = "ffede2";
+const AMBER_TAG = "ffdcc2";
+const AMBER_TEXT = "904d00";
+const AMBER_BORDER = "ffba3d";
 
 function docChildren(d: Rb33Doc, style: StyleConfig): (Paragraph | Table)[] {
   const font = style.bodyFont;
@@ -75,17 +79,31 @@ function docChildren(d: Rb33Doc, style: StyleConfig): (Paragraph | Table)[] {
       out.push(new Paragraph({ heading: HeadingLevel.HEADING_3, spacing: { before: 160, after: 60 }, children: [run(`Passo: ${p.nome}`, { bold: true, size: 23 })] }));
       if (p.fonteDados) out.push(mono(`Fonte de dados do passo: ${p.fonteDados}`));
       if (p.itens.length === 0) out.push(muted("Nenhum campo neste passo."));
-      for (const item of p.itens) {
+      const itemParas = (item: Rb33Item, level: number) => {
+        const hidden = !!item.tag && /^Oculto/.test(item.tag);
         const children: TextRun[] = [];
-        if (item.tag) children.push(run(` ${item.tag.toUpperCase()} `, { bold: true, size: 16, color: TEAL_DEEP, shade: TEAL_SOFT }), run(" "));
+        if (item.tag) children.push(run(` ${item.tag.toUpperCase()} `, { bold: true, size: 16, color: hidden ? AMBER_TEXT : TEAL_DEEP, shade: hidden ? AMBER_TAG : TEAL_SOFT }), run(" "));
         children.push(run(item.nome, { bold: true }));
         if (item.obrigatorio) children.push(run(" *", { bold: true, color: REQUIRED }));
         if (item.cond) children.push(run(` — ${item.cond}`, { italics: true, color: MUTED }));
-        out.push(new Paragraph({ bullet: { level: 0 }, spacing: { after: item.notas.length ? 20 : 80 }, children }));
+        out.push(new Paragraph({ bullet: { level }, spacing: { after: item.notas.length ? 20 : 80 }, children }));
+        const indent = 720 + level * 360;
         for (const n of item.notas) {
-          out.push(new Paragraph({ indent: { left: 720 }, spacing: { after: 20 }, children: [run(n.texto, { size: 19, color: MUTED })] }));
-          if (n.codigo) out.push(new Paragraph({ indent: { left: 720 }, spacing: { after: 60 }, shading: { type: ShadingType.CLEAR, fill: HEADER_FILL, color: "auto" }, children: lines(n.codigo, { mono: true, size: 17 }) }));
+          out.push(new Paragraph({ indent: { left: indent }, spacing: { after: 20 }, children: [run(n.texto, { size: 19, color: MUTED })] }));
+          if (n.codigo) out.push(new Paragraph({ indent: { left: indent }, spacing: { after: 60 }, shading: { type: ShadingType.CLEAR, fill: HEADER_FILL, color: "auto" }, children: lines(n.codigo, { mono: true, size: 17 }) }));
         }
+      };
+      for (const e of p.itens) {
+        if (!isGrupoOculto(e)) {
+          itemParas(e, 0);
+          continue;
+        }
+        const amber = { type: ShadingType.CLEAR, fill: AMBER_BG, color: "auto" } as const;
+        const bar = { left: { style: BorderStyle.SINGLE, size: 24, color: AMBER_BORDER, space: 6 } };
+        out.push(new Paragraph({ spacing: { before: 120, after: 0 }, shading: amber, border: bar, children: [run(e.titulo, { bold: true, color: AMBER_TEXT })] }));
+        out.push(new Paragraph({ spacing: { after: 60 }, shading: amber, border: bar, children: [run(`Identificado por: ${e.motivo}${e.cond ? ` · agrupamento ${e.cond}` : ""}`, { size: 18, color: AMBER_TEXT })] }));
+        if (e.itens.length === 0) out.push(muted("Agrupamento sem campos."));
+        for (const i of e.itens) itemParas(i, 1);
       }
     }
 

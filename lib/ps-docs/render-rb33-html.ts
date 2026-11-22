@@ -1,4 +1,4 @@
-import { RB33_SECTION, buildRb33Doc, type Rb33AcaoLinha, type Rb33Doc, type Rb33Etapa, type Rb33Item } from "./rb33-format";
+import { RB33_SECTION, buildRb33Doc, isGrupoOculto, type Rb33AcaoLinha, type Rb33Doc, type Rb33Entrada, type Rb33Etapa, type Rb33Item } from "./rb33-format";
 import { RB33_CSS } from "./rb33-styles";
 import { DEFAULT_DOC_OPTIONS, type DocOptions, type DocumentacaoPS, type StyleConfig } from "./types";
 
@@ -20,6 +20,9 @@ const TEAL_SOFT = "#e2fffe";
 const MUTED = "#505353";
 const BORDER = "#e1e3e2";
 const REQUIRED = "#7e0007";
+const AMBER_BG = "#ffede2";
+const AMBER_BORDER = "#ffba3d";
+const AMBER_TEXT = "#904d00";
 
 function inlineStyles(style: StyleConfig) {
   const font = `font-family:'${style.bodyFont}',sans-serif;`;
@@ -49,6 +52,10 @@ function inlineStyles(style: StyleConfig) {
     tdMuted: `border:1px solid ${BORDER};padding:6px 8px;vertical-align:top;color:${MUTED};`,
     queryCode: `font-family:monospace;font-size:9pt;color:${TEAL_DEEP};`,
     muted: `color:${MUTED};font-style:italic;${font}font-size:11pt;`,
+    hiddenGroup: `background:${AMBER_BG};border-left:4px solid ${AMBER_BORDER};padding:8px 12px;margin:6px 0 10px;`,
+    hiddenTitle: `${font}color:${AMBER_TEXT};font-size:11pt;font-weight:700;margin:0 0 2px;`,
+    hiddenMeta: `${font}color:${AMBER_TEXT};font-size:9.5pt;margin:0 0 4px;`,
+    tagHidden: `display:inline-block;font-size:8pt;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:${AMBER_TEXT};background:#ffdcc2;padding:1px 6px;border-radius:999px;margin-right:6px;`,
   };
 }
 
@@ -75,6 +82,10 @@ const CLASS_OF: Partial<Record<InlineKey, string>> = {
   tdMuted: "muted-cell",
   queryCode: "query-code",
   muted: "section-body hint",
+  hiddenGroup: "hidden-group",
+  hiddenTitle: "hidden-group-title",
+  hiddenMeta: "hidden-group-meta",
+  tagHidden: "tag tag-hidden",
 };
 
 interface RenderCtx {
@@ -95,7 +106,7 @@ function makeCtx(skin: Skin, style: StyleConfig): RenderCtx {
 }
 
 function itemHtml(item: Rb33Item, c: RenderCtx): string {
-  const tag = item.tag ? `<span${c.a("tag")}>${esc(item.tag)}</span>` : "";
+  const tag = item.tag ? `<span${c.a(/^Oculto/.test(item.tag) ? "tagHidden" : "tag")}>${esc(item.tag)}</span>` : "";
   // The class skin adds the " *" via CSS (`.field-required::after`); inline needs it in the text.
   const nome = item.obrigatorio
     ? c.skin === "class"
@@ -109,6 +120,15 @@ function itemHtml(item: Rb33Item, c: RenderCtx): string {
     .map((n) => `<span${c.a("note")}>${esc(n.texto)}</span>${n.codigo ? `<code${c.a("code")}>${esc(n.codigo)}</code>` : ""}`)
     .join("");
   return `<li${c.skin === "inline" ? c.a("li") : ""}>${tag}${nome}${cond}${notas}</li>`;
+}
+
+function entradaHtml(e: Rb33Entrada, c: RenderCtx): string {
+  if (!isGrupoOculto(e)) return itemHtml(e, c);
+  const ul = c.skin === "inline" ? c.a("ul") : "";
+  const title = `<div${c.a("hiddenTitle")}>${esc(e.titulo)}</div>`;
+  const meta = `<div${c.a("hiddenMeta")}>Identificado por: ${esc(e.motivo)}${e.cond ? ` · agrupamento ${esc(e.cond)}` : ""}</div>`;
+  const list = e.itens.length > 0 ? `<ul${ul}>${e.itens.map((i) => itemHtml(i, c)).join("")}</ul>` : `<p${c.a("muted")}>Agrupamento sem campos.</p>`;
+  return `<li${c.skin === "inline" ? ` style="list-style:none;margin-left:-22px;"` : ` class="hidden-group-item"`}><div${c.a("hiddenGroup")}>${title}${meta}${list}</div></li>`;
 }
 
 function acaoRowHtml(l: Rb33AcaoLinha, c: RenderCtx): string {
@@ -127,7 +147,7 @@ function etapaHtml(e: Rb33Etapa, c: RenderCtx, docKey: string): string {
   const passos = e.passos
     .map((p) => {
       const fonte = p.fonteDados ? `<div${c.a("fonte")}>Fonte de dados do passo: ${esc(p.fonteDados)}</div>` : "";
-      const itens = p.itens.length > 0 ? `<ul${c.skin === "inline" ? c.a("ul") : ""}>${p.itens.map((i) => itemHtml(i, c)).join("")}</ul>` : `<p${c.a("muted")}>Nenhum campo neste passo.</p>`;
+      const itens = p.itens.length > 0 ? `<ul${c.skin === "inline" ? c.a("ul") : ""}>${p.itens.map((i) => entradaHtml(i, c)).join("")}</ul>` : `<p${c.a("muted")}>Nenhum campo neste passo.</p>`;
       const name = `<div${c.a("stepName")}>Passo: ${esc(p.nome)}</div>`;
       return c.skin === "class" ? `<div class="step-block">${name}${fonte}${itens}</div>` : `${name}${fonte}${itens}`;
     })

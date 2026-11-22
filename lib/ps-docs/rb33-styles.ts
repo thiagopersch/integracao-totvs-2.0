@@ -520,6 +520,12 @@ body {
 .action-cond { display: block; font-size: 12px; font-style: italic; color: var(--color-text-muted); font-weight: var(--rb-weight-regular); margin-top: 2px; }
 .script-code { display: block; margin: 4px 0 6px; padding: 8px 10px; background: var(--rb-bg-neutral-tertiary); border-radius: var(--rb-radius-sm); font-family: var(--font-mono); font-size: 12px; white-space: pre-wrap; color: var(--color-text); }
 .actions-table th:first-child, .actions-table td:first-child { white-space: normal; width: 20%; }
+.hidden-group-item { list-style: none; margin-left: -24px; }
+.hidden-group { background: var(--rb-bg-warning-subtle); border: 1px solid var(--rb-border-warning-bold); border-left: 4px solid var(--rb-border-warning-subtle); border-radius: var(--rb-radius-md); padding: 10px 14px; margin: 8px 0 12px; }
+.hidden-group-title { font-weight: var(--rb-weight-medium); color: var(--rb-text-warning-on-subtle); font-size: 15px; }
+.hidden-group-meta { font-size: 12px; color: var(--rb-text-warning-on-subtle); margin: 2px 0 6px; }
+.hidden-group ul { margin: 4px 0 0; }
+.tag.tag-hidden { color: var(--rb-text-warning-on-subtle); background: var(--rb-border-warning-bold); }
 .notes-saved { font-size: 12px; color: var(--color-text-muted); }
 @media print { .etapa { break-inside: auto; } .editable:empty { display: none; } }
 `;

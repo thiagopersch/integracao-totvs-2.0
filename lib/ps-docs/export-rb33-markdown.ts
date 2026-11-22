@@ -1,4 +1,4 @@
-import { RB33_SECTION, buildRb33Doc } from "./rb33-format";
+import { RB33_SECTION, buildRb33Doc, isGrupoOculto, type Rb33Item } from "./rb33-format";
 import { DEFAULT_DOC_OPTIONS, type DocOptions, type DocumentacaoPS } from "./types";
 
 /** Markdown for the "Resumido (RB-33)" model — ".md" download and the `text/plain` fallback of
@@ -24,14 +24,24 @@ export function rb33ToMarkdown(doc: DocumentacaoPS, opts: DocOptions = DEFAULT_D
       out.push(`### Passo: ${p.nome}`, "");
       if (p.fonteDados) out.push(`_Fonte de dados do passo: ${p.fonteDados}_`, "");
       if (p.itens.length === 0) out.push("_Nenhum campo neste passo._", "");
-      for (const i of p.itens) {
+      const item = (i: Rb33Item, prefix = "") => {
         const tag = i.tag ? `\`${i.tag}\` ` : "";
         const cond = i.cond ? ` — _${i.cond}_` : "";
-        out.push(`- ${tag}**${i.nome}**${i.obrigatorio ? " \\*" : ""}${cond}`);
+        out.push(`${prefix}- ${tag}**${i.nome}**${i.obrigatorio ? " \\*" : ""}${cond}`);
         for (const n of i.notas) {
-          out.push(`  - ${n.texto}`);
-          if (n.codigo) out.push("", "    ```js", ...n.codigo.split("\n").map((l) => `    ${l}`), "    ```", "");
+          out.push(`${prefix}  - ${n.texto}`);
+          if (n.codigo) out.push(prefix, `${prefix}    \`\`\`js`, ...n.codigo.split("\n").map((l) => `${prefix}    ${l}`), `${prefix}    \`\`\``, prefix);
         }
+      };
+      for (const entry of p.itens) {
+        if (!isGrupoOculto(entry)) {
+          item(entry);
+          continue;
+        }
+        out.push("", `> **${entry.titulo}**  `, `> _Identificado por: ${entry.motivo}${entry.cond ? ` · agrupamento ${entry.cond}` : ""}_`, ">");
+        if (entry.itens.length === 0) out.push("> _Agrupamento sem campos._");
+        for (const i of entry.itens) item(i, "> ");
+        out.push("");
       }
       out.push("");
     }
