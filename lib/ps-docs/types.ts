@@ -279,6 +279,11 @@ export interface ItemSpec {
   cssCodigo?: string;
   logica?: LogicaSpec;
   integracaoTotvs?: IntegracaoTotvsSpec;
+  /** form.io `key` (the "identificador" a custom script reads as `data.<key>`). */
+  chave?: string;
+  /** The field's name in the system catalog (no id suffix) — e.g. "Turno" for a campo labelled
+   *  "Em que horário". Used by the RB-33 model to name cascading fields like the builder does. */
+  nomeSistema?: string;
 
   // categoria "campo"
   obrigatorio?: boolean;
@@ -328,10 +333,16 @@ export interface PassoSpec {
 export interface FeedbackSpec {
   nome: string;
   condicao: string;
+  /** The structured rules behind `condicao` — absent for the fallback feedback (no rules). */
+  logica?: LogicaSpec;
   conclusivo: boolean;
 }
 
 export interface EtapaSpec {
+  /** The stage's own id in the builder ("ID interno") — absent on models built before it existed. */
+  id?: number;
+  /** The id of the stage this one was copied from ("origem"), when the API exposes one. */
+  idOrigem?: number;
   nome: string;
   ativa: boolean;
   logicaExibicao: LogicaSpec;
@@ -343,6 +354,9 @@ export interface EtapaSpec {
 
 export interface DocumentacaoPS {
   tituloPortal: string;
+  /** The process's own `identifier` and its portal id — shown in the RB-33 subtitle. */
+  identifier?: string;
+  idPortal?: string;
   idPs: string;
   etapas: EtapaSpec[];
 }
@@ -386,13 +400,23 @@ export interface DocOptions {
    *  `detalhesComponentes`: a compact botão still lists its ações by this flag. */
   detalhesAcoesBotao: boolean;
   escopoPortal: "portal" | "tudo";
+  /** "resumido" = the RB-33 layout (one line per field, numbered sections, one actions table per
+   *  button); "detalhado" = the full per-item ficha. The three `detalhes*` flags only apply to
+   *  "detalhado". */
+  modelo: DocModelo;
+  /** RB-33 only: append the custom-validation script source below its plain-language text. */
+  incluirCodigoScript: boolean;
 }
+
+export type DocModelo = "resumido" | "detalhado";
 
 export const DEFAULT_DOC_OPTIONS: DocOptions = {
   detalhesComponentes: true,
   detalhesCampos: true,
   detalhesAcoesBotao: true,
   escopoPortal: "tudo",
+  modelo: "resumido",
+  incluirCodigoScript: false,
 };
 
 export const FONT_OPTIONS =["Poppins", "Roboto", "Arial", "Times New Roman", "Calibri"] as const;

@@ -10,7 +10,7 @@ import MuiSwitch from "@mui/material/Switch"
 import ToggleButton from "@mui/material/ToggleButton"
 import ToggleButtonGroup from "@mui/material/ToggleButtonGroup"
 import Typography from "@mui/material/Typography"
-import { Layers, ListTree, MousePointerClick, TextCursorInput } from "lucide-react"
+import { Code2, LayoutList, Layers, ListTree, MousePointerClick, TextCursorInput } from "lucide-react"
 import type { DocOptions } from "@/lib/ps-docs/types"
 
 type DetailKey = "detalhesComponentes" | "detalhesCampos" | "detalhesAcoesBotao"
@@ -31,8 +31,9 @@ interface DocOptionsPanelProps {
   showScope: boolean
 }
 
-/** The "Conteúdo da documentação" questions. The detail switches only change how the document is
- *  rendered, so they can be flipped after generating too; the scope changes what gets fetched. */
+/** The "Conteúdo da documentação" questions. The model and detail switches only change how the
+ *  document is rendered, so they can be flipped after generating too; the scope changes what gets
+ *  fetched. The three detail switches only exist in the "Detalhado" model. */
 export function DocOptionsPanel({ value, onChange, showScope }: DocOptionsPanelProps) {
   const set = <K extends keyof DocOptions>(key: K, v: DocOptions[K]) => onChange({ ...value, [key]: v })
 
@@ -46,7 +47,66 @@ export function DocOptionsPanel({ value, onChange, showScope }: DocOptionsPanelP
         </ListSubheader>
       }
     >
-      {QUESTIONS.map((q) => {
+      <ListItem sx={{ flexWrap: "wrap", gap: 1.5, py: 1.5 }}>
+        <ListItemIcon sx={{ minWidth: 40, color: "primary.main" }}>
+          <LayoutList className="h-5 w-5" />
+        </ListItemIcon>
+        <ListItemText
+          sx={{ flex: "1 1 220px" }}
+          primary="Modelo da documentação"
+          secondary={
+            value.modelo === "resumido"
+              ? "Resumido (RB-33): uma linha por campo, seções numeradas e uma tabela de ações por botão."
+              : "Detalhado: a ficha completa de cada campo e componente."
+          }
+        />
+        <ToggleButtonGroup
+          exclusive
+          size="small"
+          color="primary"
+          value={value.modelo}
+          onChange={(_e, v: DocOptions["modelo"] | null) => v && set("modelo", v)}
+          aria-label="Modelo da documentação"
+        >
+          <ToggleButton value="resumido">
+            <Typography variant="button">Resumido (RB-33)</Typography>
+          </ToggleButton>
+          <ToggleButton value="detalhado">
+            <Typography variant="button">Detalhado</Typography>
+          </ToggleButton>
+        </ToggleButtonGroup>
+      </ListItem>
+
+      {value.modelo === "resumido" && (
+        <ListItem
+          disablePadding
+          secondaryAction={
+            <MuiSwitch
+              edge="end"
+              checked={value.incluirCodigoScript}
+              onChange={(_e, checked) => set("incluirCodigoScript", checked)}
+              slotProps={{ input: { "aria-labelledby": "doc-opt-incluirCodigoScript" } }}
+            />
+          }
+        >
+          <ListItemButton onClick={() => set("incluirCodigoScript", !value.incluirCodigoScript)} sx={{ pr: 9 }}>
+            <ListItemIcon sx={{ minWidth: 40, color: value.incluirCodigoScript ? "primary.main" : "text.secondary" }}>
+              <Code2 className="h-5 w-5" />
+            </ListItemIcon>
+            <ListItemText
+              id="doc-opt-incluirCodigoScript"
+              primary="Incluir o código das validações por script?"
+              secondary={
+                value.incluirCodigoScript
+                  ? "Sim — o texto interpretado e, abaixo, o código JavaScript."
+                  : "Não — apenas o texto interpretado da regra."
+              }
+            />
+          </ListItemButton>
+        </ListItem>
+      )}
+
+      {value.modelo === "detalhado" && QUESTIONS.map((q) => {
         const on = value[q.key]
         const id = `doc-opt-${q.key}`
         return (
@@ -109,6 +169,11 @@ export function DocOptionsPanel({ value, onChange, showScope }: DocOptionsPanelP
 export function docOptionsSummary(o: DocOptions, portal: boolean): string {
   const parts: string[] = []
   if (portal && o.escopoPortal === "portal") parts.push("só portal")
+  parts.push(o.modelo === "resumido" ? "modelo resumido (RB-33)" : "modelo detalhado")
+  if (o.modelo === "resumido") {
+    if (o.incluirCodigoScript) parts.push("com código dos scripts")
+    return parts.join(" · ")
+  }
   if (!o.detalhesComponentes) parts.push("componentes em lista")
   if (!o.detalhesCampos) parts.push("campos em lista")
   if (!o.detalhesAcoesBotao) parts.push("ações em lista")

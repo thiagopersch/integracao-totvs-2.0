@@ -975,6 +975,7 @@ export function mapItem(item: Raw, fieldCatalog: Map<number, string>, catalogs: 
     cssCodigo: firstString(item, ["container_css"]),
     logica: describeLogica(item, fieldCatalog, "elemento"),
     integracaoTotvs: describeTotvsIntegration(item),
+    chave: firstString(formBuild, ["key"]),
   };
 
   if (outerType === "button") {
@@ -1072,6 +1073,7 @@ export function mapItem(item: Raw, fieldCatalog: Map<number, string>, catalogs: 
     ...base,
     categoria: "campo",
     fieldId: item.field_id ? Number(item.field_id) : undefined,
+    nomeSistema: item.field_id ? fieldCatalog.get(Number(item.field_id)) : undefined,
     obrigatorio: validacoes.some((v) => v.tipo.toLowerCase().includes("obrigat") && v.ativado),
     regras: validacoes.filter((v) => v.ativado).map((v) => (v.mensagem ? `${v.tipo} (${v.mensagem})` : v.tipo)),
     detalhes: buildCampoDetalhado(item, formBuild, formioType, fieldCatalog),
@@ -1092,6 +1094,7 @@ function mapFeedbacks(feedbackPayload: unknown, fieldCatalog: Map<number, string
         ? "Sem condição própria — exibido quando nenhum outro feedback da etapa se aplica."
         : (logicsToText(describeLogicsStructured(fb.logics, fieldCatalog)) ?? "(condição não identificada)"),
       conclusivo: fb.conclusive === 1 || fb.conclusive === true,
+      logica: isFallback ? undefined : describeLogica(fb, fieldCatalog, "elemento"),
     };
   });
 }
@@ -1165,6 +1168,8 @@ export function parseEtapa(stage: StageRef, payload: StagePayload, fieldCatalog:
   if (passos.length === 0) warnings.push(`Etapa "${stage.name}" não retornou passos com conteúdo — verifique se a sessão do portal admin ainda é válida.`);
 
   const etapa: EtapaSpec = {
+    id: Number(stage.list.id) || undefined,
+    idOrigem: stageOriginId(stage.list),
     nome: stage.name,
     ativa: stage.ativa,
     logicaExibicao: describeLogica(stage.list, enrichedCatalog, "elemento") ?? { regras: [] },
@@ -1175,6 +1180,29 @@ export function parseEtapa(stage: StageRef, payload: StagePayload, fieldCatalog:
   };
 
   return { etapa, warnings };
+}
+
+/** Keys a stage record has been seen to use for "the stage it was copied from". The first numeric
+ *  one wins; none present -> undefined (the RB-33 header then shows just the internal id). */
+const STAGE_ORIGIN_KEYS = ["origin_stage_id", "stage_origin_id", "origin_id", "stage_id_origin", "copied_stage_id", "copy_stage_id", "parent_stage_id", "origin"];
+
+export function stageOriginId(list: Raw): number | undefined {
+  for (const key of STAGE_ORIGIN_KEYS) {
+    const v = Number(list[key]);
+    if (v) return v;
+  }
+  return undefined;
+}
+
+/** The process's own `identifier` and portal id, for the RB-33 subtitle — best effort. */
+export function extractProcessMeta(rawProcess: unknown): { identifier?: string; idPortal?: string } {
+  const process = (unwrapData(rawProcess) as Raw) ?? {};
+  const portal = process.portal as Raw | undefined;
+  const idPortal = process.portal_id ?? process.id_portal ?? portal?.id;
+  return {
+    identifier: firstString(process, ["identifier", "identificador", "code"]),
+    idPortal: idPortal !== undefined && idPortal !== null && idPortal !== "" ? String(idPortal) : undefined,
+  };
 }
 
 export function extractTituloPortal(rawProcess: unknown, idPs: string): string {

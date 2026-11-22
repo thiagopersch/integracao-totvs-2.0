@@ -8,6 +8,7 @@ import {
   parseEtapa,
   parsePopup,
   extractTituloPortal,
+  extractProcessMeta,
   type ActionCatalogs,
   type StageRef,
 } from "@/lib/ps-docs/parse-structure";
@@ -79,6 +80,8 @@ export function toActionCatalogs(entries: ActionCatalogEntries): ActionCatalogs 
 export interface ProcessStages {
   idPs: string;
   tituloPortal: string;
+  identifier?: string;
+  idPortal?: string;
   stages: StageListItem[];
   totalStages: number;
   fieldCatalog: Map<number, string>;
@@ -169,7 +172,7 @@ export async function loadProcessStages(client: RubeusClient, idPs: string, crmD
     personTypes: [...buildStringKeyedCatalog(ok(personTypesRes)).entries()],
   };
 
-  return { idPs, tituloPortal: extractTituloPortal(processRes.data, idPs), stages, totalStages: allStages.length, fieldCatalog, actionCatalogEntries, catalogWarnings };
+  return { idPs, tituloPortal: extractTituloPortal(processRes.data, idPs), ...extractProcessMeta(processRes.data), stages, totalStages: allStages.length, fieldCatalog, actionCatalogEntries, catalogWarnings };
 }
 
 /** Step 2: fetches and parses ONE active stage, with the pop-ups its buttons open attached in

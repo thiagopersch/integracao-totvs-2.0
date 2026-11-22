@@ -3,7 +3,7 @@
 import DOMPurify from "dompurify"
 import { useMemo } from "react"
 import { Card, CardContent } from "@/components/ui/card"
-import { renderDocumentHtml } from "@/lib/ps-docs/render-html"
+import { docPreviewHtml } from "@/lib/ps-docs/doc-exports"
 import { DEFAULT_DOC_OPTIONS, type DocOptions, type DocumentacaoPS, type StyleConfig } from "@/lib/ps-docs/types"
 
 interface PsDocPreviewProps {
@@ -13,7 +13,7 @@ interface PsDocPreviewProps {
 }
 
 export function PsDocPreview({ model, style, options = DEFAULT_DOC_OPTIONS }: PsDocPreviewProps) {
-  const html = useMemo(() => renderDocumentHtml(model, style, options), [model, style, options])
+  const html = useMemo(() => docPreviewHtml(model, style, options), [model, style, options])
 
   return (
     <Card className={style.followAppTheme ? undefined : "doc-preview-light"}>

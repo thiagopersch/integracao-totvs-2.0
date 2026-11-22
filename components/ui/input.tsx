@@ -172,7 +172,9 @@ function FloatingInput({
               ;(onAnimationStart as React.AnimationEventHandler<ValueEl> | undefined)?.(e)
             },
             className: cn(
-              multiline ? "min-h-16 resize-y py-2" : "",
+              // Filled multiline: the top padding is the room for the floating label — a plain
+              // `py-2` here would win over the sx padding and put the text under the label.
+              multiline ? (isFilled ? "min-h-16 resize-y pt-[22px] pb-2" : "min-h-16 resize-y py-2") : "",
               "placeholder:text-muted-foreground",
               inner
             ),

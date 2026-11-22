@@ -17,6 +17,8 @@ import { Progress } from "@/components/ui/progress"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { parseCookieString, type PsCredentials } from "@/lib/ps-docs/credential"
+import { docDocx, docStandaloneHtml } from "@/lib/ps-docs/doc-exports"
+import { downloadBlob, slugify } from "@/lib/ps-docs/download-utils"
 import {
   DEFAULT_DOC_OPTIONS,
   DEFAULT_STYLE,
@@ -32,7 +34,7 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import Chip from "@mui/material/Chip"
 import ToggleButton from "@mui/material/ToggleButton"
 import ToggleButtonGroup from "@mui/material/ToggleButtonGroup"
-import { AlertCircle, CheckCircle2, FileText, Globe, Info, Loader2, Sparkles, Workflow } from "lucide-react"
+import { AlertCircle, CheckCircle2, Download, FileCode, FileText, Globe, Info, Loader2, Sparkles, Workflow } from "lucide-react"
 import { useState } from "react"
 import { useForm, useWatch, type Resolver } from "react-hook-form"
 import { toast } from "@/lib/toast"
@@ -117,6 +119,8 @@ export default function PsDocsPage() {
       setModel({
         tituloPortal: listRes.tituloPortal ?? `Processo Seletivo ${idPs}`,
         idPs: listRes.idPs ?? idPs,
+        identifier: listRes.identifier,
+        idPortal: listRes.idPortal ?? (data.idPortal.trim() || undefined),
         etapas: [],
       })
       setProgress({ done: 0, total: listRes.stages.length })
@@ -168,6 +172,8 @@ export default function PsDocsPage() {
       let doc: DocumentacaoPS = {
         tituloPortal: listRes.tituloPortal ?? ref.name,
         idPs: listRes.idPs ?? ref.id,
+        identifier: listRes.identifier,
+        idPortal: listRes.idPortal,
         etapas: [],
       }
       updateProcessDoc(ref.id, { doc, progress: { done: 0, total: listRes.stages.length } })
@@ -469,6 +475,7 @@ export default function PsDocsPage() {
             collapseLabel="Recolher processos"
           />
           <CardContent id="ps-docs-processes" hidden={!processesOpen}>
+            <PortalProcessesExport processDocs={processDocs} portalName={portalOverview?.geral.nome} style={style} options={docOptions} />
             <Accordion defaultValue={[processDocs[0].ref.id]}>
               {processDocs.map((p) => (
                 <AccordionItem key={p.ref.id} value={p.ref.id}>
@@ -511,6 +518,51 @@ export default function PsDocsPage() {
             </Accordion>
           </CardContent>
         </Card>
+      )}
+    </div>
+  )
+}
+
+/** "Todos os processos" exports of the portal mode: one .html (index grouped by process) and one
+ *  .docx (a section per process) with every process that already has etapas. */
+function PortalProcessesExport({
+  processDocs,
+  portalName,
+  style,
+  options,
+}: {
+  processDocs: PortalProcessDocState[]
+  portalName?: string
+  style: StyleConfig
+  options: DocOptions
+}) {
+  const ready = processDocs.flatMap((p) => (p.doc && p.doc.etapas.length > 0 ? [p.doc] : []))
+  const stillRunning = processDocs.some((p) => p.status === "pending" || p.status === "loading")
+  if (ready.length === 0) return null
+  const base = `portal-${slugify(portalName ?? "processos")}-processos`
+
+  function handleHtml() {
+    const html = docStandaloneHtml(ready, style, options, portalName ? `${portalName} — Documentação técnica` : undefined)
+    downloadBlob(new Blob([html], { type: "text/html" }), `${base}.html`)
+  }
+  // The detailed .docx is per process only, so this button exists just in the RB-33 model.
+  async function handleDocx() {
+    downloadBlob(await docDocx(ready, style, options), `${base}.docx`)
+  }
+
+  return (
+    <div className="mb-3 flex flex-wrap items-center gap-2">
+      <span className="text-sm text-muted-foreground">
+        Todos os processos ({ready.length}){stillRunning ? " — alguns ainda estão sendo gerados" : ""}:
+      </span>
+      <div className="flex-1" />
+      <Button type="button" variant="outline" size="sm" onClick={handleHtml}>
+        <FileCode className="h-4 w-4 mr-2" /> Baixar .html
+      </Button>
+      {options.modelo === "resumido" && (
+        <Button type="button" variant="outline" size="sm" onClick={handleDocx}>
+          <Download className="h-4 w-4 mr-2" /> Baixar .docx
+        </Button>
       )}
     </div>
   )

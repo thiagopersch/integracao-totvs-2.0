@@ -53,6 +53,8 @@ export interface ListStagesResult {
   error?: string;
   idPs?: string;
   tituloPortal?: string;
+  identifier?: string;
+  idPortal?: string;
   stages?: StageListItem[];
   fieldCatalogEntries?: [number, string][];
   actionCatalogEntries?: ActionCatalogEntries;
@@ -93,6 +95,8 @@ export async function listSelectiveProcessStages(input: { credentials: PsCredent
       success: true,
       idPs,
       tituloPortal: res.tituloPortal,
+      identifier: res.identifier,
+      idPortal: res.idPortal,
       stages: res.stages,
       fieldCatalogEntries: [...res.fieldCatalog.entries()],
       actionCatalogEntries: res.actionCatalogEntries,

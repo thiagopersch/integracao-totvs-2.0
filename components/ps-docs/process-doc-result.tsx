@@ -4,10 +4,9 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { PsDocPreview } from "@/components/ps-docs/ps-doc-preview"
-import { Download, ClipboardCopy } from "lucide-react"
+import { Download, ClipboardCopy, FileCode } from "lucide-react"
 import { toast } from "@/lib/toast"
-import { documentToMarkdown } from "@/lib/ps-docs/export-markdown"
-import { renderDocumentHtml } from "@/lib/ps-docs/render-html"
+import { docDocx, docMarkdown, docPreviewHtml, docStandaloneHtml } from "@/lib/ps-docs/doc-exports"
 import { downloadBlob, slugify } from "@/lib/ps-docs/download-utils"
 import { DEFAULT_DOC_OPTIONS, type DocOptions, type DocumentacaoPS, type StyleConfig } from "@/lib/ps-docs/types"
 
@@ -25,21 +24,26 @@ interface ProcessDocResultProps {
 export function ProcessDocResult({ model, warnings, style, options = DEFAULT_DOC_OPTIONS }: ProcessDocResultProps) {
   const hasResult = model.etapas.length > 0
 
+  const fileBase = `mapeamento-ps-${slugify(model.tituloPortal)}`
+
   async function handleDownloadDocx() {
-    // The docx library is only downloaded when the user actually exports.
-    const { buildDocx } = await import("@/lib/ps-docs/export-docx")
-    const blob = await buildDocx(model, style, options)
-    downloadBlob(blob, `mapeamento-ps-${slugify(model.tituloPortal)}.docx`)
+    const blob = await docDocx([model], style, options)
+    downloadBlob(blob, `${fileBase}.docx`)
   }
 
   function handleDownloadMarkdown() {
-    const markdown = documentToMarkdown(model, style, options)
-    downloadBlob(new Blob([markdown], { type: "text/markdown" }), `mapeamento-ps-${slugify(model.tituloPortal)}.md`)
+    const markdown = docMarkdown(model, style, options)
+    downloadBlob(new Blob([markdown], { type: "text/markdown" }), `${fileBase}.md`)
+  }
+
+  function handleDownloadHtml() {
+    const html = docStandaloneHtml([model], style, options)
+    downloadBlob(new Blob([html], { type: "text/html" }), `${fileBase}.html`)
   }
 
   async function handleCopyForGoogleDocs() {
-    const html = renderDocumentHtml(model, style, options)
-    const markdown = documentToMarkdown(model, style, options)
+    const html = docPreviewHtml(model, style, options)
+    const markdown = docMarkdown(model, style, options)
     try {
       await navigator.clipboard.write([
         new ClipboardItem({
@@ -66,6 +70,9 @@ export function ProcessDocResult({ model, warnings, style, options = DEFAULT_DOC
             </Button>
             <Button type="button" variant="outline" size="sm" onClick={handleDownloadMarkdown}>
               <Download className="h-4 w-4 mr-2" /> Baixar .md
+            </Button>
+            <Button type="button" variant="outline" size="sm" onClick={handleDownloadHtml}>
+              <FileCode className="h-4 w-4 mr-2" /> Baixar .html
             </Button>
             <Button type="button" variant="outline" size="sm" onClick={handleCopyForGoogleDocs}>
               <ClipboardCopy className="h-4 w-4 mr-2" /> Copiar para Google Docs
