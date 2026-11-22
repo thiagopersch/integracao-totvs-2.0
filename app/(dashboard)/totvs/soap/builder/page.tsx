@@ -5,6 +5,7 @@ import { listActiveClientsWithTbc } from "@/actions/admin/clients"
 import { listAllSistemas } from "@/actions/admin/sistemas"
 import { listAllDataservers } from "@/actions/admin/dataservers"
 import { listAllProcesses } from "@/actions/admin/processes"
+import { listSoapSavedCalls } from "@/actions/soap"
 import { EditorSkeleton } from "@/components/shared/skeletons"
 import { SoapBuilderClient } from "./soap-builder-client"
 
@@ -17,13 +18,14 @@ export default function SoapBuilderPage() {
 }
 
 async function SoapBuilderContent() {
-  const [endpointTypes, tbcs, clients, sistemas, dataservers, processes] = await Promise.all([
+  const [endpointTypes, tbcs, clients, sistemas, dataservers, processes, savedCalls] = await Promise.all([
     listAllSoapEndpointTypes(),
     listAllTbcs(),
     listActiveClientsWithTbc(),
     listAllSistemas(),
     listAllDataservers(),
     listAllProcesses(),
+    listSoapSavedCalls(),
   ])
 
   return (
@@ -41,6 +43,8 @@ async function SoapBuilderContent() {
       initialSistemas={sistemas.map((s) => ({ id: s.id, code: s.code, internalName: s.internalName, externalName: s.externalName }))}
       initialDataservers={dataservers.map((d) => ({ id: d.id, code: d.code, name: d.name }))}
       initialProcesses={processes.map((p) => ({ id: p.id, code: p.code, name: p.name }))}
+      savedFavorites={savedCalls.favorites}
+      savedTemplates={savedCalls.templates}
     />
   )
 }

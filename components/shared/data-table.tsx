@@ -1,15 +1,18 @@
 "use client"
 
 import type { ColumnDef } from "@tanstack/react-table"
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
+import { usePathname } from "next/navigation"
 import {
   DataGrid,
   ColumnsPanelTrigger,
-  ExportCsv,
   FilterPanelTrigger,
   Toolbar,
   ToolbarButton,
   useGridApiRef,
+  gridFilteredSortedRowEntriesSelector,
+  gridVisibleColumnDefinitionsSelector,
+  type GridApi as GridApiCommunity,
   type GridColDef,
   type GridPaginationModel,
   type GridRenderCellParams,
@@ -20,12 +23,20 @@ import {
 import { ptBR } from "@mui/x-data-grid/locales"
 import Badge from "@mui/material/Badge"
 import Tooltip from "@mui/material/Tooltip"
-import { Columns3, Download, ListFilter, Trash2 } from "lucide-react"
+import { ChevronDown, Columns3, FileDown, FileSpreadsheet, FileText, ListFilter, Trash2, Workflow } from "lucide-react"
 import { toast } from "@/lib/toast"
 import { Button } from "@/components/ui/button"
 import { DataTableToolbar } from "./data-table-toolbar"
 import { ConfirmDialog } from "./confirm-dialog"
 import { ContextMenu, ContextMenuTrigger } from "@/components/ui/context-menu"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 
 /**
  * Optional per-column layout hints (TanStack `meta`), read by the DataGrid adapter below.
@@ -38,6 +49,8 @@ declare module "@tanstack/react-table" {
     minWidth?: number
     flex?: number
     align?: "left" | "right" | "center"
+    /** Plain value for columns that only render a cell (badges, links): used by CSV/Excel export and client search. */
+    exportValue?: (row: TData) => unknown
   }
 }
 
@@ -95,6 +108,10 @@ interface DataTableProps<TData, TValue> {
   /** Server search. Without it, the search box drives the grid's own quick filter (client data). */
   onSearch?: (value: string) => void
   toolbarActions?: React.ReactNode
+  /** Extra `DropdownMenuItem`s (e.g. imports) shown in the toolbar's "Processos" menu under "Importar". */
+  processActions?: React.ReactNode
+  /** Extra `DropdownMenuItem`s (e.g. a page-specific report) shown in the "Processos" menu after CSV/Excel/PDF. */
+  processExportActions?: React.ReactNode
   filterPanel?: React.ReactNode
   emptyMessage?: string
   onRowClick?: (row: TData) => void
@@ -161,12 +178,126 @@ type ToolbarSlotProps = {
   filtersOpen: boolean
   onToggleFilters: () => void
   columnFilters: boolean
+  apiRef: React.RefObject<GridApiCommunity | null>
+  processActions?: React.ReactNode
+  processExportActions?: React.ReactNode
+  /** The page's filter box, shown between the toolbar row and the column headers while open. */
+  filterPanel?: React.ReactNode
+}
+
+function exportFileName() {
+  // e.g. /operations/demands → "operations-demands-2026-11-22"
+  const path = typeof window === "undefined" ? "" : window.location.pathname
+  const base = path.split("/").filter(Boolean).join("-").replace(/[^\w-]+/g, "-")
+  return `${base || "export"}-${new Date().toISOString().slice(0, 10)}`
+}
+
+/** The grid's visible columns and filtered/sorted rows (formatted values), as shown on screen. */
+function collectExportRows(apiRef: React.RefObject<GridApiCommunity | null>) {
+  const api = apiRef.current
+  if (!api) return null
+  const columns = gridVisibleColumnDefinitionsSelector(apiRef as React.RefObject<GridApiCommunity>).filter(
+    (c) => !c.disableExport && c.field !== "__check__"
+  )
+  const entries = gridFilteredSortedRowEntriesSelector(apiRef as React.RefObject<GridApiCommunity>).filter(
+    (e) => !(e.model as { __detail?: boolean }).__detail
+  )
+  const headers = columns.map((c) => c.headerName || c.field)
+  const rows = entries.map((entry) =>
+    columns.map((col) => {
+      const value = api.getRowFormattedValue(entry.model, col)
+      return value instanceof Date ? value : value == null ? "" : typeof value === "object" ? String(value) : value
+    })
+  )
+  return { headers, rows }
+}
+
+/** Writes the grid's visible columns and filtered/sorted rows to an .xlsx file (formatted values). */
+async function exportExcel(apiRef: React.RefObject<GridApiCommunity | null>) {
+  const data = collectExportRows(apiRef)
+  if (!data) return
+  const XLSX = await import("xlsx")
+  const sheet = XLSX.utils.aoa_to_sheet([data.headers, ...data.rows])
+  const book = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(book, sheet, "Dados")
+  XLSX.writeFile(book, `${exportFileName()}.xlsx`)
+}
+
+/** Same rows as the Excel export, laid out as a landscape PDF table. */
+async function exportPdf(apiRef: React.RefObject<GridApiCommunity | null>, title: string) {
+  const data = collectExportRows(apiRef)
+  if (!data) return
+  const [{ default: jsPDF }, { default: autoTable }] = await Promise.all([import("jspdf"), import("jspdf-autotable")])
+  const doc = new jsPDF({ orientation: "landscape", unit: "pt" })
+  doc.setFontSize(14)
+  doc.text(title, 40, 40)
+  doc.setFontSize(9)
+  doc.setTextColor(110)
+  doc.text(`Gerado em ${new Date().toLocaleString("pt-BR")} · ${data.rows.length} registro(s)`, 40, 56)
+  autoTable(doc, {
+    startY: 70,
+    head: [data.headers],
+    body: data.rows.map((row) =>
+      row.map((v) => (v instanceof Date ? v.toLocaleDateString("pt-BR") : String(v)))
+    ),
+    styles: { fontSize: 8, cellPadding: 4, overflow: "linebreak" },
+    headStyles: { fillColor: [34, 139, 84], textColor: 255 },
+    alternateRowStyles: { fillColor: [245, 247, 246] },
+    margin: { left: 40, right: 40 },
+  })
+  doc.save(`${exportFileName()}.pdf`)
+}
+
+function ProcessesMenu({
+  apiRef,
+  processActions,
+  processExportActions,
+}: Pick<ToolbarSlotProps, "apiRef" | "processActions" | "processExportActions">) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger render={<Button type="button" variant="outline" size="sm" className="h-9" />}>
+        <Workflow className="mr-2 h-4 w-4" /> Processos <ChevronDown className="ml-1 h-4 w-4" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="min-w-52">
+        <DropdownMenuLabel>Exportar</DropdownMenuLabel>
+        <DropdownMenuItem
+          onClick={() => apiRef.current?.exportDataAsCsv({ utf8WithBom: true, delimiter: ";", fileName: exportFileName() })}
+        >
+          <FileText /> Exportar CSV
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          onClick={() => {
+            exportExcel(apiRef).catch(() => toast.error("Erro ao exportar Excel"))
+          }}
+        >
+          <FileSpreadsheet /> Exportar Excel
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          onClick={() => {
+            // The page header names the table better than the (app-wide) document title.
+            const title = document.querySelector("main h1, h1")?.textContent?.trim() || "Relatório"
+            exportPdf(apiRef, title).catch(() => toast.error("Erro ao exportar PDF"))
+          }}
+        >
+          <FileDown /> Exportar PDF
+        </DropdownMenuItem>
+        {processExportActions}
+        {processActions && (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuLabel>Importar</DropdownMenuLabel>
+            {processActions}
+          </>
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
 }
 
 function DataTableGridToolbar(props: Partial<ToolbarSlotProps>) {
   const p = props as ToolbarSlotProps
   const gridTools = (
-    <div className="flex items-center gap-0.5">
+    <div className="flex items-center gap-1">
       <Tooltip title="Colunas">
         <ColumnsPanelTrigger render={<ToolbarButton />}>
           <Columns3 className="size-4" />
@@ -185,11 +316,7 @@ function DataTableGridToolbar(props: Partial<ToolbarSlotProps>) {
           />
         </Tooltip>
       )}
-      <Tooltip title="Exportar CSV">
-        <ExportCsv render={<ToolbarButton />} options={{ utf8WithBom: true, delimiter: ";" }}>
-          <Download className="size-4" />
-        </ExportCsv>
-      </Tooltip>
+      <ProcessesMenu apiRef={p.apiRef} processActions={p.processActions} processExportActions={p.processExportActions} />
     </div>
   )
   return (
@@ -205,6 +332,7 @@ function DataTableGridToolbar(props: Partial<ToolbarSlotProps>) {
         filtersOpen={p.filtersOpen}
         onToggleFilters={p.onToggleFilters}
       />
+      {p.filterPanel && <div className="mt-2">{p.filterPanel}</div>}
     </Toolbar>
   )
 }
@@ -225,6 +353,8 @@ export function DataTable<TData, TValue>({
   searchDefaultValue = "",
   onSearch,
   toolbarActions,
+  processActions,
+  processExportActions,
   filterPanel,
   emptyMessage = "Nenhum registro encontrado.",
   onRowClick,
@@ -244,7 +374,13 @@ export function DataTable<TData, TValue>({
   const selfManaged = !manual && !!expandable
   const selectable = !!(bulkDelete || bulkActions)
 
+  // The filter box starts closed and closes again whenever the route changes. With cacheComponents
+  // Next keeps visited pages alive in <Activity>, so leaving and coming back would otherwise show it
+  // still open: the layout-effect cleanup runs when the page is hidden (and on a pathname change in
+  // a table kept mounted across routes). See next/dist/docs/.../preserving-ui-state.md.
+  const pathname = usePathname()
   const [filtersOpen, setFiltersOpen] = useState(false)
+  useLayoutEffect(() => () => setFiltersOpen(false), [pathname])
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false)
   const [bulkDeleting, setBulkDeleting] = useState(false)
   const [selection, setSelection] = useState<GridRowSelectionModel>({ type: "include", ids: new Set() })
@@ -330,7 +466,11 @@ export function DataTable<TData, TValue>({
           : meta.width
             ? { width: meta.width, minWidth: meta.minWidth ?? 60 }
             : { flex: meta.flex ?? 1, minWidth: meta.minWidth ?? 140 }),
-        valueGetter: (_value, row) => (getter && !row.__detail ? getter(row.__original, row.__index) : undefined),
+        valueGetter: (_value, row) => {
+          if (row.__detail) return undefined
+          if (getter) return getter(row.__original, row.__index)
+          return meta.exportValue?.(row.__original)
+        },
         colSpan: (_value, row) => (row.__detail ? (colIndex === 0 ? detailSpan : 1) : 1),
         renderCell: (params: GridRenderCellParams<GridRow<TData>>) => {
           const row = params.row
@@ -365,15 +505,22 @@ export function DataTable<TData, TValue>({
   }, [cols, getters, serverSort, sortableColumns, manual, selfManaged, expandable])
 
   // ── Sorting / pagination models ─────────────────────────────────────────────
-  const sortModel: GridSortModel | undefined = serverSort
-    ? sort
-      ? [{ field: sort.field, sort: sort.direction as GridSortDirection }]
-      : []
-    : selfManaged
-      ? clientSort
-      : undefined
+  // Memoized by value: a new array each render makes the grid publish `sortModelChange`, which
+  // resets pagination to the first page (next-page clicks snapped back to page 1). Fields that
+  // aren't grid columns (e.g. a default `updatedAt` order) are left out: the grid would strip them
+  // and report an empty model, which looked like a user sort change and looped the URL.
+  const columnFields = useMemo(() => new Set(gridColumns.map((c) => c.field)), [gridColumns])
+  const sortField = sort?.field
+  const sortDirection = sort?.direction
+  const sortIsColumn = !!sortField && columnFields.has(sortField)
+  const serverSortModel = useMemo<GridSortModel>(
+    () => (sortIsColumn && sortField ? [{ field: sortField, sort: sortDirection as GridSortDirection }] : []),
+    [sortIsColumn, sortField, sortDirection]
+  )
+  const sortModel: GridSortModel | undefined = serverSort ? serverSortModel : selfManaged ? clientSort : undefined
 
-  const paginationModel: GridPaginationModel = manual ? { page: page - 1, pageSize } : clientPagination
+  const serverPagination = useMemo<GridPaginationModel>(() => ({ page: page - 1, pageSize }), [page, pageSize])
+  const paginationModel: GridPaginationModel = manual ? serverPagination : clientPagination
 
   const handlePagination = useCallback(
     (model: GridPaginationModel) => {
@@ -391,6 +538,8 @@ export function DataTable<TData, TValue>({
     (model: GridSortModel) => {
       if (serverSort) {
         const next = model[0]
+        // Nothing sorted on screen (backend default order on a non-column field): nothing to flip.
+        if (!next && !sortIsColumn) return
         // The backend always has an order; clearing the sort just flips back to ascending.
         onSortChange?.(
           next
@@ -399,7 +548,7 @@ export function DataTable<TData, TValue>({
         )
       } else if (selfManaged) setClientSort(model)
     },
-    [serverSort, selfManaged, onSortChange, sort]
+    [serverSort, selfManaged, onSortChange, sort, sortIsColumn]
   )
 
   // ── Search ──────────────────────────────────────────────────────────────────
@@ -471,6 +620,10 @@ export function DataTable<TData, TValue>({
     filtersOpen,
     onToggleFilters: toggleFilters,
     columnFilters: !manual && !selfManaged,
+    apiRef,
+    processActions,
+    processExportActions,
+    filterPanel: filtersOpen ? filterPanel : undefined,
   }
 
   const grid = (
@@ -525,6 +678,8 @@ export function DataTable<TData, TValue>({
         onRowClickRef.current(params.row.__original)
       }}
       disableVirtualization={!!expandable}
+      // No room reserved for scrollbars: they're hidden below, the rows still scroll (wheel, trackpad, touch, keys).
+      scrollbarSize={0}
       sx={{
         border: 1,
         borderColor: "divider",
@@ -544,13 +699,14 @@ export function DataTable<TData, TValue>({
         "& .data-table-clickable-row": { cursor: "pointer" },
         "& .data-table-detail-row, & .data-table-detail-row:hover": { bgcolor: "action.hover" },
         "& .MuiTablePagination-actions .MuiIconButton-root": { width: 32, height: 32, borderRadius: "50%" },
+        "& .MuiDataGrid-scrollbar, & .MuiDataGrid-scrollbarFiller": { display: "none" },
+        "& .MuiDataGrid-virtualScroller": { scrollbarWidth: "none", "&::-webkit-scrollbar": { display: "none" } },
       }}
     />
   )
 
   return (
     <div className="space-y-4">
-      {filterPanel && filtersOpen && <div>{filterPanel}</div>}
       {selectable && selectedCount > 0 && (
         <div className="flex items-center justify-between rounded-lg bg-destructive/8 px-4 py-2">
           <span className="text-sm text-muted-foreground">{selectedCount} registro(s) selecionado(s)</span>

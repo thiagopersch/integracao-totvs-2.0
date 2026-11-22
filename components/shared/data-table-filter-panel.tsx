@@ -13,6 +13,11 @@ interface DataTableFilterPanelProps {
   singleColumn?: boolean
 }
 
+/**
+ * Filter box shown between the table toolbar and the grid. Children order convention: select fields
+ * (Select, OptionSelect, MultiSelect, Combobox) first, then text inputs, date ranges, sliders and
+ * switches/checkboxes last.
+ */
 export function DataTableFilterPanel({ children, onApply, onClear, singleColumn = false }: DataTableFilterPanelProps) {
   return (
     <div className="rounded-xl bg-muted p-4 space-y-4">

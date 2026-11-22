@@ -620,7 +620,6 @@ export function FilterTable({ data, meta, clients, tbcs, sistemas, categories, f
 
   const importDialog = (
     <Dialog open={importDialogOpen} onOpenChange={(open) => { setImportDialogOpen(open); if (!open) { setImportTbcId(""); setImportCategoryId("") } }}>
-      <DialogTrigger render={<Button variant="outline"><Download className="h-4 w-4 mr-2" /> Importar sentenças padrões</Button>} />
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Importar sentenças padrões</DialogTitle>
@@ -819,11 +818,13 @@ export function FilterTable({ data, meta, clients, tbcs, sistemas, categories, f
         onPageSizeChange={(ps) => pushParams({ pageSize: ps, page: 1 })}
         searchPlaceholder="Buscar por filtro para backup, código ou usuário..."
         onSearch={(v) => pushParams({ search: v || undefined, page: 1 })}
-        toolbarActions={
-          <div className="flex flex-wrap items-center gap-2">
-            {canCreate && importDialog}
-            {canCreate && newDialog}
-          </div>
+        toolbarActions={canCreate ? newDialog : undefined}
+        processActions={
+          canCreate ? (
+            <DropdownMenuItem onClick={() => setImportDialogOpen(true)}>
+              <Download /> Importar sentenças padrões
+            </DropdownMenuItem>
+          ) : undefined
         }
         filterPanel={filterPanel}
         sort={sort}
@@ -836,6 +837,8 @@ export function FilterTable({ data, meta, clients, tbcs, sistemas, categories, f
           onSuccess: () => refresh(),
         }}
       />
+
+      {canCreate && importDialog}
 
       <ConfirmDialog
         open={deleteDialog.open}

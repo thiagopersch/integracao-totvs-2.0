@@ -1,8 +1,5 @@
 "use client"
 
-import { useState } from "react"
-import { FileDown } from "lucide-react"
-import { Button } from "@/components/ui/button"
 import { Dialog, DialogBody, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { DemandExportForm } from "@/components/shared/demand-export-form"
 import type { Client } from "@/generated/prisma/client"
@@ -11,18 +8,15 @@ interface Props {
   clients: Client[]
   years: number[]
   monthsByYear: Record<number, number[]>
+  open: boolean
+  onOpenChange: (open: boolean) => void
 }
 
-export function DemandExportDialog({ clients, years, monthsByYear }: Props) {
-  const [open, setOpen] = useState(false)
-
+/** Opened from the demands table's "Processos" menu. */
+export function DemandExportDialog({ clients, years, monthsByYear, open, onOpenChange }: Props) {
   return (
     <>
-      <Button type="button" variant="outline" onClick={() => setOpen(true)}>
-        <FileDown className="h-4 w-4 mr-2" />
-        Exportar Demandas
-      </Button>
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent size="sm">
           <DialogHeader>
             <DialogTitle>Exportar Demandas</DialogTitle>

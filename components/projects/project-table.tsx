@@ -240,6 +240,36 @@ export function ProjectTable({ data, meta, options, defs }: ProjectTableProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canUpdate, canDelete, listDefs, usersById])
 
+  // Filter box order: select fields first, then text inputs, then switches.
+  const filterableDefs = defs.filter((d) => FILTERABLE_TYPES.has(d.type))
+  const selectFilterDefs = filterableDefs.filter((d) => d.type !== "TEXT")
+  const textFilterDefs = filterableDefs.filter((d) => d.type === "TEXT")
+
+  function renderCustomFilter(def: CustomFieldDef) {
+    const key = `${CUSTOM_FIELD_PARAM_PREFIX}${def.id}`
+    return (
+      <div key={def.id} className="space-y-2">
+        <Label>{def.label}</Label>
+        {def.type === "TEXT" ? (
+          <Input value={filters[key] ?? ""} onChange={(e) => setFilter(key, e.target.value)} placeholder="Contém..." />
+        ) : (
+          <OptionSelect
+            options={
+              def.type === "BOOLEAN" || def.type === "CHECKBOX"
+                ? [{ value: "true", label: "Sim" }, { value: "false", label: "Não" }]
+                : def.type === "USER"
+                  ? options.users.map((u) => ({ value: u.id, label: u.name }))
+                  : (def.options ?? []).map((o) => ({ value: o.id, label: o.label, color: o.color || undefined }))
+            }
+            value={filters[key]}
+            onChange={(v) => setFilter(key, v)}
+            emptyLabel="Todos"
+          />
+        )}
+      </div>
+    )
+  }
+
   const filterPanel = (
     <DataTableFilterPanel
       onApply={() =>
@@ -250,10 +280,6 @@ export function ProjectTable({ data, meta, options, defs }: ProjectTableProps) {
         pushParams({ ...Object.fromEntries(filterKeys.map((k) => [k, undefined])), page: 1 })
       }}
     >
-      <div className="flex items-center gap-2">
-        <Switch id="mine" checked={filters.mine === "true"} onCheckedChange={(c) => setFilter("mine", c ? "true" : "")} />
-        <Label htmlFor="mine">Somente meus projetos</Label>
-      </div>
       <div className="space-y-2">
         <Label>Status</Label>
         <OptionSelect options={toOptions(PROJECT_STATUS_LABELS, PROJECT_STATUS_COLORS)} value={filters.status} onChange={(v) => setFilter("status", v)} emptyLabel="Todos" />
@@ -284,30 +310,12 @@ export function ProjectTable({ data, meta, options, defs }: ProjectTableProps) {
           emptyLabel="Todos"
         />
       </div>
-      {defs.filter((d) => FILTERABLE_TYPES.has(d.type)).map((def) => {
-        const key = `${CUSTOM_FIELD_PARAM_PREFIX}${def.id}`
-        return (
-          <div key={def.id} className="space-y-2">
-            <Label>{def.label}</Label>
-            {def.type === "TEXT" ? (
-              <Input value={filters[key] ?? ""} onChange={(e) => setFilter(key, e.target.value)} placeholder="Contém..." />
-            ) : (
-              <OptionSelect
-                options={
-                  def.type === "BOOLEAN" || def.type === "CHECKBOX"
-                    ? [{ value: "true", label: "Sim" }, { value: "false", label: "Não" }]
-                    : def.type === "USER"
-                      ? options.users.map((u) => ({ value: u.id, label: u.name }))
-                      : (def.options ?? []).map((o) => ({ value: o.id, label: o.label, color: o.color || undefined }))
-                }
-                value={filters[key]}
-                onChange={(v) => setFilter(key, v)}
-                emptyLabel="Todos"
-              />
-            )}
-          </div>
-        )
-      })}
+      {selectFilterDefs.map(renderCustomFilter)}
+      {textFilterDefs.map(renderCustomFilter)}
+      <div className="flex items-center gap-2">
+        <Switch id="mine" checked={filters.mine === "true"} onCheckedChange={(c) => setFilter("mine", c ? "true" : "")} />
+        <Label htmlFor="mine">Somente meus projetos</Label>
+      </div>
     </DataTableFilterPanel>
   )
 

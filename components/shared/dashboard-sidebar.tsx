@@ -49,9 +49,48 @@ const itemSx = {
     transform: "scaleY(0.4)",
     transition: "opacity 150ms ease, transform 150ms ease",
   },
-  "&.Mui-selected": { fontWeight: 600, boxShadow: "inset 0 0 0 1px rgba(var(--mui-palette-primary-mainChannel) / 0.18), 0 0 18px -6px rgba(var(--mui-palette-primary-mainChannel) / 0.45)" },
-  "&.Mui-selected::before": { opacity: 1, transform: "none", boxShadow: "0 0 8px rgba(var(--mui-palette-primary-mainChannel) / 0.8)" },
-  "&.Mui-selected .MuiListItemIcon-root": { color: "inherit" },
+  // Neon: lit border (inner + outer glow), glowing text and icon. The outer glow is kept tight
+  // (≤ 8px) so the nav's horizontal padding holds it without clipping (the nav has overflow-x hidden).
+  "&.Mui-selected": {
+    fontWeight: 600,
+    color: "primary.main",
+    boxShadow: [
+      "inset 0 0 0 1px rgba(var(--mui-palette-primary-mainChannel) / 0.55)",
+      "inset 0 0 14px -4px rgba(var(--mui-palette-primary-mainChannel) / 0.45)",
+      "0 0 10px -2px rgba(var(--mui-palette-primary-mainChannel) / 0.6)",
+    ].join(", "),
+    textShadow: "0 0 6px rgba(var(--mui-palette-primary-mainChannel) / 0.7), 0 0 14px rgba(var(--mui-palette-primary-mainChannel) / 0.4)",
+  },
+  "&.Mui-selected::before": {
+    opacity: 1,
+    transform: "none",
+    boxShadow: "0 0 4px rgba(var(--mui-palette-primary-mainChannel) / 1), 0 0 10px rgba(var(--mui-palette-primary-mainChannel) / 0.8)",
+  },
+  // Spinning neon ring around the active item — same masked conic gradient as the Kanban cards
+  // (`.neon-border`, app/globals.css), reusing its `--neon-angle` property and `neon-spin` keyframes,
+  // but always on while selected instead of on hover.
+  "&::after": {
+    content: '""',
+    position: "absolute",
+    inset: -1,
+    padding: "2px",
+    borderRadius: "inherit",
+    background: "conic-gradient(from var(--neon-angle), transparent 0 55%, var(--mui-palette-primary-main) 80%, transparent 100%)",
+    mask: "linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0)",
+    maskComposite: "exclude",
+    opacity: 0,
+    pointerEvents: "none",
+    transition: "opacity 200ms ease",
+  },
+  "&.Mui-selected::after": {
+    opacity: 1,
+    animation: "neon-spin 2.2s linear infinite",
+    "@media (prefers-reduced-motion: reduce)": { animation: "none", background: "transparent" },
+  },
+  "&.Mui-selected .MuiListItemIcon-root": {
+    color: "inherit",
+    filter: "drop-shadow(0 0 3px rgba(var(--mui-palette-primary-mainChannel) / 0.9)) drop-shadow(0 0 8px rgba(var(--mui-palette-primary-mainChannel) / 0.5))",
+  },
 } as const
 
 const iconSx = { minWidth: 0, mr: 1.5, color: "inherit", "& svg": { width: 20, height: 20 } } as const
@@ -173,7 +212,12 @@ export function DashboardSidebar({
           <h2 className="font-(family-name:--font-orbitron) text-lg font-bold tracking-wider text-primary">PerschTech</h2>
         )}
       </Box>
-      <Box component="nav" sx={{ flex: 1, minHeight: 0, overflowY: "auto", px: 1, py: 1 }}>
+      {/* Scrollable (wheel, trackpad, keyboard) with the scrollbar hidden (`no-scrollbar`, app/globals.css). */}
+      <Box
+        component="nav"
+        className="no-scrollbar"
+        sx={{ flex: 1, minHeight: 0, overflowY: "auto", overflowX: "hidden", px: 1, py: 1 }}
+      >
         <List disablePadding sx={{ display: "grid", gap: 0.25 }}>
           {groups.map((group, index) => {
             const startsSection = group.section && group.section !== groups[index - 1]?.section

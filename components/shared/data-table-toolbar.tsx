@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button"
 import { Filter as FilterIcon } from "lucide-react"
 import { useDebounce } from "@/hooks/use-debounce"
 import { memo, useState, useEffect, useRef } from "react"
-import { cn } from "@/utils/cn"
 
 interface DataTableToolbarProps {
   searchable?: boolean
@@ -60,9 +59,9 @@ export const DataTableToolbar = memo(function DataTableToolbar({
       {hasFilterPanel && (
         <Button
           type="button"
-          variant={filtersOpen ? "secondary" : "outline"}
           size="sm"
-          className={cn("h-9", filtersOpen && "border-primary")}
+          className="h-9"
+          aria-pressed={filtersOpen}
           onClick={onToggleFilters}
         >
           <FilterIcon className="h-4 w-4 mr-2" /> Filtro

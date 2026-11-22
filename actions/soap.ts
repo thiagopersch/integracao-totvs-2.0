@@ -8,8 +8,9 @@ import { prisma } from "@/lib/prisma";
 import { getRequestContext } from "@/lib/tenant";
 import { requirePermission } from "@/lib/rbac";
 import { auditService } from "@/services/audit.service";
-import type { SoapContext } from "@/types/soap";
-import type { SoapMethod } from "@/generated/prisma/client";
+import { z } from "zod";
+import type { SoapBuilderSnapshot, SoapContext, SoapSavedCall } from "@/types/soap";
+import { SoapMethod as SoapMethodEnum, type SoapMethod, type Prisma } from "@/generated/prisma/client";
 
 export async function listSoapFavorites() {
   const { organizationId, userId } = await getRequestContext();
@@ -98,5 +99,168 @@ export async function reexecuteSoapLog(logId: string) {
     // recent-executions box needs invalidating here too, not just on the success path.
     updateTag("dashboard");
     return { success: false, error: (error as Error).message };
+  }
+}
+
+// ── Favorites / templates saved from the SOAP builder ─────────────────────────
+
+const snapshotSchema = z.object({
+  typeId: z.string().min(1, "Selecione o tipo de endpoint"),
+  methodId: z.string().min(1, "Selecione o método"),
+  sistemaId: z.string(),
+  clientId: z.string(),
+  tbcId: z.string(),
+  dataserverId: z.string(),
+  processId: z.string(),
+  context: z.object({
+    coligate: z.number().nullable(),
+    branch: z.number().nullable(),
+    levelEducation: z.number().nullable(),
+    codSystem: z.string(),
+    user: z.string(),
+  }),
+  timeout: z.number().int().positive(),
+  sql: z
+    .object({ codColigada: z.string(), codSentenca: z.string(), parameters: z.string(), context: z.string() })
+    .optional(),
+});
+
+const savedCallSchema = z.object({
+  name: z.string().trim().min(1, "Informe um nome").max(120),
+  description: z.string().trim().max(500).optional(),
+  /** Dataserver/process code, shown on the favorites/templates cards. */
+  dataserver: z.string().optional(),
+  process: z.string().optional(),
+  /** Endpoint method key (e.g. "READVIEW"); kept only when it is a known SoapMethod. */
+  method: z.string().optional(),
+  xml: z.string(),
+  snapshot: snapshotSchema,
+});
+
+export type SoapSavedCallInput = z.input<typeof savedCallSchema>;
+
+function toSoapMethod(method?: string): SoapMethod | undefined {
+  return method && method in SoapMethodEnum ? (method as SoapMethod) : undefined;
+}
+
+/** Same call = same endpoint type, method, TBC and catalog entry (the XML body may differ). */
+function sameCall(a: SoapBuilderSnapshot, b: unknown): boolean {
+  const o = b as Partial<SoapBuilderSnapshot> | null;
+  return (
+    !!o &&
+    o.typeId === a.typeId &&
+    o.methodId === a.methodId &&
+    o.tbcId === a.tbcId &&
+    o.dataserverId === a.dataserverId &&
+    o.processId === a.processId
+  );
+}
+
+function toSavedCall(
+  kind: SoapSavedCall["kind"],
+  row: { id: string; name: string; description?: string | null; xml?: string | null; xmlTemplate?: string | null; context: unknown }
+): SoapSavedCall {
+  const parsed = snapshotSchema.safeParse(row.context);
+  return {
+    id: row.id,
+    kind,
+    name: row.name,
+    description: row.description ?? null,
+    xml: row.xml ?? row.xmlTemplate ?? "",
+    snapshot: parsed.success ? parsed.data : null,
+  };
+}
+
+/** The current user's favorites and templates, as the builder's "Abrir" menu lists them. */
+export async function listSoapSavedCalls(): Promise<{ favorites: SoapSavedCall[]; templates: SoapSavedCall[] }> {
+  const { organizationId, userId } = await requirePermission("soap", "execute");
+  const [favorites, templates] = await Promise.all([
+    soapService.getFavorites(userId, organizationId),
+    soapService.getTemplates(organizationId, userId),
+  ]);
+  return {
+    favorites: favorites.map((f) => toSavedCall("favorite", f)),
+    templates: templates.map((t) => toSavedCall("template", t)),
+  };
+}
+
+/** Stars/unstars the builder's current call. Returns whether it is a favorite afterwards. */
+export async function toggleSoapFavorite(input: SoapSavedCallInput) {
+  const { organizationId, userId } = await requirePermission("soap", "execute");
+  const parsed = savedCallSchema.safeParse(input);
+  if (!parsed.success) return { success: false as const, error: parsed.error.issues[0]?.message ?? "Dados inválidos" };
+  const data = parsed.data;
+  try {
+    const favorites = await prisma.soapFavorite.findMany({ where: { userId, organizationId } });
+    const existing = favorites.find((f) => sameCall(data.snapshot, f.context));
+    if (existing) {
+      await soapService.deleteFavorite(existing.id, userId, organizationId);
+      await auditService.log({
+        action: "DELETE",
+        entity: "SoapFavorite",
+        entityId: existing.id,
+        organizationId,
+        userId,
+        oldData: { name: existing.name, dataserver: existing.dataserver, process: existing.process, method: existing.method },
+      });
+      return { success: true as const, favorited: false, id: existing.id };
+    }
+    const created = await prisma.soapFavorite.create({
+      data: {
+        organizationId,
+        userId,
+        name: data.name,
+        dataserver: data.dataserver || null,
+        process: data.process || null,
+        method: toSoapMethod(data.method),
+        xml: data.xml,
+        context: data.snapshot as unknown as Prisma.InputJsonValue,
+      },
+    });
+    await auditService.log({
+      action: "CREATE",
+      entity: "SoapFavorite",
+      entityId: created.id,
+      organizationId,
+      userId,
+      newData: { name: created.name, dataserver: created.dataserver, process: created.process, method: created.method },
+    });
+    return { success: true as const, favorited: true, id: created.id };
+  } catch (error) {
+    return { success: false as const, error: (error as Error).message };
+  }
+}
+
+/** Saves the builder's current call (XML included) as a named template. */
+export async function saveSoapTemplate(input: SoapSavedCallInput) {
+  const { organizationId, userId } = await requirePermission("soap", "execute");
+  const parsed = savedCallSchema.safeParse(input);
+  if (!parsed.success) return { success: false as const, error: parsed.error.issues[0]?.message ?? "Dados inválidos" };
+  const data = parsed.data;
+  try {
+    const created = await soapService.saveTemplate(
+      {
+        userId,
+        name: data.name,
+        description: data.description || undefined,
+        dataserver: data.dataserver || undefined,
+        process: data.process || undefined,
+        method: toSoapMethod(data.method),
+        xmlTemplate: data.xml,
+        context: data.snapshot as unknown as Record<string, unknown>,
+      },
+      organizationId
+    );
+    await auditService.log({
+      action: "CREATE",
+      entity: "SoapTemplate",
+      entityId: created.id,
+      organizationId,
+      userId,
+      newData: { name: created.name, dataserver: created.dataserver, process: created.process, method: created.method },
+    });
+    return { success: true as const, id: created.id };
+  } catch (error) {
+    return { success: false as const, error: (error as Error).message };
   }
 }

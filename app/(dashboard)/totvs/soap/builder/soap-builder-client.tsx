@@ -58,6 +58,9 @@ import {
   type SchemaTable,
 } from "@/utils/soap-schema"
 import { formatDuration } from "@/utils/format"
+import { SoapSavedCallsBar } from "@/components/shared/soap-saved-calls-bar"
+import type { SoapBuilderSnapshot, SoapSavedCall } from "@/types/soap"
+import { useRouter, useSearchParams } from "next/navigation"
 import { useSoapStore } from "@/store/soap.store"
 import { buildPkFiltro } from "@/lib/tbc-checklist-filtro"
 import { Field, FieldLabel } from "@/components/ui/field"
@@ -99,6 +102,8 @@ interface SoapBuilderClientProps {
   initialSistemas: SistemaOption[]
   initialDataservers: DataserverOption[]
   initialProcesses: ProcessOption[]
+  savedFavorites: SoapSavedCall[]
+  savedTemplates: SoapSavedCall[]
 }
 
 /** The 2 endpoint types whose methods operate on one specific catalog entry — TOTVS's generic
@@ -160,6 +165,8 @@ export function SoapBuilderClient({
   initialSistemas,
   initialDataservers,
   initialProcesses,
+  savedFavorites,
+  savedTemplates,
 }: SoapBuilderClientProps) {
   const endpointTypes = initialEndpointTypes
   const tbcs = initialTbcs
@@ -743,6 +750,122 @@ export function SoapBuilderClient({
     if (tbc) setContext({ user: tbc.user })
   }
 
+  // ── Favorites / templates ───────────────────────────────────────────────────
+  const router = useRouter()
+  const searchParams = useSearchParams()
+
+  /** The current call as a favorite/template stores it; null until a type and method are picked. */
+  const savedCallInput = useMemo(() => {
+    if (!selectedTypeId || !selectedMethodId) return null
+    const snapshot: SoapBuilderSnapshot = {
+      typeId: selectedTypeId,
+      methodId: selectedMethodId,
+      sistemaId: selectedSistemaId,
+      clientId: selectedClientId,
+      tbcId: selectedTbcId,
+      dataserverId: selectedDataserverId,
+      processId: selectedProcessId,
+      context,
+      timeout,
+      ...(isConsultaSqlMethod
+        ? { sql: { codColigada: sqlCodColigada, codSentenca: sqlCodSentenca, parameters: sqlParameters, context: sqlContext } }
+        : {}),
+    }
+    return {
+      dataserver: selectedDataserverCode || undefined,
+      process: selectedProcessCode || undefined,
+      method: selectedMethod,
+      xml: xmlContent,
+      snapshot,
+    }
+  }, [
+    selectedTypeId,
+    selectedMethodId,
+    selectedSistemaId,
+    selectedClientId,
+    selectedTbcId,
+    selectedDataserverId,
+    selectedProcessId,
+    context,
+    timeout,
+    isConsultaSqlMethod,
+    sqlCodColigada,
+    sqlCodSentenca,
+    sqlParameters,
+    sqlContext,
+    selectedDataserverCode,
+    selectedProcessCode,
+    selectedMethod,
+    xmlContent,
+  ])
+  const savedCallName = [
+    selectedMethodObj?.label ?? selectedMethod,
+    selectedDataserverCode || selectedProcessCode || selectedType?.label,
+    selectedTbc?.client?.name ?? selectedTbc?.name,
+  ]
+    .filter(Boolean)
+    .join(" · ")
+
+  /** Restores a favorite/template: selections, context, timeout and the saved request XML. */
+  function applySavedCall(call: SoapSavedCall) {
+    const snap = call.snapshot
+    const type = snap ? endpointTypes.find((t) => t.id === snap.typeId) : undefined
+    const method = type?.methods.find((m) => m.id === snap?.methodId)
+    if (!snap || !type || !method) {
+      toast.error("O tipo ou método salvo não existe mais em /admin/soap-endpoints")
+      return
+    }
+    const tbcExists = !snap.tbcId || tbcs.some((t) => t.id === snap.tbcId)
+    setSelectedTypeId(type.id)
+    setSelectedMethodId(method.id)
+    setSelectedSistemaId(sistemas.some((s) => s.id === snap.sistemaId) ? snap.sistemaId : "")
+    setSelectedClientId(clients.some((c) => c.id === snap.clientId) ? snap.clientId : "")
+    setSelectedTbcId(tbcExists ? snap.tbcId : "")
+    setSelectedDataserverId(dataservers.some((d) => d.id === snap.dataserverId) ? snap.dataserverId : "")
+    setSelectedProcessId(processes.some((p) => p.id === snap.processId) ? snap.processId : "")
+    setContext(snap.context)
+    setTimeout_(snap.timeout)
+    resetGuidedParams()
+    if (snap.sql) {
+      setSqlCodColigada(snap.sql.codColigada)
+      setSqlCodSentenca(snap.sql.codSentenca)
+      setSqlParameters(snap.sql.parameters)
+      setSqlContext(snap.sql.context)
+    }
+    // Guided methods would otherwise rerun GetSchema and overwrite the saved XML: mark this exact
+    // call as already loaded (same key shape as `guidedParamsKey`).
+    const entityId = type.type === "process" ? snap.processId : snap.dataserverId
+    setGuidedParamsLoadedFor(`${type.type}:${method.method}:${entityId}:${tbcExists ? snap.tbcId : ""}`)
+    setResponse(null)
+    setError(null)
+    setRequestXml(call.xml)
+    toast.success(`${call.kind === "favorite" ? "Favorito" : "Template"} "${call.name}" carregado`)
+    if (!tbcExists) toast.warning("O TBC salvo não está mais disponível — selecione outro")
+  }
+
+  // /totvs/soap/builder?favorite=<id> | ?template=<id> (from the favorites/templates pages).
+  const openedFromUrlRef = useRef(false)
+  useEffect(() => {
+    if (openedFromUrlRef.current) return
+    const favoriteId = searchParams.get("favorite")
+    const templateId = searchParams.get("template")
+    if (!favoriteId && !templateId) return
+    // Applied from a timer callback (not the effect body): the restore sets a lot of state at once,
+    // and StrictMode's mount→unmount→mount cancels the first timer so it only runs once.
+    const timer = window.setTimeout(() => {
+      openedFromUrlRef.current = true
+      const call = favoriteId
+        ? savedFavorites.find((f) => f.id === favoriteId)
+        : savedTemplates.find((t) => t.id === templateId)
+      if (call) applySavedCall(call)
+      else toast.error(favoriteId ? "Favorito não encontrado" : "Template não encontrado")
+      router.replace("/totvs/soap/builder", { scroll: false })
+    }, 0)
+    return () => window.clearTimeout(timer)
+    // Runs once per visit; applySavedCall reads the latest state on that render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams])
+
   // Once the user finishes typing the last of the 5 context fields, fire Executar automatically —
   // saves a click for the repetitive methods this context set was built for. Guarded by a
   // signature ref so leaving/re-entering a field that hasn't actually changed doesn't re-execute.
@@ -977,7 +1100,14 @@ export function SoapBuilderClient({
           <h1 className="text-2xl font-bold font-heading">Integração SOAP</h1>
           <p className="text-sm text-muted-foreground">Builder de chamadas SOAP para TOTVS RM</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <SoapSavedCallsBar
+            favorites={savedFavorites}
+            templates={savedTemplates}
+            current={savedCallInput}
+            suggestedName={savedCallName}
+            onOpen={applySavedCall}
+          />
           <Button variant="outline" size="sm" onClick={handleCopyXml}>
             <Copy className="h-4 w-4 mr-2" /> Copiar XML
           </Button>

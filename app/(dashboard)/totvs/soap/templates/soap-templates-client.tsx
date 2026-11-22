@@ -8,7 +8,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { EmptyState } from "@/components/shared/empty-state"
-import { Bookmark, Trash2 } from "lucide-react"
+import { Bookmark, Trash2, Play } from "lucide-react"
+import Link from "next/link"
 import { toast } from "@/lib/toast"
 import { formatDate } from "@/utils/format"
 import { deleteSoapTemplate } from "@/actions/soap"
@@ -64,16 +65,26 @@ export function SoapTemplatesClient({ templates }: { templates: TemplateItem[] }
                   {template.dataserver && <Badge variant="outline" className="text-xs">{template.dataserver}</Badge>}
                   {template.method && <Badge variant="outline" className="text-xs">{template.method}</Badge>}
                 </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-muted-foreground">{formatDate(template.createdAt)}</span>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    disabled={removingId === template.id}
-                    onClick={() => handleDelete(template.id)}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="whitespace-nowrap text-xs text-muted-foreground">{formatDate(template.createdAt)}</span>
+                  <div className="flex items-center gap-1">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      nativeButton={false}
+                      render={<Link href={`/totvs/soap/builder?template=${template.id}`} />}
+                    >
+                      <Play className="h-4 w-4 mr-1" /> Abrir no construtor
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      disabled={removingId === template.id}
+                      onClick={() => handleDelete(template.id)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
               </CardContent>
             </Card>

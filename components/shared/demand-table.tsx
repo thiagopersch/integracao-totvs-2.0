@@ -20,7 +20,7 @@ import { DateRangePicker } from "@/components/ui/date-range-picker"
 import { format, parse } from "date-fns"
 import type { DateRange } from "@/components/ui/date-range-picker"
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu"
-import { Plus, Copy, Pencil } from "lucide-react"
+import { Plus, Copy, Pencil, FileDown, FileUp } from "lucide-react"
 import { deleteDemand, duplicateDemand, bulkDeleteDemands, type getDemandFilterOptions } from "@/actions/demands"
 import { formatDateOnly } from "@/utils/format"
 import { TruncatedText } from "@/components/shared/truncated-text"
@@ -124,6 +124,8 @@ function parseDayParam(value: string | null): Date | undefined {
   return value ? parse(value, "yyyy-MM-dd", new Date()) : undefined
 }
 
+const joinNames = (items: { name: string }[]) => items.map((i) => i.name).join(", ")
+
 export function DemandTable({
   data,
   meta,
@@ -162,6 +164,8 @@ export function DemandTable({
   const canCreate = useHasPermission("demands", "create")
   const canUpdate = useHasPermission("demands", "update")
   const canDelete = useHasPermission("demands", "delete")
+  const [exportOpen, setExportOpen] = useState(false)
+  const [importOpen, setImportOpen] = useState(false)
   const [bulkEdit, setBulkEdit] = useState<{ open: boolean; rows: DemandRow[]; clearSelection?: () => void }>({ open: false, rows: [] })
   const [multiFilters, setMultiFilters] = useState<Record<MultiFilterKey, string[]>>(
     () =>
@@ -201,6 +205,7 @@ export function DemandTable({
     {
       id: "client",
       header: "Cliente",
+      meta: { exportValue: (row) => row.client?.name ?? "" },
       cell: ({ row }) =>
         row.original.client ? (
           <ColorBadge label={row.original.client.name} color={row.original.client.color} solid />
@@ -211,6 +216,7 @@ export function DemandTable({
     {
       id: "projectName",
       header: "Projeto",
+      meta: { exportValue: (row) => (row.project ? `${row.project.code} — ${row.project.name}` : "") },
       cell: ({ row }) =>
         row.original.project ? (
           <Link
@@ -244,15 +250,26 @@ export function DemandTable({
     {
       id: "analyst",
       header: "Analista",
-      cell: ({ row }) => <BadgeList items={demandAnalysts(row.original)} />,
+      meta: { exportValue: (row) => joinNames(demandAnalysts(row)) },
+      cell: ({ row }) => <BadgeList items={demandAnalysts(row.original)} max={1} />,
     },
-    { id: "requester", header: "Solicitante", cell: ({ row }) => <BadgeList items={demandRequesters(row.original)} /> },
-    { id: "department", header: "Setor", cell: ({ row }) => <BadgeList items={demandDepartments(row.original)} /> },
+    {
+      id: "requester",
+      header: "Solicitante",
+      meta: { exportValue: (row) => joinNames(demandRequesters(row)) },
+      cell: ({ row }) => <BadgeList items={demandRequesters(row.original)} max={1} />,
+    },
+    {
+      id: "department",
+      header: "Setor",
+      meta: { exportValue: (row) => joinNames(demandDepartments(row)) },
+      cell: ({ row }) => <BadgeList items={demandDepartments(row.original)} max={1} />,
+    },
     {
       id: "demandType",
       header: "Tipo",
-      cell: ({ row }) =>
-        <BadgeList items={demandTypesOf(row.original)} />,
+      meta: { exportValue: (row) => joinNames(demandTypesOf(row)) },
+      cell: ({ row }) => <BadgeList items={demandTypesOf(row.original)} max={1} />,
     },
     {
       accessorKey: "priority",
@@ -273,7 +290,8 @@ export function DemandTable({
     {
       id: "tags",
       header: "Tags",
-      cell: ({ row }) => <BadgeList items={row.original.demandTags.map(({ tag }) => tag)} />,
+      meta: { exportValue: (row) => joinNames(row.demandTags.map(({ tag }) => tag)) },
+      cell: ({ row }) => <BadgeList items={row.original.demandTags.map(({ tag }) => tag)} max={1} />,
     },
   ]
 
@@ -408,7 +426,16 @@ export function DemandTable({
 
   const filterPanel = (
     <DataTableFilterPanel onApply={applyFilters} onClear={clearFilters}>
+      {/* Filter box order: select fields first, then date range and slider. */}
       {renderMultiFilter("clientId")}
+      {renderMultiFilter("projectId")}
+      {renderMultiFilter("analystId")}
+      {renderMultiFilter("requesterId")}
+      {renderMultiFilter("departmentId")}
+      {renderMultiFilter("demandTypeId")}
+      {renderMultiFilter("priority")}
+      {renderMultiFilter("status")}
+      {renderMultiFilter("tagId")}
       <div className="space-y-2">
         <Label>Data</Label>
         <DateRangePicker value={dateRange} onValueChange={setDateRange} placeholder="Selecione uma data ou período" />
@@ -424,14 +451,6 @@ export function DemandTable({
           className="pt-2"
         />
       </div>
-      {renderMultiFilter("projectId")}
-      {renderMultiFilter("analystId")}
-      {renderMultiFilter("requesterId")}
-      {renderMultiFilter("departmentId")}
-      {renderMultiFilter("demandTypeId")}
-      {renderMultiFilter("priority")}
-      {renderMultiFilter("status")}
-      {renderMultiFilter("tagId")}
     </DataTableFilterPanel>
   )
 
@@ -453,20 +472,18 @@ export function DemandTable({
         onPageSizeChange={(ps) => pushParams({ pageSize: ps, page: 1 })}
         searchPlaceholder="Buscar por qualquer informação..."
         onSearch={(v) => pushParams({ search: v || undefined, page: 1 })}
-        toolbarActions={
-          <>
-            {canCreate && newDialog}
-            <DemandExportDialog clients={filterOptions.clients} years={years} monthsByYear={monthsByYear} />
-            {canCreate && (
-              <DemandImportDialog
-                clients={clients}
-                analysts={analysts}
-                requesters={requesters}
-                departments={departments}
-                demandTypes={demandTypes}
-              />
-            )}
-          </>
+        toolbarActions={canCreate ? newDialog : undefined}
+        processExportActions={
+          <DropdownMenuItem onClick={() => setExportOpen(true)}>
+            <FileDown /> Exportar Demandas
+          </DropdownMenuItem>
+        }
+        processActions={
+          canCreate ? (
+            <DropdownMenuItem onClick={() => setImportOpen(true)}>
+              <FileUp /> Importar Demandas
+            </DropdownMenuItem>
+          ) : undefined
         }
         filterPanel={filterPanel}
         sort={sort}
@@ -489,6 +506,25 @@ export function DemandTable({
           onSuccess: () => refresh(),
         }}
       />
+
+      <DemandExportDialog
+        clients={filterOptions.clients}
+        years={years}
+        monthsByYear={monthsByYear}
+        open={exportOpen}
+        onOpenChange={setExportOpen}
+      />
+      {canCreate && (
+        <DemandImportDialog
+          clients={clients}
+          analysts={analysts}
+          requesters={requesters}
+          departments={departments}
+          demandTypes={demandTypes}
+          open={importOpen}
+          onOpenChange={setImportOpen}
+        />
+      )}
 
       <DemandBulkEditDialog
         open={bulkEdit.open}

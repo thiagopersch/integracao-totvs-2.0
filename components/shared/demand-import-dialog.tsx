@@ -1,8 +1,5 @@
 "use client"
 
-import { useState } from "react"
-import { FileUp } from "lucide-react"
-import { Button } from "@/components/ui/button"
 import { Dialog, DialogBody, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { DemandImportForm } from "@/components/shared/demand-import-form"
 import type { Client, Analyst, Requester, Department, DemandType } from "@/generated/prisma/client"
@@ -13,18 +10,15 @@ interface Props {
   requesters: Requester[]
   departments: Department[]
   demandTypes: DemandType[]
+  open: boolean
+  onOpenChange: (open: boolean) => void
 }
 
-export function DemandImportDialog({ clients, analysts, requesters, departments, demandTypes }: Props) {
-  const [open, setOpen] = useState(false)
-
+/** Opened from the demands table's "Processos" menu. */
+export function DemandImportDialog({ clients, analysts, requesters, departments, demandTypes, open, onOpenChange }: Props) {
   return (
     <>
-      <Button type="button" variant="outline" onClick={() => setOpen(true)}>
-        <FileUp className="h-4 w-4 mr-2" />
-        Importar Demandas
-      </Button>
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Importar Demandas</DialogTitle>
@@ -36,7 +30,7 @@ export function DemandImportDialog({ clients, analysts, requesters, departments,
               requesters={requesters}
               departments={departments}
               demandTypes={demandTypes}
-              onClose={() => setOpen(false)}
+              onClose={() => onOpenChange(false)}
             />
           </DialogBody>
         </DialogContent>

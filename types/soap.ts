@@ -47,3 +47,33 @@ export type SoapTemplate = {
   method: SoapMethod | null;
   xmlTemplate: string | null;
 };
+
+/** Everything the SOAP builder needs to reopen a saved call (stored in SoapFavorite/SoapTemplate.context). */
+export type SoapBuilderSnapshot = {
+  typeId: string;
+  methodId: string;
+  sistemaId: string;
+  clientId: string;
+  tbcId: string;
+  dataserverId: string;
+  processId: string;
+  context: {
+    coligate: number | null;
+    branch: number | null;
+    levelEducation: number | null;
+    codSystem: string;
+    user: string;
+  };
+  timeout: number;
+  sql?: { codColigada: string; codSentenca: string; parameters: string; context: string };
+};
+
+/** A favorite or template as the builder lists it in its "Abrir" menu. */
+export type SoapSavedCall = {
+  id: string;
+  kind: "favorite" | "template";
+  name: string;
+  description: string | null;
+  xml: string;
+  snapshot: SoapBuilderSnapshot | null;
+};
