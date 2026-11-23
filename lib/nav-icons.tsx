@@ -48,6 +48,7 @@ import {
   FileSpreadsheet,
   Sparkles,
   GitBranch,
+  GitCompare,
   type LucideIcon,
 } from "lucide-react";
 
@@ -101,4 +102,5 @@ export const NAV_ICONS: Record<string, LucideIcon> = {
   FileSpreadsheet,
   Sparkles,
   GitBranch,
+  GitCompare,
 };

@@ -1,6 +1,5 @@
 "use client"
 
-import { fetchStageDocumentation, listSelectiveProcessStages } from "@/actions/integrations/ps-docs"
 import { fetchPortalOverview, listPortalSelectiveProcesses } from "@/actions/integrations/ps-portal-docs"
 import { CredentialsFormFields } from "@/components/ps-docs/credentials-form-fields"
 import { DocOptionsPanel, docOptionsSummary } from "@/components/ps-docs/doc-options-panel"
@@ -16,6 +15,7 @@ import { Input } from "@/components/ui/input"
 import { Progress } from "@/components/ui/progress"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { loadProcessDoc } from "@/lib/ps-docs/client/load-process-doc"
 import { parseCookieString, type PsCredentials } from "@/lib/ps-docs/credential"
 import { docDocx, docStandaloneHtml } from "@/lib/ps-docs/doc-exports"
 import { downloadBlob, slugify } from "@/lib/ps-docs/download-utils"
@@ -108,40 +108,27 @@ export default function PsDocsPage() {
     setProgress(null)
 
     try {
-      const listRes = await listSelectiveProcessStages({ credentials, idPs, crmDomain: crmDomain.trim() || undefined })
-      if (!listRes.success || !listRes.stages || !listRes.fieldCatalogEntries) {
-        setError(listRes.error || "Erro ao consultar o processo seletivo")
-        toast.error(listRes.error || "Erro ao consultar o processo seletivo")
+      const res = await loadProcessDoc({
+        credentials,
+        idPs,
+        crmDomain,
+        fallbackIdPortal: data.idPortal.trim() || undefined,
+        // Etapas aparecem uma a uma conforme chegam, em vez de esperar o processo inteiro.
+        onStart: (doc, total) => {
+          setModel(doc)
+          setProgress({ done: 0, total })
+        },
+        onStage: (doc, done, total) => {
+          setModel(doc)
+          setProgress({ done, total })
+        },
+      })
+      if (!res.success) {
+        setError(res.error)
+        toast.error(res.error)
         return
       }
-
-      // Etapas aparecem uma a uma conforme chegam, em vez de esperar o processo inteiro.
-      setModel({
-        tituloPortal: listRes.tituloPortal ?? `Processo Seletivo ${idPs}`,
-        idPs: listRes.idPs ?? idPs,
-        identifier: listRes.identifier,
-        idPortal: listRes.idPortal ?? (data.idPortal.trim() || undefined),
-        etapas: [],
-      })
-      setProgress({ done: 0, total: listRes.stages.length })
-
-      const allWarnings: string[] = [...(listRes.catalogWarnings ?? [])]
-      for (const stage of listRes.stages) {
-        const stageRes = await fetchStageDocumentation({
-          credentials,
-          idPs,
-          stage: stage.ref,
-          fieldCatalogEntries: listRes.fieldCatalogEntries,
-          actionCatalogEntries: listRes.actionCatalogEntries,
-        })
-        if (stageRes.success && stageRes.etapa) {
-          setModel((prev) => (prev ? { ...prev, etapas: [...prev.etapas, stageRes.etapa!] } : prev))
-          if (stageRes.warnings) allWarnings.push(...stageRes.warnings)
-        } else {
-          allWarnings.push(`Etapa "${stage.label}": ${stageRes.error ?? "falha ao consultar"}`)
-        }
-        setProgress((prev) => (prev ? { ...prev, done: prev.done + 1 } : prev))
-      }
+      const allWarnings = res.warnings
 
       setWarnings(allWarnings)
       setFormOpen(false)
@@ -159,46 +146,19 @@ export default function PsDocsPage() {
   async function generateOneProcessDoc(ref: PortalProcessRef, credentials: PsCredentials, crmDomain: string) {
     updateProcessDoc(ref.id, { status: "loading" })
     try {
-      const listRes = await listSelectiveProcessStages({
+      const res = await loadProcessDoc({
         credentials,
         idPs: ref.id,
-        crmDomain: crmDomain.trim() || undefined,
+        crmDomain,
+        fallbackTitle: ref.name,
+        onStart: (doc, total) => updateProcessDoc(ref.id, { doc, progress: { done: 0, total } }),
+        onStage: (doc, done, total) => updateProcessDoc(ref.id, { doc, progress: { done, total } }),
       })
-      if (!listRes.success || !listRes.stages || !listRes.fieldCatalogEntries) {
-        updateProcessDoc(ref.id, { status: "error", error: listRes.error || "Erro ao consultar o processo seletivo" })
+      if (!res.success) {
+        updateProcessDoc(ref.id, { status: "error", error: res.error })
         return
       }
-
-      let doc: DocumentacaoPS = {
-        tituloPortal: listRes.tituloPortal ?? ref.name,
-        idPs: listRes.idPs ?? ref.id,
-        identifier: listRes.identifier,
-        idPortal: listRes.idPortal,
-        etapas: [],
-      }
-      updateProcessDoc(ref.id, { doc, progress: { done: 0, total: listRes.stages.length } })
-
-      const allWarnings: string[] = [...(listRes.catalogWarnings ?? [])]
-      for (const stage of listRes.stages) {
-        const stageRes = await fetchStageDocumentation({
-          credentials,
-          idPs: ref.id,
-          stage: stage.ref,
-          fieldCatalogEntries: listRes.fieldCatalogEntries,
-          actionCatalogEntries: listRes.actionCatalogEntries,
-        })
-        if (stageRes.success && stageRes.etapa) {
-          doc = { ...doc, etapas: [...doc.etapas, stageRes.etapa] }
-          if (stageRes.warnings) allWarnings.push(...stageRes.warnings)
-        } else {
-          allWarnings.push(`Etapa "${stage.label}": ${stageRes.error ?? "falha ao consultar"}`)
-        }
-        updateProcessDoc(ref.id, (prev) => ({
-          doc,
-          progress: prev.progress ? { done: prev.progress.done + 1, total: prev.progress.total } : undefined,
-        }))
-      }
-
+      const { doc, warnings: allWarnings } = res
       updateProcessDoc(ref.id, { status: "done", doc, warnings: allWarnings })
     } catch (e) {
       updateProcessDoc(ref.id, { status: "error", error: (e as Error).message })

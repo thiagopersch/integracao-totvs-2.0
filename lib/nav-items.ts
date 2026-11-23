@@ -138,6 +138,7 @@ export const navGroups: NavGroup[] = [
       { href: "/rubeus/docs", label: "Gerar documentação", icon: "FileText", resource: "ps_docs", action: "execute" },
       { href: "/rubeus/sql-docs", label: "Documentar consultas", icon: "Database", resource: "sql_docs", action: "execute" },
       { href: "/rubeus/logic-docs", label: "Trilhas de lógica", icon: "GitBranch", resource: "ps_docs", action: "execute" },
+      { href: "/rubeus/compare", label: "Comparar processos", icon: "GitCompare", resource: "ps_compare", action: "execute" },
       { href: "/rubeus/field-search", label: "Buscar elementos", icon: "SearchCode", resource: "ps_field_search", action: "execute" },
       { href: "/rubeus/log-analysis", label: "Análise de logs", icon: "ScrollText", resource: "ps_log_analysis", action: "execute" },
       { href: "/rubeus/form-tests", label: "Testes automatizados", icon: "FlaskConical", resource: "ps_ficha_test", action: "execute" },

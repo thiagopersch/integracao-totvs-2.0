@@ -10,10 +10,11 @@ import type { Prisma } from "@/generated/prisma/client";
  *  auth/unwrap/logging plumbing instead of duplicating it. */
 
 /** Grants accepted by the shared PS structure readers (`ps-docs.ts`/`ps-portal-docs.ts`), which
- *  back both "Documentação PS" and "Busca de campos PS". */
+ *  back "Documentação PS", "Busca de campos PS" and "Comparar processos". */
 export const PS_STRUCTURE_GRANTS: [string, string][] = [
   ["ps_docs", "execute"],
   ["ps_field_search", "execute"],
+  ["ps_compare", "execute"],
 ];
 
 export function authHeaders(credentials: PsCredentials): Record<string, string> {

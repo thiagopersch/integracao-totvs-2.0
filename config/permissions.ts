@@ -99,6 +99,13 @@ export const PERMISSIONS: PermissionDef[] = [
     module: "integrations",
   },
   {
+    resource: "ps_compare",
+    action: "execute",
+    name: "Comparar Processos Seletivos",
+    description: "Comparar a estrutura de dois processos seletivos (etapas, passos, componentes e campos) e gerar um checklist de ajustes",
+    module: "integrations",
+  },
+  {
     resource: "ps_log_analysis",
     action: "execute",
     name: "Análise de Logs do Portal",
@@ -141,6 +148,7 @@ Object.assign(resourceLabels, {
   ps_ficha_test: "Testes automatizados",
   ps_field_search: "Buscar elementos",
   ps_log_analysis: "Análise de logs",
+  ps_compare: "Comparar processos",
   sql_docs: "Documentar consultas",
   dashboard: "Dashboard",
   settings: "Configurações",
@@ -163,7 +171,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<"ADMIN" | "MANAGER" | "USER", stri
       ? p.action !== "delete"
       : ["dataservers", "processes"].includes(p.resource)
         ? p.action === "read"
-        : ["soap", "integrations", "tbc_reports", "ps_docs", "ps_ficha_test", "ps_field_search", "ps_log_analysis", "sql_docs", "dashboard", "notifications", "reports", "deletion_logs", "activity_logs"].includes(p.resource)
+        : ["soap", "integrations", "tbc_reports", "ps_docs", "ps_ficha_test", "ps_field_search", "ps_log_analysis", "ps_compare", "sql_docs", "dashboard", "notifications", "reports", "deletion_logs", "activity_logs"].includes(p.resource)
           ? true
           : ["analysts", "contracts", "requesters", "departments", "demand_types", "tags", "demands", "mapeador_projetos", "mapeador_temas", "message_templates", "report_schedules", "sheet_syncs", "projects", "project_tasks", "project_custom_fields"].includes(p.resource)
             ? p.action !== "delete"
