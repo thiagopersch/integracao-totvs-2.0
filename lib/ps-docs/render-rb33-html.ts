@@ -1,12 +1,13 @@
 import { RB33_SECTION, buildRb33Doc, isGrupoOculto, type Rb33AcaoLinha, type Rb33Doc, type Rb33Entrada, type Rb33Etapa, type Rb33Item } from "./rb33-format";
 import { RB33_CSS } from "./rb33-styles";
+import { EDITOR_EDIT_CSS, EDITOR_SCRIPT, editorActionsHtml } from "./standalone-editor";
 import { DEFAULT_DOC_OPTIONS, type DocOptions, type DocumentacaoPS, type StyleConfig } from "./types";
 
 /** HTML for the "Resumido (RB-33)" model. One markup tree, two skins:
  *  - "inline": every style inline — the on-screen preview and the "Copiar para Google Docs"
  *    payload (a pasted fragment keeps no stylesheet).
  *  - "class": the RB-33 reference classes (`rb33-styles.ts`) — the standalone `.html` export,
- *    which also gets a sidebar index, editable notes and print CSS. */
+ *    which also gets a sidebar index, read-only text with an "Editar textos" mode and print CSS. */
 
 type Skin = "inline" | "class";
 
@@ -139,10 +140,7 @@ function acaoRowHtml(l: Rb33AcaoLinha, c: RenderCtx): string {
 }
 
 function etapaHtml(e: Rb33Etapa, c: RenderCtx, docKey: string): string {
-  const editable = (field: string, placeholder: string, text: string) =>
-    c.skin === "class"
-      ? `<div class="editable section-body" contenteditable="true" spellcheck="true" data-placeholder="${esc(placeholder)}" data-key="${esc(`${docKey}:${e.anchor}:${field}`)}">${esc(text)}</div>`
-      : `<p${c.a("body")}>${esc(text)}</p>`;
+  const textBlock = (text: string) => (c.skin === "class" ? `<div class="text-block section-body">${esc(text)}</div>` : `<p${c.a("body")}>${esc(text)}</p>`);
 
   const passos = e.passos
     .map((p) => {
@@ -180,16 +178,19 @@ function etapaHtml(e: Rb33Etapa, c: RenderCtx, docKey: string): string {
   const h2 = c.skin === "inline" ? `<h2${c.a("h2")}>Etapa: ${esc(e.nome)}</h2>` : `<h2>Etapa: ${esc(e.nome)}</h2>`;
   const idLinha = e.idLinha ? `<div${c.a("internalId")}>${esc(e.idLinha)}</div>` : "";
   const fonte = e.fonteDados ? `<div${c.a("fonte")}>Fonte de dados da etapa: ${esc(e.fonteDados)}</div>` : "";
-  const notas = c.skin === "class" ? `${label(`${RB33_SECTION.notas} <span class="auto-flag">(editável)</span>`)}${editable("notas", "Anote aqui observações, pendências ou decisões sobre esta etapa…", "")}` : "";
+  const notas =
+    c.skin === "class"
+      ? `<div class="notes-section">${label(RB33_SECTION.notas)}<div class="notes-block section-body" data-placeholder="Anote aqui observações, pendências ou decisões sobre esta etapa…"></div></div>`
+      : "";
 
   const inner = [
     h2,
     idLinha,
     fonte,
     label(RB33_SECTION.logica),
-    editable("logica", "Descreva a condição que libera esta etapa para o candidato…", e.logica.join("\n")),
+    textBlock(e.logica.join("\n")),
     label(RB33_SECTION.descricao),
-    editable("descricao", "Resuma o que o candidato encontra nesta etapa…", e.descricao),
+    textBlock(e.descricao),
     label(RB33_SECTION.passos),
     c.skin === "class" ? `<div class="section-body">${passos}</div>` : passos,
     label(RB33_SECTION.feedbacks),
@@ -213,46 +214,6 @@ export function renderRb33Fragment(doc: DocumentacaoPS, style: StyleConfig, opts
   return `<div style="font-family:'${style.bodyFont}',sans-serif;">${docHtml(buildRb33Doc(doc, opts), makeCtx("inline", style), "doc")}</div>`;
 }
 
-const STANDALONE_SCRIPT = `
-(function () {
-  var KEY = "rb33-notes:" + (document.body.getAttribute("data-doc") || location.pathname);
-  function load() { try { return JSON.parse(localStorage.getItem(KEY) || "{}"); } catch (e) { return {}; } }
-  function save(all) { try { localStorage.setItem(KEY, JSON.stringify(all)); } catch (e) {} }
-  var saved = load();
-  var fields = document.querySelectorAll(".editable[data-key]");
-  fields.forEach(function (el) {
-    var k = el.getAttribute("data-key");
-    if (Object.prototype.hasOwnProperty.call(saved, k)) el.innerText = saved[k];
-    el.addEventListener("input", function () { var all = load(); all[k] = el.innerText; save(all); });
-  });
-
-  var links = Array.prototype.slice.call(document.querySelectorAll(".toc a[href^='#']"));
-  var targets = links.map(function (a) { return document.getElementById(a.getAttribute("href").slice(1)); });
-  function spy() {
-    var current = 0;
-    targets.forEach(function (t, i) { if (t && t.getBoundingClientRect().top < 140) current = i; });
-    links.forEach(function (a, i) { a.classList.toggle("active", i === current); });
-  }
-  window.addEventListener("scroll", spy, { passive: true });
-  spy();
-
-  var btnPrint = document.getElementById("btn-print");
-  if (btnPrint) btnPrint.addEventListener("click", function () { window.print(); });
-  var btnSave = document.getElementById("btn-save");
-  if (btnSave) btnSave.addEventListener("click", function () {
-    // Bakes the current edits into the markup so the downloaded copy carries them without storage.
-    var clone = document.documentElement.cloneNode(true);
-    clone.querySelectorAll(".toc a.active").forEach(function (a) { a.classList.remove("active"); });
-    var html = "<!DOCTYPE html>\\n" + clone.outerHTML;
-    var blob = new Blob([html], { type: "text/html" });
-    var a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = (document.title || "documentacao").replace(/[^\\w\\-]+/g, "_") + ".html";
-    a.click();
-    setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000);
-  });
-})();
-`;
 
 /** Full, self-contained `.html` page for one process or a whole portal (several processes, the
  *  index grouped by process). */
@@ -283,22 +244,21 @@ export function renderRb33StandaloneHtml(docs: DocumentacaoPS[], style: StyleCon
 <title>${esc(title)}</title>
 ${fontLink}
 <style>${RB33_CSS}
-${fontOverride}</style>
+${fontOverride}
+${EDITOR_EDIT_CSS}</style>
 </head>
 <body data-doc="${esc(built.map((b) => b.key).join("-"))}">
 <header class="topbar">
   <div class="brand"><div class="brand-text"><h1>${esc(built.length === 1 ? built[0].rb.titulo : "Documentação técnica")}<span class="brand-thin">Documentação técnica</span></h1><span class="sub">Gerado em ${esc(new Date().toLocaleString("pt-BR"))}</span></div></div>
   <div class="topbar-actions">
-    <span class="notes-saved">Lógica, descrição e notas são editáveis — salvas neste navegador.</span>
-    <button type="button" class="btn" id="btn-print">Imprimir / PDF</button>
-    <button type="button" class="btn btn-primary" id="btn-save">Baixar HTML com edições</button>
+    ${editorActionsHtml({ btn: "btn", primary: "btn-primary", status: "notes-saved" })}
   </div>
 </header>
 <div class="layout">
   <aside class="sidebar"><nav class="toc">${toc}</nav></aside>
-  <main class="doc">${body}</main>
+  <main class="doc" data-editable-root spellcheck="true">${body}</main>
 </div>
-<script>${STANDALONE_SCRIPT}</script>
+<script>${EDITOR_SCRIPT}</script>
 </body>
 </html>`;
 }

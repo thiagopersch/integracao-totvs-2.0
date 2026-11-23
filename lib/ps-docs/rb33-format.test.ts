@@ -3,7 +3,7 @@ import { buildRb33Doc, logicaLines, ruleText, type Rb33Item } from "./rb33-forma
 import { describeCustomValidation } from "./script-validation-text"
 import { renderRb33Fragment, renderRb33StandaloneHtml } from "./render-rb33-html"
 import { rb33ToMarkdown } from "./export-rb33-markdown"
-import { docPreviewHtml } from "./doc-exports"
+import { docPreviewHtml, docStandaloneHtml } from "./doc-exports"
 import { renderDocumentHtml } from "./render-html"
 import { DEFAULT_DOC_OPTIONS, DEFAULT_STYLE, type DocumentacaoPS, type ItemSpec } from "./types"
 import { sampleDetalhes, sampleDoc } from "./__fixtures__/sample-doc"
@@ -117,12 +117,14 @@ describe("RB-33 renderers", () => {
     expect(out).not.toContain("Identificação")
   })
 
-  it("standalone page is self-contained with index, editable notes and print CSS", () => {
+  it("standalone page is self-contained with index, read-only text, edit/PDF buttons and print CSS", () => {
     const html = renderRb33StandaloneHtml([sampleDoc, { ...sampleDoc, idPs: "6000", tituloPortal: "Outro" }], DEFAULT_STYLE, opts)
     expect(html.startsWith("<!DOCTYPE html>")).toBe(true)
     expect(html).toContain('<nav class="toc">')
     expect(html).toContain('class="toc-group">Outro<')
-    expect(html).toContain('contenteditable="true"')
+    expect(html).not.toMatch(/<[^>]*contenteditable=/)
+    expect(html).toContain("data-editable-root")
+    for (const id of ["btn-edit", "btn-print", "btn-save", "btn-reset"]) expect(html).toContain(`id="${id}"`)
     expect(html).toContain("@media print")
     expect(html).toContain('id="ps6000-etapa-1"')
   })
@@ -138,6 +140,14 @@ describe("RB-33 renderers", () => {
     const doc: DocumentacaoPS = { ...sampleDoc, etapas: [{ ...sampleDoc.etapas[0], passos: [{ nome: "P", consultaSql: { configurada: false }, itens: [campo] }] }] }
     expect(renderRb33Fragment(doc, DEFAULT_STYLE, opts)).not.toContain("window.x")
     expect(renderRb33Fragment(doc, DEFAULT_STYLE, { ...opts, incluirCodigoScript: true })).toContain("window.x")
+  })
+
+  it("the detailed standalone page gets the same read-only editor bar", () => {
+    const html = docStandaloneHtml([sampleDoc], DEFAULT_STYLE, { ...opts, modelo: "detalhado" })
+    expect(html).not.toMatch(/<[^>]*contenteditable=/)
+    expect(html).toContain("<main data-editable-root")
+    for (const id of ["btn-edit", "btn-print", "btn-save"]) expect(html).toContain(`id="${id}"`)
+    expect(html).toContain(renderDocumentHtml(sampleDoc, DEFAULT_STYLE, { ...opts, modelo: "detalhado" }))
   })
 
   it("the dispatcher keeps the detailed model unchanged", () => {

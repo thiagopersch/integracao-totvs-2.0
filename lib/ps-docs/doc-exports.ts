@@ -2,6 +2,7 @@ import { documentToMarkdown } from "./export-markdown";
 import { rb33ToMarkdown } from "./export-rb33-markdown";
 import { renderDocumentHtml } from "./render-html";
 import { renderRb33Fragment, renderRb33StandaloneHtml } from "./render-rb33-html";
+import { EDITOR_BASE_CSS, EDITOR_SCRIPT, editorActionsHtml } from "./standalone-editor";
 import { DEFAULT_DOC_OPTIONS, type DocOptions, type DocumentacaoPS, type StyleConfig } from "./types";
 
 /** One entry point per output, picking the renderer by `opts.modelo`, so the preview, the
@@ -38,8 +39,18 @@ export function docStandaloneHtml(docs: DocumentacaoPS[], style: StyleConfig, op
   return `<!DOCTYPE html>
 <html lang="pt-BR">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${escAttr(title)}</title>
-<style>body{margin:0;background:#fff;color:${style.bodyColor};font-family:'${style.bodyFont}',sans-serif;padding:24px 16px}main{max-width:960px;margin:0 auto}@media print{body{padding:0}}</style>
+<style>body{margin:0;background:#fff;color:${style.bodyColor};font-family:'${style.bodyFont}',sans-serif}main{max-width:960px;margin:0 auto;padding:24px 16px}@media print{main{padding:0}}
+${EDITOR_BASE_CSS}</style>
 </head>
-<body><main>${body}</main></body>
+<body data-doc="${escAttr(docs.map((d) => `ps${d.idPs}`).join("-"))}">
+<header class="ed-bar">
+  <div class="ed-title">${escAttr(title)}</div>
+  <div class="ed-actions">
+    ${editorActionsHtml({ btn: "ed-btn", primary: "ed-btn-primary", status: "ed-status" })}
+  </div>
+</header>
+<main data-editable-root spellcheck="true">${body}</main>
+<script>${EDITOR_SCRIPT}</script>
+</body>
 </html>`;
 }
