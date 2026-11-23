@@ -2000,3 +2000,17 @@ model BackgroundJob {
   @@index([createdById])
   @@map("background_jobs")
 }
+
+/**
+ * TOTVS RM data dictionary (TABELA / COLUNA / DESCRICAO), global to every organization. The row
+ * with column "#" holds the table's own description. Filled by scripts/import-totvs-dictionary.ts
+ * and read by the SQL query documentation (/rubeus/sql-docs) to name tables and fields.
+ */
+model TotvsDictionaryColumn {
+  table       String
+  column      String
+  description String
+
+  @@id([table, column])
+  @@map("totvs_dictionary_columns")
+}
