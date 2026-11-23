@@ -113,6 +113,7 @@ export const navGroups: NavGroup[] = [
       { href: "/totvs/dataservers", label: "Dataservers", icon: "Database", resource: "dataservers" },
       { href: "/totvs/processes", label: "Processos", icon: "Workflow", resource: "processes" },
       { href: "/totvs/systems", label: "Sistemas TOTVS", icon: "Layers", resource: "sistemas" },
+      { href: "/totvs/dictionary", label: "Dicionário de dados", icon: "BookOpen", resource: "totvs_dictionary" },
     ],
   },
   {

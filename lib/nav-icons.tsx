@@ -1,4 +1,5 @@
 import {
+  BookOpen,
   LayoutDashboard,
   Building2,
   Server,
@@ -50,6 +51,7 @@ import {
 } from "lucide-react";
 
 export const NAV_ICONS: Record<string, LucideIcon> = {
+  BookOpen,
   LayoutDashboard,
   Building2,
   Server,

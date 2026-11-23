@@ -30,6 +30,7 @@ export const PERMISSIONS: PermissionDef[] = [
   { resource: "backups", action: "restore", name: "Restaurar Backup", description: "Restaurar sentenças de backup para o TBC de destino no TOTVS RM", module: "totvs" },
   ...crud("sentence_categories", "Categorias de Sentença", "totvs"),
   ...crud("sentences", "Sentenças Padrões", "totvs"),
+  ...crud("totvs_dictionary", "Dicionário de dados TOTVS", "totvs"),
   ...crud("sistemas", "Sistemas TOTVS", "totvs"),
   ...crud("analysts", "Analistas", "demands"),
   ...crud("contracts", "Contratos", "demands"),
@@ -150,7 +151,7 @@ function toKey(p: Pick<PermissionDef, "resource" | "action">): string {
 export const DEFAULT_ROLE_PERMISSIONS: Record<"ADMIN" | "MANAGER" | "USER", string[]> = {
   ADMIN: PERMISSIONS.map(toKey),
   MANAGER: PERMISSIONS.filter((p) =>
-    ["clients", "tbcs", "filters", "backups", "sentence_categories", "sentences", "sistemas"].includes(p.resource)
+    ["clients", "tbcs", "filters", "backups", "sentence_categories", "sentences", "sistemas", "totvs_dictionary"].includes(p.resource)
       ? p.action !== "delete"
       : ["dataservers", "processes"].includes(p.resource)
         ? p.action === "read"

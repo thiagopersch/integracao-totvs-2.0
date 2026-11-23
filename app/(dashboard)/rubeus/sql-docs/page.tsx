@@ -1,5 +1,6 @@
 "use client"
 
+import Link from "next/link"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { AlertTriangle, ClipboardPaste, Database, FileUp, Loader2, Sparkles } from "lucide-react"
 import { getSqlDocsPageData } from "@/actions/integrations/sql-docs"
@@ -156,8 +157,12 @@ export default function SqlDocsPage() {
           <CardContent className="pt-6 flex gap-2 text-sm text-muted-foreground">
             <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600" />
             <span>
-              O dicionário de dados TOTVS ainda não foi importado — a análise funciona, mas sem as descrições oficiais das tabelas e campos. Exporte a planilha
-              do dicionário em .csv e rode <code>npm run totvs:dictionary:import -- arquivo.csv</code>.
+              O dicionário de dados TOTVS ainda não foi importado — a análise funciona, mas sem as descrições oficiais das tabelas e campos. Importe a planilha
+              em{" "}
+              <Link href="/totvs/dictionary" className="text-primary underline underline-offset-2">
+                TOTVS RM › Catálogo RM › Dicionário de dados
+              </Link>
+              .
             </span>
           </CardContent>
         </Card>
