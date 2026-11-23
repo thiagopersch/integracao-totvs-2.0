@@ -1,0 +1,102 @@
+"use server"
+
+import { getIntegrationConfig } from "@/lib/integration-config"
+import { requirePermission } from "@/lib/rbac"
+import { hasRequiredCredentials, type PsCredentials } from "@/lib/ps-docs/credential"
+import { logApiCall, logAndNotifyFailure, sessionErrorMessage } from "@/lib/ps-docs/api-helpers"
+import { createRubeusClient } from "@/lib/ps-docs/server/rubeus-client"
+import { listActivePortals } from "@/lib/ps-docs/server/portal-structure"
+import { LOGS_API_ROOT, filterLogs, listLogCategories, showLog, timeoutMessage } from "@/lib/rubeus-logs/server/logs-api"
+import { LOG_TYPE_IDS, type RubeusLogCategory, type RubeusLogDetail, type RubeusLogRow } from "@/lib/rubeus-logs/types"
+import { logFilterSchema, logShowSchema, type LogFilterInput, type LogShowInput } from "@/schemas/rubeus-logs.schema"
+
+/**
+ * "Inscrições e matrículas → Análise de logs": reads the Rubeus portal admin logs with the
+ * session cookies the user pastes (never stored). The requests live in
+ * `lib/rubeus-logs/server/logs-api.ts`; these actions add the permission check and the API log.
+ */
+const RESOURCE = "ps_log_analysis"
+
+async function rubeusTimeout(organizationId: string) {
+  return (await getIntegrationConfig(organizationId, "RUBEUS")).timeoutMs
+}
+
+async function clientFor(organizationId: string, credentials: PsCredentials) {
+  return createRubeusClient(credentials, { timeoutMs: await rubeusTimeout(organizationId) })
+}
+
+const failure = (error: unknown) => sessionErrorMessage(error) ?? timeoutMessage(error) ?? (error as Error).message ?? "Falha ao consultar o portal"
+
+export type FetchLogPortalsResult = { success: true; portals: { id: number; title: string }[]; warning?: string } | { success: false; error: string }
+
+export async function fetchLogPortals(input: { credentials: PsCredentials }): Promise<FetchLogPortalsResult> {
+  const { organizationId, userId } = await requirePermission(RESOURCE, "execute")
+  if (!hasRequiredCredentials(input.credentials)) return { success: false, error: "Informe os cookies da sessão do portal admin" }
+
+  const url = "https://admin.portal.apprbs.com.br/api/portal"
+  try {
+    const { total, portals, warning } = await listActivePortals(await clientFor(organizationId, input.credentials))
+    await logApiCall({ organizationId, userId, integration: "PS_DOCS", url, httpMethod: "GET", httpStatus: 200, responseSummary: { total, ativos: portals.length } })
+    return {
+      success: true,
+      portals: portals.map(([id, title]) => ({ id, title: title || `Portal ${id}` })).sort((a, b) => a.title.localeCompare(b.title, "pt-BR")),
+      warning,
+    }
+  } catch (error) {
+    await logAndNotifyFailure({ organizationId, userId, url, method: "GET", idPs: "-", error })
+    return { success: false, error: failure(error) }
+  }
+}
+
+export type SearchRubeusLogsResult = { success: true; logs: RubeusLogRow[]; categories: RubeusLogCategory[] } | { success: false; error: string }
+
+export async function searchRubeusLogs(input: LogFilterInput): Promise<SearchRubeusLogsResult> {
+  const { organizationId, userId } = await requirePermission(RESOURCE, "execute")
+  const parsed = logFilterSchema.safeParse(input)
+  if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? "Parâmetros inválidos" }
+  const { credentials, type, from, to, portalId } = parsed.data
+
+  const url = `${LOGS_API_ROOT}/log-filter`
+  try {
+    const timeoutMs = await rubeusTimeout(organizationId)
+    const client = createRubeusClient(credentials, { timeoutMs })
+    // Categories only feed the table's filter — a failure there must not hide the logs.
+    const [logs, categories] = await Promise.all([
+      filterLogs(client, { typeIds: LOG_TYPE_IDS[type], from, to, portalId, timeoutMs }),
+      listLogCategories(client).catch(() => [] as RubeusLogCategory[]),
+    ])
+    await logApiCall({
+      organizationId,
+      userId,
+      integration: "PS_DOCS",
+      url,
+      httpMethod: "POST",
+      httpStatus: 200,
+      requestSummary: { portalId, type, from, to },
+      responseSummary: { logs: logs.length },
+    })
+    return { success: true, logs, categories }
+  } catch (error) {
+    await logAndNotifyFailure({ organizationId, userId, url, method: "POST", idPs: String(portalId), error })
+    return { success: false, error: failure(error) }
+  }
+}
+
+export type FetchRubeusLogDetailResult = { success: true; log: RubeusLogDetail } | { success: false; error: string }
+
+export async function fetchRubeusLogDetail(input: LogShowInput): Promise<FetchRubeusLogDetailResult> {
+  const { organizationId, userId } = await requirePermission(RESOURCE, "execute")
+  const parsed = logShowSchema.safeParse(input)
+  if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? "Parâmetros inválidos" }
+  const { credentials, categoriesId, id } = parsed.data
+
+  const url = `${LOGS_API_ROOT}/log-show`
+  try {
+    const log = await showLog(await clientFor(organizationId, credentials), { categoriesId, id })
+    await logApiCall({ organizationId, userId, integration: "PS_DOCS", url, httpMethod: "POST", httpStatus: 200, requestSummary: { categoriesId, id } })
+    return { success: true, log }
+  } catch (error) {
+    await logAndNotifyFailure({ organizationId, userId, url, method: "POST", idPs: String(id), error })
+    return { success: false, error: failure(error) }
+  }
+}
