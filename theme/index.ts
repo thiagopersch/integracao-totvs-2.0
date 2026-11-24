@@ -247,7 +247,10 @@ export const theme = createTheme(
             "&.Mui-checked + .MuiSwitch-track": { opacity: 1, backgroundColor: theme.vars.palette.primary.main },
             "&.Mui-checked .MuiSwitch-thumb": { backgroundColor: theme.vars.palette.primary.contrastText },
           }),
-          thumb: { boxShadow: "none" },
+          thumb: ({ theme }) => ({
+            boxShadow: theme.vars.shadows[1],
+            ...theme.applyStyles("dark", { boxShadow: "none" }),
+          }),
         },
       },
       MuiToggleButton: {
