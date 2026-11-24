@@ -125,38 +125,51 @@ export const totvsDictionaryService = {
   },
 
   /**
-   * Imports rows: "merge" inserts new pairs and refreshes the description of existing ones;
-   * "replace" empties the dictionary first (one transaction — a failure keeps the old content).
+   * Upserts one batch (inserts new pairs, refreshes the description of existing ones) and stamps
+   * `updated_at` on every row it touches. Duplicated pairs inside the batch keep the last one.
+   */
+  async upsertBatch(rows: DictionaryRow[]): Promise<{ inserted: number; updated: number }> {
+    const unique = [...new Map(rows.map((r) => [`${r.table}|${r.column}`, r])).values()];
+    if (unique.length === 0) return { inserted: 0, updated: 0 };
+    // unnest keeps it at 3 parameters whatever the batch size; xmax = 0 only on freshly inserted tuples.
+    const result = await prisma.$queryRaw<{ inserted: number; updated: number }[]>`
+      WITH up AS (
+        INSERT INTO "totvs_dictionary_columns" ("table","column","description","updated_at")
+        SELECT t, c, d, now() FROM unnest(${unique.map((r) => r.table)}::text[], ${unique.map((r) => r.column)}::text[], ${unique.map((r) => r.description)}::text[]) AS x(t, c, d)
+        ON CONFLICT ("table","column") DO UPDATE SET "description" = EXCLUDED."description", "updated_at" = now()
+        RETURNING (xmax = 0) AS inserted
+      )
+      SELECT count(*) FILTER (WHERE inserted)::int AS inserted, count(*) FILTER (WHERE NOT inserted)::int AS updated FROM up`;
+    return result[0] ?? { inserted: 0, updated: 0 };
+  },
+
+  /** "replace" finish: removes every row the import did not write (written before `startedAt`). */
+  async finalizeReplace(startedAt: Date): Promise<number> {
+    return (await prisma.totvsDictionaryColumn.deleteMany({ where: { updatedAt: { lt: startedAt } } })).count;
+  },
+
+  /** Database clock — the reference for `finalizeReplace`, so app/DB clock skew cannot delete fresh rows. */
+  async now(): Promise<Date> {
+    const [{ now }] = await prisma.$queryRaw<{ now: Date }[]>`SELECT now() AS now`;
+    return now;
+  },
+
+  /**
+   * Imports rows in batches: "merge" inserts new pairs and refreshes existing ones; "replace" also
+   * removes, at the end, the rows the file did not contain — a failure midway keeps the old content.
    */
   async import(rows: DictionaryRow[], mode: "merge" | "replace", onProgress?: (done: number, total: number) => void): Promise<{ inserted: number; updated: number; removed: number; total: number }> {
-    return prisma.$transaction(
-      async (tx) => {
-        let removed = 0;
-        if (mode === "replace") removed = (await tx.totvsDictionaryColumn.deleteMany({})).count;
-        let inserted = 0;
-        let updated = 0;
-        for (let i = 0; i < rows.length; i += UPSERT_BATCH) {
-          const chunk = rows.slice(i, i + UPSERT_BATCH);
-          const values = chunk.map((_, j) => `($${j * 3 + 1}, $${j * 3 + 2}, $${j * 3 + 3})`).join(",");
-          const params = chunk.flatMap((r) => [r.table, r.column, r.description]);
-          // xmax = 0 only on freshly inserted tuples — tells inserts from updates in one round trip.
-          const result = await tx.$queryRawUnsafe<{ inserted: boolean }[]>(
-            `INSERT INTO "totvs_dictionary_columns" ("table","column","description") VALUES ${values}
-             ON CONFLICT ("table","column") DO UPDATE SET "description" = EXCLUDED."description"
-             RETURNING (xmax = 0) AS inserted`,
-            ...params
-          );
-          for (const r of result) {
-            if (r.inserted) inserted++;
-            else updated++;
-          }
-          onProgress?.(Math.min(i + chunk.length, rows.length), rows.length);
-        }
-        const total = await tx.totvsDictionaryColumn.count();
-        // "replace": `removed` = every previous row (all re-imported pairs count as inserted).
-        return { inserted, updated, removed, total };
-      },
-      { timeout: 10 * 60 * 1000, maxWait: 30_000 }
-    );
+    const startedAt = await this.now();
+    let inserted = 0;
+    let updated = 0;
+    for (let i = 0; i < rows.length; i += UPSERT_BATCH) {
+      const chunk = rows.slice(i, i + UPSERT_BATCH);
+      const r = await this.upsertBatch(chunk);
+      inserted += r.inserted;
+      updated += r.updated;
+      onProgress?.(Math.min(i + chunk.length, rows.length), rows.length);
+    }
+    const removed = mode === "replace" ? await this.finalizeReplace(startedAt) : 0;
+    return { inserted, updated, removed, total: await this.count() };
   },
 };

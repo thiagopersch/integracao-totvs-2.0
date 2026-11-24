@@ -2010,6 +2010,7 @@ model TotvsDictionaryColumn {
   table       String
   column      String
   description String
+  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at")
 
   @@id([table, column])
   @@map("totvs_dictionary_columns")

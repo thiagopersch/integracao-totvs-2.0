@@ -26,7 +26,7 @@ async function main() {
     process.exit(1);
   }
   const result = await totvsDictionaryService.import(rows, mode, (done, total) => process.stdout.write(`\rImportados: ${done}/${total}`));
-  console.log(`\nConcluído (${mode === "replace" ? "substituição" : "mesclagem"}): ${result.inserted} novos, ${result.updated} atualizados. Registros no dicionário: ${result.total}`);
+  console.log(`\nConcluído (${mode === "replace" ? "substituição" : "mesclagem"}): ${result.inserted} novos, ${result.updated} atualizados${mode === "replace" ? `, ${result.removed} removidos` : ""}. Registros no dicionário: ${result.total}`);
 }
 
 main()

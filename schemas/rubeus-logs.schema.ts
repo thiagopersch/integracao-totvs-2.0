@@ -7,11 +7,21 @@ export const logFilterSchema = z
   .object({
     credentials: psCredentialsSchema,
     type: z.enum(["error", "info", "all"]),
-    from: isoDate,
-    to: isoDate,
+    /** Optional period — without it Rubeus returns the most recent logs. */
+    from: isoDate.optional(),
+    to: isoDate.optional(),
     portalId: z.coerce.number().int().positive("Selecione o portal"),
+    selectiveProcessId: z.coerce.number().int().positive().optional(),
+    /** Rubeus' `duration` filter: only logs that took at least this long (ms). */
+    minDurationMs: z.coerce.number().int().min(0).max(30_000).optional(),
   })
-  .refine((d) => d.from <= d.to, { message: "A data inicial deve ser anterior ou igual à final", path: ["to"] })
+  .refine((d) => !d.from === !d.to, { message: "Informe a data inicial e a final do período", path: ["to"] })
+  .refine((d) => !d.from || !d.to || d.from <= d.to, { message: "A data inicial deve ser anterior ou igual à final", path: ["to"] })
+
+export const logProcessesSchema = z.object({
+  credentials: psCredentialsSchema,
+  portalId: z.coerce.number().int().positive("Selecione o portal"),
+})
 
 export const logShowSchema = z.object({
   credentials: psCredentialsSchema,
@@ -41,4 +51,5 @@ export const logFileSchema = z.object({
 })
 
 export type LogFilterInput = z.input<typeof logFilterSchema>
+export type LogProcessesInput = z.input<typeof logProcessesSchema>
 export type LogShowInput = z.input<typeof logShowSchema>

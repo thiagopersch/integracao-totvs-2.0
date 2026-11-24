@@ -1,20 +1,22 @@
 import { asArray, unwrapData, type Raw } from "@/lib/ps-docs/api-helpers";
-import type { EncaminhamentoSpec } from "@/lib/ps-docs/types";
+import { describeEtapaDestino } from "@/lib/ps-docs/etapa-destino";
+import type { EncaminhamentoSpec, EtapaDestinoSpec } from "@/lib/ps-docs/types";
 import type { RubeusClient } from "./rubeus-client";
 
 /** Names the etapa an encaminhamento "Para outra etapa" (`redirect_type_id` 3) points at. The
  *  forward record only carries `stage_id`, so:
  *  - `GET /selective-process/button-redirect-stage/{stage_id}` -> `{portal_id, selective_process_id, stage_id}`
  *  - `GET /selective-process/opening-page-stages/{selective_process_id}` -> the etapa's `title`
- *  - only for an etapa of ANOTHER process: `GET /portal/selective-process-local/{portal_id}` (the
- *    process name) and `GET /portal` (the portal name).
+ *  - `GET /portal/selective-process-local/{portal_id}` (the process name) and `GET /portal` (the
+ *    portal name) — shown in `destino` only for an etapa of ANOTHER process, but always kept in
+ *    `etapaDestino` (a failure there only degrades to "#id").
  *  Repeated catalogs are fetched once thanks to the client's request memo. Best effort: on any
  *  failure the "Outra etapa (etapa #id)" fallback stays and a warning is added. */
 
 // Not imported from ./process-structure, which imports this module.
 const ADMIN_API = "https://admin.portal.apprbs.com.br/api";
 
-type StageTarget = Pick<EncaminhamentoSpec, "etapaId" | "destino">;
+type StageTarget = Pick<EncaminhamentoSpec, "etapaId" | "destino" | "etapaDestino">;
 
 /** Every encaminhamento with an `etapaId` anywhere under `roots` (etapas, pop-ups, páginas —
  *  nested pop-ups included), collected by a generic walk so no container kind is missed. */
@@ -48,7 +50,17 @@ async function getList(client: RubeusClient, url: string): Promise<Raw[] | undef
   return res.status < 400 ? asArray(unwrapData(res.data)) : undefined;
 }
 
-async function describeStage(client: RubeusClient, stageId: number, idPs: string | undefined): Promise<string | undefined> {
+const ignoreUnlessAborted = (error: unknown): undefined => {
+  if ((error as Error).name === "AbortError") throw error;
+  return undefined;
+};
+
+interface StageDescription {
+  destino: string;
+  etapaDestino: EtapaDestinoSpec;
+}
+
+async function describeStage(client: RubeusClient, stageId: number, idPs: string | undefined): Promise<StageDescription | undefined> {
   const res = await client.get(`${ADMIN_API}/selective-process/button-redirect-stage/${stageId}`);
   if (res.status >= 400) return undefined;
   const ref = unwrapData(res.data) as Raw | undefined;
@@ -59,15 +71,18 @@ async function describeStage(client: RubeusClient, stageId: number, idPs: string
   const stages = await getList(client, `${ADMIN_API}/selective-process/opening-page-stages/${psId}`);
   const etapa = stages && nameById(stages, Number(ref?.stage_id) || stageId, ["title", "name"]);
   if (!etapa) return undefined;
-  if (idPs && String(psId) === String(idPs).trim()) return `Etapa: ${etapa}`;
+  const mesmoProcesso = !!idPs && String(psId) === String(idPs).trim();
 
+  // Process/portal names are fetched for the own process too ("Comparar processos" shows the full
+  // reference on both sides); the client's request memo fetches each catalog once.
   const [processes, portals] = await Promise.all([
-    portalId ? getList(client, `${ADMIN_API}/portal/selective-process-local/${portalId}`) : undefined,
-    portalId ? getList(client, `${ADMIN_API}/portal`) : undefined,
+    portalId ? getList(client, `${ADMIN_API}/portal/selective-process-local/${portalId}`).catch(ignoreUnlessAborted) : undefined,
+    portalId ? getList(client, `${ADMIN_API}/portal`).catch(ignoreUnlessAborted) : undefined,
   ]);
   const processo = (processes && nameById(processes, psId, ["name", "title"])) ?? `#${psId}`;
   const portal = (portals && nameById(portals, portalId, ["name", "title", "nome"])) ?? (portalId ? `#${portalId}` : undefined);
-  return `Etapa: ${etapa} (processo seletivo ${processo}${portal ? `, portal ${portal}` : ""})`;
+  const etapaDestino: EtapaDestinoSpec = { etapa, processo, portal, mesmoProcesso };
+  return { destino: mesmoProcesso ? `Etapa: ${etapa}` : describeEtapaDestino(etapaDestino), etapaDestino };
 }
 
 export async function resolveStageRedirects(client: RubeusClient, roots: unknown[], ctx: { idPs?: string }, warnings: string[]): Promise<void> {
@@ -88,7 +103,9 @@ export async function resolveStageRedirects(client: RubeusClient, roots: unknown
   );
   for (const id of ids) if (!names.get(id)) warnings.push(`Encaminhamento para a etapa #${id}: não foi possível identificar o nome da etapa.`);
   for (const t of targets) {
-    const name = names.get(t.etapaId!);
-    if (name) t.destino = name;
+    const described = names.get(t.etapaId!);
+    if (!described) continue;
+    t.destino = described.destino;
+    t.etapaDestino = described.etapaDestino;
   }
 }

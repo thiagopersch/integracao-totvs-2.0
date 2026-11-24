@@ -5,9 +5,13 @@ import { DateCalendar } from "@mui/x-date-pickers/DateCalendar"
 import { PickerDay as PickersDay, type PickerDayProps as PickersDayProps } from "@mui/x-date-pickers/PickerDay"
 import { addMonths, format, isAfter, isBefore, isSameDay, isWithinInterval, startOfMonth } from "date-fns"
 import { CalendarIcon, X } from "lucide-react"
+import IconButton from "@mui/material/IconButton"
+import InputAdornment from "@mui/material/InputAdornment"
+import TextField from "@mui/material/TextField"
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
+import { floatingTextFieldProps, useFloatingLabel } from "@/components/ui/field"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 
 /** Same shape react-day-picker used, so callers didn't change. */
@@ -49,10 +53,18 @@ function RangeDay({ range, hover, onHover, day, outsideCurrentMonth, ...other }:
  * Date range picker built from two free MUI X `DateCalendar`s (the MUI X DateRangePicker is a
  * paid Pro component). First click sets the start, second the end.
  */
-export function DateRangePicker({ value, onValueChange, placeholder = "Selecione um período", className, disabled }: DateRangePickerProps) {
+export function DateRangePicker({
+  value,
+  onValueChange,
+  placeholder = "Selecione um período",
+  className,
+  disabled,
+}: DateRangePickerProps) {
   const [open, setOpen] = React.useState(false)
   const [hover, setHover] = React.useState<Date | null>(null)
   const [month, setMonth] = React.useState<Date>(() => startOfMonth(value?.from ?? new Date()))
+  // Inside a <Field> with a <FieldLabel>, render as an outlined input with the floating label — like Select/Combobox.
+  const floating = useFloatingLabel()
 
   function pick(day: Date | null) {
     if (!day) return
@@ -78,27 +90,74 @@ export function DateRangePicker({ value, onValueChange, placeholder = "Selecione
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger
-        disabled={disabled}
-        render={<Button type="button" variant="outline" className={cn("w-full justify-start font-normal", !value?.from && "text-muted-foreground", className)} />}
-      >
-        <CalendarIcon className="mr-2 h-4 w-4 shrink-0" />
-        <span className="flex-1 truncate text-left">{label}</span>
-        {value?.from && !disabled && (
-          <span
-            role="button"
-            tabIndex={0}
-            aria-label="Limpar período"
-            className="-mr-1 ml-2 shrink-0 rounded-sm p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
-            onClick={(e) => {
-              e.stopPropagation()
-              onValueChange(undefined)
+      {floating ? (
+        <PopoverTrigger disabled={disabled} render={<div className={cn("w-full min-w-0", className)} />}>
+          <TextField
+            size="small"
+            fullWidth
+            disabled={disabled}
+            value={value?.from ? label : ""}
+            placeholder={placeholder}
+            {...floatingTextFieldProps(floating, { shrink: true })}
+            slotProps={{
+              ...floatingTextFieldProps(floating, { shrink: true }).slotProps,
+              htmlInput: { readOnly: true, className: "cursor-pointer text-sm" },
+              input: {
+                className: "cursor-pointer",
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <CalendarIcon className="size-4 text-muted-foreground" />
+                  </InputAdornment>
+                ),
+                endAdornment:
+                  value?.from && !disabled ? (
+                    <InputAdornment position="end">
+                      <IconButton
+                        size="small"
+                        edge="end"
+                        aria-label="Limpar período"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          onValueChange(undefined)
+                        }}
+                      >
+                        <X className="size-3.5" />
+                      </IconButton>
+                    </InputAdornment>
+                  ) : undefined,
+              },
             }}
-          >
-            <X className="h-3.5 w-3.5" />
-          </span>
-        )}
-      </PopoverTrigger>
+          />
+        </PopoverTrigger>
+      ) : (
+        <PopoverTrigger
+          disabled={disabled}
+          render={
+            <Button
+              type="button"
+              variant="outline"
+              className={cn("w-full justify-start font-normal", !value?.from && "text-muted-foreground", className)}
+            />
+          }
+        >
+          <CalendarIcon className="mr-2 h-4 w-4 shrink-0" />
+          <span className="flex-1 truncate text-left">{label}</span>
+          {value?.from && !disabled && (
+            <span
+              role="button"
+              tabIndex={0}
+              aria-label="Limpar período"
+              className="-mr-1 ml-2 shrink-0 rounded-sm p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+              onClick={(e) => {
+                e.stopPropagation()
+                onValueChange(undefined)
+              }}
+            >
+              <X className="h-3.5 w-3.5" />
+            </span>
+          )}
+        </PopoverTrigger>
+      )}
       <PopoverContent className="w-auto p-0" align="start">
         <div className="flex flex-col sm:flex-row" onMouseLeave={() => setHover(null)}>
           {[0, 1].map((offset) => (

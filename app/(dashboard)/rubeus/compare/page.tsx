@@ -7,6 +7,8 @@ import { ProcessPicker, type Portal } from "@/components/ps-compare/process-pick
 import { CredentialsFields } from "@/components/ps-docs/credentials-fields"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Field, FieldLabel } from "@/components/ui/field"
+import { Input } from "@/components/ui/input"
 import { compareProcesses } from "@/lib/ps-compare/compare"
 import type { CompareResult } from "@/lib/ps-compare/types"
 import { loadProcessDoc } from "@/lib/ps-docs/client/load-process-doc"
@@ -24,10 +26,20 @@ interface SideState {
   psId: string
   progress: { done: number; total: number } | null
 }
+function isHttpUrl(value: string): boolean {
+  try {
+    const u = new URL(value)
+    return u.protocol === "http:" || u.protocol === "https:"
+  } catch {
+    return false
+  }
+}
+
 const emptySide = (): SideState => ({ portalId: "", processes: null, loadingProcesses: false, psId: "", progress: null })
 
 export default function ComparePsPage() {
   const [cookie, setCookie] = useState("")
+  const [crmDomain, setCrmDomain] = useState("")
   const [portals, setPortals] = useState<Portal[] | null>(null)
   const [loadingPortals, setLoadingPortals] = useState(false)
   const [sides, setSides] = useState<Record<SideKey, SideState>>({ a: emptySide(), b: emptySide() })
@@ -39,6 +51,7 @@ export default function ComparePsPage() {
   const processRequest = useRef<Record<SideKey, number>>({ a: 0, b: 0 })
 
   const credentials = useMemo(() => parseCookieString(cookie), [cookie])
+  const crmInvalid = !!crmDomain.trim() && !isHttpUrl(crmDomain.trim())
   const cookieReady = !!cookie.trim() && missingCookieNames(cookie).length === 0 && hasRequiredCredentials(credentials)
 
   const patchSide = (key: SideKey, patch: Partial<SideState>) => setSides((prev) => ({ ...prev, [key]: { ...prev[key], ...patch } }))
@@ -82,6 +95,7 @@ export default function ComparePsPage() {
   async function compare() {
     if (!cookieReady) return void toast.error("Cole o cookie completo da sessão do portal admin")
     if (!sides.a.psId || !sides.b.psId) return void toast.error("Selecione o processo seletivo dos dois lados")
+    if (crmInvalid) return void toast.error("Informe um link do CRM válido (ex: https://crm.exemplo.com.br/)")
 
     setComparing(true)
     setError(null)
@@ -98,6 +112,7 @@ export default function ComparePsPage() {
         const res = await loadProcessDoc({
           credentials,
           idPs: side.psId,
+          crmDomain: crmDomain.trim() || undefined,
           fallbackTitle: ref?.name,
           fallbackIdPortal: side.portalId,
           onStart: (_doc, total) => patchSide(key, { progress: { done: 0, total } }),
@@ -152,6 +167,22 @@ export default function ComparePsPage() {
         </CardHeader>
         <CardContent className="space-y-4">
           <CredentialsFields value={cookie} onChange={setCookie} />
+          <Field>
+            <FieldLabel htmlFor="crmDomain">Link do CRM</FieldLabel>
+            <Input
+              id="crmDomain"
+              value={crmDomain}
+              onChange={(e) => setCrmDomain(e.target.value)}
+              placeholder="Ex: https://crmtoledo.apprubeus.com.br/"
+              aria-invalid={crmInvalid}
+              disabled={comparing}
+            />
+            {crmInvalid ? (
+              <p className="text-sm text-destructive">Informe um link válido (ex: https://crm.exemplo.com.br/)</p>
+            ) : (
+              <p className="text-xs text-muted-foreground">Usado para resolver o nome dos eventos Rubeus nas ações dos botões.</p>
+            )}
+          </Field>
           <div className="flex flex-wrap items-center gap-2">
             <Button variant="outline" onClick={loadPortals} disabled={!cookieReady || loadingPortals || comparing}>
               {loadingPortals ? <Loader2 className="size-4 animate-spin" /> : <Building2 className="size-4" />}
@@ -182,11 +213,11 @@ export default function ComparePsPage() {
         ))}
       </div>
 
-      <div className="flex flex-wrap items-center justify-end gap-3">
-        {sameProcess && <span className="text-sm text-muted-foreground">O mesmo processo foi escolhido dos dois lados.</span>}
-        <Button onClick={compare} disabled={comparing || !cookieReady || !sides.a.psId || !sides.b.psId}>
+      <div className="flex flex-col items-center gap-2">
+        <Button onClick={compare} disabled={comparing || crmInvalid || !cookieReady || !sides.a.psId || !sides.b.psId}>
           {comparing ? <Loader2 className="size-4 animate-spin" /> : <GitCompare className="size-4" />} Comparar
         </Button>
+        {sameProcess && <span className="text-sm text-muted-foreground">O mesmo processo foi escolhido dos dois lados.</span>}
       </div>
 
       {error && (

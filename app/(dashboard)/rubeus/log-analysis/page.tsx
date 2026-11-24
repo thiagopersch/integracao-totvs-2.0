@@ -1,10 +1,10 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useMemo, useState, useSyncExternalStore } from "react"
 import type { ColumnDef } from "@tanstack/react-table"
 import { format } from "date-fns"
 import { AlertTriangle, ClipboardCopy, FileSpreadsheet, Loader2, ScrollText, Search, Building2 } from "lucide-react"
-import { fetchLogPortals, searchRubeusLogs } from "@/actions/integrations/rubeus-logs"
+import { fetchLogPortals, fetchLogProcesses, searchRubeusLogs } from "@/actions/integrations/rubeus-logs"
 import { CredentialsFields } from "@/components/ps-docs/credentials-fields"
 import { LogDetailDialog } from "@/components/rubeus-logs/log-detail-dialog"
 import { DataTable } from "@/components/shared/data-table"
@@ -14,6 +14,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Combobox } from "@/components/ui/combobox"
 import { DateRangePicker, type DateRange } from "@/components/ui/date-range-picker"
 import { Field, FieldLabel } from "@/components/ui/field"
+import { Slider } from "@/components/ui/slider"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { hasRequiredCredentials, missingCookieNames, parseCookieString, type PsCredentials } from "@/lib/ps-docs/credential"
 import { downloadBlob, slugify } from "@/lib/ps-docs/download-utils"
@@ -38,7 +39,17 @@ const TYPE_OPTIONS: { value: LogTypeFilter; label: string }[] = [
 ]
 
 type Portal = { id: number; title: string }
-type Searched = { portal: Portal; from: string; to: string; type: LogTypeFilter }
+type Process = { id: number; name: string }
+/** `from`/`to` absent = no period (Rubeus returns the most recent logs). */
+type Searched = { portal: Portal; process: Process | null; from?: string; to?: string; type: LogTypeFilter; minDuration: number }
+
+const MAX_DURATION_S = 30
+const ddmmyyyy = (iso: string) => iso.split("-").reverse().join("/")
+
+function periodLabel(s: Searched) {
+  if (!s.from || !s.to) return "mais recentes"
+  return s.from === s.to ? ddmmyyyy(s.from) : `${ddmmyyyy(s.from)} a ${ddmmyyyy(s.to)}`
+}
 
 const today = () => {
   const d = new Date()
@@ -46,13 +57,23 @@ const today = () => {
   return d
 }
 
+const noopSubscribe = () => () => {}
+
 export default function LogAnalysisPage() {
+  // "Today" only exists in the browser's timezone — on the server (UTC) it can be another day.
+  const hydrated = useSyncExternalStore(noopSubscribe, () => true, () => false)
   const [cookie, setCookie] = useState("")
   const [portals, setPortals] = useState<Portal[] | null>(null)
   const [loadingPortals, setLoadingPortals] = useState(false)
   const [portalId, setPortalId] = useState<string>("")
   const [type, setType] = useState<LogTypeFilter>("error")
-  const [range, setRange] = useState<DateRange | undefined>(() => ({ from: today(), to: today() }))
+  const [processes, setProcesses] = useState<Process[] | null>(null)
+  const [loadingProcesses, setLoadingProcesses] = useState(false)
+  const [processId, setProcessId] = useState<string>("")
+  const [minDuration, setMinDuration] = useState(0)
+  // "default" = today–today (resolved on the client); `undefined` = no period (most recent logs).
+  const [rangeState, setRange] = useState<DateRange | undefined | "default">("default")
+  const range = rangeState === "default" ? (hydrated ? { from: today(), to: today() } : undefined) : rangeState
 
   const [logs, setLogs] = useState<RubeusLogRow[]>([])
   const [categories, setCategories] = useState<RubeusLogCategory[]>([])
@@ -83,8 +104,8 @@ export default function LogAnalysisPage() {
       }
       setPortals(res.portals)
       if (res.warning) toast.warning(res.warning)
-      if (res.portals.length === 1) setPortalId(String(res.portals[0].id))
-      else if (portalId && !res.portals.some((p) => String(p.id) === portalId)) setPortalId("")
+      if (res.portals.length === 1) void selectPortal(String(res.portals[0].id))
+      else if (portalId && !res.portals.some((p) => String(p.id) === portalId)) void selectPortal("")
     } catch (e) {
       toast.error((e as Error).message)
     } finally {
@@ -92,18 +113,47 @@ export default function LogAnalysisPage() {
     }
   }
 
+  /** Choosing a portal resets the process and loads that portal's processes. */
+  async function selectPortal(id: string) {
+    setPortalId(id)
+    setProcessId("")
+    setProcesses(null)
+    if (!id) return
+    setLoadingProcesses(true)
+    try {
+      const res = await fetchLogProcesses({ credentials, portalId: Number(id) })
+      if (!res.success) {
+        toast.error(res.error)
+        return
+      }
+      setProcesses(res.processes)
+    } catch (e) {
+      toast.error((e as Error).message)
+    } finally {
+      setLoadingProcesses(false)
+    }
+  }
+
   async function search() {
     const portal = portals?.find((p) => String(p.id) === portalId)
     if (!cookieReady) return void toast.error("Cole o cookie completo da sessão do portal admin")
     if (!portal) return void toast.error("Selecione o portal")
-    if (!range?.from) return void toast.error("Selecione o período")
-    const from = format(range.from, "yyyy-MM-dd")
-    const to = format(range.to ?? range.from, "yyyy-MM-dd")
+    const process = processes?.find((p) => String(p.id) === processId) ?? null
+    const from = range?.from ? format(range.from, "yyyy-MM-dd") : undefined
+    const to = range?.from ? format(range.to ?? range.from, "yyyy-MM-dd") : undefined
 
     setSearching(true)
     setSearchError(null)
     try {
-      const res = await searchRubeusLogs({ credentials, type, from, to, portalId: portal.id })
+      const res = await searchRubeusLogs({
+        credentials,
+        type,
+        from,
+        to,
+        portalId: portal.id,
+        selectiveProcessId: process?.id,
+        minDurationMs: minDuration > 0 ? minDuration * 1000 : undefined,
+      })
       if (!res.success) {
         setSearchError(res.error)
         toast.error(res.error)
@@ -111,7 +161,7 @@ export default function LogAnalysisPage() {
       }
       setLogs(res.logs)
       setCategories(res.categories)
-      setSearched({ portal, from, to, type })
+      setSearched({ portal, process, from, to, type, minDuration })
       setSearchCredentials(credentials)
       setCategoryFilter("")
       setTypeFilter("")
@@ -145,7 +195,9 @@ export default function LogAnalysisPage() {
   const portalFallback = searched?.portal.title ?? ""
   const errorCount = useMemo(() => filteredLogs.filter((l) => isErrorLog(l.log_type_id)).length, [filteredLogs])
 
-  const baseFileName = searched ? `logs-${slugify(searched.portal.title) || searched.portal.id}-${searched.from}_${searched.to}` : "logs"
+  const baseFileName = searched
+    ? `logs-${slugify(searched.portal.title) || searched.portal.id}-${searched.process ? `ps${searched.process.id}-` : ""}${searched.from && searched.to ? `${searched.from}_${searched.to}` : "recentes"}`
+    : "logs"
 
   async function exportXlsx() {
     try {
@@ -292,7 +344,7 @@ export default function LogAnalysisPage() {
           <ScrollText className="h-5 w-5" /> Análise de logs
         </h1>
         <p className="text-sm text-muted-foreground">
-          Busque os logs de integração de um portal Rubeus por tipo e período, abra cada log para ver os dados enviados e retornados, e exporte a
+          Busque os logs de integração de um portal Rubeus por processo seletivo, tipo, período e duração, abra cada log para ver os dados enviados e retornados, e exporte a
           lista para Excel ou Google Sheets.
         </p>
       </div>
@@ -311,15 +363,25 @@ export default function LogAnalysisPage() {
             {portals && <span className="text-sm text-muted-foreground">{portals.length} portal(is) ativo(s)</span>}
           </div>
 
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1.3fr)]">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-[minmax(0,1.5fr)_minmax(0,1.5fr)_minmax(0,0.7fr)_minmax(15rem,1.2fr)]">
             <Field>
               <FieldLabel>Portal *</FieldLabel>
               <Combobox
                 items={(portals ?? []).map((p) => ({ value: String(p.id), label: `${p.title} (${p.id})` }))}
                 value={portalId}
-                onValueChange={setPortalId}
+                onValueChange={(v) => void selectPortal(v ?? "")}
                 placeholder={portals ? "Selecione o portal" : "Carregue os portais"}
                 disabled={!portals || portals.length === 0}
+              />
+            </Field>
+            <Field>
+              <FieldLabel>Processo seletivo</FieldLabel>
+              <Combobox
+                items={(processes ?? []).map((p) => ({ value: String(p.id), label: `${p.name} (${p.id})` }))}
+                value={processId}
+                onValueChange={(v) => setProcessId(v ?? "")}
+                placeholder={loadingProcesses ? "Carregando processos..." : !portalId ? "Selecione o portal" : "Todos"}
+                disabled={!portalId || loadingProcesses || !processes}
               />
             </Field>
             <Field>
@@ -338,13 +400,28 @@ export default function LogAnalysisPage() {
               </Select>
             </Field>
             <Field>
-              <FieldLabel>Período *</FieldLabel>
-              <DateRangePicker value={range} onValueChange={setRange} placeholder="Selecione o período" className="w-full" />
+              <FieldLabel>Período</FieldLabel>
+              <DateRangePicker value={range} onValueChange={setRange} placeholder="Mais recentes" className="w-full" />
             </Field>
           </div>
 
-          <div className="flex justify-end">
-            <Button onClick={search} disabled={searching || !cookieReady || !portalId || !range?.from}>
+          <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+            <div className="w-full max-w-sm">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">Duração mínima</span>
+                <span className="font-medium">{minDuration > 0 ? `≥ ${minDuration}s` : "Qualquer"}</span>
+              </div>
+              <Slider
+                min={0}
+                max={MAX_DURATION_S}
+                step={1}
+                value={minDuration}
+                onValueChange={(v: number) => setMinDuration(v)}
+                valueLabelFormat={(v) => `${v}s`}
+                aria-label="Duração mínima em segundos"
+              />
+            </div>
+            <Button onClick={search} disabled={searching || !cookieReady || !portalId}>
               {searching ? <Loader2 className="size-4 animate-spin" /> : <Search className="size-4" />} Buscar logs
             </Button>
           </div>
@@ -365,7 +442,9 @@ export default function LogAnalysisPage() {
               Logs
               {searched && (
                 <span className="text-sm font-normal text-muted-foreground">
-                  {searched.portal.title} · {searched.from === searched.to ? searched.from.split("-").reverse().join("/") : `${searched.from.split("-").reverse().join("/")} a ${searched.to.split("-").reverse().join("/")}`} ·{" "}
+                  {searched.portal.title}
+                  {searched.process ? ` · ${searched.process.name}` : ""} · {periodLabel(searched)}
+                  {searched.minDuration > 0 ? ` · ≥ ${searched.minDuration}s` : ""} ·{" "}
                   {filteredLogs.length} log(s){errorCount > 0 ? `, ${errorCount} erro(s)` : ""}
                 </span>
               )}

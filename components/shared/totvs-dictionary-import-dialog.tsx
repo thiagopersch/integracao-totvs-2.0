@@ -8,11 +8,15 @@ import { Button } from "@/components/ui/button"
 import { Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Progress } from "@/components/ui/progress"
 import { toast } from "@/lib/toast"
+import { DICTIONARY_IMPORT_BATCH } from "@/schemas/totvs-dictionary.schema"
 
 type ImportMode = "merge" | "replace"
-type ImportResult =
-  | { success: true; mode: ImportMode; read: number; skipped: number; inserted: number; updated: number; removed: number; total: number }
-  | { success: false; error: string }
+type ImportSummary = { mode: ImportMode; read: number; skipped: number; inserted: number; updated: number; removed: number; total: number }
+type ImportResult = ({ success: true } & ImportSummary) | { success: false; error: string }
+type ImportPhase = "reading" | "sending" | "finishing"
+
+const MAX_FILE_SIZE = 50 * 1024 * 1024
+const PHASE_LABEL: Record<ImportPhase, string> = { reading: "Lendo arquivo…", sending: "Enviando registros…", finishing: "Finalizando…" }
 
 interface TotvsDictionaryImportDialogProps {
   open: boolean
@@ -21,21 +25,46 @@ interface TotvsDictionaryImportDialogProps {
   onImported: () => void
 }
 
-/** Uploads a .csv/.xlsx in the spreadsheet layout (TABELA | COLUNA | DESCRICAO) to the streaming
- *  import route, showing batch progress and the final summary. */
+class StepError extends Error {
+  constructor(message: string, readonly retryable: boolean) {
+    super(message)
+  }
+}
+
+/** POSTs one step of the import; retries once on network or 5xx errors (batches are idempotent upserts). */
+async function postStep<T>(body: unknown, retries = 1): Promise<T> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      const response = await fetch("/api/totvs-dictionary/import", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).catch(() => {
+        throw new StepError("Falha de conexão com o servidor", true)
+      })
+      const data = (await response.json().catch(() => null)) as (T & { error?: string }) | null
+      if (response.ok && data) return data
+      throw new StepError(data?.error ?? `Falha na importação (HTTP ${response.status})`, response.status >= 500)
+    } catch (error) {
+      if (!(error instanceof StepError) || !error.retryable || attempt >= retries) throw error
+      await new Promise((r) => setTimeout(r, 1000))
+    }
+  }
+}
+
+/** Reads a .csv/.xlsx in the spreadsheet layout (TABELA | COLUNA | DESCRICAO) in the browser and sends
+ *  it in small JSON batches — no request-size limit, real progress per batch. */
 export function TotvsDictionaryImportDialog({ open, onOpenChange, canReplace, onImported }: TotvsDictionaryImportDialogProps) {
   const fileRef = useRef<HTMLInputElement>(null)
   const [file, setFile] = useState<File | null>(null)
   const [mode, setMode] = useState<ImportMode>("merge")
   const [confirmReplace, setConfirmReplace] = useState(false)
   const [running, setRunning] = useState(false)
-  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null)
+  const [phase, setPhase] = useState<ImportPhase | null>(null)
+  const [progress, setProgress] = useState<{ done: number; total: number; batch: number; batches: number } | null>(null)
   const [result, setResult] = useState<ImportResult | null>(null)
 
   function reset() {
     setFile(null)
     setMode("merge")
     setConfirmReplace(false)
+    setPhase(null)
     setProgress(null)
     setResult(null)
   }
@@ -46,37 +75,48 @@ export function TotvsDictionaryImportDialog({ open, onOpenChange, canReplace, on
     setResult(null)
     setProgress(null)
     try {
-      const body = new FormData()
-      body.append("file", file)
-      body.append("mode", mode)
-      const response = await fetch("/api/totvs-dictionary/import", { method: "POST", body })
-      if (!response.body) throw new Error(`Falha na importação (HTTP ${response.status})`)
-      const reader = response.body.getReader()
-      const decoder = new TextDecoder()
-      let buffer = ""
-      let final: ImportResult | null = null
-      for (;;) {
-        const { value, done } = await reader.read()
-        if (value) buffer += decoder.decode(value, { stream: !done })
-        const lines = buffer.split("\n")
-        buffer = done ? "" : (lines.pop() ?? "")
-        for (const line of lines.filter((l) => l.trim())) {
-          const event = JSON.parse(line) as { type: string; done?: number; total?: number; result?: ImportResult }
-          if (event.type === "progress") setProgress({ done: event.done ?? 0, total: event.total ?? 0 })
-          if (event.type === "done" && event.result) final = event.result
-        }
-        if (done) break
+      if (file.size > MAX_FILE_SIZE) throw new Error("Arquivo excede o limite de 50 MB")
+      setPhase("reading")
+      // Lazy: the xlsx parser is only downloaded when an import actually runs.
+      const { parseDictionaryFile } = await import("@/lib/totvs-dictionary")
+      const parsed = parseDictionaryFile(new Uint8Array(await file.arrayBuffer()))
+      if (parsed.rows.length === 0) throw new Error("Nenhuma linha válida — o arquivo precisa das colunas TABELA, COLUNA e DESCRICAO")
+
+      setPhase("sending")
+      const { startedAt } = await postStep<{ startedAt: string }>({ step: "start", mode, fileName: file.name, total: parsed.rows.length })
+      const batches = Math.ceil(parsed.rows.length / DICTIONARY_IMPORT_BATCH)
+      let inserted = 0
+      let updated = 0
+      setProgress({ done: 0, total: parsed.rows.length, batch: 0, batches })
+      for (let b = 0; b < batches; b++) {
+        const rows = parsed.rows.slice(b * DICTIONARY_IMPORT_BATCH, (b + 1) * DICTIONARY_IMPORT_BATCH)
+        const r = await postStep<{ inserted: number; updated: number }>({ step: "batch", rows })
+        inserted += r.inserted
+        updated += r.updated
+        setProgress({ done: Math.min((b + 1) * DICTIONARY_IMPORT_BATCH, parsed.rows.length), total: parsed.rows.length, batch: b + 1, batches })
       }
-      const res = final ?? { success: false as const, error: "A importação foi interrompida" }
-      setResult(res)
-      if (res.success) {
-        toast.success("Dicionário importado")
-        onImported()
-      } else toast.error(res.error)
+
+      setPhase("finishing")
+      const fin = await postStep<{ removed: number; total: number }>({
+        step: "finish",
+        mode,
+        startedAt,
+        fileName: file.name,
+        read: parsed.read,
+        skipped: parsed.skipped,
+        inserted,
+        updated,
+      })
+      setResult({ success: true, mode, read: parsed.read, skipped: parsed.skipped, inserted, updated, removed: fin.removed, total: fin.total })
+      toast.success("Dicionário importado")
+      onImported()
     } catch (error) {
-      setResult({ success: false, error: (error as Error).message })
+      const message = (error as Error).message
+      setResult({ success: false, error: mode === "replace" ? `${message}. Nenhum registro anterior foi removido.` : message })
+      toast.error(message)
     } finally {
       setRunning(false)
+      setPhase(null)
     }
   }
 
@@ -148,11 +188,17 @@ export function TotvsDictionaryImportDialog({ open, onOpenChange, canReplace, on
               </label>
             )}
 
-            {(running || progress) && progress && (
+            {running && phase && (
               <div className="space-y-1">
-                <Progress value={(progress.done / Math.max(progress.total, 1)) * 100} />
+                {progress ? (
+                  <Progress value={(progress.done / Math.max(progress.total, 1)) * 100} />
+                ) : (
+                  <Progress />
+                )}
                 <p className="text-xs text-muted-foreground">
-                  {progress.done.toLocaleString("pt-BR")} de {progress.total.toLocaleString("pt-BR")} linhas
+                  {PHASE_LABEL[phase]}
+                  {progress &&
+                    ` ${progress.done.toLocaleString("pt-BR")} de ${progress.total.toLocaleString("pt-BR")} linhas · lote ${progress.batch}/${progress.batches} · ${Math.round((progress.done / Math.max(progress.total, 1)) * 100)}%`}
                 </p>
               </div>
             )}

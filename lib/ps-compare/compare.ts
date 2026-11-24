@@ -1,10 +1,13 @@
 import { normalizeText } from "@/lib/ps-docs/field-search"
-import type { DocumentacaoPS, EtapaSpec, FeedbackSpec, ItemSpec, PassoSpec } from "@/lib/ps-docs/types"
+import { describeEtapaDestino } from "@/lib/ps-docs/etapa-destino"
+import type { DocumentacaoPS, EtapaDestinoSpec, EtapaSpec, FeedbackSpec, ItemSpec, PassoSpec } from "@/lib/ps-docs/types"
 import { CATEGORIA_LABELS, STATUS_LABELS, propLabel } from "./labels"
 import type { ChecklistRow, CompareKind, CompareNode, CompareResult, CompareSide, CompareStatus, CompareSummary, PropDiff } from "./types"
 
 /** Ids that change whenever a process is copied between portals — never a real difference. */
-const IGNORED_KEYS = new Set(["id", "idOrigem", "componentId", "fieldId", "popupId", "paginaId", "etapaId"])
+const IGNORED_KEYS = new Set(["id", "idOrigem", "componentId", "fieldId", "popupId", "paginaId", "etapaId",
+  // folded into `destino` (see `etapaDestinoLeaf`)
+  "etapaDestino"])
 /** Keys compared as child nodes (or redundant with them), not as properties. */
 const CHILD_KEYS: Record<CompareKind, Set<string>> = {
   etapa: new Set(["passos", "feedbacks"]),
@@ -21,30 +24,52 @@ function leafText(value: unknown): string {
   return String(value).replace(/\s+/g, " ").trim()
 }
 
-/** Flattens an object into `path -> display text` leaves. Arrays of objects become indexed paths
+/** A flattened leaf: `text` is what's shown, `key` what's compared (equal to `text` except for
+ *  values whose display carries context that legitimately differs between the two processes). */
+export interface Leaf {
+  text: string
+  key: string
+}
+
+const leaf = (text: string): Leaf => ({ text, key: text })
+
+/** A "Para outra etapa" target is shown with its full reference (etapa, processo, portal) on both
+ *  sides, but compared only by the target etapa's name and whether it's the process's own etapa —
+ *  so a correct redirect to each process's own etapa isn't flagged just because the process and
+ *  portal names differ, while a copy still pointing at the other process is. */
+function etapaDestinoLeaf(d: EtapaDestinoSpec): Leaf {
+  const alvo = d.mesmoProcesso ? "próprio processo" : `outro: ${normalizeText(d.processo)} / ${normalizeText(d.portal ?? "")}`
+  return { text: describeEtapaDestino(d), key: `${normalizeText(d.etapa)} | ${alvo}` }
+}
+
+/** Flattens an object into `path -> leaf`. Arrays of objects become indexed paths
  *  (`regras[0].campo`), arrays of primitives a single comma-joined leaf, empty values are dropped
  *  (so "not configured" and "absent" compare equal). */
-export function flatten(value: unknown, skip: Set<string> = new Set(), prefix = "", out: Map<string, string> = new Map()): Map<string, string> {
+export function flatten(value: unknown, skip: Set<string> = new Set(), prefix = "", out: Map<string, Leaf> = new Map()): Map<string, Leaf> {
   if (value === null || value === undefined) return out
   if (Array.isArray(value)) {
     if (value.length === 0) return out
     if (value.every((v) => v === null || typeof v !== "object")) {
       const text = value.map(leafText).filter(Boolean).join(", ")
-      if (text) out.set(prefix, text)
+      if (text) out.set(prefix, leaf(text))
       return out
     }
     value.forEach((v, i) => flatten(v, new Set(), `${prefix}[${i}]`, out))
     return out
   }
   if (typeof value === "object") {
-    for (const key of Object.keys(value as Record<string, unknown>).sort()) {
+    const obj = value as Record<string, unknown>
+    const destino = obj.etapaDestino as EtapaDestinoSpec | undefined
+    for (const key of Object.keys(obj).sort()) {
       if (IGNORED_KEYS.has(key) || skip.has(key)) continue
-      flatten((value as Record<string, unknown>)[key], new Set(), prefix ? `${prefix}.${key}` : key, out)
+      const path = prefix ? `${prefix}.${key}` : key
+      if (key === "destino" && destino) out.set(path, etapaDestinoLeaf(destino))
+      else flatten(obj[key], new Set(), path, out)
     }
     return out
   }
   const text = leafText(value)
-  if (text) out.set(prefix, text)
+  if (text) out.set(prefix, leaf(text))
   return out
 }
 
@@ -54,9 +79,9 @@ function diffProps(kind: CompareKind, a: object, b: object): { diffs: PropDiff[]
   const keys = [...new Set([...fa.keys(), ...fb.keys()])]
   const diffs: PropDiff[] = []
   for (const key of keys) {
-    const va = fa.get(key) ?? ""
-    const vb = fb.get(key) ?? ""
-    if (va !== vb) diffs.push({ prop: key, label: propLabel(key), a: va, b: vb })
+    const va = fa.get(key)
+    const vb = fb.get(key)
+    if ((va?.key ?? "") !== (vb?.key ?? "")) diffs.push({ prop: key, label: propLabel(key), a: va?.text ?? "", b: vb?.text ?? "" })
   }
   return { diffs, propCount: keys.length }
 }

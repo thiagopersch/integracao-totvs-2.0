@@ -1,9 +1,9 @@
 "use client"
 
 import { Controller, type Control, type FieldErrors } from "react-hook-form"
-import { Textarea } from "@/components/ui/textarea"
 import { Field, FieldError, FieldLabel } from "@/components/ui/field"
-import { COOKIE_TEXTAREA_PROPS, CredentialsHelp } from "@/components/ps-docs/credentials-help"
+import { CookieTextarea } from "@/components/ps-docs/cookie-textarea"
+import { CredentialsHelp } from "@/components/ps-docs/credentials-help"
 import type { PsDocsFormInput } from "@/schemas/ps-docs.schema"
 
 interface CredentialsFormFieldsProps {
@@ -21,7 +21,7 @@ export function CredentialsFormFields({ control, errors }: CredentialsFormFields
         <Controller
           control={control}
           name="cookie"
-          render={({ field }) => <Textarea {...COOKIE_TEXTAREA_PROPS} {...field} aria-invalid={!!errors.cookie} />}
+          render={({ field }) => <CookieTextarea {...field} aria-invalid={!!errors.cookie} />}
         />
         <FieldError errors={[errors.cookie]} />
       </Field>

@@ -37,7 +37,7 @@ export function CompareResultView({ result }: { result: CompareResult }) {
   const [checked, setChecked] = useState<Set<string>>(new Set())
   const [statusFilter, setStatusFilter] = useState("")
   const [tipoFilter, setTipoFilter] = useState("")
-  const [showEqual, setShowEqual] = useState(false)
+  const [showEqual, setShowEqual] = useState(true)
   const [selected, setSelected] = useState<ChecklistRow | null>(null)
 
   const tipos = useMemo(() => [...new Set(allRows.map((r) => r.tipo))].sort((a, b) => a.localeCompare(b, "pt-BR")), [allRows])

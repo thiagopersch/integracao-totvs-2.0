@@ -84,13 +84,33 @@ export async function listLogCategories(client: RubeusClient): Promise<RubeusLog
     .sort((a, b) => a.title.localeCompare(b.title, "pt-BR"))
 }
 
+/** Body exactly as the Rubeus admin sends it; optional filters are left out when unset. */
+export function logFilterBody(params: { typeIds: number[]; portalId: number; from?: string; to?: string; selectiveProcessId?: number; minDurationMs?: number }) {
+  return {
+    ...(params.minDurationMs ? { duration: params.minDurationMs } : {}),
+    ...(params.selectiveProcessId ? { selective_process_id: [params.selectiveProcessId] } : {}),
+    portal_id: [params.portalId],
+    type_id: params.typeIds,
+    ...(params.from && params.to ? { created_at: [params.from, params.to] } : {}),
+  }
+}
+
 export async function filterLogs(
   client: RubeusClient,
-  params: { typeIds: number[]; from: string; to: string; portalId: number; timeoutMs?: number }
+  params: {
+    typeIds: number[]
+    portalId: number
+    /** Both or neither — without a period Rubeus returns the most recent logs. */
+    from?: string
+    to?: string
+    selectiveProcessId?: number
+    minDurationMs?: number
+    timeoutMs?: number
+  }
 ): Promise<RubeusLogRow[]> {
   const res = await client.post(
     `${LOGS_API_ROOT}/log-filter`,
-    { type_id: params.typeIds, created_at: [params.from, params.to], portal_id: [params.portalId] },
+    logFilterBody(params),
     { timeout: Math.max(params.timeoutMs ?? 0, LOG_FILTER_MIN_TIMEOUT_MS) }
   )
   assertOk(res, "os logs")

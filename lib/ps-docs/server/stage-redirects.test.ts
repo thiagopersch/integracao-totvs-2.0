@@ -27,6 +27,7 @@ describe("resolveStageRedirects", () => {
     const warnings: string[] = []
     await resolveStageRedirects(fakeClient(routes), [{ itens: [{ encaminhamentos: list }] }], { idPs: "22587" }, warnings)
     expect(list[0].destino).toBe("Etapa: Inscrição")
+    expect(list[0].etapaDestino).toEqual({ etapa: "Inscrição", processo: "Vestibular 2027", portal: "Portal Graduação", mesmoProcesso: true })
     expect(warnings).toEqual([])
   })
 
@@ -34,6 +35,7 @@ describe("resolveStageRedirects", () => {
     const list = encs()
     await resolveStageRedirects(fakeClient(routes), [list], { idPs: "1" }, [])
     expect(list[0].destino).toBe("Etapa: Inscrição (processo seletivo Vestibular 2027, portal Portal Graduação)")
+    expect(list[0].etapaDestino?.mesmoProcesso).toBe(false)
   })
 
   it("keeps the #id fallback and warns when the lookup fails", async () => {

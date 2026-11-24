@@ -168,6 +168,18 @@ export interface EncaminhamentoSpec {
    *  into the etapa's name by the fetch layer (`server/stage-redirects.ts`), which rewrites
    *  `destino`. */
   etapaId?: number;
+  /** Structured target of a "Para outra etapa" encaminhamento (filled with `destino` by
+   *  `server/stage-redirects.ts`): the etapa, its process and portal, and whether it belongs to the
+   *  process being read. Lets "Comparar processos" show the full reference on both sides while
+   *  comparing only what matters (target etapa name + own process vs. another one). */
+  etapaDestino?: EtapaDestinoSpec;
+}
+
+export interface EtapaDestinoSpec {
+  etapa: string;
+  processo: string;
+  portal?: string;
+  mesmoProcesso: boolean;
 }
 
 /** A pop-up's own full configuration — `GET /api/popups/{popup_id}`, per explicit instruction.

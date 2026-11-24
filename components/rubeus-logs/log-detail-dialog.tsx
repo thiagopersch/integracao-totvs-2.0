@@ -73,7 +73,7 @@ function PayloadSection({ value, label, fileLabel, fileName }: { value: string |
   }
 
   return (
-    <AccordionItem value={label} className="rounded-md border">
+    <AccordionItem value={label} className="rounded-md border bg-card shadow-md">
       <AccordionTrigger className="px-4 text-base font-semibold">{label}</AccordionTrigger>
       <AccordionContent className="px-4 pb-2">
         {isFile ? (
@@ -156,7 +156,7 @@ export function LogDetailDialog({ row, credentials, onOpenChange }: LogDetailDia
 
           {log && row && (
             <Accordion multiple defaultValue={["identificacao", "dados", "Dados enviados", "Dados retornados"]} className="space-y-4">
-              <AccordionItem value="identificacao" className="rounded-md border">
+              <AccordionItem value="identificacao" className="rounded-md border bg-card shadow-md">
                 <AccordionTrigger className="px-4 text-base font-semibold">Identificação</AccordionTrigger>
                 <AccordionContent className="grid grid-cols-1 gap-4 px-4 pb-2 sm:grid-cols-3">
                   <InfoItem label="Candidato" value={dash(log.person_name ?? row.person_name)} />
@@ -169,7 +169,7 @@ export function LogDetailDialog({ row, credentials, onOpenChange }: LogDetailDia
                 </AccordionContent>
               </AccordionItem>
 
-              <AccordionItem value="dados" className="rounded-md border">
+              <AccordionItem value="dados" className="rounded-md border bg-card shadow-md">
                 <AccordionTrigger className="px-4 text-base font-semibold">Dados do log</AccordionTrigger>
                 <AccordionContent className="space-y-4 px-4 pb-2">
                   <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">

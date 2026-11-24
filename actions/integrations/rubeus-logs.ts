@@ -5,10 +5,10 @@ import { requirePermission } from "@/lib/rbac"
 import { hasRequiredCredentials, type PsCredentials } from "@/lib/ps-docs/credential"
 import { logApiCall, logAndNotifyFailure, sessionErrorMessage } from "@/lib/ps-docs/api-helpers"
 import { createRubeusClient } from "@/lib/ps-docs/server/rubeus-client"
-import { listActivePortals } from "@/lib/ps-docs/server/portal-structure"
+import { listActivePortals, listPortalProcesses } from "@/lib/ps-docs/server/portal-structure"
 import { LOGS_API_ROOT, filterLogs, listLogCategories, showLog, timeoutMessage } from "@/lib/rubeus-logs/server/logs-api"
 import { LOG_TYPE_IDS, type RubeusLogCategory, type RubeusLogDetail, type RubeusLogRow } from "@/lib/rubeus-logs/types"
-import { logFilterSchema, logShowSchema, type LogFilterInput, type LogShowInput } from "@/schemas/rubeus-logs.schema"
+import { logFilterSchema, logProcessesSchema, logShowSchema, type LogFilterInput, type LogProcessesInput, type LogShowInput } from "@/schemas/rubeus-logs.schema"
 
 /**
  * "Inscrições e matrículas → Análise de logs": reads the Rubeus portal admin logs with the
@@ -48,13 +48,39 @@ export async function fetchLogPortals(input: { credentials: PsCredentials }): Pr
   }
 }
 
+export type FetchLogProcessesResult = { success: true; processes: { id: number; name: string }[] } | { success: false; error: string }
+
+/** Active selective processes of the chosen portal — feeds the "Processo seletivo" filter. */
+export async function fetchLogProcesses(input: LogProcessesInput): Promise<FetchLogProcessesResult> {
+  const { organizationId, userId } = await requirePermission(RESOURCE, "execute")
+  const parsed = logProcessesSchema.safeParse(input)
+  if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? "Parâmetros inválidos" }
+  const { credentials, portalId } = parsed.data
+
+  const url = `https://admin.portal.apprbs.com.br/api/portal/selective-process-local/${portalId}`
+  try {
+    const { total, processes } = await listPortalProcesses(await clientFor(organizationId, credentials), String(portalId))
+    await logApiCall({ organizationId, userId, integration: "PS_DOCS", url, httpMethod: "GET", httpStatus: 200, responseSummary: { total, ativos: processes.length } })
+    return {
+      success: true,
+      processes: processes
+        .map((p) => ({ id: Number(p.id), name: p.name }))
+        .filter((p) => Number.isInteger(p.id) && p.id > 0)
+        .sort((a, b) => a.name.localeCompare(b.name, "pt-BR")),
+    }
+  } catch (error) {
+    await logAndNotifyFailure({ organizationId, userId, url, method: "GET", idPs: String(portalId), error })
+    return { success: false, error: failure(error) }
+  }
+}
+
 export type SearchRubeusLogsResult = { success: true; logs: RubeusLogRow[]; categories: RubeusLogCategory[] } | { success: false; error: string }
 
 export async function searchRubeusLogs(input: LogFilterInput): Promise<SearchRubeusLogsResult> {
   const { organizationId, userId } = await requirePermission(RESOURCE, "execute")
   const parsed = logFilterSchema.safeParse(input)
   if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? "Parâmetros inválidos" }
-  const { credentials, type, from, to, portalId } = parsed.data
+  const { credentials, type, from, to, portalId, selectiveProcessId, minDurationMs } = parsed.data
 
   const url = `${LOGS_API_ROOT}/log-filter`
   try {
@@ -62,7 +88,7 @@ export async function searchRubeusLogs(input: LogFilterInput): Promise<SearchRub
     const client = createRubeusClient(credentials, { timeoutMs })
     // Categories only feed the table's filter — a failure there must not hide the logs.
     const [logs, categories] = await Promise.all([
-      filterLogs(client, { typeIds: LOG_TYPE_IDS[type], from, to, portalId, timeoutMs }),
+      filterLogs(client, { typeIds: LOG_TYPE_IDS[type], from, to, portalId, selectiveProcessId, minDurationMs, timeoutMs }),
       listLogCategories(client).catch(() => [] as RubeusLogCategory[]),
     ])
     await logApiCall({
@@ -72,7 +98,7 @@ export async function searchRubeusLogs(input: LogFilterInput): Promise<SearchRub
       url,
       httpMethod: "POST",
       httpStatus: 200,
-      requestSummary: { portalId, type, from, to },
+      requestSummary: { portalId, selectiveProcessId, type, from, to, minDurationMs },
       responseSummary: { logs: logs.length },
     })
     return { success: true, logs, categories }

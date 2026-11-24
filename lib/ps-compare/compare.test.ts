@@ -99,10 +99,51 @@ describe("compareProcesses", () => {
   })
 })
 
+describe("encaminhamento para outra etapa", () => {
+  const botao = (destino: { etapa: string; processo: string; portal: string; mesmoProcesso: boolean }): ItemSpec => ({
+    categoria: "botao",
+    nome: "Avançar",
+    tipo: "button",
+    encaminhamentos: [{ tipo: "Para outra etapa", destino: `Etapa: ${destino.etapa}`, novaAba: false, etapaId: 1, etapaDestino: destino }],
+  })
+  const ps = (b: ItemSpec, idPs: string) => doc([etapa("Cadastro", [passo("P", [b])])], idPs)
+  const run = (a: ItemSpec, b: ItemSpec) => find(compareProcesses(ps(a, "1"), ps(b, "2")).etapas, "Avançar")!
+
+  it("treats each process pointing at its own etapa as equal, showing the full reference", () => {
+    const node = run(
+      botao({ etapa: "Pagamento", processo: "Vestibular A", portal: "Portal A", mesmoProcesso: true }),
+      botao({ etapa: "Pagamento", processo: "Vestibular B", portal: "Portal B", mesmoProcesso: true })
+    )
+    expect(node.status).toBe("igual")
+  })
+
+  it("flags B still pointing at an etapa of process A, with the full reference on both sides", () => {
+    const node = run(
+      botao({ etapa: "Pagamento", processo: "Vestibular A", portal: "Portal A", mesmoProcesso: true }),
+      botao({ etapa: "Pagamento", processo: "Vestibular A", portal: "Portal A", mesmoProcesso: false })
+    )
+    expect(node.status).toBe("diferente")
+    const diff = node.diffs.find((d) => d.prop === "encaminhamentos[0].destino")!
+    expect(diff.a).toBe("Etapa: Pagamento (processo seletivo Vestibular A, portal Portal A)")
+    expect(diff.b).toBe("Etapa: Pagamento (processo seletivo Vestibular A, portal Portal A)")
+  })
+
+  it("flags a different target etapa", () => {
+    const node = run(
+      botao({ etapa: "Pagamento", processo: "Vestibular A", portal: "Portal A", mesmoProcesso: true }),
+      botao({ etapa: "Documentos", processo: "Vestibular B", portal: "Portal B", mesmoProcesso: true })
+    )
+    expect(node.diffs.find((d) => d.prop === "encaminhamentos[0].destino")).toMatchObject({
+      a: "Etapa: Pagamento (processo seletivo Vestibular A, portal Portal A)",
+      b: "Etapa: Documentos (processo seletivo Vestibular B, portal Portal B)",
+    })
+  })
+})
+
 describe("flatten", () => {
   it("indexes object arrays, joins primitive arrays and drops empty values", () => {
     const flat = flatten({ regras: [{ campo: "A", regra: "=" }], vinculos: ["x", "y"], vazio: "", lista: [], ok: true })
-    expect([...flat]).toEqual([
+    expect([...flat].map(([k, v]) => [k, v.text])).toEqual([
       ["ok", "Sim"],
       ["regras[0].campo", "A"],
       ["regras[0].regra", "="],
