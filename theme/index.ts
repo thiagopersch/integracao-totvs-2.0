@@ -239,17 +239,55 @@ export const theme = createTheme(
         },
       },
       MuiSwitch: {
+        defaultProps: { disableRipple: true },
         styleOverrides: {
-          // Material 3-like track/thumb: rounded track, larger thumb when on.
-          root: { padding: 7 },
-          track: { borderRadius: 999, opacity: 1, backgroundColor: "rgba(var(--mui-palette-text-primaryChannel, 0 0 0) / 0.38)" },
+          // iOS-style toggle: pill track with a white thumb inside it — primary when on, grey when off.
+          root: {
+            width: 44,
+            height: 24,
+            padding: 0,
+            overflow: "visible",
+            // Keeps the breathing room the old padded root gave labels set with a small gap.
+            marginInline: 4,
+            "&.MuiSwitch-edgeStart": { marginLeft: 0 },
+            "&.MuiSwitch-edgeEnd": { marginRight: 0 },
+            "&.MuiSwitch-sizeSmall": {
+              width: 34,
+              height: 18,
+              "& .MuiSwitch-thumb": { width: 14, height: 14 },
+              "& .MuiSwitch-switchBase.Mui-checked": { transform: "translateX(16px)" },
+            },
+          },
           switchBase: ({ theme }) => ({
-            "&.Mui-checked + .MuiSwitch-track": { opacity: 1, backgroundColor: theme.vars.palette.primary.main },
-            "&.Mui-checked .MuiSwitch-thumb": { backgroundColor: theme.vars.palette.primary.contrastText },
+            top: 0,
+            left: 0,
+            padding: 2,
+            "&:hover": { backgroundColor: "transparent" },
+            "&.Mui-checked": {
+              transform: "translateX(20px)",
+              color: theme.vars.palette.common.white,
+              "&:hover": { backgroundColor: "transparent" },
+              "& + .MuiSwitch-track": { opacity: 1, backgroundColor: theme.vars.palette.primary.main },
+            },
+            "&.Mui-disabled": { color: theme.vars.palette.common.white },
+            "&.Mui-disabled + .MuiSwitch-track": { opacity: 0.5 },
+            "&.Mui-focusVisible + .MuiSwitch-track": {
+              outline: `2px solid ${theme.vars.palette.primary.main}`,
+              outlineOffset: 2,
+            },
           }),
           thumb: ({ theme }) => ({
-            boxShadow: theme.vars.shadows[1],
-            ...theme.applyStyles("dark", { boxShadow: "none" }),
+            width: 20,
+            height: 20,
+            backgroundColor: theme.vars.palette.common.white,
+            boxShadow: "0 1px 2px rgba(0, 0, 0, 0.25)",
+          }),
+          track: ({ theme }) => ({
+            borderRadius: 999,
+            opacity: 1,
+            backgroundColor: theme.vars.palette.grey[400],
+            transition: theme.transitions.create("background-color", { duration: 200 }),
+            ...theme.applyStyles("dark", { backgroundColor: "rgba(255, 255, 255, 0.28)" }),
           }),
         },
       },
