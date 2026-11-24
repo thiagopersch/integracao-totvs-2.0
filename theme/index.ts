@@ -255,6 +255,8 @@ export const theme = createTheme(
               width: 34,
               height: 18,
               "& .MuiSwitch-thumb": { width: 14, height: 14 },
+              // MUI's small variant sets padding 4 here with higher specificity than the switchBase override.
+              "& .MuiSwitch-switchBase": { padding: 2 },
               "& .MuiSwitch-switchBase.Mui-checked": { transform: "translateX(16px)" },
             },
           },
