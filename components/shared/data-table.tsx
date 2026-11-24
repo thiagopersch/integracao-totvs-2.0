@@ -25,6 +25,7 @@ import Badge from "@mui/material/Badge"
 import Tooltip from "@mui/material/Tooltip"
 import { ChevronDown, Columns3, FileDown, FileSpreadsheet, FileText, ListFilter, Trash2, Workflow } from "lucide-react"
 import { toast } from "@/lib/toast"
+import { exportRowsAsPdf, exportRowsAsXlsx, type ExportFormat } from "@/lib/table-export"
 import { Button } from "@/components/ui/button"
 import { DataTableToolbar } from "./data-table-toolbar"
 import { ConfirmDialog } from "./confirm-dialog"
@@ -112,6 +113,8 @@ interface DataTableProps<TData, TValue> {
   processActions?: React.ReactNode
   /** Extra `DropdownMenuItem`s (e.g. a page-specific report) shown in the "Processos" menu after CSV/Excel/PDF. */
   processExportActions?: React.ReactNode
+  /** Takes over the menu's CSV/Excel/PDF items (e.g. to ask which fields to export); without it the grid exports its visible columns. */
+  onExport?: (format: ExportFormat) => void
   filterPanel?: React.ReactNode
   emptyMessage?: string
   onRowClick?: (row: TData) => void
@@ -181,6 +184,7 @@ type ToolbarSlotProps = {
   apiRef: React.RefObject<GridApiCommunity | null>
   processActions?: React.ReactNode
   processExportActions?: React.ReactNode
+  onExport?: (format: ExportFormat) => void
   /** The page's filter box, shown between the toolbar row and the column headers while open. */
   filterPanel?: React.ReactNode
 }
@@ -216,43 +220,22 @@ function collectExportRows(apiRef: React.RefObject<GridApiCommunity | null>) {
 async function exportExcel(apiRef: React.RefObject<GridApiCommunity | null>) {
   const data = collectExportRows(apiRef)
   if (!data) return
-  const XLSX = await import("xlsx")
-  const sheet = XLSX.utils.aoa_to_sheet([data.headers, ...data.rows])
-  const book = XLSX.utils.book_new()
-  XLSX.utils.book_append_sheet(book, sheet, "Dados")
-  XLSX.writeFile(book, `${exportFileName()}.xlsx`)
+  await exportRowsAsXlsx(data, exportFileName())
 }
 
 /** Same rows as the Excel export, laid out as a landscape PDF table. */
 async function exportPdf(apiRef: React.RefObject<GridApiCommunity | null>, title: string) {
   const data = collectExportRows(apiRef)
   if (!data) return
-  const [{ default: jsPDF }, { default: autoTable }] = await Promise.all([import("jspdf"), import("jspdf-autotable")])
-  const doc = new jsPDF({ orientation: "landscape", unit: "pt" })
-  doc.setFontSize(14)
-  doc.text(title, 40, 40)
-  doc.setFontSize(9)
-  doc.setTextColor(110)
-  doc.text(`Gerado em ${new Date().toLocaleString("pt-BR")} · ${data.rows.length} registro(s)`, 40, 56)
-  autoTable(doc, {
-    startY: 70,
-    head: [data.headers],
-    body: data.rows.map((row) =>
-      row.map((v) => (v instanceof Date ? v.toLocaleDateString("pt-BR") : String(v)))
-    ),
-    styles: { fontSize: 8, cellPadding: 4, overflow: "linebreak" },
-    headStyles: { fillColor: [34, 139, 84], textColor: 255 },
-    alternateRowStyles: { fillColor: [245, 247, 246] },
-    margin: { left: 40, right: 40 },
-  })
-  doc.save(`${exportFileName()}.pdf`)
+  await exportRowsAsPdf(data, exportFileName(), title)
 }
 
 function ProcessesMenu({
   apiRef,
   processActions,
   processExportActions,
-}: Pick<ToolbarSlotProps, "apiRef" | "processActions" | "processExportActions">) {
+  onExport,
+}: Pick<ToolbarSlotProps, "apiRef" | "processActions" | "processExportActions" | "onExport">) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger render={<Button type="button" variant="outline" size="sm" className="h-9" />}>
@@ -261,12 +244,15 @@ function ProcessesMenu({
       <DropdownMenuContent align="end" className="min-w-52">
         <DropdownMenuLabel>Exportar</DropdownMenuLabel>
         <DropdownMenuItem
-          onClick={() => apiRef.current?.exportDataAsCsv({ utf8WithBom: true, delimiter: ";", fileName: exportFileName() })}
+          onClick={() =>
+            onExport ? onExport("csv") : apiRef.current?.exportDataAsCsv({ utf8WithBom: true, delimiter: ";", fileName: exportFileName() })
+          }
         >
           <FileText /> Exportar CSV
         </DropdownMenuItem>
         <DropdownMenuItem
           onClick={() => {
+            if (onExport) return onExport("xlsx")
             exportExcel(apiRef).catch(() => toast.error("Erro ao exportar Excel"))
           }}
         >
@@ -274,6 +260,7 @@ function ProcessesMenu({
         </DropdownMenuItem>
         <DropdownMenuItem
           onClick={() => {
+            if (onExport) return onExport("pdf")
             // The page header names the table better than the (app-wide) document title.
             const title = document.querySelector("main h1, h1")?.textContent?.trim() || "Relatório"
             exportPdf(apiRef, title).catch(() => toast.error("Erro ao exportar PDF"))
@@ -316,7 +303,7 @@ function DataTableGridToolbar(props: Partial<ToolbarSlotProps>) {
           />
         </Tooltip>
       )}
-      <ProcessesMenu apiRef={p.apiRef} processActions={p.processActions} processExportActions={p.processExportActions} />
+      <ProcessesMenu apiRef={p.apiRef} processActions={p.processActions} processExportActions={p.processExportActions} onExport={p.onExport} />
     </div>
   )
   return (
@@ -355,6 +342,7 @@ export function DataTable<TData, TValue>({
   toolbarActions,
   processActions,
   processExportActions,
+  onExport,
   filterPanel,
   emptyMessage = "Nenhum registro encontrado.",
   onRowClick,
@@ -623,6 +611,7 @@ export function DataTable<TData, TValue>({
     apiRef,
     processActions,
     processExportActions,
+    onExport,
     filterPanel: filtersOpen ? filterPanel : undefined,
   }
 

@@ -53,3 +53,14 @@ export const logFileSchema = z.object({
 export type LogFilterInput = z.input<typeof logFilterSchema>
 export type LogProcessesInput = z.input<typeof logProcessesSchema>
 export type LogShowInput = z.input<typeof logShowSchema>
+
+/** Body of `POST /api/rubeus-logs/details`: the logs whose `log-show` the export needs. */
+export const logDetailsSchema = z.object({
+  credentials: psCredentialsSchema,
+  items: z
+    .array(z.object({ id: z.coerce.number().int().positive(), categoriesId: z.string().trim().min(1) }))
+    .min(1, "Nenhum log para carregar")
+    .max(2000, "Exporte no máximo 2000 logs com detalhes por vez"),
+})
+
+export type LogDetailsInput = z.input<typeof logDetailsSchema>

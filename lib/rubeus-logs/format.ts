@@ -1,4 +1,4 @@
-import type { RubeusLogRow } from "@/lib/rubeus-logs/types"
+import type { RubeusLogDetail, RubeusLogRow } from "@/lib/rubeus-logs/types"
 
 /** Pure formatting helpers for the "Análise de logs" page (safe on client and server). */
 
@@ -92,22 +92,98 @@ export function formatPayload(raw: string | null | undefined): FormattedPayload 
   return { kind: "text", text: String(value) }
 }
 
-/** Spreadsheet columns shared by the Excel export and the "copy to Google Sheets" TSV. */
-export const LOG_SHEET_HEADERS = ["ID", "Tipo", "Criado em", "Categoria", "Descrição", "Portal", "ID do PS", "Processo seletivo", "Pessoa", "Duração (s)"] as const
+export type LogExportFieldKey =
+  | "id"
+  | "tipo"
+  | "created_at"
+  | "categoria"
+  | "descricao"
+  | "portal"
+  | "processo"
+  | "pessoa"
+  | "duracao"
+  | "ps_id"
+  | "etapa"
+  | "passo"
+  | "localizacao"
+  | "updated_at"
+  | "usuario"
+  | "observacao"
+  | "sent"
+  | "result"
 
-export function logsToSheetRows(rows: RubeusLogRow[], portalFallback = ""): (string | number)[][] {
-  return rows.map((r) => [
-    r.id,
-    logTypeLabel(r.log_type_id),
-    formatLogDate(r.created_at),
-    dash(r.categories_title),
-    dash(r.description),
-    dash(r.portal_title || portalFallback),
-    dash(r.selective_process_id),
-    dash(r.selective_process_title),
-    dash(r.person_name),
-    durationSeconds(r.duration) ?? "-",
-  ])
+/** Value of an exported cell: `link` cells become hyperlinks in Excel and show the URL elsewhere. */
+export type LogExportValue = string | number | { text: string; link: string }
+
+export interface LogExportField {
+  key: LogExportFieldKey
+  label: string
+  /** "table" = columns of the grid (pre-selected); "detail" = only in the log dialog (needs `log-show`). */
+  group: "table" | "detail"
+  value: (row: RubeusLogRow, detail: RubeusLogDetail | undefined, portalFallback: string) => LogExportValue
+}
+
+/** `sent`/`result` → the file link itself; inline payloads (no link exists) → their formatted text. */
+export function payloadExportValue(raw: string | null | undefined): LogExportValue {
+  if (isDownloadUrl(raw)) {
+    const url = String(raw).trim()
+    return { text: url, link: url }
+  }
+  const payload = formatPayload(raw)
+  return payload.kind === "empty" ? "-" : payload.text
+}
+
+/** Every field the export dialog offers, in output order. */
+export const LOG_EXPORT_FIELDS: LogExportField[] = [
+  { key: "id", label: "ID", group: "table", value: (r) => r.id },
+  { key: "tipo", label: "Tipo", group: "table", value: (r) => logTypeLabel(r.log_type_id) },
+  { key: "created_at", label: "Criado em", group: "table", value: (r) => formatLogDate(r.created_at) },
+  { key: "categoria", label: "Categoria", group: "table", value: (r) => dash(r.categories_title) },
+  { key: "descricao", label: "Descrição", group: "table", value: (r) => dash(r.description) },
+  { key: "portal", label: "Portal", group: "table", value: (r, _d, fallback) => dash(r.portal_title || fallback) },
+  { key: "processo", label: "Processo seletivo", group: "table", value: (r) => dash(r.selective_process_title) },
+  { key: "pessoa", label: "Pessoa", group: "table", value: (r) => dash(r.person_name) },
+  { key: "duracao", label: "Duração (s)", group: "table", value: (r) => durationSeconds(r.duration) ?? "-" },
+  { key: "ps_id", label: "ID do PS", group: "detail", value: (r) => dash(r.selective_process_id) },
+  { key: "etapa", label: "Etapa", group: "detail", value: (_r, d) => dash(d?.stage_title) },
+  { key: "passo", label: "Passo", group: "detail", value: (_r, d) => dash(d?.step_title) },
+  { key: "localizacao", label: "Localização", group: "detail", value: (_r, d) => dash(d?.log_location_title) },
+  {
+    key: "updated_at",
+    label: "Última alteração",
+    group: "detail",
+    value: (_r, d) => (d?.updated_at && d.updated_at !== d.created_at ? formatLogDate(d.updated_at) : "-"),
+  },
+  { key: "usuario", label: "Usuário", group: "detail", value: (_r, d) => dash(d?.user_name) },
+  { key: "observacao", label: "Observação", group: "detail", value: (_r, d) => dash(d?.observation) },
+  { key: "sent", label: "Link do envio (sent)", group: "detail", value: (_r, d) => (d ? payloadExportValue(d.sent) : "-") },
+  { key: "result", label: "Link do retorno (result)", group: "detail", value: (_r, d) => (d ? payloadExportValue(d.result) : "-") },
+]
+
+export const DEFAULT_LOG_EXPORT_KEYS: LogExportFieldKey[] = LOG_EXPORT_FIELDS.filter((f) => f.group === "table").map((f) => f.key)
+
+/** Fields that only `log-show` returns — the ones the export has to fetch first. */
+export function needsLogDetails(keys: readonly LogExportFieldKey[]): boolean {
+  return LOG_EXPORT_FIELDS.some((f) => f.group === "detail" && f.key !== "ps_id" && keys.includes(f.key))
+}
+
+/** Header + rows of the chosen fields (catalog order), for Excel/CSV/PDF/TSV. */
+export function buildLogExport(
+  rows: RubeusLogRow[],
+  details: ReadonlyMap<number, RubeusLogDetail>,
+  keys: readonly LogExportFieldKey[],
+  portalFallback = ""
+): { headers: string[]; rows: LogExportValue[][] } {
+  const fields = LOG_EXPORT_FIELDS.filter((f) => keys.includes(f.key))
+  return {
+    headers: fields.map((f) => f.label),
+    rows: rows.map((r) => fields.map((f) => f.value(r, details.get(r.id), portalFallback))),
+  }
+}
+
+/** Plain text of an export cell (links → the URL). */
+export function exportValueText(v: LogExportValue): string | number {
+  return typeof v === "object" ? v.text : v
 }
 
 /** Tab-separated text (header + rows) that pastes into Google Sheets/Excel as cells. Numbers use a comma decimal (pt-BR sheets). */

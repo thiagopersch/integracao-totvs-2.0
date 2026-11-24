@@ -1,35 +1,42 @@
 "use client"
 
-import { useMemo, useState, useSyncExternalStore } from "react"
+import { useMemo, useRef, useState, useSyncExternalStore } from "react"
 import type { ColumnDef } from "@tanstack/react-table"
 import { format } from "date-fns"
-import { AlertTriangle, ClipboardCopy, FileSpreadsheet, Loader2, ScrollText, Search, Building2 } from "lucide-react"
+import { AlertTriangle, ClipboardCopy, Loader2, ScrollText, Search, Building2 } from "lucide-react"
 import { fetchLogPortals, fetchLogProcesses, searchRubeusLogs } from "@/actions/integrations/rubeus-logs"
 import { CredentialsFields } from "@/components/ps-docs/credentials-fields"
 import { LogDetailDialog } from "@/components/rubeus-logs/log-detail-dialog"
+import { LogExportDialog, type LogExportTarget } from "@/components/rubeus-logs/log-export-dialog"
 import { DataTable } from "@/components/shared/data-table"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Combobox } from "@/components/ui/combobox"
+import { DropdownMenuItem } from "@/components/ui/dropdown-menu"
 import { DateRangePicker, type DateRange } from "@/components/ui/date-range-picker"
 import { Field, FieldLabel } from "@/components/ui/field"
 import { Slider } from "@/components/ui/slider"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { hasRequiredCredentials, missingCookieNames, parseCookieString, type PsCredentials } from "@/lib/ps-docs/credential"
-import { downloadBlob, slugify } from "@/lib/ps-docs/download-utils"
+import { slugify } from "@/lib/ps-docs/download-utils"
+import { streamLogDetails } from "@/lib/rubeus-logs/details-stream"
 import {
-  LOG_SHEET_HEADERS,
+  buildLogExport,
   dash,
   durationSeconds,
   formatDurationSeconds,
   formatLogDate,
   isErrorLog,
+  exportValueText,
   logTypeLabel,
-  logsToSheetRows,
+  needsLogDetails,
   toTsv,
+  type LogExportFieldKey,
+  type LogExportValue,
 } from "@/lib/rubeus-logs/format"
-import type { LogTypeFilter, RubeusLogCategory, RubeusLogRow } from "@/lib/rubeus-logs/types"
+import type { LogTypeFilter, RubeusLogCategory, RubeusLogDetail, RubeusLogRow } from "@/lib/rubeus-logs/types"
+import { exportRowsAsCsv, exportRowsAsPdf, exportRowsAsXlsx } from "@/lib/table-export"
 import { toast } from "@/lib/toast"
 
 const TYPE_OPTIONS: { value: LogTypeFilter; label: string }[] = [
@@ -44,7 +51,13 @@ type Process = { id: number; name: string }
 type Searched = { portal: Portal; process: Process | null; from?: string; to?: string; type: LogTypeFilter; minDuration: number }
 
 const MAX_DURATION_S = 30
+/** Inline `sent`/`result` payloads are cut in the PDF — a table cell can't hold a whole JSON. */
+const PDF_CELL_LIMIT = 500
 const ddmmyyyy = (iso: string) => iso.split("-").reverse().join("/")
+
+function searchSummary(s: Searched) {
+  return `${s.portal.title}${s.process ? ` · ${s.process.name}` : ""} · ${periodLabel(s)}`
+}
 
 function periodLabel(s: Searched) {
   if (!s.from || !s.to) return "mais recentes"
@@ -86,6 +99,13 @@ export default function LogAnalysisPage() {
   const [categoryFilter, setCategoryFilter] = useState("")
   const [typeFilter, setTypeFilter] = useState("")
   const [selected, setSelected] = useState<RubeusLogRow | null>(null)
+
+  // Export: field picker dialog (fresh `key` per opening) + `log-show` cache of the current search.
+  const [exportTarget, setExportTarget] = useState<LogExportTarget | null>(null)
+  const [exportKey, setExportKey] = useState(0)
+  const [exportProgress, setExportProgress] = useState<{ done: number; total: number } | null>(null)
+  const detailsCache = useRef(new Map<number, RubeusLogDetail>())
+  const exportAbort = useRef<AbortController | null>(null)
 
   const credentials = useMemo(() => parseCookieString(cookie), [cookie])
   const cookieReady = !!cookie.trim() && missingCookieNames(cookie).length === 0 && hasRequiredCredentials(credentials)
@@ -163,6 +183,7 @@ export default function LogAnalysisPage() {
       setCategories(res.categories)
       setSearched({ portal, process, from, to, type, minDuration })
       setSearchCredentials(credentials)
+      detailsCache.current = new Map()
       setCategoryFilter("")
       setTypeFilter("")
       if (res.logs.length === 0) toast.info("Nenhum log encontrado para os filtros informados")
@@ -199,28 +220,83 @@ export default function LogAnalysisPage() {
     ? `logs-${slugify(searched.portal.title) || searched.portal.id}-${searched.process ? `ps${searched.process.id}-` : ""}${searched.from && searched.to ? `${searched.from}_${searched.to}` : "recentes"}`
     : "logs"
 
-  async function exportXlsx() {
-    try {
-      const XLSX = await import("xlsx")
-      const rows = logsToSheetRows(filteredLogs, portalFallback)
-      const sheet = XLSX.utils.aoa_to_sheet([[...LOG_SHEET_HEADERS], ...rows])
-      sheet["!cols"] = LOG_SHEET_HEADERS.map((h, i) => ({ wch: Math.min(60, Math.max(h.length, ...rows.map((r) => String(r[i] ?? "").length)) + 2) }))
-      if (sheet["!ref"]) sheet["!autofilter"] = { ref: sheet["!ref"] }
-      const workbook = XLSX.utils.book_new()
-      XLSX.utils.book_append_sheet(workbook, sheet, "Logs")
-      const data = XLSX.write(workbook, { type: "array", bookType: "xlsx" }) as ArrayBuffer
-      downloadBlob(new Blob([data], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }), `${baseFileName}.xlsx`)
-    } catch (e) {
-      toast.error(`Falha ao exportar: ${(e as Error).message}`)
-    }
+  function openExport(target: LogExportTarget) {
+    setExportKey((k) => k + 1)
+    setExportProgress(null)
+    setExportTarget(target)
   }
 
-  async function copyForSheets() {
+  function closeExport() {
+    exportAbort.current?.abort()
+    exportAbort.current = null
+    setExportProgress(null)
+    setExportTarget(null)
+  }
+
+  /** Loads the `log-show` of the logs not cached yet; `false` when cancelled or failed (already reported). */
+  async function loadMissingDetails(rows: RubeusLogRow[]): Promise<boolean> {
+    const missing = rows.filter((r) => r.categories_id && !detailsCache.current.has(r.id))
+    if (missing.length === 0) return true
+    if (!searchCredentials) {
+      toast.error("Refaça a busca para exportar os detalhes dos logs")
+      return false
+    }
+    const controller = new AbortController()
+    exportAbort.current = controller
+    let done = 0
+    let failed = 0
+    let fatal: string | null = null
+    setExportProgress({ done, total: missing.length })
     try {
-      await navigator.clipboard.writeText(toTsv(LOG_SHEET_HEADERS, logsToSheetRows(filteredLogs, portalFallback)))
-      toast.success(`${filteredLogs.length} log(s) copiados — cole no Google Sheets (Ctrl+V)`)
-    } catch {
-      toast.error("Não foi possível copiar para a área de transferência")
+      await streamLogDetails(
+        { credentials: searchCredentials, items: missing.map((r) => ({ id: r.id, categoriesId: r.categories_id! })) },
+        (event) => {
+          if (event.type === "detail") detailsCache.current.set(event.log.id, event.log)
+          else if (event.type === "failed") failed++
+          else if (event.type === "error") fatal = event.error
+          if (event.type === "detail" || event.type === "failed") setExportProgress({ done: ++done, total: missing.length })
+        },
+        controller.signal
+      )
+    } catch (e) {
+      if (controller.signal.aborted) return false
+      fatal = (e as Error).message
+    } finally {
+      if (exportAbort.current === controller) exportAbort.current = null
+    }
+    if (controller.signal.aborted) return false
+    if (fatal) {
+      toast.error(fatal)
+      setExportProgress(null)
+      return false
+    }
+    if (failed > 0) toast.warning(`Não foi possível carregar os detalhes de ${failed} log(s) — esses campos saem como "-"`)
+    return true
+  }
+
+  async function confirmExport(keys: LogExportFieldKey[]) {
+    const target = exportTarget
+    if (!target) return
+    const rows = filteredLogs
+    if (needsLogDetails(keys) && !(await loadMissingDetails(rows))) return
+    const data = buildLogExport(rows, detailsCache.current, keys, portalFallback)
+    try {
+      if (target === "sheets") {
+        await navigator.clipboard.writeText(toTsv(data.headers, data.rows.map((r) => r.map(exportValueText))))
+        toast.success(`${rows.length} log(s) copiados — cole no Google Sheets (Ctrl+V)`)
+      } else if (target === "xlsx") {
+        await exportRowsAsXlsx(data, `${baseFileName}.xlsx`, { sheetName: "Logs", autoWidth: true, autoFilter: true })
+      } else if (target === "csv") {
+        exportRowsAsCsv(data, `${baseFileName}.csv`)
+      } else {
+        const cut = (v: LogExportValue) => (typeof v === "string" && v.length > PDF_CELL_LIMIT ? `${v.slice(0, PDF_CELL_LIMIT)}…` : v)
+        await exportRowsAsPdf({ headers: data.headers, rows: data.rows.map((r) => r.map(cut)) }, `${baseFileName}.pdf`, "Análise de logs", searched ? searchSummary(searched) : undefined)
+      }
+      setExportProgress(null)
+      setExportTarget(null)
+    } catch (e) {
+      setExportProgress(null)
+      toast.error(target === "sheets" ? "Não foi possível copiar para a área de transferência" : `Falha ao exportar: ${(e as Error).message}`)
     }
   }
 
@@ -345,7 +421,7 @@ export default function LogAnalysisPage() {
         </h1>
         <p className="text-sm text-muted-foreground">
           Busque os logs de integração de um portal Rubeus por processo seletivo, tipo, período e duração, abra cada log para ver os dados enviados e retornados, e exporte a
-          lista para Excel ou Google Sheets.
+          lista (CSV, Excel, PDF ou Google Sheets) pelo menu Processos, escolhendo os campos.
         </p>
       </div>
 
@@ -460,15 +536,19 @@ export default function LogAnalysisPage() {
               pageSize={25}
               filterPanel={filterPanel}
               onRowClick={setSelected}
-              toolbarActions={
-                <div className="flex gap-2">
-                  <Button variant="outline" size="sm" className="h-9" onClick={copyForSheets} disabled={searching || noRows}>
-                    <ClipboardCopy className="size-4" /> Copiar p/ Google Sheets
-                  </Button>
-                  <Button variant="outline" size="sm" className="h-9" onClick={exportXlsx} disabled={searching || noRows}>
-                    <FileSpreadsheet className="size-4" /> Baixar Excel
-                  </Button>
-                </div>
+              onExport={(format) => {
+                if (searching || noRows) return void toast.info("Nenhum log para exportar")
+                openExport(format)
+              }}
+              processExportActions={
+                <DropdownMenuItem
+                  onClick={() => {
+                    if (searching || noRows) return void toast.info("Nenhum log para exportar")
+                    openExport("sheets")
+                  }}
+                >
+                  <ClipboardCopy /> Copiar p/ Google Sheets
+                </DropdownMenuItem>
               }
               emptyMessage={searching ? "Buscando logs..." : "Nenhum log encontrado."}
             />
@@ -476,6 +556,14 @@ export default function LogAnalysisPage() {
         </Card>
       )}
 
+      <LogExportDialog
+        key={exportKey}
+        target={exportTarget}
+        rowCount={filteredLogs.length}
+        progress={exportProgress}
+        onConfirm={(keys) => void confirmExport(keys)}
+        onCancel={closeExport}
+      />
       <LogDetailDialog row={selected} credentials={searchCredentials} onOpenChange={(open) => !open && setSelected(null)} />
     </div>
   )

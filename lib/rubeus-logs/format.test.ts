@@ -8,11 +8,13 @@ import {
   formatPayload,
   isDownloadUrl,
   logTypeLabel,
-  logsToSheetRows,
+  buildLogExport,
+  exportValueText,
+  needsLogDetails,
   toTsv,
-  LOG_SHEET_HEADERS,
+  DEFAULT_LOG_EXPORT_KEYS,
 } from "@/lib/rubeus-logs/format"
-import type { RubeusLogRow } from "@/lib/rubeus-logs/types"
+import type { RubeusLogDetail, RubeusLogRow } from "@/lib/rubeus-logs/types"
 
 describe("rubeus log formatting", () => {
   it("maps log_type_id 1 to Erro and anything else to Info", () => {
@@ -72,9 +74,21 @@ describe("rubeus log formatting", () => {
       log_type_id: 1,
       person_name: "JOÃO\tPEDRO",
     }
-    const tsv = toTsv(LOG_SHEET_HEADERS, logsToSheetRows([row]))
+    const data = buildLogExport([row], new Map(), DEFAULT_LOG_EXPORT_KEYS)
+    const tsv = toTsv(data.headers, data.rows.map((r) => r.map(exportValueText)))
     const [header, line] = tsv.split("\n")
-    expect(header.split("\t")).toHaveLength(LOG_SHEET_HEADERS.length)
-    expect(line).toBe("407358\tErro\t23/11/2026 12:54:30\tIntegração TOTVS Pagamento Instantâneo\t-\tInstituição Toledo de Ensino\t21996\tVESTIBULAR 2027/1 - ENEM\tJOÃO PEDRO\t0,13")
+    expect(header.split("\t")).toHaveLength(DEFAULT_LOG_EXPORT_KEYS.length)
+    expect(line).toBe("407358\tErro\t23/11/2026 12:54:30\tIntegração TOTVS Pagamento Instantâneo\t-\tInstituição Toledo de Ensino\tVESTIBULAR 2027/1 - ENEM\tJOÃO PEDRO\t0,13")
+  })
+
+  it("exports the sent/result link, or the inline payload when there is no link", () => {
+    const row = { id: 1, log_type_id: 1, created_at: "2026-11-23 12:54:30" } as RubeusLogRow
+    const url = "https://storage.googleapis.com/rb-arquivos/logs/1-sent.txt?X-Goog-Signature=abc"
+    const detail = { id: 1, sent: url, result: '{"ok":true}', stage_title: "Inscrição" } as RubeusLogDetail
+    const data = buildLogExport([row], new Map([[1, detail]]), ["id", "etapa", "sent", "result"])
+    expect(data.headers).toEqual(["ID", "Etapa", "Link do envio (sent)", "Link do retorno (result)"])
+    expect(data.rows[0]).toEqual([1, "Inscrição", { text: url, link: url }, '{\n  "ok": true\n}'])
+    expect(needsLogDetails(["id", "ps_id"])).toBe(false)
+    expect(needsLogDetails(["id", "sent"])).toBe(true)
   })
 })
