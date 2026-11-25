@@ -20,6 +20,7 @@ import { updateNotificationSetting } from "@/actions/notifications"
 import { changePasswordSchema } from "@/schemas/auth.schema"
 import { z } from "zod"
 import type { AuthUser } from "@/types/auth"
+import { ThemeColorPicker } from "@/components/shared/theme-color-picker"
 
 const profileSchema = z.object({
   name: z.string().min(3, "Nome deve ter no mínimo 3 caracteres"),
@@ -195,6 +196,16 @@ export function ProfileForm({ user, initialEmailNotifications }: ProfileFormProp
               Alterar senha
             </Button>
           </form>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Aparência</CardTitle>
+          <CardDescription>Escolha a cor principal do aplicativo — fica salva no seu perfil</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <ThemeColorPicker />
         </CardContent>
       </Card>
 

@@ -9,6 +9,7 @@ export type AuthUser = {
   organizationId: string;
   status: boolean;
   changePassword: boolean;
+  themeColor: string | null;
 };
 
 export type LoginInput = {

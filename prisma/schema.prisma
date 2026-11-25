@@ -236,6 +236,8 @@ model User {
   role              UserRoleLevel @default(USER)
   status            Boolean       @default(true)
   changePassword    Boolean       @default(false) @map("change_password")
+  /// Primary color the user picked on their profile (constants/theme-colors.ts); null = default.
+  themeColor        String?       @map("theme_color")
   /// Sessions signed in before this instant are rejected (password changed/reset elsewhere).
   passwordChangedAt DateTime?     @map("password_changed_at")
   createdAt         DateTime      @default(now()) @map("created_at")

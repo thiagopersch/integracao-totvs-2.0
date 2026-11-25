@@ -9,6 +9,7 @@ import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "
 import { Textarea } from "@/components/ui/textarea"
 import { cn } from "@/lib/utils"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
+import { DraggableBubble } from "@/components/ai-assistant/draggable-bubble"
 import { getAiAssistantData, getAiConversation, saveAiConversation, type proposeRecordsWithAi } from "@/actions/ai-assistant"
 import {
   AI_ENTITIES,
@@ -426,15 +427,9 @@ export function AiAssistant({ onCreated }: AiAssistantProps) {
 
   return (
     <>
-      <Button
-        size="icon"
-        aria-label="Assistente IA"
-        title="Assistente IA — cadastrar conversando"
-        onClick={openAssistant}
-        className="fixed right-4 bottom-4 z-40 size-12 rounded-full shadow-lg md:right-6 md:bottom-6"
-      >
+      <DraggableBubble onActivate={openAssistant} label="Assistente IA" title="Assistente IA — cadastrar conversando (arraste para mover)">
         <Sparkles className="size-5" />
-      </Button>
+      </DraggableBubble>
       <Sheet open={open} onOpenChange={(next) => (next ? setOpen(true) : requestClose())}>
         <SheetContent
           side="right"

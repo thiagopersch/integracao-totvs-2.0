@@ -9,6 +9,7 @@ declare module "@auth/core/types" {
       permissions: string[];
       allowedClientIds: string[];
       changePassword: boolean;
+      themeColor: string | null;
     } & DefaultSession["user"];
   }
 
@@ -18,6 +19,7 @@ declare module "@auth/core/types" {
     permissions: string[];
     allowedClientIds: string[];
     changePassword: boolean;
+    themeColor?: string | null;
     /** Sign-in time (ms) — sessions older than the user's last password change are rejected. */
     authAt?: number;
     /** Last time role/permissions were re-read from the DB (ms). */
@@ -33,6 +35,7 @@ declare module "@auth/core/jwt" {
     permissions: string[];
     allowedClientIds: string[];
     changePassword: boolean;
+    themeColor?: string | null;
     /** Sign-in time (ms) — sessions older than the user's last password change are rejected. */
     authAt?: number;
     /** Last time role/permissions were re-read from the DB (ms). */

@@ -42,6 +42,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           permissions: result.permissions,
           allowedClientIds: result.allowedClientIds,
           changePassword: result.user.changePassword,
+          themeColor: result.user.themeColor,
         };
       },
     }),
@@ -55,6 +56,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         token.permissions = user.permissions;
         token.allowedClientIds = user.allowedClientIds;
         token.changePassword = user.changePassword;
+        token.themeColor = user.themeColor ?? null;
         token.authAt = Date.now();
         token.refreshedAt = Date.now();
         return token;
@@ -81,6 +83,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         token.permissions = refreshed.permissions;
         token.allowedClientIds = refreshed.allowedClientIds;
         token.changePassword = refreshed.user.changePassword;
+        token.themeColor = refreshed.user.themeColor;
         token.refreshedAt = Date.now();
       }
       return token;
@@ -92,6 +95,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       session.user.permissions = token.permissions ?? [];
       session.user.allowedClientIds = token.allowedClientIds ?? [];
       session.user.changePassword = token.changePassword;
+      session.user.themeColor = token.themeColor ?? null;
       return session;
     },
   },

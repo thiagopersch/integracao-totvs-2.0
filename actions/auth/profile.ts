@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { getRequestContext } from "@/lib/tenant";
 import { nameSchema } from "@/lib/validators";
 import { z } from "zod";
+import { DEFAULT_THEME_COLOR, THEME_COLOR_KEYS } from "@/constants/theme-colors";
 
 const updateProfileSchema = z.object({
   name: nameSchema("Nome"),
@@ -29,6 +30,26 @@ export async function updateProfileAction(formData: FormData) {
       omit: { password: true },
     });
     return { success: true, data: user };
+  } catch (error) {
+    return { success: false, error: (error as Error).message };
+  }
+}
+
+const themeColorSchema = z.enum(THEME_COLOR_KEYS);
+
+/** Saves the primary color picked on the profile; "default" is stored as null. */
+export async function updateThemeColorAction(color: string) {
+  const { userId } = await getRequestContext();
+  const parsed = themeColorSchema.safeParse(color);
+  if (!parsed.success) return { success: false, error: "Cor inválida" };
+
+  try {
+    await prisma.user.update({
+      where: { id: userId },
+      data: { themeColor: parsed.data === DEFAULT_THEME_COLOR ? null : parsed.data },
+      select: { id: true },
+    });
+    return { success: true };
   } catch (error) {
     return { success: false, error: (error as Error).message };
   }

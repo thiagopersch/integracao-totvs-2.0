@@ -6,13 +6,13 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Field, FieldLabel } from "@/components/ui/field"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { CodeEditor } from "@/components/shared/code-editor"
 import { CurrencyInput } from "@/components/ui/currency-input"
-import { Collapsible } from "@/components/ui/collapsible"
+import { CollapsibleCardHeader } from "@/components/shared/collapsible-card-header"
 import { TpiPixResult } from "@/components/integrations/tpi-pix-result"
-import { ChevronDown, Loader2, Plug, QrCode } from "lucide-react"
+import { Loader2, Plug, QrCode } from "lucide-react"
 import { toast } from "@/lib/toast"
 import { testTpiLogin, testTpiPix } from "@/actions/integrations/tpi"
 
@@ -61,6 +61,11 @@ export default function TpiIntegrationPage() {
   const [pixLoading, setPixLoading] = useState(false)
   const [result, setResult] = useState<Awaited<ReturnType<typeof testTpiLogin>> | null>(null)
   const [pixResult, setPixResult] = useState<PixResult | null>(null)
+  const [sections, setSections] = useState({ form: true, login: true, pix: true, json: false })
+
+  function toggle(key: keyof typeof sections) {
+    setSections((prev) => ({ ...prev, [key]: !prev[key] }))
+  }
 
   function update<K extends keyof TpiFormState>(key: K, value: TpiFormState[K]) {
     setForm((prev) => ({ ...prev, [key]: value }))
@@ -130,8 +135,8 @@ export default function TpiIntegrationPage() {
   return (
     <div className="p-4 md:p-6 space-y-4">
       <div>
-        <h1 className="text-2xl font-bold flex items-center gap-2">
-          <Plug className="h-5 w-5" /> TPI TOTVS — Pagamento Instantâneo
+        <h1 className="text-xl md:text-2xl font-bold flex items-center gap-2">
+          <Plug className="h-5 w-5 shrink-0" /> TPI TOTVS — Pagamento Instantâneo
         </h1>
         <p className="text-sm text-muted-foreground">
           Testa a conexão com o portal do aluno do cliente (login TOTVS Processo Seletivo) antes de configurar a integração.
@@ -139,7 +144,14 @@ export default function TpiIntegrationPage() {
       </div>
 
       <Card>
-        <CardContent className="pt-6">
+        <CollapsibleCardHeader
+          title="Dados de acesso"
+          open={sections.form}
+          onToggle={() => toggle("form")}
+          controlsId="tpi-form"
+          summary={[trimmedLink, form.login].filter(Boolean).join(" · ")}
+        />
+        <CardContent id="tpi-form" hidden={!sections.form}>
           <form onSubmit={handleSubmit} className="space-y-4">
             <Field>
               <FieldLabel htmlFor="portalLink">Link do portal do aluno</FieldLabel>
@@ -162,7 +174,7 @@ export default function TpiIntegrationPage() {
               </Field>
             </div>
 
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+            <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
               <Field>
                 <FieldLabel htmlFor="tipoIdentificacao">Tipo de Identificação</FieldLabel>
                 <Input id="tipoIdentificacao" type="number" value={form.tipoIdentificacao} onChange={(e) => update("tipoIdentificacao", e.target.value)} />
@@ -206,12 +218,12 @@ export default function TpiIntegrationPage() {
               <Input readOnly value={pixEndpointPreview} className="font-mono text-xs" placeholder="Informe o link do portal para ver o endpoint" />
             </Field>
 
-            <div className="flex flex-wrap gap-2">
-              <Button type="submit" disabled={busy}>
+            <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+              <Button type="submit" disabled={busy} className="w-full sm:w-auto">
                 {loading && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
                 Testar Conexão
               </Button>
-              <Button type="button" variant="outline" disabled={busy} onClick={handleGeneratePix}>
+              <Button type="button" variant="outline" disabled={busy} onClick={handleGeneratePix} className="w-full sm:w-auto">
                 {pixLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <QrCode className="h-4 w-4 mr-2" />}
                 Login + Gerar PIX
               </Button>
@@ -223,82 +235,86 @@ export default function TpiIntegrationPage() {
       {pixResult ? (
         <>
           <Card>
-            <CardHeader>
-              <CardTitle className="text-sm flex items-center justify-between">
-                <span>Login</span>
-                <div className="flex items-center gap-2">
+            <CollapsibleCardHeader
+              title="Login"
+              open={sections.login}
+              onToggle={() => toggle("login")}
+              controlsId="tpi-login"
+              summary={pixLoginData?.NOME}
+              aside={
+                <>
                   {pixResult.login.httpStatus !== undefined && <Badge variant="outline">HTTP {pixResult.login.httpStatus}</Badge>}
                   <Badge variant={pixLoginOk ? "default" : "destructive"}>{pixLoginOk ? "Login com sucesso" : "Login sem sucesso"}</Badge>
-                </div>
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
+                </>
+              }
+            />
+            <CardContent id="tpi-login" hidden={!sections.login}>
               {pixResult.login.error ? (
                 <p className="text-sm text-destructive">{pixResult.login.error}</p>
               ) : (
                 <dl className="grid grid-cols-1 gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
-                  <div className="flex justify-between gap-4"><dt className="text-muted-foreground">Nome</dt><dd className="font-medium">{pixLoginData?.NOME ?? "—"}</dd></div>
-                  <div className="flex justify-between gap-4"><dt className="text-muted-foreground">Cód. usuário PS</dt><dd className="font-medium">{pixLoginData?.CODUSUARIOPS ?? "—"}</dd></div>
+                  <div className="flex flex-col gap-0.5 sm:flex-row sm:justify-between sm:gap-4">
+                    <dt className="text-muted-foreground">Nome</dt>
+                    <dd className="font-medium break-words sm:text-right">{pixLoginData?.NOME ?? "—"}</dd>
+                  </div>
+                  <div className="flex flex-col gap-0.5 sm:flex-row sm:justify-between sm:gap-4">
+                    <dt className="text-muted-foreground">Cód. usuário PS</dt>
+                    <dd className="font-medium sm:text-right">{pixLoginData?.CODUSUARIOPS ?? "—"}</dd>
+                  </div>
                 </dl>
               )}
             </CardContent>
           </Card>
 
           {pixResult.pix?.data && typeof pixResult.pix.data === "object" ? (
-            <TpiPixResult data={pixResult.pix.data} httpStatus={pixResult.pix.httpStatus} />
+            <TpiPixResult data={pixResult.pix.data} httpStatus={pixResult.pix.httpStatus} open={sections.pix} onToggle={() => toggle("pix")} />
           ) : pixResult.step === "pix" && pixResult.error ? (
             <Card>
-              <CardHeader><CardTitle className="text-sm">Pagamento PIX</CardTitle></CardHeader>
-              <CardContent><p className="text-sm text-destructive">{pixResult.error}</p></CardContent>
+              <CollapsibleCardHeader title="Pagamento PIX" open={sections.pix} onToggle={() => toggle("pix")} controlsId="tpi-pix-error" />
+              <CardContent id="tpi-pix-error" hidden={!sections.pix}>
+                <p className="text-sm text-destructive break-words">{pixResult.error}</p>
+              </CardContent>
             </Card>
           ) : null}
 
           <Card>
-            <Collapsible.Root>
-              <CardHeader>
-                <Collapsible.Trigger type="button" className="flex w-full items-center justify-between text-sm font-semibold">
-                  <span>JSON das respostas</span>
-                  <ChevronDown className="h-4 w-4" />
-                </Collapsible.Trigger>
-              </CardHeader>
-              <Collapsible.Panel>
-                <CardContent>
-                  <CodeEditor
-                    value={JSON.stringify(sanitizeForView({ login: pixResult.login.data, pix: pixResult.pix?.data ?? pixResult.pix?.error }), null, 2)}
-                    language="json"
-                    readOnly
-                    minHeight="240px"
-                  />
-                </CardContent>
-              </Collapsible.Panel>
-            </Collapsible.Root>
+            <CollapsibleCardHeader title="JSON das respostas" open={sections.json} onToggle={() => toggle("json")} controlsId="tpi-json" />
+            <CardContent id="tpi-json" hidden={!sections.json}>
+              <CodeEditor
+                value={JSON.stringify(sanitizeForView({ login: pixResult.login.data, pix: pixResult.pix?.data ?? pixResult.pix?.error }), null, 2)}
+                language="json"
+                readOnly
+                minHeight="240px"
+              />
+            </CardContent>
           </Card>
         </>
       ) : (
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-sm flex items-center justify-between">
-            <span>Resposta</span>
-            {result?.success && (
-              <div className="flex items-center gap-2">
-                {result.httpStatus !== undefined && <Badge variant="outline">HTTP {result.httpStatus}</Badge>}
-                <Badge variant={loginOk ? "default" : "destructive"}>
-                  {loginOk ? "Login com sucesso" : "Login sem sucesso"}
-                </Badge>
-              </div>
+        <Card>
+          <CollapsibleCardHeader
+            title="Resposta"
+            open={sections.login}
+            onToggle={() => toggle("login")}
+            controlsId="tpi-response"
+            aside={
+              result?.success && (
+                <>
+                  {result.httpStatus !== undefined && <Badge variant="outline">HTTP {result.httpStatus}</Badge>}
+                  <Badge variant={loginOk ? "default" : "destructive"}>{loginOk ? "Login com sucesso" : "Login sem sucesso"}</Badge>
+                </>
+              )
+            }
+          />
+          <CardContent id="tpi-response" hidden={!sections.login}>
+            {!result ? (
+              <p className="text-muted-foreground text-sm">Teste a conexão para ver a resposta da API.</p>
+            ) : result.success ? (
+              <CodeEditor value={JSON.stringify(result.data, null, 2)} language="json" readOnly minHeight="240px" />
+            ) : (
+              <CodeEditor value={result.error ?? ""} language="json" readOnly minHeight="120px" />
             )}
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {!result ? (
-            <p className="text-muted-foreground text-sm">Teste a conexão para ver a resposta da API.</p>
-          ) : result.success ? (
-            <CodeEditor value={JSON.stringify(result.data, null, 2)} language="json" readOnly minHeight="240px" />
-          ) : (
-            <CodeEditor value={result.error ?? ""} language="json" readOnly minHeight="120px" />
-          )}
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
       )}
     </div>
   )

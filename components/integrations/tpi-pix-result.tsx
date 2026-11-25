@@ -4,7 +4,8 @@ import { Copy, Download } from "lucide-react"
 import { toast } from "@/lib/toast"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
+import { CollapsibleCardHeader } from "@/components/shared/collapsible-card-header"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import type { TpiPixData } from "@/actions/integrations/tpi"
 
@@ -32,10 +33,12 @@ async function copy(value: string, what: string) {
 interface TpiPixResultProps {
   data: TpiPixData
   httpStatus?: number
+  open: boolean
+  onToggle: () => void
 }
 
 /** Formatted view of the DadosPagamentoPix response: QR image, copia-e-cola code, summary and boletos. */
-export function TpiPixResult({ data, httpStatus }: TpiPixResultProps) {
+export function TpiPixResult({ data, httpStatus, open, onToggle }: TpiPixResultProps) {
   const qrImage = typeof data.QrCode === "string" && data.QrCode.startsWith("data:image/") ? data.QrCode : null
   const qrText = typeof data.QrCodeTexto === "string" ? data.QrCodeTexto : ""
   const ok = data.CodReturno === 1
@@ -62,28 +65,32 @@ export function TpiPixResult({ data, httpStatus }: TpiPixResultProps) {
 
   return (
     <Card>
-      <CardHeader>
-        <CardTitle className="text-sm flex items-center justify-between">
-          <span>Pagamento PIX</span>
-          <div className="flex items-center gap-2">
+      <CollapsibleCardHeader
+        title="Pagamento PIX"
+        open={open}
+        onToggle={onToggle}
+        controlsId="tpi-pix"
+        summary={money(data.Valor)}
+        aside={
+          <>
             {httpStatus !== undefined && <Badge variant="outline">HTTP {httpStatus}</Badge>}
             <Badge variant={ok ? "success" : "destructive"}>{ok ? "PIX gerado" : "PIX não gerado"}</Badge>
-          </div>
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-6">
+          </>
+        }
+      />
+      <CardContent id="tpi-pix" hidden={!open} className="space-y-6">
         <div className="grid grid-cols-1 gap-6 md:grid-cols-[auto_1fr]">
           <div className="flex flex-col items-center gap-2">
             {qrImage ? (
               <>
                 {/* eslint-disable-next-line @next/next/no-img-element -- data: URI from the API */}
-                <img src={qrImage} alt="QR Code PIX" className="h-60 w-60 rounded-md border bg-white p-2" />
+                <img src={qrImage} alt="QR Code PIX" className="aspect-square w-full max-w-60 rounded-md border bg-white p-2" />
                 <Button variant="outline" size="sm" render={<a href={qrImage} download={`pix-${data.IdTrasancao ?? "qrcode"}.png`} />}>
                   <Download className="h-4 w-4" /> Baixar PNG
                 </Button>
               </>
             ) : (
-              <div className="flex h-60 w-60 items-center justify-center rounded-md border text-sm text-muted-foreground">
+              <div className="flex aspect-square w-full max-w-60 items-center justify-center rounded-md border text-sm text-muted-foreground">
                 QR Code indisponível
               </div>
             )}
@@ -110,9 +117,9 @@ export function TpiPixResult({ data, httpStatus }: TpiPixResultProps) {
 
             <dl className="grid grid-cols-1 gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
               {summary.map(([label, value]) => (
-                <div key={label} className="flex justify-between gap-4 border-b border-border/50 py-1">
-                  <dt className="text-muted-foreground">{label}</dt>
-                  <dd className="text-right font-medium break-all">{value}</dd>
+                <div key={label} className="flex flex-col gap-0.5 border-b border-border/50 py-1 sm:flex-row sm:justify-between sm:gap-4">
+                  <dt className="shrink-0 text-muted-foreground">{label}</dt>
+                  <dd className="min-w-0 font-medium break-words sm:text-right">{value}</dd>
                 </div>
               ))}
             </dl>
@@ -124,6 +131,7 @@ export function TpiPixResult({ data, httpStatus }: TpiPixResultProps) {
           {boletos.length === 0 ? (
             <p className="text-sm text-muted-foreground">Nenhum boleto retornado.</p>
           ) : (
+            <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -144,6 +152,7 @@ export function TpiPixResult({ data, httpStatus }: TpiPixResultProps) {
                 ))}
               </TableBody>
             </Table>
+            </div>
           )}
         </div>
       </CardContent>

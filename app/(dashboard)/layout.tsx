@@ -5,6 +5,7 @@ import { getAiAssistantBubbleEnabled } from "@/actions/ai-assistant"
 import { DashboardShell, SIDEBAR_COOKIE } from "@/components/shared/dashboard-shell"
 import { ShellSkeleton } from "@/components/shared/skeletons/shell-skeleton"
 import { visibleNavGroups } from "@/lib/nav-items"
+import { ThemeColorSync } from "@/components/shared/theme-color-sync"
 import { SessionProvider } from "@/providers/session-provider"
 
 /**
@@ -26,6 +27,7 @@ async function Shell({ children }: { children: React.ReactNode }) {
   const user = { name: session?.user?.name ?? "", email: session?.user?.email ?? "", image: session?.user?.image ?? null }
   return (
     <SessionProvider session={session}>
+      <ThemeColorSync themeColor={session?.user?.themeColor} />
       <DashboardShell groups={groups} initialCollapsed={cookieStore.get(SIDEBAR_COOKIE)?.value === "1"} aiEnabled={aiEnabled} user={user}>
         <Suspense fallback={null}>{children}</Suspense>
       </DashboardShell>

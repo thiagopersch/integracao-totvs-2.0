@@ -7,6 +7,7 @@ import "./globals.css";
 import { ThemeProvider } from "@/providers/theme-provider";
 import { SessionProvider } from "@/providers/session-provider";
 import { Toaster } from "@/components/ui/sonner";
+import { InitThemeColorScript } from "@/components/shared/init-theme-color-script";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -53,6 +54,7 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col">
         <InitColorSchemeScript attribute="class" defaultMode="system" />
+        <InitThemeColorScript />
         <ThemeProvider>
           <SessionProvider>
             <Suspense fallback={null}>{children}</Suspense>

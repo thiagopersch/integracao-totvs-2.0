@@ -20,6 +20,7 @@ function toAuthUser(user: User): AuthUser {
     organizationId: user.organizationId,
     status: user.status,
     changePassword: user.changePassword,
+    themeColor: user.themeColor,
   };
 }
 
@@ -160,6 +161,7 @@ export const authService = {
         organizationId: true,
         status: true,
         changePassword: true,
+        themeColor: true,
         deletedAt: true,
         passwordChangedAt: true,
         userRoles: {
@@ -186,6 +188,7 @@ export const authService = {
         organizationId: user.organizationId,
         status: user.status,
         changePassword: user.changePassword,
+        themeColor: user.themeColor,
       } satisfies AuthUser,
       permissions: Array.from(permissions),
       allowedClientIds: user.allowedClients.map((uc) => uc.clientId),

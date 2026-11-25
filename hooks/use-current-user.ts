@@ -21,6 +21,7 @@ export function useCurrentUser() {
             organizationId: sessionUser.organizationId,
             status: true,
             changePassword: sessionUser.changePassword,
+            themeColor: sessionUser.themeColor ?? null,
           }
         : null,
     [sessionUser]
