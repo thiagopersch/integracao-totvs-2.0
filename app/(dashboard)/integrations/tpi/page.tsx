@@ -9,9 +9,12 @@ import { Field, FieldLabel } from "@/components/ui/field"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { CodeEditor } from "@/components/shared/code-editor"
-import { Loader2, Plug } from "lucide-react"
+import { CurrencyInput } from "@/components/ui/currency-input"
+import { Collapsible } from "@/components/ui/collapsible"
+import { TpiPixResult } from "@/components/integrations/tpi-pix-result"
+import { ChevronDown, Loader2, Plug, QrCode } from "lucide-react"
 import { toast } from "@/lib/toast"
-import { testTpiLogin } from "@/actions/integrations/tpi"
+import { testTpiLogin, testTpiPix } from "@/actions/integrations/tpi"
 
 interface TpiFormState {
   portalLink: string
@@ -22,6 +25,21 @@ interface TpiFormState {
   codfilial: string
   idps: string
   useSsl: boolean
+  idBoleto: string
+  valor: number | null
+}
+
+type PixResult = Awaited<ReturnType<typeof testTpiPix>>
+
+/** Masks the login TOKEN and truncates the base64 QR image so the raw JSON stays readable. */
+function sanitizeForView(value: unknown): unknown {
+  return JSON.parse(
+    JSON.stringify(value, (key, v) => {
+      if (key === "TOKEN" && typeof v === "string") return v.length > 12 ? `${v.slice(0, 6)}…${v.slice(-6)}` : "***"
+      if (key === "QrCode" && typeof v === "string" && v.length > 80) return `${v.slice(0, 60)}… (${v.length} caracteres)`
+      return v
+    }),
+  )
 }
 
 const initialForm: TpiFormState = {
@@ -33,12 +51,16 @@ const initialForm: TpiFormState = {
   codfilial: "1",
   idps: "",
   useSsl: true,
+  idBoleto: "",
+  valor: null,
 }
 
 export default function TpiIntegrationPage() {
   const [form, setForm] = useState<TpiFormState>(initialForm)
   const [loading, setLoading] = useState(false)
+  const [pixLoading, setPixLoading] = useState(false)
   const [result, setResult] = useState<Awaited<ReturnType<typeof testTpiLogin>> | null>(null)
+  const [pixResult, setPixResult] = useState<PixResult | null>(null)
 
   function update<K extends keyof TpiFormState>(key: K, value: TpiFormState[K]) {
     setForm((prev) => ({ ...prev, [key]: value }))
@@ -46,6 +68,7 @@ export default function TpiIntegrationPage() {
 
   const trimmedLink = form.portalLink.trim().replace(/\/+$/, "")
   const endpointPreview = trimmedLink ? `${trimmedLink}/RM/API/TOTVSProcessoSeletivo/Login` : ""
+  const pixEndpointPreview = trimmedLink ? `${trimmedLink}/RM/API/TOTVSProcessoSeletivo/Financeiro/v1/DadosPagamentoPix` : ""
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -55,8 +78,10 @@ export default function TpiIntegrationPage() {
     }
     setLoading(true)
     setResult(null)
+    setPixResult(null)
     try {
-      const res = await testTpiLogin(form)
+      const { portalLink, login, senha, tipoIdentificacao, codcoligada, codfilial, idps, useSsl } = form
+      const res = await testTpiLogin({ portalLink, login, senha, tipoIdentificacao, codcoligada, codfilial, idps, useSsl })
       setResult(res)
       if (!res.success) {
         toast.error(res.error || "Erro ao testar conexão")
@@ -70,7 +95,37 @@ export default function TpiIntegrationPage() {
     }
   }
 
+  async function handleGeneratePix() {
+    if (!form.portalLink || !form.login || !form.senha || !form.tipoIdentificacao || !form.codcoligada || !form.codfilial || !form.idps) {
+      toast.error("Preencha todos os campos obrigatórios")
+      return
+    }
+    if (!form.idBoleto || !form.valor) {
+      toast.error("Informe o ID do boleto e o valor para gerar o PIX")
+      return
+    }
+    setPixLoading(true)
+    setPixResult(null)
+    setResult(null)
+    try {
+      const res = await testTpiPix({ ...form, valor: String(form.valor) })
+      setPixResult(res)
+      if (res.success && res.pix?.data?.CodReturno === 1) {
+        toast.success("PIX gerado com sucesso")
+      } else if (res.success) {
+        toast.error(res.pix?.data?.Mensagem || "A API respondeu, mas o PIX não foi gerado")
+      } else {
+        toast.error(res.step === "login" ? `Login: ${res.error ?? "falhou"}` : `PIX: ${res.error ?? "falhou"}`)
+      }
+    } finally {
+      setPixLoading(false)
+    }
+  }
+
   const loginOk = result?.success && result.data?.data?.LOGADOSUCESSO === true
+  const pixLoginData = pixResult?.login.data?.data
+  const pixLoginOk = pixLoginData?.LOGADOSUCESSO === true
+  const busy = loading || pixLoading
 
   return (
     <div className="p-4 md:p-6 space-y-4">
@@ -126,24 +181,100 @@ export default function TpiIntegrationPage() {
               </Field>
             </div>
 
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <Field>
+                <FieldLabel htmlFor="idBoleto">ID do Boleto</FieldLabel>
+                <Input id="idBoleto" type="number" value={form.idBoleto} onChange={(e) => update("idBoleto", e.target.value)} placeholder="Necessário para gerar o PIX" />
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="valor">Valor</FieldLabel>
+                <CurrencyInput id="valor" value={form.valor} onValueChange={(v) => update("valor", v)} />
+              </Field>
+            </div>
+
             <div className="flex items-center gap-2">
               <Checkbox id="useSsl" checked={form.useSsl} onCheckedChange={(v) => update("useSsl", v === true)} />
               <Label htmlFor="useSsl">Usar certificado SSL</Label>
             </div>
 
             <Field>
-              <FieldLabel>Endpoint</FieldLabel>
+              <FieldLabel>Endpoint de login</FieldLabel>
               <Input readOnly value={endpointPreview} className="font-mono text-xs" placeholder="Informe o link do portal para ver o endpoint" />
             </Field>
+            <Field>
+              <FieldLabel>Endpoint do PIX</FieldLabel>
+              <Input readOnly value={pixEndpointPreview} className="font-mono text-xs" placeholder="Informe o link do portal para ver o endpoint" />
+            </Field>
 
-            <Button type="submit" disabled={loading}>
-              {loading && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-              Testar Conexão
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button type="submit" disabled={busy}>
+                {loading && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+                Testar Conexão
+              </Button>
+              <Button type="button" variant="outline" disabled={busy} onClick={handleGeneratePix}>
+                {pixLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <QrCode className="h-4 w-4 mr-2" />}
+                Login + Gerar PIX
+              </Button>
+            </div>
           </form>
         </CardContent>
       </Card>
 
+      {pixResult ? (
+        <>
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm flex items-center justify-between">
+                <span>Login</span>
+                <div className="flex items-center gap-2">
+                  {pixResult.login.httpStatus !== undefined && <Badge variant="outline">HTTP {pixResult.login.httpStatus}</Badge>}
+                  <Badge variant={pixLoginOk ? "default" : "destructive"}>{pixLoginOk ? "Login com sucesso" : "Login sem sucesso"}</Badge>
+                </div>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {pixResult.login.error ? (
+                <p className="text-sm text-destructive">{pixResult.login.error}</p>
+              ) : (
+                <dl className="grid grid-cols-1 gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
+                  <div className="flex justify-between gap-4"><dt className="text-muted-foreground">Nome</dt><dd className="font-medium">{pixLoginData?.NOME ?? "—"}</dd></div>
+                  <div className="flex justify-between gap-4"><dt className="text-muted-foreground">Cód. usuário PS</dt><dd className="font-medium">{pixLoginData?.CODUSUARIOPS ?? "—"}</dd></div>
+                </dl>
+              )}
+            </CardContent>
+          </Card>
+
+          {pixResult.pix?.data && typeof pixResult.pix.data === "object" ? (
+            <TpiPixResult data={pixResult.pix.data} httpStatus={pixResult.pix.httpStatus} />
+          ) : pixResult.step === "pix" && pixResult.error ? (
+            <Card>
+              <CardHeader><CardTitle className="text-sm">Pagamento PIX</CardTitle></CardHeader>
+              <CardContent><p className="text-sm text-destructive">{pixResult.error}</p></CardContent>
+            </Card>
+          ) : null}
+
+          <Card>
+            <Collapsible.Root>
+              <CardHeader>
+                <Collapsible.Trigger type="button" className="flex w-full items-center justify-between text-sm font-semibold">
+                  <span>JSON das respostas</span>
+                  <ChevronDown className="h-4 w-4" />
+                </Collapsible.Trigger>
+              </CardHeader>
+              <Collapsible.Panel>
+                <CardContent>
+                  <CodeEditor
+                    value={JSON.stringify(sanitizeForView({ login: pixResult.login.data, pix: pixResult.pix?.data ?? pixResult.pix?.error }), null, 2)}
+                    language="json"
+                    readOnly
+                    minHeight="240px"
+                  />
+                </CardContent>
+              </Collapsible.Panel>
+            </Collapsible.Root>
+          </Card>
+        </>
+      ) : (
       <Card>
         <CardHeader>
           <CardTitle className="text-sm flex items-center justify-between">
@@ -168,6 +299,7 @@ export default function TpiIntegrationPage() {
           )}
         </CardContent>
       </Card>
+      )}
     </div>
   )
 }
