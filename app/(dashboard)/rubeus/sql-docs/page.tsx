@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { useEffect, useMemo, useRef, useState } from "react"
-import { AlertTriangle, ClipboardPaste, Database, FileUp, Loader2, Sparkles } from "lucide-react"
+import { AlertTriangle, ClipboardPaste, Database, FileUp, Loader2, RotateCcw, Sparkles } from "lucide-react"
 import { getSqlDocsPageData } from "@/actions/integrations/sql-docs"
 import { StylePanel } from "@/components/ps-docs/style-panel"
 import { SqlDocResult } from "@/components/sql-docs/sql-doc-result"
@@ -132,7 +132,10 @@ export default function SqlDocsPage() {
 
   const doneCount = items.filter((i) => i.status === "done").length
   const analyzingIndex = items.findIndex((i) => i.status === "analyzing")
-  const pending = items.filter((i) => i.sql.trim() && i.status !== "done")
+  const withSql = items.filter((i) => i.sql.trim())
+  const pending = withSql.filter((i) => i.status !== "done")
+  // Everything with SQL is already documented: the main button regenerates all of it.
+  const regenerate = doneCount > 0 && pending.length === 0
   const canUseSentences = (pageData?.sentences.length ?? 0) > 0
 
   return (
@@ -244,9 +247,25 @@ export default function SqlDocsPage() {
       </div>
 
       <div className="flex flex-col items-center gap-2">
-        <Button type="button" size="lg" disabled={running || pending.length === 0} onClick={() => void runAnalysis(pending)} sx={{ px: 4, borderRadius: 6 }}>
-          {running ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Sparkles className="h-4 w-4 mr-2" />}
-          {doneCount > 0 && pending.length > 0 ? `Gerar documentação das ${pending.length} pendente(s)` : "Gerar documentação"}
+        <Button
+          type="button"
+          size="lg"
+          disabled={running || withSql.length === 0}
+          onClick={() => void runAnalysis(regenerate ? withSql : pending)}
+          sx={{ px: 4, borderRadius: 6 }}
+        >
+          {running ? (
+            <Loader2 className="h-4 w-4 animate-spin mr-2" />
+          ) : regenerate ? (
+            <RotateCcw className="h-4 w-4 mr-2" />
+          ) : (
+            <Sparkles className="h-4 w-4 mr-2" />
+          )}
+          {regenerate
+            ? "Regerar documentação"
+            : doneCount > 0
+              ? `Gerar documentação das ${pending.length} pendente(s)`
+              : "Gerar documentação"}
         </Button>
         {running && (
           <div className="w-full max-w-xs space-y-1">

@@ -67,7 +67,7 @@ export function StylePanel({ style, onChange }: StylePanelProps) {
                 {group.items.map(({ key, label }) => (
                   <Field key={key}>
                     <FieldLabel htmlFor={key}>{label}</FieldLabel>
-                    <Input id={key} type="color" className="h-10 p-1" value={style[key]} onChange={(e) => update(key, e.target.value)} />
+                    <Input id={key} type="color" className="[&_input]:cursor-pointer [&_input::-webkit-color-swatch-wrapper]:p-0 [&_input::-webkit-color-swatch]:rounded-sm [&_input::-webkit-color-swatch]:border-0" value={style[key]} onChange={(e) => update(key, e.target.value)} />
                   </Field>
                 ))}
               </div>
