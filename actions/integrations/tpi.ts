@@ -267,7 +267,7 @@ export async function testTpiPix(input: TpiPixInput): Promise<TpiPixResult> {
   const pixStart = Date.now();
 
   try {
-    const res = await axios.post(pixUrl, null, {
+    const res = await axios.get(pixUrl, {
       params: pixParams,
       httpsAgent,
       headers: { "User-Agent": "integracao-totvs/1.0", Cookie: cookieParts.join("; ") },
@@ -285,7 +285,7 @@ export async function testTpiPix(input: TpiPixInput): Promise<TpiPixResult> {
         userId,
         integration: "TPI",
         url: pixUrl,
-        httpMethod: "POST",
+        httpMethod: "GET",
         httpStatus: res.status,
         duration: Date.now() - pixStart,
         error: failed ? `HTTP ${res.status}` : undefined,
@@ -295,21 +295,23 @@ export async function testTpiPix(input: TpiPixInput): Promise<TpiPixResult> {
     });
 
     if (failed) {
+      const apiMessage = data && typeof data === "object" ? (data.Message ?? data.Mensagem) : undefined;
+      const pixError = typeof apiMessage === "string" && apiMessage ? `HTTP ${res.status}: ${apiMessage}` : `HTTP ${res.status}`;
       const notification = buildIntegrationTestFailedNotification({
         integration: "TPI",
-        errorMessage: `HTTP ${res.status}`,
+        errorMessage: pixError,
         errorKind: res.status === 401 ? "auth" : "http",
         url: pixUrl,
       });
       await notificationService.create({ organizationId, userId, ...notification });
-      return { success: false, step: "pix", error: `HTTP ${res.status}`, login: loginResult, pix: { url: pixUrl, httpStatus: res.status, data } };
+      return { success: false, step: "pix", error: pixError, login: loginResult, pix: { url: pixUrl, httpStatus: res.status, data } };
     }
 
     return { success: true, step: "pix", login: loginResult, pix: { url: pixUrl, httpStatus: res.status, data } };
   } catch (error) {
     const errorMessage = (error as Error).message;
     await prisma.apiLog.create({
-      data: { organizationId, userId, integration: "TPI", url: pixUrl, httpMethod: "POST", duration: Date.now() - pixStart, error: errorMessage, requestSummary: pixParams },
+      data: { organizationId, userId, integration: "TPI", url: pixUrl, httpMethod: "GET", duration: Date.now() - pixStart, error: errorMessage, requestSummary: pixParams },
     });
     const notification = buildIntegrationTestFailedNotification({ integration: "TPI", errorMessage, errorKind: classifyError(error), url: pixUrl });
     await notificationService.create({ organizationId, userId, ...notification });
